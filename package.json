@@ -4,7 +4,7 @@
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "clean": "rm -rf apps/web/.next apps/attendee/.next apps/meetings/.next apps/sponsor/.next",
-    "postinstall": "npx prisma generate --schema=packages/db/prisma/schema.prisma",
+    "postinstall": "prisma generate --schema=packages/db/prisma/schema.prisma",
     "predev": "npm run clean",
     "build": "turbo build",
     "dev": "turbo dev",
@@ -21,6 +21,7 @@
     "db:studio": "pnpm --filter @conference/db db:studio"
   },
   "devDependencies": {
+    "prisma": "^5.22.0",
     "turbo": "^2.3.0",
     "typescript": "^5.5.0"
   },
