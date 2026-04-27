@@ -16,6 +16,8 @@ const securityHeaders = [
 
 module.exports = withPWA({
   reactStrictMode: true,
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }]
   },

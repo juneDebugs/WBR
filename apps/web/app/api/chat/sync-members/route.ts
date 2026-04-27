@@ -29,7 +29,7 @@ export async function POST() {
   const newUsers = users.filter((u: any) => !existingIds.has(u.id))
 
   await Promise.all(
-    newUsers.map(u => prisma.chatMember.create({ data: { roomId: GENERAL_ROOM_ID, userId: u.id } }))
+    newUsers.map((u: any) => prisma.chatMember.create({ data: { roomId: GENERAL_ROOM_ID, userId: u.id } }))
   )
 
   return NextResponse.json({ ok: true, total: users.length, added: newUsers.length })
