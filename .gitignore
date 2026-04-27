@@ -31,3 +31,4 @@ Thumbs.db
 
 # Next.js build output
 .next/
+.vercel
