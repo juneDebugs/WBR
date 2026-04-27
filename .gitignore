@@ -28,3 +28,6 @@ supabase/.temp
 # OS
 .DS_Store
 Thumbs.db
+
+# Next.js build output
+.next/

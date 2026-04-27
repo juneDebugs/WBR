@@ -34,7 +34,7 @@ export default async function SpeakersPage() {
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #eef2ff 0%, #f8f8fc 40%)' }}>
-      <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-14 pb-4 sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100/60">
+      <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-3 sticky top-0 z-10 backdrop-blur-md border-b border-gray-100/60" style={{ background: 'rgba(238, 242, 255, 0.85)' }}>
         <h1 className="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Speakers</h1>
         <p className="text-sm text-gray-400 mt-0.5">{speakers.length} speakers</p>
       </div>
