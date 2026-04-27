@@ -94,6 +94,12 @@ export default function LoginPage() {
             </svg>
             Sign in with Google
           </button>
+
+          <div className="mt-5 bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-500 space-y-1.5">
+            <p className="font-semibold text-gray-700 mb-2">Demo accounts</p>
+            <p><span className="text-gray-400">Admin:</span> june@tailor.tech / admin123</p>
+            <p><span className="text-gray-400">Staff:</span> staff@wbr.com / staff123</p>
+          </div>
         </div>
       </div>
     </div>

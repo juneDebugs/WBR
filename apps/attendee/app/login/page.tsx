@@ -93,7 +93,15 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <p className="text-white/40 text-xs text-center mt-6">
+        <div className="mt-6 bg-white/10 rounded-2xl p-4 text-xs text-white/70 space-y-1.5">
+          <p className="font-semibold text-white/90 mb-2">Demo accounts</p>
+          <p><span className="text-white/50">Attendee:</span> jordan@demo.com</p>
+          <p><span className="text-white/50">Sponsor (Tailor):</span> june@tailor.tech</p>
+          <p><span className="text-white/50">Sponsor (Shopify):</span> sponsor@shopify.com</p>
+          <p><span className="text-white/50">Staff:</span> staff@wbr.com</p>
+        </div>
+
+        <p className="text-white/40 text-xs text-center mt-4">
           By signing in you agree to the conference terms of use.
         </p>
       </div>
