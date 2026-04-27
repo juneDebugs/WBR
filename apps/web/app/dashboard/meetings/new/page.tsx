@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { prisma, checkBlackoutConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { format } from 'date-fns'

@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AttendeesTable } from '@/components/AttendeesTable'

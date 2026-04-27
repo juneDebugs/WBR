@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { prisma, detectSpeakerConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { redirect } from 'next/navigation'

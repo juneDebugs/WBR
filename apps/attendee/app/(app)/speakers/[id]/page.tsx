@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { prisma } from '@conference/db'
 import { format } from 'date-fns'
 import Link from 'next/link'

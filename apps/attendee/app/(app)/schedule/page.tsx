@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { prisma, groupSessionsByDay, getActiveConflicts } from '@conference/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
