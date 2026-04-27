@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root { --primary: #6366f1; --primary-dark: #4f46e5; }
+  * { -webkit-tap-highlight-color: transparent; }
+  html { font-family: 'Inter', system-ui, sans-serif; }
+  body { overscroll-behavior-y: none; background-color: #f8f8fc; }
+}
+
+@layer components {
+  .card { @apply bg-white rounded-2xl shadow-sm border border-gray-100/80 p-4; }
+  .btn-primary { @apply bg-primary text-white font-semibold py-2.5 px-5 rounded-xl active:scale-95 transition-transform text-sm; }
+  .btn-secondary { @apply bg-gray-100 text-gray-700 font-medium py-2.5 px-5 rounded-xl active:scale-95 transition-transform text-sm hover:bg-gray-200; }
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }
+  .chip { @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer; }
+  .chip-active { @apply bg-primary text-white border-primary; }
+  .chip-inactive { @apply bg-white text-gray-600 border-gray-200 hover:border-primary/50; }
+}

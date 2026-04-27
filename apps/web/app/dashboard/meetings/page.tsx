@@ -1,98 +1,416 @@
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
-import { format } from 'date-fns'
+import { AutoScheduleButton } from '@/components/AutoScheduleButton'
+import { MeetingsTableWithPanel } from '@/components/MeetingsTableWithPanel'
+const TZ = 'America/Los_Angeles'
+function fmtTime(d: Date | string, showAmPm = false) {
+  const date = typeof d === 'string' ? new Date(d) : d
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ,
+  }).replace(/\s?(AM|PM)/g, (_, p1: string) => showAmPm ? `\u202f${p1.toLowerCase()}` : '')
+}
 import Link from 'next/link'
 
-const statusColors: Record<string, string> = {
-  CONFIRMED: 'bg-green-100 text-green-700',
-  PENDING: 'bg-yellow-100 text-yellow-700',
-  CANCELLED: 'bg-red-100 text-red-500',
+const TIER_COLORS: Record<string, string> = {
+  PLATINUM: 'bg-slate-100 text-slate-700',
+  GOLD:     'bg-amber-100 text-amber-700',
+  SILVER:   'bg-gray-100 text-gray-600',
+  BRONZE:   'bg-orange-100 text-orange-700',
 }
 
-export default async function MeetingsPage({ searchParams }: { searchParams: { status?: string } }) {
+export default async function MeetingsPage({
+  searchParams,
+}: {
+  searchParams: { tab?: string; status?: string; type?: string }
+}) {
+  const tab = searchParams.tab === 'schedule' ? 'schedule' : searchParams.tab === 'requests' ? 'requests' : 'requests'
   const statusFilter = searchParams.status?.toUpperCase()
-  const validStatuses = ['PENDING', 'CONFIRMED', 'CANCELLED']
+  const typeFilter = searchParams.type === 'attendee' ? 'attendee' : searchParams.type === 'sponsor' ? 'sponsor' : undefined
 
-  const meetings = await prisma.meeting.findMany({
-    where: validStatuses.includes(statusFilter ?? '')
-      ? { status: statusFilter }
-      : undefined,
-    include: {
-      timeBlock: true,
-      attendeeA: true,
-      attendeeB: true,
-    },
-    orderBy: { timeBlock: { startsAt: 'asc' } },
-  })
+  const typeWhere = typeFilter === 'sponsor'
+    ? { targetSponsorId: { not: null as string | null } }
+    : typeFilter === 'attendee'
+    ? { targetSponsorId: null as string | null }
+    : undefined
+
+  const [meetingRequests, sponsorMeetings, statusCounts, requesterCounts, sponsorCounts, bookmarkCounts] = await Promise.all([
+    prisma.meetingRequest.findMany({
+      where: {
+        ...(statusFilter && ['PENDING', 'APPROVED', 'CONFIRMED', 'REJECTED'].includes(statusFilter)
+          ? { status: statusFilter }
+          : {}),
+        ...typeWhere,
+      },
+      include: {
+        requester: { select: { id: true, name: true, email: true, company: true, role: true } },
+        targetUser: { select: { id: true, name: true, email: true, company: true, role: true } },
+        targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
+        timeBlock: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.sponsorMeeting.findMany({
+      where: { status: 'CONFIRMED' },
+      include: {
+        sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
+        user:    { select: { id: true, name: true, email: true, company: true, role: true } },
+        timeBlock: true,
+      },
+      orderBy: { timeBlock: { startsAt: 'asc' } },
+    }),
+    prisma.meetingRequest.groupBy({ by: ['status'], _count: { _all: true } }),
+    // Meetings committed per attendee (requester)
+    prisma.meetingRequest.groupBy({
+      by: ['requesterId'],
+      where: { status: { notIn: ['REJECTED', 'CANCELLED'] } },
+      _count: { _all: true },
+    }),
+    // Meetings committed per sponsor
+    prisma.sponsorMeeting.groupBy({
+      by: ['sponsorId'],
+      where: { status: { not: 'CANCELLED' } },
+      _count: { _all: true },
+    }),
+    // Session bookmarks (events) per user
+    prisma.sessionBookmark.groupBy({
+      by: ['userId'],
+      _count: { _all: true },
+    }),
+  ])
+
+  const counts = statusCounts.reduce((acc, r) => {
+    acc[r.status] = r._count._all
+    return acc
+  }, {} as Record<string, number>)
+
+  const requesterCommitments = Object.fromEntries(requesterCounts.map(r => [r.requesterId, r._count._all]))
+  const sponsorCommitments = Object.fromEntries(sponsorCounts.map(r => [r.sponsorId, r._count._all]))
+  const bookmarkCommitments = Object.fromEntries(bookmarkCounts.map(r => [r.userId, r._count._all]))
+
+  // Build master schedule: group confirmed sponsor meetings by time slot
+  const confirmedRequests = meetingRequests.filter(r => r.status === 'CONFIRMED' && r.timeBlock)
+  const allConfirmed = [
+    ...sponsorMeetings.map(sm => ({
+      id: sm.id,
+      type: 'sponsor' as const,
+      timeBlock: sm.timeBlock,
+      sponsorName: sm.sponsor.name,
+      sponsorLogo: sm.sponsor.logoUrl,
+      sponsorTier: sm.sponsor.tier,
+      personName: sm.user.name ?? sm.user.email ?? '—',
+      personCompany: sm.user.company ?? '',
+      personRole: sm.user.role,
+      status: sm.status,
+    })),
+    ...confirmedRequests.map(r => ({
+      id: r.id,
+      type: 'request' as const,
+      timeBlock: r.timeBlock!,
+      sponsorName: r.targetSponsor?.name ?? null,
+      sponsorLogo: r.targetSponsor?.logoUrl ?? null,
+      sponsorTier: r.targetSponsor?.tier ?? null,
+      personName: r.requester.name ?? '—',
+      personCompany: r.requester.company ?? '',
+      personRole: r.requester.role,
+      targetName: r.targetUser?.name ?? null,
+      targetCompany: r.targetUser?.company ?? null,
+      status: r.status,
+    })),
+  ].sort((a, b) => new Date(a.timeBlock.startsAt).getTime() - new Date(b.timeBlock.startsAt).getTime())
+
+  // Sponsor fill-rate summary (for schedule tab)
+  const sponsorFillMap = new Map<string, { id: string; name: string; tier: string; logoUrl: string | null; count: number }>()
+  for (const sm of sponsorMeetings) {
+    const id = sm.sponsor.id
+    if (!sponsorFillMap.has(id)) sponsorFillMap.set(id, { id, name: sm.sponsor.name, tier: sm.sponsor.tier, logoUrl: sm.sponsor.logoUrl, count: 0 })
+    sponsorFillMap.get(id)!.count++
+  }
+  const sponsorFillRate = Array.from(sponsorFillMap.values()).sort((a, b) => b.count - a.count)
+
+  // Group by day then by time slot
+  const scheduleByDay = new Map<string, Map<string, typeof allConfirmed>>()
+  for (const item of allConfirmed) {
+    const day = new Date(item.timeBlock.startsAt).toISOString().slice(0, 10)
+    const slot = item.timeBlock.id
+    if (!scheduleByDay.has(day)) scheduleByDay.set(day, new Map())
+    const dayMap = scheduleByDay.get(day)!
+    if (!dayMap.has(slot)) dayMap.set(slot, [])
+    dayMap.get(slot)!.push(item)
+  }
+
 
   return (
     <>
       <AdminHeader title="Meetings" />
-      <main className="flex-1 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2">
-            {[undefined, 'PENDING', 'CONFIRMED', 'CANCELLED'].map((s) => (
-              <Link key={s ?? 'all'} href={s ? `?status=${s.toLowerCase()}` : '/dashboard/meetings'}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  (statusFilter ?? undefined) === s
-                    ? 'bg-primary text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}>
-                {s ? s.charAt(0) + s.slice(1).toLowerCase() : 'All'}
-              </Link>
-            ))}
-          </div>
-          <Link href="/dashboard/meetings/new" className="btn-primary text-sm">
-            + New Meeting
+      <main className="flex-1 p-6 max-w-6xl">
+
+        {/* Tabs */}
+        <div className="flex items-center gap-2 mb-6">
+          <Link href="?tab=requests"
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              tab === 'requests' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}>
+            Meeting Requests
+            {counts.PENDING > 0 && (
+              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                tab === 'requests' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'
+              }`}>{counts.PENDING} pending</span>
+            )}
+          </Link>
+          <Link href="?tab=schedule"
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              tab === 'schedule' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}>
+            Master Schedule
+            <span className={`ml-1.5 text-xs opacity-70`}>{allConfirmed.length}</span>
+          </Link>
+          <Link href="/dashboard/meetings/new" className="ml-auto text-sm px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 font-medium transition-colors">
+            + New Time Block
           </Link>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Attendee A</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Attendee B</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Time</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {meetings.map((meeting) => (
-                <tr key={meeting.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{meeting.attendeeA.name ?? '—'}</p>
-                    {meeting.attendeeA.company && <p className="text-xs text-gray-400">{meeting.attendeeA.company}</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{meeting.attendeeB.name ?? '—'}</p>
-                    {meeting.attendeeB.company && <p className="text-xs text-gray-400">{meeting.attendeeB.company}</p>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                    {format(meeting.timeBlock.startsAt, 'MMM d, h:mm a')}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{meeting.timeBlock.location ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[meeting.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {meeting.status.charAt(0) + meeting.status.slice(1).toLowerCase()}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/dashboard/meetings/${meeting.id}`}
-                      className="text-primary hover:underline text-xs font-medium">
-                      Edit
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {meetings.length === 0 && (
-            <p className="text-center text-gray-400 py-12">No meetings found.</p>
-          )}
+        {/* ── KPI STRIP ── */}
+        <div className="grid grid-cols-5 gap-3 mb-6">
+          {([
+            { label: 'Pending',   val: counts.PENDING   ?? 0, status: 'pending',   dot: 'bg-amber-400', num: 'text-amber-600' },
+            { label: 'Approved',  val: counts.APPROVED  ?? 0, status: 'approved',  dot: 'bg-blue-400',  num: 'text-blue-600'  },
+            { label: 'Confirmed', val: counts.CONFIRMED ?? 0, status: 'confirmed', dot: 'bg-green-400', num: 'text-green-600' },
+            { label: 'Rejected',  val: counts.REJECTED  ?? 0, status: 'rejected',  dot: 'bg-gray-300',  num: 'text-gray-500'  },
+          ] as const).map(({ label, val, status, dot, num }) => (
+            <Link key={label} href={`?tab=requests&status=${status}`}
+              className="bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-gray-300 hover:shadow-sm transition-all group">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                <p className="text-[11px] text-gray-400 font-medium">{label}</p>
+              </div>
+              <p className={`text-2xl font-bold ${num}`}>{val}</p>
+            </Link>
+          ))}
+          <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[11px] text-gray-400 font-medium">Sponsor Slots</p>
+              <p className="text-[10px] text-gray-300">/ 200</p>
+            </div>
+            <p className="text-2xl font-bold text-gray-800">
+              {sponsorMeetings.length}
+            </p>
+            <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-green-400 rounded-full transition-all"
+                style={{ width: `${Math.min((sponsorMeetings.length / 200) * 100, 100)}%` }} />
+            </div>
+          </div>
         </div>
+
+        {/* ── REQUESTS TAB ── */}
+        {tab === 'requests' && (
+          <div>
+            {/* Type filter + Auto-schedule */}
+            <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
+              <div className="flex gap-2">
+                {([undefined, 'attendee', 'sponsor'] as const).map(t => {
+                  const href = t
+                    ? `?tab=requests&type=${t}${statusFilter ? `&status=${statusFilter.toLowerCase()}` : ''}`
+                    : `?tab=requests${statusFilter ? `&status=${statusFilter.toLowerCase()}` : ''}`
+                  return (
+                    <Link key={t ?? 'all'} href={href}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                        typeFilter === t
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}>
+                      {t === 'attendee' ? '👤 Attendee' : t === 'sponsor' ? '🏢 Sponsor' : 'All Types'}
+                    </Link>
+                  )
+                })}
+              </div>
+              <AutoScheduleButton approvedCount={counts.APPROVED ?? 0} />
+            </div>
+
+            {/* Status filter */}
+            <div className="flex gap-2 flex-wrap mb-4">
+              {([undefined, 'PENDING', 'APPROVED', 'CONFIRMED', 'REJECTED'] as const).map(s => (
+                <Link key={s ?? 'all'}
+                  href={s
+                    ? `?tab=requests&status=${s.toLowerCase()}${typeFilter ? `&type=${typeFilter}` : ''}`
+                    : `?tab=requests${typeFilter ? `&type=${typeFilter}` : ''}`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                    (statusFilter ?? undefined) === s
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  {s ?? 'All'}
+                  {s && counts[s] > 0 && (
+                    <span className="ml-1 opacity-60">{counts[s]}</span>
+                  )}
+                </Link>
+              ))}
+            </div>
+
+            <MeetingsTableWithPanel
+              requests={meetingRequests}
+              requesterCommitments={requesterCommitments}
+              sponsorCommitments={sponsorCommitments}
+              bookmarkCommitments={bookmarkCommitments}
+            />
+          </div>
+        )}
+
+        {/* ── MASTER SCHEDULE TAB ── */}
+        {tab === 'schedule' && (
+          <div>
+            {/* Sponsor fill-rate overview */}
+            {sponsorFillRate.length > 0 && (
+              <div className="mb-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Sponsor Meeting Fill Rate</p>
+                <div className="flex flex-wrap gap-2">
+                  {sponsorFillRate.map(sp => {
+                    const pct = Math.min((sp.count / 10) * 100, 100)
+                    const color = sp.count >= 10 ? 'bg-green-400' : sp.count >= 7 ? 'bg-amber-400' : 'bg-blue-300'
+                    const textColor = sp.count >= 10 ? 'text-green-600' : sp.count >= 7 ? 'text-amber-500' : 'text-gray-400'
+                    const borderColor = sp.count >= 10 ? 'border-green-200' : sp.count >= 7 ? 'border-amber-200' : 'border-gray-200'
+                    return (
+                      <div key={sp.id} className={`flex items-center gap-2.5 bg-white border ${borderColor} rounded-xl px-3 py-2`}>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 leading-tight">{sp.name}</p>
+                          <p className={`text-[10px] font-bold ${textColor}`}>{sp.count}/10</p>
+                        </div>
+                        <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
+                          <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {allConfirmed.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+                <p className="font-medium text-gray-700">No confirmed meetings yet</p>
+                <p className="text-sm text-gray-400 mt-1">Approve and assign time blocks to requests to build the schedule.</p>
+                <Link href="?tab=requests" className="mt-3 inline-block text-primary text-sm hover:underline">
+                  Go to Meeting Requests →
+                </Link>
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Time</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Attendee</th>
+                      <th className="w-8"></th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Meeting With</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Type</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {Array.from(scheduleByDay.entries()).map(([day, slotMap]) => (
+                      <>
+                        {/* Day separator row */}
+                        <tr key={`day-${day}`} className="bg-gray-50/80">
+                          <td colSpan={5} className="px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-200">
+                            {new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TZ })}
+                            <span className="ml-2 font-normal normal-case text-gray-400">
+                              · {Array.from(slotMap.values()).flat().length} meetings
+                            </span>
+                          </td>
+                        </tr>
+
+                        {Array.from(slotMap.entries()).map(([slotId, items]) => {
+                          const tb = items[0].timeBlock
+                          return items.map((item, i) => (
+                            <tr key={item.id} className="hover:bg-gray-50 align-middle">
+                              {/* Time — only on first row of slot */}
+                              <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                                {i === 0 ? (
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-800">
+                                      {fmtTime(tb.startsAt)}
+                                      <span className="text-gray-400 font-normal">–{fmtTime(tb.endsAt, true)}</span>
+                                    </p>
+                                    {tb.location && (
+                                      <p className="text-[11px] text-gray-400 mt-0.5">{tb.location}</p>
+                                    )}
+                                    {items.length > 1 && (
+                                      <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded mt-1 inline-block">
+                                        {items.length} parallel
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="border-l-2 border-gray-100 pl-2 ml-1">
+                                    <span className="text-[10px] text-gray-300">same slot</span>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Attendee */}
+                              <td className="px-4 py-3.5">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                                    {(item.personName ?? '?')[0].toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-gray-900 leading-tight">{item.personName}</p>
+                                    <p className="text-xs text-gray-400 truncate">{item.personCompany || item.personRole}</p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Arrow */}
+                              <td className="text-center text-gray-300 text-base select-none">↔</td>
+
+                              {/* Meeting With */}
+                              <td className="px-4 py-3.5">
+                                {item.sponsorName ? (
+                                  <div className="flex items-center gap-2.5">
+                                    {item.sponsorLogo ? (
+                                      <div className="w-8 h-8 rounded-lg border border-gray-100 bg-white flex items-center justify-center overflow-hidden flex-shrink-0 p-0.5">
+                                        <img src={item.sponsorLogo} alt={item.sponsorName} className="w-full h-full object-contain" />
+                                      </div>
+                                    ) : (
+                                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-amber-700 font-bold text-sm">{item.sponsorName[0]}</span>
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="font-semibold text-gray-900 leading-tight">{item.sponsorName}</p>
+                                      {item.sponsorTier && (
+                                        <span className={`badge text-[10px] ${TIER_COLORS[item.sponsorTier]}`}>{item.sponsorTier}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-sm flex-shrink-0">
+                                      {((item as any).targetName ?? '?')[0]?.toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-semibold text-gray-900 leading-tight">{(item as any).targetName ?? '—'}</p>
+                                      <p className="text-xs text-gray-400 truncate">{(item as any).targetCompany ?? ''}</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Type */}
+                              <td className="px-4 py-3.5">
+                                <span className={`badge ${item.type === 'sponsor' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                  {item.type === 'sponsor' ? 'Sponsor' : 'Peer'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        })}
+                      </>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </main>
     </>
   )

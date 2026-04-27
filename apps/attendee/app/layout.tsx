@@ -3,13 +3,13 @@ import { SessionProvider } from './session-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Conference App',
+  title: 'Mobile App',
   description: 'Your conference companion — schedule, speakers, and 1-1 meetings.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
-    title: 'ConferenceApp',
+    statusBarStyle: 'black-translucent',
+    title: 'Mobile App',
   },
   formatDetection: { telephone: false },
 }
@@ -20,15 +20,15 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: '#6366f1',
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.svg" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.svg" />
       </head>
       <body className="bg-gray-50 text-gray-900 antialiased">
         <SessionProvider>{children}</SessionProvider>

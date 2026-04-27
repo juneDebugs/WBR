@@ -48,6 +48,7 @@ export async function POST(
 
   const { content } = await request.json()
   if (!content?.trim()) return NextResponse.json({ error: 'Empty message' }, { status: 400 })
+  if (content.length > 5000) return NextResponse.json({ error: 'Message too long' }, { status: 400 })
 
   const message = await prisma.message.create({
     data: {

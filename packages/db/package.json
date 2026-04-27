@@ -4,10 +4,10 @@
   "private": true,
   "main": "./src/index.ts",
   "scripts": {
-    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
-    "db:push": "prisma db push --schema=./prisma/schema.prisma",
-    "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' ./prisma/seed.ts",
+    "db:generate": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:push": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" prisma db push --schema=./prisma/schema.prisma",
+    "db:seed": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" ts-node --compiler-options '{\"module\":\"CommonJS\"}' ./prisma/seed.ts",
     "db:studio": "prisma studio --schema=./prisma/schema.prisma"
   },
   "dependencies": {

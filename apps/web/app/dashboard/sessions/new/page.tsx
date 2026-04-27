@@ -1,4 +1,4 @@
-import { prisma } from '@conference/db'
+import { prisma, detectSpeakerConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -20,6 +20,7 @@ async function createSession(formData: FormData) {
       type: formData.get('type') as string,
     },
   })
+  await detectSpeakerConflicts(prisma)
   redirect('/dashboard/sessions')
 }
 

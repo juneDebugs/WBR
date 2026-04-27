@@ -1,27 +1,42 @@
 import { prisma } from '@conference/db'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
+import { BookmarkButton } from '@/components/schedule/BookmarkButton'
 
 export default async function SessionDetailPage({ params }: { params: { id: string } }) {
-  const session = await prisma.confSession.findUnique({
-    where: { id: params.id },
-    include: { speaker: true },
-  })
+  const [session, authSession] = await Promise.all([
+    prisma.confSession.findUnique({
+      where: { id: params.id },
+      include: { speaker: true },
+    }),
+    getServerSession(authOptions),
+  ])
 
   if (!session) notFound()
+
+  const bookmark = authSession?.user?.id
+    ? await prisma.sessionBookmark.findUnique({
+        where: { userId_sessionId: { userId: authSession.user.id, sessionId: params.id } },
+      })
+    : null
 
   const typeLabel = session.type.charAt(0) + session.type.slice(1).toLowerCase()
 
   return (
     <div className="page-container">
-      <Link href="/schedule" className="flex items-center gap-1 text-primary text-sm mb-4">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Schedule
-      </Link>
+      <div className="flex items-center justify-between mb-4">
+        <Link href="/schedule" className="flex items-center gap-1 text-primary text-sm">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Agenda
+        </Link>
+        <BookmarkButton sessionId={params.id} initialSaved={!!bookmark} />
+      </div>
 
       <div className="card">
         <div className="mb-3">

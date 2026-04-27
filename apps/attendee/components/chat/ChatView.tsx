@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 
 interface ChatMessage {
@@ -25,6 +25,7 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const latestIdRef = useRef(initialMessages[initialMessages.length - 1]?.id ?? '')
+  const router = useRouter()
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -56,7 +57,6 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
     const content = input.trim()
     setInput('')
 
-    // Optimistic update
     const tempMsg: ChatMessage = {
       id: `temp-${Date.now()}`,
       content,
@@ -80,28 +80,28 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
     setSending(false)
   }
 
-  // Group consecutive messages from same sender
   const grouped = messages.map((msg, i) => ({
     ...msg,
     showHeader: i === 0 || messages[i - 1].sender.id !== msg.sender.id,
   }))
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col bg-gray-50" style={{ height: '100dvh' }}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 flex-shrink-0">
-        <Link href="/chat" className="text-primary">
+      <div className="bg-white border-b border-gray-100 px-4 flex items-center gap-3 flex-shrink-0"
+        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: '0.75rem' }}>
+        <button onClick={() => router.back()} className="text-primary p-1 -ml-1">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-        </Link>
-        <h1 className="font-semibold text-gray-900">{displayName}</h1>
+        </button>
+        <h1 className="font-semibold text-gray-900 text-base">{displayName}</h1>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 pb-32">
+      {/* Messages — scrollable middle */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
         {grouped.length === 0 && (
-          <p className="text-center text-gray-400 text-sm mt-12">No messages yet. Say hello!</p>
+          <p className="text-center text-gray-400 text-sm mt-16">No messages yet. Say hello!</p>
         )}
         {grouped.map((msg) => {
           const isMe = msg.sender.id === currentUserId
@@ -109,43 +109,47 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
             <div key={msg.id} className={`${msg.showHeader ? 'mt-4' : 'mt-0.5'}`}>
               {msg.showHeader && !isMe && (
                 <div className="flex items-center gap-2 mb-1 ml-1">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {msg.sender.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={msg.sender.image} alt="" className="w-6 h-6 rounded-full object-cover" />
+                      <img src={msg.sender.image} alt="" loading="lazy" className="w-6 h-6 rounded-full object-cover" />
                     ) : (
                       <span className="text-primary text-xs font-bold">{(msg.sender.name ?? '?')[0]}</span>
                     )}
                   </div>
                   <span className="text-xs font-semibold text-gray-600">{msg.sender.name}</span>
-                  <span className="text-xs text-gray-400">
-                    {format(new Date(msg.createdAt), 'h:mm a')}
-                  </span>
+                  <span className="text-xs text-gray-400">{format(new Date(msg.createdAt), 'h:mm a')}</span>
                 </div>
               )}
               <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
+                <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   isMe
                     ? 'bg-primary text-white rounded-br-sm'
-                    : 'bg-white border border-gray-100 text-gray-900 rounded-bl-sm'
+                    : 'bg-white border border-gray-100 text-gray-900 rounded-bl-sm shadow-sm'
                 } ${msg.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
                   {msg.content}
                 </div>
               </div>
+              {isMe && msg.showHeader && (
+                <p className="text-right text-[10px] text-gray-400 mt-0.5 mr-1">
+                  {format(new Date(msg.createdAt), 'h:mm a')}
+                </p>
+              )}
             </div>
           )
         })}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3"
+      {/* Input — pinned to bottom, moves up with keyboard */}
+      <div className="bg-white border-t border-gray-100 px-3 py-2 flex-shrink-0"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         <form onSubmit={sendMessage} className="flex items-center gap-2">
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Message…"
+            autoComplete="off"
             className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           <button

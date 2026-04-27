@@ -3,10 +3,14 @@
   "private": true,
   "packageManager": "pnpm@10.0.0",
   "scripts": {
+    "clean": "rm -rf apps/web/.next apps/attendee/.next apps/meetings/.next apps/sponsor/.next",
+    "predev": "npm run clean",
     "build": "turbo build",
     "dev": "turbo dev",
-    "dev:attendee": "turbo dev --filter=attendee",
-    "dev:web": "turbo dev --filter=web",
+    "dev:attendee": "npm run clean && turbo dev --filter=attendee",
+    "dev:web": "npm run clean && turbo dev --filter=web",
+    "dev:meetings": "npm run clean && turbo dev --filter=meetings",
+    "dev:sponsor": "npm run clean && turbo dev --filter=sponsor",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "db:generate": "pnpm --filter @conference/db db:generate",
@@ -24,6 +28,10 @@
     "packages/*"
   ],
   "pnpm": {
-    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "prisma"]
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma"
+    ]
   }
 }

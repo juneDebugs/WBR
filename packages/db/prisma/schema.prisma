@@ -56,9 +56,16 @@ model User {
   company       String?
   jobTitle      String?
   role          String    @default("ATTENDEE") // ATTENDEE | SPEAKER | ORGANIZER
+  password      String?
   pushToken     String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  companySize      String?   // STARTUP | SMB | MIDMARKET | ENTERPRISE
+  annualRevenue    String?   // <1M | 1M-10M | 10M-50M | 50M-250M | 250M+
+  solutionsOffering String?  // JSON string array
+  solutionsSeeking  String?  // JSON string array
+  website          String?
+  sponsorId        String?   // link to Sponsor company
 
   accounts          Account[]
   sessions          Session[]
@@ -69,29 +76,41 @@ model User {
   speakerProfile    Speaker?
   chatMemberships   ChatMember[]
   messages          Message[]
-  following         Follow[]     @relation("UserFollowing")
-  followers         Follow[]     @relation("UserFollowers")
+  following         Follow[]          @relation("UserFollowing")
+  followers         Follow[]          @relation("UserFollowers")
   posts             Post[]
   postLikes         PostLike[]
+  sponsorMeetings   SponsorMeeting[]
+  sessionBookmarks  SessionBookmark[]
+  requestsMade     MeetingRequest[] @relation("RequestsMade")
+  requestsReceived MeetingRequest[] @relation("RequestsReceived")
+  sponsor          Sponsor?         @relation("SponsorUser", fields: [sponsorId], references: [id], onDelete: SetNull)
 }
 
 // ─── Conference ──────────────────────────────────────────────────────────────
 
 model Conference {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  startDate   DateTime
-  endDate     DateTime
-  venue       String?
-  logoUrl     String?
-  active      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime
+  venue         String?
+  venueLat      Float?
+  venueLon      Float?
+  venueTimezone String?
+  logoUrl       String?
+  heroImageUrl  String?
+  wifiName      String?
+  wifiPassword  String?
+  active        Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
   speakers     Speaker[]
   confSessions ConfSession[]
   timeBlocks   TimeBlock[]
   meetings     Meeting[]
+  sponsors     Sponsor[]
 }
 
 // ─── Speakers ────────────────────────────────────────────────────────────────
@@ -102,6 +121,8 @@ model Speaker {
   userId        String?  @unique
   name          String
   bio           String?
+  role          String?
+  lookingFor    String?
   photoUrl      String?
   company       String?
   jobTitle      String?
@@ -112,6 +133,7 @@ model Speaker {
   conference   Conference  @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
   user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   confSessions ConfSession[]
+  conflicts    ConflictLog[]
 }
 
 // ─── Conference Sessions ──────────────────────────────────────────────────────
@@ -130,8 +152,11 @@ model ConfSession {
   type         String   @default("TALK") // TALK | WORKSHOP | BREAK | KEYNOTE | PANEL
   createdAt    DateTime @default(now())
 
-  conference Conference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
-  speaker    Speaker?   @relation(fields: [speakerId], references: [id], onDelete: SetNull)
+  conference   Conference       @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+  speaker      Speaker?         @relation(fields: [speakerId], references: [id], onDelete: SetNull)
+  bookmarks    SessionBookmark[]
+  conflictsAsA ConflictLog[]    @relation("ConflictSessionA")
+  conflictsAsB ConflictLog[]    @relation("ConflictSessionB")
 }
 
 // ─── Time Blocks ─────────────────────────────────────────────────────────────
@@ -145,8 +170,10 @@ model TimeBlock {
   capacity     Int      @default(1)
   createdAt    DateTime @default(now())
 
-  conference Conference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
-  meetings   Meeting[]
+  conference      Conference       @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+  meetings        Meeting[]
+  sponsorMeetings SponsorMeeting[]
+  meetingRequests MeetingRequest[]
 }
 
 // ─── Blackout Times ──────────────────────────────────────────────────────────
@@ -227,6 +254,96 @@ model Message {
   @@index([roomId, createdAt])
 }
 
+// ─── Sponsors ────────────────────────────────────────────────────────────────
+
+model Sponsor {
+  id           String   @id @default(cuid())
+  conferenceId String
+  name         String
+  tagline      String?
+  logoUrl      String?
+  heroImageUrl String?
+  website      String?
+  tier         String   @default("GOLD") // PLATINUM | GOLD | SILVER | BRONZE
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  description  String?
+  companySize      String?
+  annualRevenue    String?
+  founded          String?
+  headquarters     String?
+  boothNumber      String?
+  socialLinkedIn   String?
+  socialTwitter    String?
+  solutionsOffering String?
+  solutionsSeeking  String?
+  targetIndustries  String?  // JSON array of industries they want to meet
+  targetCompanySizes String? // JSON array
+  targetRevenues    String?  // JSON array
+  createdAt    DateTime @default(now())
+
+  conference   Conference       @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+  meetings     SponsorMeeting[]
+  meetingRequests  MeetingRequest[]
+  users            User[]           @relation("SponsorUser")
+  submissionForms  SubmissionForm[]
+}
+
+model SessionBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String
+  createdAt DateTime @default(now())
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session ConfSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sessionId])
+  @@index([userId])
+}
+
+model SponsorMeeting {
+  id          String   @id @default(cuid())
+  sponsorId   String
+  userId      String   // The attendee/speaker being met
+  repId       String?  // The sponsor team rep handling this meeting
+  timeBlockId String
+  status      String   @default("CONFIRMED") // CONFIRMED | CANCELLED
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  sponsor     Sponsor   @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeBlock   TimeBlock @relation(fields: [timeBlockId], references: [id], onDelete: Cascade)
+
+  @@index([sponsorId])
+  @@index([userId])
+  @@index([repId])
+}
+
+model MeetingRequest {
+  id              String   @id @default(cuid())
+  requesterId     String
+  targetUserId    String?
+  targetSponsorId String?
+  message         String?
+  status          String   @default("PENDING") // PENDING | APPROVED | REJECTED | CONFIRMED
+  timeBlockId     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  requester     User       @relation("RequestsMade", fields: [requesterId], references: [id], onDelete: Cascade)
+  targetUser    User?      @relation("RequestsReceived", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetSponsor Sponsor?   @relation(fields: [targetSponsorId], references: [id], onDelete: SetNull)
+  timeBlock     TimeBlock? @relation(fields: [timeBlockId], references: [id], onDelete: SetNull)
+
+  @@index([requesterId])
+  @@index([targetUserId])
+  @@index([targetSponsorId])
+  @@index([status])
+}
+
 // ─── Follow ───────────────────────────────────────────────────────────────────
 
 model Follow {
@@ -269,4 +386,90 @@ model PostLike {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([postId, userId])
+}
+
+// ─── Conflict Log ─────────────────────────────────────────────────────────────
+
+model ConflictLog {
+  id         String   @id @default(cuid())
+  speakerId  String
+  sessionAId String
+  sessionBId String
+  detectedAt DateTime @default(now())
+  resolved   Boolean  @default(false)
+
+  speaker  Speaker     @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  sessionA ConfSession @relation("ConflictSessionA", fields: [sessionAId], references: [id], onDelete: Cascade)
+  sessionB ConfSession @relation("ConflictSessionB", fields: [sessionBId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionAId, sessionBId])
+  @@index([speakerId])
+  @@index([resolved])
+}
+
+// ─── Submission Forms ─────────────────────────────────────────────────────────
+
+model SubmissionForm {
+  id          String    @id @default(cuid())
+  sponsorId   String
+  title       String
+  type        String    @default("ABSTRACT") // ABSTRACT | FULL_PAPER | SPEAKER_PROPOSAL | PANEL | SYMPOSIUM | CUSTOM
+  description String?
+  fields      String    @default("[]") // JSON array of field definitions
+  isOpen      Boolean   @default(true)
+  deadline    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sponsor     Sponsor          @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  submissions FormSubmission[]
+
+  @@index([sponsorId])
+}
+
+model FormSubmission {
+  id        String   @id @default(cuid())
+  formId    String
+  name      String?
+  email     String?
+  data      String   @default("{}") // JSON object of field values
+  status    String   @default("PENDING") // PENDING | REVIEWED | ACCEPTED | REJECTED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  form SubmissionForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@index([status])
+}
+
+// ─── Email Log ────────────────────────────────────────────────────────────────
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  body      String
+  status    String   @default("SENT") // SENT | FAILED
+  sponsorId String?
+  sentAt    DateTime @default(now())
+
+  @@index([sentAt])
+  @@index([sponsorId])
+}
+
+// ─── Integrations ─────────────────────────────────────────────────────────────
+
+model Integration {
+  id           String    @id @default(cuid())
+  provider     String    @unique // GMAIL | GOOGLE_CALENDAR | OUTLOOK | OUTLOOK_CALENDAR | SLACK | NOTION | ZAPIER | HUBSPOT
+  status       String    @default("DISCONNECTED") // CONNECTED | DISCONNECTED | ERROR
+  accountLabel String?   // e.g. "june@wbr.com"
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  metadata     String?   // JSON blob for provider-specific data
+  connectedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }

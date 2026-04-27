@@ -13,11 +13,11 @@ export async function GET() {
       members: { some: { userId: session.user.id } },
     },
     include: {
-      members: { include: { user: true } },
+      members: { include: { user: { select: { id: true, name: true, image: true } } } },
       messages: {
         orderBy: { createdAt: 'desc' },
         take: 1,
-        include: { sender: true },
+        include: { sender: { select: { id: true, name: true, image: true } } },
       },
     },
     orderBy: { createdAt: 'asc' },

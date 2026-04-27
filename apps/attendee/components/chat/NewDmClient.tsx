@@ -48,7 +48,7 @@ export function NewDmClient({ users }: { users: User[] }) {
             <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
               {user.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.image} alt="" className="w-12 h-12 rounded-full object-cover" />
+                <img src={user.image} alt="" loading="lazy" className="w-12 h-12 rounded-full object-cover" />
               ) : (
                 <span className="text-gray-600 font-bold text-lg">{(user.name ?? '?')[0]}</span>
               )}

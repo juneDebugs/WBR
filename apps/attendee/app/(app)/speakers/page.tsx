@@ -23,14 +23,19 @@ export default async function SpeakersPage() {
     jobTitle: s.jobTitle,
     company: s.company,
     photoUrl: s.photoUrl,
+    bio: s.bio,
+    role: s.role,
+    lookingFor: s.lookingFor,
+    twitterHandle: s.twitterHandle,
+    linkedinUrl: s.linkedinUrl,
     // Primary track = first session's track, or null
     track: s.confSessions.find(cs => cs.track)?.track ?? null,
   }))
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #eef2ff 0%, #f8f8fc 40%)' }}>
-      <div className="px-4 pt-14 pb-4 sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100/60">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Speakers</h1>
+      <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-14 pb-4 sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100/60">
+        <h1 className="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Speakers</h1>
         <p className="text-sm text-gray-400 mt-0.5">{speakers.length} speakers</p>
       </div>
 

@@ -36,10 +36,12 @@ export default async function SpeakersPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       {speaker.photoUrl ? (
-                        <Image src={speaker.photoUrl} alt={speaker.name} width={36} height={36}
-                          className="rounded-full object-cover flex-shrink-0" />
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                          <Image src={speaker.photoUrl} alt={speaker.name} width={40} height={40}
+                            className="w-full h-full object-cover" />
+                        </div>
                       ) : (
-                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <span className="text-primary font-semibold text-sm">{speaker.name[0]}</span>
                         </div>
                       )}

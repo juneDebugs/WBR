@@ -32,7 +32,7 @@ async function createMeeting(formData: FormData) {
 
 export default async function NewMeetingPage({ searchParams }: { searchParams: { timeBlockId?: string; attendeeAId?: string; attendeeBId?: string } }) {
   const [users, timeBlocks] = await Promise.all([
-    prisma.user.findMany({ orderBy: { name: 'asc' } }),
+    prisma.user.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true, email: true } }),
     prisma.timeBlock.findMany({ orderBy: { startsAt: 'asc' } }),
   ])
 

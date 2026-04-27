@@ -9,10 +9,10 @@ async function main() {
     update: {},
     create: {
       id: 'conf-2025',
-      name: 'TechConf 2025',
+      name: 'WBR 2027',
       description: 'The premier technology conference of the year.',
-      startDate: new Date('2025-09-15T09:00:00Z'),
-      endDate: new Date('2025-09-16T18:00:00Z'),
+      startDate: new Date('2027-04-07T09:00:00Z'),
+      endDate: new Date('2027-04-08T18:00:00Z'),
       venue: 'Convention Center, San Francisco',
       active: true,
     },
@@ -209,69 +209,39 @@ async function main() {
     }),
   ])
 
-  // Time blocks for 1-1 meetings
-  const timeBlocks = await Promise.all([
-    prisma.timeBlock.upsert({
-      where: { id: 'tb-1' },
-      update: {},
-      create: {
-        id: 'tb-1',
-        conferenceId: conf.id,
-        startsAt: new Date(`${day1}T15:00:00Z`),
-        endsAt: new Date(`${day1}T15:30:00Z`),
-        location: 'Networking Lounge, Table 1',
-        capacity: 1,
-      },
-    }),
-    prisma.timeBlock.upsert({
-      where: { id: 'tb-2' },
-      update: {},
-      create: {
-        id: 'tb-2',
-        conferenceId: conf.id,
-        startsAt: new Date(`${day1}T15:30:00Z`),
-        endsAt: new Date(`${day1}T16:00:00Z`),
-        location: 'Networking Lounge, Table 1',
-        capacity: 1,
-      },
-    }),
-    prisma.timeBlock.upsert({
-      where: { id: 'tb-3' },
-      update: {},
-      create: {
-        id: 'tb-3',
-        conferenceId: conf.id,
-        startsAt: new Date(`${day1}T16:00:00Z`),
-        endsAt: new Date(`${day1}T16:30:00Z`),
-        location: 'Networking Lounge, Table 2',
-        capacity: 1,
-      },
-    }),
-    prisma.timeBlock.upsert({
-      where: { id: 'tb-4' },
-      update: {},
-      create: {
-        id: 'tb-4',
-        conferenceId: conf.id,
-        startsAt: new Date(`${day2}T14:00:00Z`),
-        endsAt: new Date(`${day2}T14:30:00Z`),
-        location: 'Networking Lounge, Table 1',
-        capacity: 1,
-      },
-    }),
-    prisma.timeBlock.upsert({
-      where: { id: 'tb-5' },
-      update: {},
-      create: {
-        id: 'tb-5',
-        conferenceId: conf.id,
-        startsAt: new Date(`${day2}T14:30:00Z`),
-        endsAt: new Date(`${day2}T15:00:00Z`),
-        location: 'Networking Lounge, Table 2',
-        capacity: 1,
-      },
-    }),
-  ])
+  // Time blocks: 30-min increments, 11am–4pm San Francisco time (PDT = UTC-7 in September).
+  // 11:00 AM PDT = T18:00Z … 3:30 PM PDT = T22:30Z (last block ends 4:00 PM PDT = T23:00Z).
+  // App formatters use timeZone:'America/Los_Angeles' so display is always correct
+  // regardless of where the server or browser runs — no hydration mismatch.
+  const tbDays = ['2025-09-15', '2025-09-16']
+  // UTC hours (PDT = UTC-7, add 7 to local hour)
+  const tbSlots: [number, number][] = [
+    [18, 0], [18, 30],   // 11:00, 11:30 AM PDT
+    [19, 0], [19, 30],   // 12:00, 12:30 PM PDT
+    [20, 0], [20, 30],   //  1:00,  1:30 PM PDT
+    [21, 0], [21, 30],   //  2:00,  2:30 PM PDT
+    [22, 0], [22, 30],   //  3:00,  3:30 PM PDT
+  ]
+
+  await prisma.timeBlock.deleteMany({ where: { conferenceId: conf.id } })
+
+  const timeBlocks = await Promise.all(
+    tbDays.flatMap((day, dayIdx) =>
+      tbSlots.map(([h, m], slotIdx) => {
+        const id = `tb-d${dayIdx + 1}-s${slotIdx + 1}`
+        const pad = (n: number) => String(n).padStart(2, '0')
+        const endM = m + 30
+        const endH = endM >= 60 ? h + 1 : h
+        const startsAt = new Date(`${day}T${pad(h)}:${pad(m)}:00.000Z`)
+        const endsAt   = new Date(`${day}T${pad(endH)}:${pad(endM % 60)}:00.000Z`)
+        return prisma.timeBlock.upsert({
+          where: { id },
+          update: { startsAt, endsAt },
+          create: { id, conferenceId: conf.id, startsAt, endsAt, location: 'Networking Lounge', capacity: 1 },
+        })
+      })
+    )
+  )
 
   // General chat channel
   await prisma.chatRoom.upsert({

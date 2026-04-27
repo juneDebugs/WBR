@@ -14,6 +14,7 @@ export default async function NewMessagePage() {
   const users = await prisma.user.findMany({
     where: { id: { not: userId } },
     orderBy: { name: 'asc' },
+    select: { id: true, name: true, image: true, company: true },
   })
 
   return (

@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root { --primary: #6366f1; --primary-dark: #4f46e5; }
+  * { -webkit-tap-highlight-color: transparent; }
+  html { font-family: 'Inter', system-ui, sans-serif; }
+  body { background-color: #f8f8fc; }
+}
+
+@layer components {
+  .card { @apply bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5; }
+  .btn-primary { @apply bg-primary text-white font-semibold py-2.5 px-5 rounded-xl transition-all text-sm hover:bg-primary-dark active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-secondary { @apply bg-gray-100 text-gray-700 font-medium py-2.5 px-5 rounded-xl transition-all text-sm hover:bg-gray-200 active:scale-95; }
+  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+  .input { @apply w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white; }
+  .label { @apply block text-sm font-semibold text-gray-700 mb-1.5; }
+  .section-title { @apply text-xs font-bold text-gray-400 uppercase tracking-widest mb-3; }
+  .chip { @apply inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer select-none; }
+  .chip-active { @apply bg-primary text-white border-primary; }
+  .chip-inactive { @apply bg-white text-gray-600 border-gray-200 hover:border-primary/50; }
+}

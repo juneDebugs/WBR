@@ -1,4 +1,4 @@
-import { prisma } from '@conference/db'
+import { prisma, detectSpeakerConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { format } from 'date-fns'
 import { redirect, notFound } from 'next/navigation'
@@ -19,12 +19,14 @@ async function updateSession(id: string, formData: FormData) {
       type: formData.get('type') as string,
     },
   })
+  await detectSpeakerConflicts(prisma)
   redirect('/dashboard/sessions')
 }
 
 async function deleteSession(id: string) {
   'use server'
   await prisma.confSession.delete({ where: { id } })
+  await detectSpeakerConflicts(prisma)
   redirect('/dashboard/sessions')
 }
 

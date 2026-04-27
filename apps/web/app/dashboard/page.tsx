@@ -1,6 +1,7 @@
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
-
+import { SponsorReadinessWidget } from '@/components/SponsorReadinessWidget'
+import { ConferenceBanner } from '@/components/ConferenceBanner'
 export default async function DashboardPage() {
   const [sessionCount, speakerCount, pendingMeetings, attendeeCount, conference] = await Promise.all([
     prisma.confSession.count(),
@@ -22,11 +23,13 @@ export default async function DashboardPage() {
       <AdminHeader title="Overview" />
       <main className="flex-1 p-6">
         {conference && (
-          <div className="mb-6 bg-primary/5 border border-primary/20 rounded-xl p-4">
-            <p className="text-xs text-primary font-medium uppercase tracking-wide mb-1">Active Conference</p>
-            <h2 className="text-lg font-bold text-gray-900">{conference.name}</h2>
-            {conference.venue && <p className="text-sm text-gray-600">{conference.venue}</p>}
-          </div>
+          <ConferenceBanner
+            id={conference.id}
+            name={conference.name}
+            venue={conference.venue}
+            startDate={conference.startDate.toISOString()}
+            endDate={conference.endDate.toISOString()}
+          />
         )}
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -39,6 +42,10 @@ export default async function DashboardPage() {
               <p className="text-sm text-gray-600">{stat.label}</p>
             </a>
           ))}
+        </div>
+
+<div className="mt-6">
+          <SponsorReadinessWidget />
         </div>
       </main>
     </>

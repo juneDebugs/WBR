@@ -3,8 +3,8 @@ import { SessionProvider } from './session-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Conference Admin',
-  description: 'Conference organizer dashboard',
+  title: 'Admin',
+  description: 'WBR 2027 organizer dashboard',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

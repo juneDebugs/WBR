@@ -17,6 +17,7 @@ export default async function PeoplePage() {
     company: true,
     jobTitle: true,
     bio: true,
+    website: true,
     speakerProfile: {
       select: {
         confSessions: {
@@ -27,7 +28,7 @@ export default async function PeoplePage() {
     },
   }
 
-  const [allUsers, following, followers] = await Promise.all([
+  const [allUsers, following, dmRooms] = await Promise.all([
     prisma.user.findMany({
       where: { id: { not: userId } },
       orderBy: { name: 'asc' },
@@ -37,9 +38,13 @@ export default async function PeoplePage() {
       where: { followerId: userId },
       include: { following: { select: userSelect } },
     }),
-    prisma.follow.findMany({
-      where: { followingId: userId },
-      include: { follower: { select: userSelect } },
+    prisma.chatRoom.findMany({
+      where: { type: 'DIRECT', members: { some: { userId } } },
+      include: {
+        members: { include: { user: { select: { id: true, name: true, image: true } } } },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1, include: { sender: { select: { id: true } } } },
+      },
+      orderBy: { messages: { _count: 'desc' } },
     }),
   ])
 
@@ -51,6 +56,7 @@ export default async function PeoplePage() {
       company: u.company,
       jobTitle: u.jobTitle,
       bio: u.bio,
+      website: u.website,
       sessions: u.speakerProfile?.confSessions.map(s => ({
         id: s.id,
         title: s.title,
@@ -61,15 +67,35 @@ export default async function PeoplePage() {
     }
   }
 
-  const followingIds = new Set(following.map(f => f.followingId))
+  const friendIds = following.map(f => f.followingId)
+
+  const conversations = dmRooms
+    .sort((a, b) => {
+      const aTime = a.messages[0]?.createdAt.getTime() ?? 0
+      const bTime = b.messages[0]?.createdAt.getTime() ?? 0
+      return bTime - aTime
+    })
+    .map(room => {
+      const other = room.members.find(m => m.userId !== userId)?.user
+      const lastMsg = room.messages[0]
+      return {
+        roomId: room.id,
+        userId: other?.id ?? '',
+        name: other?.name ?? 'Unknown',
+        image: other?.image ?? null,
+        lastMessage: lastMsg?.content ?? null,
+        lastMessageSenderId: lastMsg?.sender.id ?? null,
+        lastMessageAt: lastMsg?.createdAt.toISOString() ?? null,
+      }
+    })
 
   return (
     <PeopleClient
       currentUserId={userId}
       allUsers={allUsers.map(mapUser)}
-      following={following.map(f => mapUser(f.following))}
-      followers={followers.map(f => mapUser(f.follower))}
-      followingIds={Array.from(followingIds)}
+      friends={following.map(f => mapUser(f.following))}
+      friendIds={friendIds}
+      conversations={conversations}
     />
   )
 }
