@@ -25,8 +25,8 @@ export async function POST() {
     prisma.chatMember.findMany({ where: { roomId: GENERAL_ROOM_ID }, select: { userId: true } }),
   ])
 
-  const existingIds = new Set(existing.map(m => m.userId))
-  const newUsers = users.filter(u => !existingIds.has(u.id))
+  const existingIds = new Set(existing.map((m: any) => m.userId))
+  const newUsers = users.filter((u: any) => !existingIds.has(u.id))
 
   await Promise.all(
     newUsers.map(u => prisma.chatMember.create({ data: { roomId: GENERAL_ROOM_ID, userId: u.id } }))
