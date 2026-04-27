@@ -110,7 +110,7 @@ export async function GET(req: Request) {
     }
   }
 
-  const blocks = timeBlocks.map(tb => ({
+  const blocks = timeBlocks.map((tb: any) => ({
     id: tb.id,
     startsAt: tb.startsAt.toISOString(),
     endsAt: tb.endsAt.toISOString(),

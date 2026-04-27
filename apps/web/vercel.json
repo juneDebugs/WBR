@@ -1,1 +1,0 @@
-{"installCommand":"cd ../.. && npx pnpm install --frozen-lockfile","buildCommand":"cd ../.. && npx pnpm --filter web build"}
