@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd ../.. && npx turbo build --filter=attendee",
+  "installCommand": "cd ../.. && corepack enable && pnpm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next"
+}
