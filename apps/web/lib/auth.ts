@@ -17,20 +17,37 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
+        try {
+          if (!credentials?.email || !credentials?.password) return null
 
-        const email = credentials.email.trim().toLowerCase()
-        const existing = await prisma.user.findUnique({ where: { email } })
+          const email = credentials.email.trim().toLowerCase()
+          const existing = await prisma.user.findUnique({ where: { email } })
 
-        if (!existing) return null
-        if (!existing.password) return null
+          if (!existing) {
+            console.error('[auth] User not found:', email)
+            return null
+          }
+          if (!existing.password) {
+            console.error('[auth] User has no password:', email)
+            return null
+          }
 
-        const valid = await verifyPassword(credentials.password, existing.password)
-        if (!valid) return null
+          const valid = await verifyPassword(credentials.password, existing.password)
+          if (!valid) {
+            console.error('[auth] Password mismatch for:', email)
+            return null
+          }
 
-        if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(existing.role)) return null
+          if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(existing.role)) {
+            console.error('[auth] Role not allowed:', email, existing.role)
+            return null
+          }
 
-        return { id: existing.id, email: existing.email!, name: existing.name, role: existing.role }
+          return { id: existing.id, email: existing.email!, name: existing.name, role: existing.role }
+        } catch (e: any) {
+          console.error('[auth] authorize() error:', e?.message, e?.stack)
+          return null
+        }
       },
     }),
   ],
