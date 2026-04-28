@@ -1,5 +1,27 @@
 import { PrismaClient } from '@prisma/client'
-const prisma = new PrismaClient()
+
+function createPrismaClient(): PrismaClient {
+  const tursoUrl = process.env.TURSO_DATABASE_URL
+  const tursoToken = process.env.TURSO_AUTH_TOKEN
+
+  if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
+    try {
+      const { PrismaLibSQL } = require('@prisma/adapter-libsql')
+      const { createClient: createLibsql } = require('@libsql/client')
+      const libsql = createLibsql({ url: tursoUrl, authToken: tursoToken })
+      const adapter = new PrismaLibSQL(libsql)
+      console.log('🌐 Connected to Turso (production)')
+      return new PrismaClient({ adapter } as any)
+    } catch (e: any) {
+      console.error('[seed-meetings] Turso adapter failed, using local:', e?.message)
+    }
+  }
+
+  console.log('💾 Using local SQLite')
+  return new PrismaClient()
+}
+
+const prisma = createPrismaClient()
 
 async function main() {
   console.log('🌱 Seeding meeting requests...')

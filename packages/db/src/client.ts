@@ -11,8 +11,8 @@ function createClient(): PrismaClient {
   // At runtime on Vercel: use Turso if env vars are set
   if (!isBuilding && tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
     try {
-      const { PrismaLibSQL } = require('@prisma/adapter-libsql/web')
-      const { createClient: createLibsql } = require('@libsql/client/web')
+      const { PrismaLibSQL } = require('@prisma/adapter-libsql')
+      const { createClient: createLibsql } = require('@libsql/client')
       const libsql = createLibsql({ url: tursoUrl, authToken: tursoToken })
       const adapter = new PrismaLibSQL(libsql)
       return new PrismaClient({ adapter } as any)
