@@ -4,7 +4,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request })
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/api/auth')
+    request.nextUrl.pathname.startsWith('/api/auth') ||
+    request.nextUrl.pathname === '/api/health'
 
   if (!token && !isAuthRoute) {
     // API routes get 401 JSON, page routes get redirect to login
