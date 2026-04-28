@@ -1,21 +1,23 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@conference/db'
 
 export async function GET() {
   const checks: Record<string, unknown> = {
-    tursoUrl: process.env.TURSO_DATABASE_URL ? 'set' : 'MISSING',
-    tursoToken: process.env.TURSO_AUTH_TOKEN ? 'set' : 'MISSING',
-    databaseUrl: process.env.DATABASE_URL ? 'set' : 'MISSING',
+    tursoUrl: process.env.TURSO_DATABASE_URL ? process.env.TURSO_DATABASE_URL.replace(/\/\/.*@/, '//***@') : 'MISSING',
+    tursoToken: process.env.TURSO_AUTH_TOKEN ? 'set (' + process.env.TURSO_AUTH_TOKEN.length + ' chars)' : 'MISSING',
+    databaseUrl: process.env.DATABASE_URL || 'MISSING',
     nodeEnv: process.env.NODE_ENV,
     nextPhase: process.env.NEXT_PHASE ?? 'none',
   }
 
+  // Dynamically import to catch module-level errors
   try {
+    const { prisma, dbConnectionMode } = require('@conference/db')
+    checks.connectionMode = dbConnectionMode
+
     const userCount = await prisma.user.count()
     checks.db = 'connected'
     checks.userCount = userCount
 
-    // Check if demo admin exists
     const admin = await prisma.user.findUnique({
       where: { email: 'june@tailor.tech' },
       select: { email: true, role: true, password: true },
@@ -26,6 +28,7 @@ export async function GET() {
   } catch (e: any) {
     checks.db = 'ERROR'
     checks.dbError = e?.message
+    checks.dbStack = e?.stack?.split('\n').slice(0, 5)
   }
 
   return NextResponse.json(checks)

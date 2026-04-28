@@ -2,6 +2,9 @@ import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
 
+// Track connection mode for diagnostics
+export let dbConnectionMode = 'unknown'
+
 function createClient(): PrismaClient {
   const tursoUrl = process.env.TURSO_DATABASE_URL
   const tursoToken = process.env.TURSO_AUTH_TOKEN
@@ -9,29 +12,31 @@ function createClient(): PrismaClient {
 
   // During build: always use local SQLite (no Turso)
   if (isBuilding) {
+    dbConnectionMode = 'build-phase-sqlite'
     return new PrismaClient()
   }
 
   // At runtime: use Turso if env vars are set
   if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
-    const { PrismaLibSQL } = require('@prisma/adapter-libsql')
-    const { createClient: createLibsql } = require('@libsql/client/web')
-    const libsql = createLibsql({ url: tursoUrl, authToken: tursoToken })
-    const adapter = new PrismaLibSQL(libsql)
-    console.log('[prisma] Using Turso adapter:', tursoUrl.replace(/\/\/.*@/, '//***@'))
-    return new PrismaClient({ adapter } as any)
+    try {
+      const { PrismaLibSQL } = require('@prisma/adapter-libsql')
+      const { createClient: createLibsql } = require('@libsql/client/web')
+      const libsql = createLibsql({ url: tursoUrl, authToken: tursoToken })
+      const adapter = new PrismaLibSQL(libsql)
+      dbConnectionMode = 'turso'
+      return new PrismaClient({ adapter } as any)
+    } catch (e: any) {
+      dbConnectionMode = 'turso-failed: ' + (e?.message ?? 'unknown error')
+      console.error('[prisma] CRITICAL: Turso adapter failed:', e?.message, e?.stack)
+      // Fall through — but on Vercel with no DATABASE_URL this means all queries will fail
+    }
   }
 
   // Local dev: use DATABASE_URL (file:./dev.db)
-  if (process.env.DATABASE_URL) {
-    return new PrismaClient({
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-    })
-  }
-
-  // No database configured — fail loudly instead of silently
-  console.error('[prisma] FATAL: No database configured. Set TURSO_DATABASE_URL+TURSO_AUTH_TOKEN or DATABASE_URL.')
-  return new PrismaClient()
+  dbConnectionMode = process.env.DATABASE_URL ? 'sqlite: ' + process.env.DATABASE_URL : 'no-database'
+  return new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  })
 }
 
 export const prisma = globalForPrisma.prisma ?? createClient()

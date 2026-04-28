@@ -1,4 +1,4 @@
-export { prisma } from './client'
+export { prisma, dbConnectionMode } from './client'
 export * from '@prisma/client'
 
 import type { ConfSession, Speaker } from '@prisma/client'
