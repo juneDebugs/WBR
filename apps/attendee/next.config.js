@@ -11,18 +11,7 @@ module.exports = {
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
-  serverExternalPackages: ['@libsql/client', '@prisma/adapter-libsql', 'libsql'],
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = config.externals || []
-      config.externals.push({
-        '@libsql/client': 'commonjs @libsql/client',
-        '@prisma/adapter-libsql': 'commonjs @prisma/adapter-libsql',
-        'libsql': 'commonjs libsql',
-      })
-    }
-    return config
-  },
+  serverExternalPackages: ['@prisma/adapter-libsql'],
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }]
   },

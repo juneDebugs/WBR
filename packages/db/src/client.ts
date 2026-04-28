@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaLibSQL } from '@prisma/adapter-libsql'
+import { createClient as createLibsql } from '@libsql/client/web'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
 
@@ -19,8 +21,6 @@ function createClient(): PrismaClient {
   // At runtime: use Turso if env vars are set
   if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
     try {
-      const { PrismaLibSQL } = require('@prisma/adapter-libsql')
-      const { createClient: createLibsql } = require('@libsql/client/web')
       const libsql = createLibsql({ url: tursoUrl, authToken: tursoToken })
       const adapter = new PrismaLibSQL(libsql)
       dbConnectionMode = 'turso'
@@ -28,7 +28,6 @@ function createClient(): PrismaClient {
     } catch (e: any) {
       dbConnectionMode = 'turso-failed: ' + (e?.message ?? 'unknown error')
       console.error('[prisma] CRITICAL: Turso adapter failed:', e?.message, e?.stack)
-      // Fall through — but on Vercel with no DATABASE_URL this means all queries will fail
     }
   }
 
