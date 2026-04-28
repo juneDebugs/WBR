@@ -13,12 +13,12 @@ export default function LoginPage() {
     const form = e.currentTarget
     const result = await signIn('credentials', {
       email: (form.elements.namedItem('email') as HTMLInputElement).value,
-      name: (form.elements.namedItem('name') as HTMLInputElement).value,
+      password: (form.elements.namedItem('password') as HTMLInputElement).value,
       callbackUrl: '/dashboard',
       redirect: false,
     })
     if (result?.error) {
-      setError('Sign in failed. Please try again.')
+      setError('Invalid email or password.')
       setLoading(false)
     } else if (result?.url) {
       window.location.href = result.url
@@ -47,17 +47,17 @@ export default function LoginPage() {
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="label">Name</label>
-              <input name="name" type="text" placeholder="Your full name"
-                className="input" />
-            </div>
-            <div>
               <label className="label">Email</label>
               <input name="email" type="email" required placeholder="you@yourcompany.com"
                 className="input" />
             </div>
+            <div>
+              <label className="label">Password</label>
+              <input name="password" type="password" required placeholder="••••••••"
+                className="input" />
+            </div>
             <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base">
-              {loading ? 'Signing in…' : 'Access Sponsor Portal'}
+              {loading ? 'Signing in...' : 'Access Sponsor Portal'}
             </button>
           </form>
 
@@ -82,9 +82,9 @@ export default function LoginPage() {
 
         <div className="mt-6 bg-white/10 rounded-2xl p-4 text-xs text-white/70 space-y-1.5 backdrop-blur-sm">
           <p className="font-semibold text-white/90 mb-2">Demo Sponsor Accounts</p>
-          <p><span className="text-white/50">Shopify:</span> sponsor@shopify.com</p>
-          <p><span className="text-white/50">Klaviyo:</span> sponsor@klaviyo.com</p>
-          <p><span className="text-white/50">Staff:</span> staff@wbr.com</p>
+          <p><span className="text-white/50">Shopify:</span> sponsor@shopify.com / sponsor123</p>
+          <p><span className="text-white/50">Klaviyo:</span> sponsor@klaviyo.com / sponsor123</p>
+          <p><span className="text-white/50">Staff:</span> staff@wbr.com / staff123</p>
         </div>
       </div>
     </div>

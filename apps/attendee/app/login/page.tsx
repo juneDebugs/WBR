@@ -13,13 +13,13 @@ export default function LoginPage() {
     setError(null)
     const form = e.currentTarget
     const result = await signIn('credentials', {
-      name: (form.elements.namedItem('name') as HTMLInputElement).value,
       email: (form.elements.namedItem('email') as HTMLInputElement).value,
+      password: (form.elements.namedItem('password') as HTMLInputElement).value,
       callbackUrl: '/schedule',
       redirect: false,
     })
     if (result?.error) {
-      setError('Something went wrong. Please try again.')
+      setError('Invalid email or password.')
       setLoading(false)
     } else if (result?.url) {
       window.location.href = result.url
@@ -42,19 +42,11 @@ export default function LoginPage() {
 
         <div className="bg-white rounded-2xl p-6 shadow-xl">
           {error && (
-            <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">
+              {error}
+            </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-              <input
-                name="name"
-                type="text"
-                required
-                placeholder="Your full name"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
@@ -65,12 +57,22 @@ export default function LoginPage() {
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input
+                name="password"
+                type="password"
+                required
+                placeholder="••••••••"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
             <button
               type="submit"
               disabled={loading}
               className="w-full bg-primary text-white font-semibold py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-60"
             >
-              {loading ? 'Signing in…' : 'Enter Conference'}
+              {loading ? 'Signing in...' : 'Enter Conference'}
             </button>
           </form>
 
@@ -95,10 +97,10 @@ export default function LoginPage() {
 
         <div className="mt-6 bg-white/10 rounded-2xl p-4 text-xs text-white/70 space-y-1.5">
           <p className="font-semibold text-white/90 mb-2">Demo accounts</p>
-          <p><span className="text-white/50">Attendee:</span> jordan@demo.com</p>
-          <p><span className="text-white/50">Sponsor (Tailor):</span> june@tailor.tech</p>
-          <p><span className="text-white/50">Sponsor (Shopify):</span> sponsor@shopify.com</p>
-          <p><span className="text-white/50">Staff:</span> staff@wbr.com</p>
+          <p><span className="text-white/50">Attendee:</span> jordan@demo.com / demo123</p>
+          <p><span className="text-white/50">Sponsor (Tailor):</span> june@tailor.tech / admin123</p>
+          <p><span className="text-white/50">Sponsor (Shopify):</span> sponsor@shopify.com / sponsor123</p>
+          <p><span className="text-white/50">Staff:</span> staff@wbr.com / staff123</p>
         </div>
 
         <p className="text-white/40 text-xs text-center mt-4">

@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma } from '@conference/db'
+import { prisma, verifyPassword } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -12,26 +12,40 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'credentials',
       credentials: {
-        name: { label: 'Name', type: 'text' },
         email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null
-        const email = credentials.email.trim().toLowerCase()
-        const name = credentials.name?.trim() || email.split('@')[0]
+        try {
+          if (!credentials?.email || !credentials?.password) return null
+          const email = credentials.email.trim().toLowerCase()
 
-        const user = await prisma.user.upsert({
-          where: { email },
-          update: { name },
-          create: { email, name, role: 'ATTENDEE' },
-        })
+          const user = await prisma.user.findUnique({ where: { email } })
+          if (!user) {
+            console.error('[auth] User not found:', email)
+            return null
+          }
+          if (!user.password) {
+            console.error('[auth] User has no password:', email)
+            return null
+          }
 
-        return {
-          id: user.id,
-          email: user.email!,
-          name: user.name,
-          role: user.role,
-          sponsorId: user.sponsorId ?? null,
+          const valid = await verifyPassword(credentials.password, user.password)
+          if (!valid) {
+            console.error('[auth] Password mismatch for:', email)
+            return null
+          }
+
+          return {
+            id: user.id,
+            email: user.email!,
+            name: user.name,
+            role: user.role,
+            sponsorId: user.sponsorId ?? null,
+          }
+        } catch (e: any) {
+          console.error('[auth] authorize() error:', e?.message)
+          return null
         }
       },
     }),

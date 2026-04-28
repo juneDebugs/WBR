@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma } from '@conference/db'
+import { prisma, verifyPassword } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -13,32 +13,44 @@ export const authOptions: NextAuthOptions = {
       name: 'credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
-        name: { label: 'Name', type: 'text' },
+        password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null
-        const email = credentials.email.trim().toLowerCase()
-        const name = credentials.name?.trim() || email.split('@')[0]
+        try {
+          if (!credentials?.email || !credentials?.password) return null
+          const email = credentials.email.trim().toLowerCase()
 
-        let user = await prisma.user.findUnique({ where: { email } })
+          let user = await prisma.user.findUnique({ where: { email } })
+          if (!user) {
+            console.error('[auth] User not found:', email)
+            return null
+          }
+          if (!user.password) {
+            console.error('[auth] User has no password:', email)
+            return null
+          }
 
-        if (user) {
-          if (name) await prisma.user.update({ where: { email }, data: { name } }).catch(() => {})
-        } else {
-          user = await prisma.user.create({ data: { email, name, role: 'ATTENDEE' } })
-        }
+          const valid = await verifyPassword(credentials.password, user.password)
+          if (!valid) {
+            console.error('[auth] Password mismatch for:', email)
+            return null
+          }
 
-        const sponsor = user.sponsorId
-          ? await prisma.sponsor.findUnique({ where: { id: user.sponsorId } }).catch(() => null)
-          : null
+          const sponsor = user.sponsorId
+            ? await prisma.sponsor.findUnique({ where: { id: user.sponsorId } }).catch(() => null)
+            : null
 
-        return {
-          id: user.id,
-          email: user.email!,
-          name: user.name ?? name,
-          role: user.role,
-          sponsorId: user.sponsorId ?? null,
-          sponsorName: sponsor?.name ?? null,
+          return {
+            id: user.id,
+            email: user.email!,
+            name: user.name ?? email.split('@')[0],
+            role: user.role,
+            sponsorId: user.sponsorId ?? null,
+            sponsorName: sponsor?.name ?? null,
+          }
+        } catch (e: any) {
+          console.error('[auth] authorize() error:', e?.message)
+          return null
         }
       },
     }),

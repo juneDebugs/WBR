@@ -1,7 +1,20 @@
 export { prisma, dbConnectionMode } from './client'
 export * from '@prisma/client'
-
+import { scrypt, timingSafeEqual } from 'crypto'
+import { promisify } from 'util'
 import type { ConfSession, Speaker } from '@prisma/client'
+
+// ─── Password utilities ──────────────────────────────────────────────────────
+
+const scryptAsync = promisify(scrypt)
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const [hashed, salt] = hash.split('.')
+  if (!hashed || !salt) return false
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer
+  const hashedBuf = Buffer.from(hashed, 'hex')
+  return timingSafeEqual(buf, hashedBuf)
+}
 
 // ─── Composite types ──────────────────────────────────────────────────────────
 
