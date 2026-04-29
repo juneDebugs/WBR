@@ -15,7 +15,7 @@ export default function LoginPage() {
     const result = await signIn('credentials', {
       email: (form.elements.namedItem('email') as HTMLInputElement).value,
       password: (form.elements.namedItem('password') as HTMLInputElement).value,
-      callbackUrl: '/schedule',
+      callbackUrl: '/home',
       redirect: false,
     })
     if (result?.error) {

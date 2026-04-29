@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
 
   if (token && request.nextUrl.pathname === '/login') {
     const homeUrl = request.nextUrl.clone()
-    homeUrl.pathname = '/schedule'
+    homeUrl.pathname = '/home'
     return NextResponse.redirect(homeUrl)
   }
 
