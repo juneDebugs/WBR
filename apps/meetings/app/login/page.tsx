@@ -43,7 +43,7 @@ export default function LoginPage() {
     const result = await signIn('credentials', {
       email: (form.elements.namedItem('email') as HTMLInputElement).value,
       password: (form.elements.namedItem('password') as HTMLInputElement).value,
-      callbackUrl: '/browse',
+      callbackUrl: '/',
       redirect: false,
     })
     if (result?.error) {
@@ -170,7 +170,7 @@ export default function LoginPage() {
           </div>
 
           <button
-            onClick={() => signIn('google', { callbackUrl: '/browse' })}
+            onClick={() => signIn('google', { callbackUrl: '/' })}
             className="w-full flex items-center justify-center gap-3 py-3.5 border border-white/10 rounded-xl text-sm font-medium text-gray-300 hover:bg-white/5 transition-colors"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
