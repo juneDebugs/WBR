@@ -36,14 +36,16 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
-          const general = await prisma.chatRoom.findFirst({ where: { type: 'CHANNEL', name: 'General' } })
-          if (general) {
-            await prisma.chatMember.upsert({
-              where: { roomId_userId: { roomId: general.id, userId: user.id } },
-              update: {},
-              create: { roomId: general.id, userId: user.id },
-            })
-          }
+          // Join General chat in background — don't block login
+          prisma.chatRoom.findFirst({ where: { type: 'CHANNEL', name: 'General' } }).then(general => {
+            if (general) {
+              prisma.chatMember.upsert({
+                where: { roomId_userId: { roomId: general.id, userId: user.id } },
+                update: {},
+                create: { roomId: general.id, userId: user.id },
+              }).catch(() => {})
+            }
+          }).catch(() => {})
 
           return { id: user.id, email: user.email!, name: user.name, role: user.role, sponsorId: user.sponsorId }
         } catch (e: any) {
@@ -59,7 +61,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider === 'google' && user.email) {
         const email = user.email.toLowerCase()
-        await prisma.user.upsert({
+        const dbUser = await prisma.user.upsert({
           where: { email },
           update: {
             ...(user.name && { name: user.name }),
@@ -67,19 +69,16 @@ export const authOptions: NextAuthOptions = {
           },
           create: { email, name: user.name ?? email.split('@')[0], role: 'ATTENDEE', image: user.image },
         })
+        // Attach DB fields so jwt() doesn't need a second query
+        ;(user as any).id = dbUser.id
+        ;(user as any).role = dbUser.role
+        ;(user as any).sponsorId = dbUser.sponsorId ?? null
       }
       return true
     },
-    async jwt({ token, user, account }) {
-      if (account?.provider === 'google' && user?.email) {
-        const dbUser = await prisma.user.findUnique({ where: { email: user.email.toLowerCase() } })
-        if (dbUser) {
-          token.id = dbUser.id
-          token.role = dbUser.role
-          token.sponsorId = dbUser.sponsorId ?? null
-        }
-      } else if (user) {
-        token.id = user.id
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = (user as any).id ?? user.id
         token.role = (user as any).role
         token.sponsorId = (user as any).sponsorId ?? null
       }

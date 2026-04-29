@@ -68,18 +68,14 @@ export const authOptions: NextAuthOptions = {
             ...(user.image && { image: user.image }),
           },
         })
+        ;(user as any).id = existing.id
+        ;(user as any).role = existing.role
       }
       return true
     },
-    async jwt({ token, user, account }) {
-      if (account?.provider === 'google' && user?.email) {
-        const dbUser = await prisma.user.findUnique({ where: { email: user.email.toLowerCase() } })
-        if (dbUser) {
-          token.id = dbUser.id
-          token.role = dbUser.role
-        }
-      } else if (user) {
-        token.id = user.id
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = (user as any).id ?? user.id
         token.role = (user as any).role
       }
       return token

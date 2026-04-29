@@ -56,7 +56,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider === 'google' && user.email) {
         const email = user.email.toLowerCase()
-        await prisma.user.upsert({
+        const dbUser = await prisma.user.upsert({
           where: { email },
           update: {
             ...(user.name && { name: user.name }),
@@ -64,19 +64,15 @@ export const authOptions: NextAuthOptions = {
           },
           create: { email, name: user.name ?? email.split('@')[0], role: 'ATTENDEE', image: user.image },
         })
+        ;(user as any).id = dbUser.id
+        ;(user as any).role = dbUser.role
+        ;(user as any).sponsorId = dbUser.sponsorId ?? null
       }
       return true
     },
-    async jwt({ token, user, account }) {
-      if (account?.provider === 'google' && user?.email) {
-        const dbUser = await prisma.user.findUnique({ where: { email: user.email.toLowerCase() } })
-        if (dbUser) {
-          token.id = dbUser.id
-          token.role = dbUser.role
-          token.sponsorId = dbUser.sponsorId ?? null
-        }
-      } else if (user) {
-        token.id = user.id
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = (user as any).id ?? user.id
         token.role = (user as any).role
         token.sponsorId = (user as any).sponsorId ?? null
       }
