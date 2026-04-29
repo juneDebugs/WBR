@@ -27,8 +27,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.svg" />
-        <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.svg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
       </head>
       <body className="bg-gray-50 text-gray-900 antialiased">
         <SessionProvider>{children}</SessionProvider>
