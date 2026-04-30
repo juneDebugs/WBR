@@ -1,5 +1,8 @@
 'use client'
 import { useState, useMemo } from 'react'
+import Image from 'next/image'
+import { getIndustry, getJobFunction, getTitleLevel } from '@/lib/solutions'
+import { SolutionBadge } from './SolutionBadge'
 
 const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
   { label: 'Marketing Solutions', items: [
@@ -80,48 +83,6 @@ const JOB_FUNCTIONS = [
   'Strategy/Innovation', 'Information Technology', 'Operations', 'C-Suite/GM',
   'Supply Chain/Logistics', 'Merchandising',
 ]
-
-function getJobFunction(jobTitle: string | null | undefined): string {
-  if (!jobTitle) return 'C-Suite/GM'
-  const t = jobTitle.toLowerCase()
-  if (t.includes('ceo') || t.includes('coo') || t.includes('cfo') || t.includes('cto') || t.includes('cmo') || t.includes('founder') || t.includes('president') || t.includes('owner') || t.includes('general manager')) return 'C-Suite/GM'
-  if (t.includes('marketing') || t.includes('brand') || t.includes('acquisition') || t.includes('retention') || t.includes('performance') || t.includes('content') || t.includes('creative')) return 'Marketing'
-  if (t.includes('ecommerce') || t.includes('e-commerce') || t.includes('dtc') || t.includes('commerce') || t.includes('marketplace')) return 'Ecommerce'
-  if (t.includes('store') || t.includes('retail') || t.includes('wholesale') || t.includes('omnichannel')) return 'Stores/Retail'
-  if (t.includes('customer') || t.includes('cx') || t.includes('experience') || t.includes('support') || t.includes('success')) return 'Customer Experience'
-  if (t.includes('digital') || t.includes('growth') || t.includes('web') || t.includes('social media')) return 'Digital'
-  if (t.includes('strategy') || t.includes('innovation') || t.includes('transformation')) return 'Strategy/Innovation'
-  if (t.includes('tech') || t.includes('engineering') || t.includes('developer') || t.includes('software') || t.includes('platform') || t.includes('data') || t.includes('it ')) return 'Information Technology'
-  if (t.includes('operations') || t.includes('ops') || t.includes('fulfillment') || t.includes('warehouse')) return 'Operations'
-  if (t.includes('supply') || t.includes('logistics') || t.includes('shipping') || t.includes('distribution')) return 'Supply Chain/Logistics'
-  if (t.includes('merchandis') || t.includes('buyer') || t.includes('product') || t.includes('assortment')) return 'Merchandising'
-  if (t.includes('sales') || t.includes('partnerships') || t.includes('account') || t.includes('revenue')) return 'Stores/Retail'
-  return 'C-Suite/GM'
-}
-
-const FASHION_SET = new Set(['ASOS DTC','Aerie','Alex Mill','Allbirds','Boohoo DTC','Browns Fashion','Buck Mason','Chubbies','Cotopaxi','Cuyana','Danner','Depop','Eloquii','Entireworld','Everlane','Faherty Brand','Farfetch','Fossil DTC','Grailed','Helm Boots','Koio','M.Gemi','Margaux','Michael Kors DTC','Ministry of Supply','Natori','Nisolo','Noihsaf Bazaar','Outdoor Voices','Outerknown','PrettyLittleThing','Public Rec','Quince','Reformation','Rent the Runway',"Rothy's",'SSENSE','Saks Fifth Avenue DTC','Selfridges Digital','Shein DTC','Shopbop','Stitch Fix','Tecovas','Temu Brand','ThredUp','Thursday Boot','Torrid','True Classic','Universal Standard','Vuori','Warby Parker','Wolf & Badger'])
-const JEWELRY_SET = new Set(['Alex and Ani','Ana Luisa','Aurate','Baublebar','Catbird','Clocks and Colours','EyeBuyDirect','Gorjana','JINS Eyewear','MVMT','Mejuri','Missoma','Monica Vinader','Olive & Piper','Pandora DTC','Studs','Vrai'])
-const BEAUTY_SET = new Set(['Charlotte Tilbury DTC','ColourPop','Fenty Beauty DTC','Florence by Mills','Glossier','Gwyneth Paltrow Beauty','Haus Labs','Huda Beauty DTC','IL MAKIAGE','Ilia Beauty','Jones Road','Kosas','Kylie Cosmetics','Milk Makeup','Morphe','NARS DTC','Saie Beauty','Summer Fridays','Tarte Cosmetics','Too Faced DTC','Tower 28','Urban Decay DTC','Victoria Beckham Beauty','Westman Atelier'])
-const SKINCARE_SET = new Set(['Beautycounter','Biossance','COSRX','Care/of','CeraVe DTC','Credo Beauty','Dermalogica DTC','Dermstore','Drunk Elephant','Follain','Glow Recipe','Herbivore Botanicals','Innisfree DTC','La Roche-Posay DTC','Murad DTC','Ordinary DTC',"Paula's Choice",'Peter Thomas Roth DTC','Rescue Spa','SK-II DTC','SkinCeuticals DTC','Sulwhasoo DTC','Sunday Riley DTC','Tatcha','The Detox Market','Tula Skincare','Versed'])
-const HEALTH_SET = new Set(['AG1 (Athletic Greens)','Calm','Headspace DTC','Hims & Hers','Hyperice','Mirror DTC','NordicTrack DTC','Oura','Peloton DTC','Roman Health','Therabody','Tonal','Wahoo Fitness','Whoop'])
-const FOOD_SET = new Set(['Baked by Melissa DTC','Brightland','Burlap & Barrel','Compartés','Diaspora Co','Goldbelly','Jacobsen Salt',"Jeni's Ice Cream",'Levain Bakery DTC','Magic Spoon','Milk Bar DTC','Poppi','Salt & Straw DTC','Sugarfina','Vosges'])
-const HOME_SET = new Set(['Albany Park','Apt2B','Arhaus DTC','Article','Bear Mattress','Boll & Branch','Brooklinen','Brooklyn Bedding','Buffy','Burrow','Cedar & Moss','Coyuchi','Design Within Reach DTC','Eight Sleep','Floyd','Hawkins NY','Helix Sleep','Interior Define','Interior Icons','Joybird','Parachute Home','Purple Innovation','Rejuvenation','Room & Board DTC','Schoolhouse','Snowe','Tuft & Needle','Visual Comfort DTC','Year & Day'])
-const PET_SET = new Set(['A Pup Above','BarkBox DTC','Ollie','Open Farm','Spot & Tango','Sundays for Dogs',"The Farmer's Dog",'Wild One'])
-const KIDS_SET = new Set(['4moms DTC','BIBS','Ergobaby DTC','Kyte Baby','Little Sleepies'])
-
-function getIndustry(company: string | null | undefined): string {
-  if (!company) return 'Technology'
-  if (FASHION_SET.has(company)) return 'Fashion & Apparel'
-  if (JEWELRY_SET.has(company)) return 'Jewelry & Accessories'
-  if (BEAUTY_SET.has(company)) return 'Beauty & Cosmetics'
-  if (SKINCARE_SET.has(company)) return 'Skincare'
-  if (HEALTH_SET.has(company)) return 'Health & Wellness'
-  if (FOOD_SET.has(company)) return 'Food & Beverage'
-  if (HOME_SET.has(company)) return 'Home & Lifestyle'
-  if (PET_SET.has(company)) return 'Pet'
-  if (KIDS_SET.has(company)) return 'Kids & Baby'
-  return 'Technology'
-}
 
 function parseArr(val: string | null | undefined): string[] {
   if (!val) return []
@@ -231,9 +192,10 @@ export function SponsorBrowseView({
   const [sizes, setSizes] = useState<string[]>([])
   const [revenues, setRevenues] = useState<string[]>([])
   const [seeking, setSeeking] = useState<string[]>([])
-  const [requesting, setRequesting] = useState<string | null>(null)
   const [requested, setRequested] = useState<Set<string>>(new Set())
+  const [showModal, setShowModal] = useState<string | null>(null)
   const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
 
   const toggle = (val: string, arr: string[], set: (v: string[]) => void) =>
     set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
@@ -257,17 +219,24 @@ export function SponsorBrowseView({
     })
   }, [people, search, roles, jobFunctions, industries, sizes, revenues, seeking])
 
-  async function requestMeeting(personId: string) {
-    if (!sponsorId) return
-    await fetch('/api/request-meeting', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetUserId: personId, message }),
-    })
-    setRequested(prev => new Set([...prev, personId]))
-    setRequesting(null)
-    setMessage('')
+  async function requestMeeting() {
+    if (!sponsorId || !showModal) return
+    setSending(true)
+    try {
+      await fetch('/api/request-meeting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: showModal, message }),
+      })
+      setRequested(prev => new Set([...prev, showModal]))
+    } finally {
+      setSending(false)
+      setShowModal(null)
+      setMessage('')
+    }
   }
+
+  const modalPerson = showModal ? filtered.find(p => p.id === showModal) ?? people.find(p => p.id === showModal) : null
 
   const activeFilters = roles.length + jobFunctions.length + industries.length + sizes.length + revenues.length + seeking.length
 
@@ -338,107 +307,88 @@ export function SponsorBrowseView({
               const theirSeeking = parseArr(p.solutionsSeeking)
               const theirOffering = parseArr(p.solutionsOffering)
               const isRequested = requested.has(p.id)
+              const industry = getIndustry(p.company)
+              const jobFn = getJobFunction(p.jobTitle)
+              const titleLevel = getTitleLevel(p.jobTitle)
 
               return (
-                <div key={p.id} className="card p-5 flex flex-col gap-3">
-                  {/* Avatar + name */}
-                  <div className="flex items-center gap-3">
-                    {p.image ? (
-                      <img src={p.image} alt="" loading="lazy" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-bold text-primary">{p.name?.[0] ?? '?'}</span>
+                <div key={p.id} className="card hover:shadow-md transition-shadow flex flex-col justify-between">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
+                      {p.image ? (
+                        <Image src={p.image} alt={p.name ?? ''} width={48} height={48} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-lg">
+                          {(p.name ?? '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-gray-900 text-sm">{p.name ?? '—'}</h3>
+                        <span className={`badge ${
+                          p.role === 'SPEAKER' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {p.role.charAt(0) + p.role.slice(1).toLowerCase()}
+                        </span>
                       </div>
+                      {p.jobTitle && (
+                        <p className="text-xs text-gray-700 font-medium mt-0.5">{p.jobTitle}</p>
+                      )}
+                      {p.company && (
+                        <p className="text-xs text-gray-400">{p.company}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Industry / Function / Title metadata */}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    <span className="badge bg-violet-50 text-violet-700">{industry}</span>
+                    <span className="badge bg-sky-50 text-sky-700">{jobFn}</span>
+                    <span className="badge bg-gray-100 text-gray-600">{titleLevel}</span>
+                    {p.annualRevenue && (
+                      <span className="badge bg-emerald-50 text-emerald-700">{p.annualRevenue} ARR</span>
                     )}
-                    <div className="min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">{p.name}</p>
-                      <p className="text-xs text-primary font-medium truncate">{p.jobTitle}</p>
-                      {p.company && <p className="text-xs text-gray-500 truncate">{p.company}</p>}
-                    </div>
                   </div>
 
-                  {/* Role badge */}
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      p.role === 'SPEAKER' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                    }`}>{p.role}</span>
-                    {p.companySize && <span className="text-xs text-gray-400">{p.companySize}</span>}
-                    {p.annualRevenue && <span className="text-xs text-gray-400">· {p.annualRevenue}</span>}
-                  </div>
+                  {p.bio && <p className="text-xs text-gray-500 mb-3 line-clamp-2">{p.bio}</p>}
+                  <div className="flex-1" />
 
-                  {/* Bio */}
-                  {p.bio && (
-                    <p className="text-xs text-gray-500 line-clamp-2">{p.bio}</p>
-                  )}
-
-                  {/* Looking For */}
-                  {theirSeeking.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-700 mb-1.5">Looking For</p>
+                  {theirOffering.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Offers</p>
                       <div className="flex flex-wrap gap-1">
-                        {theirSeeking.slice(0, 4).map(s => (
-                          <span key={s} className="text-xs bg-primary/8 text-primary border border-primary/20 px-2 py-0.5 rounded-full">
-                            {s}
-                          </span>
-                        ))}
-                        {theirSeeking.length > 4 && (
-                          <span className="text-xs text-gray-400">+{theirSeeking.length - 4}</span>
-                        )}
+                        {theirOffering.slice(0, 4).map(t => <SolutionBadge key={t} label={t} />)}
+                        {theirOffering.length > 4 && <span className="badge bg-gray-100 text-gray-500">+{theirOffering.length - 4}</span>}
                       </div>
                     </div>
                   )}
 
-                  {/* Offering */}
-                  {theirOffering.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-700 mb-1.5">Offers</p>
+                  {theirSeeking.length > 0 && (
+                    <div className="mb-3 bg-primary/5 rounded-xl p-2.5">
+                      <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-1.5">Looking For</p>
                       <div className="flex flex-wrap gap-1">
-                        {theirOffering.slice(0, 3).map(s => (
-                          <span key={s} className="text-xs bg-gray-50 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full">
-                            {s}
-                          </span>
-                        ))}
-                        {theirOffering.length > 3 && (
-                          <span className="text-xs text-gray-400">+{theirOffering.length - 3}</span>
-                        )}
+                        {theirSeeking.slice(0, 5).map(t => <SolutionBadge key={t} label={t} />)}
+                        {theirSeeking.length > 5 && <span className="badge bg-gray-100 text-gray-500">+{theirSeeking.length - 5}</span>}
                       </div>
                     </div>
                   )}
 
                   {/* Request meeting */}
                   {sponsorId && (
-                    <div className="mt-auto pt-2">
-                      {isRequested ? (
-                        <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Request Sent
-                        </span>
-                      ) : requesting === p.id ? (
-                        <div className="space-y-2">
-                          <textarea
-                            className="input text-xs min-h-[60px] resize-none"
-                            placeholder="Add a note (optional)…"
-                            value={message}
-                            onChange={e => setMessage(e.target.value)}
-                          />
-                          <div className="flex gap-2">
-                            <button onClick={() => requestMeeting(p.id)} className="btn-primary text-xs px-3 py-1.5 flex-1">
-                              Send Request
-                            </button>
-                            <button onClick={() => setRequesting(null)} className="btn-secondary text-xs px-3 py-1.5">
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button onClick={() => setRequesting(p.id)}
-                          className="btn-primary text-xs w-full py-1.5">
-                          Request Meeting
-                        </button>
-                      )}
-                    </div>
+                    <>
+                      <button
+                        onClick={() => isRequested ? null : setShowModal(p.id)}
+                        disabled={isRequested}
+                        className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
+                          isRequested
+                            ? 'bg-green-50 text-green-600 cursor-default'
+                            : 'bg-primary text-white hover:bg-primary-dark active:scale-95'
+                        }`}
+                      >
+                        {isRequested ? '✓ Requested' : 'Request Meeting'}
+                      </button>
+                    </>
                   )}
                 </div>
               )
@@ -452,6 +402,29 @@ export function SponsorBrowseView({
           )}
         </div>
       </div>
+
+      {/* Request Meeting Modal */}
+      {showModal && modalPerson && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 shadow-xl">
+            <h2 className="font-bold text-gray-900 mb-1">Request a meeting</h2>
+            <p className="text-sm text-gray-500 mb-4">with {modalPerson.name} ({modalPerson.company ?? modalPerson.role})</p>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="What would you like to discuss? (optional)"
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 mb-4 resize-none"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => { setShowModal(null); setMessage('') }} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={requestMeeting} disabled={sending} className="btn-primary flex-1">
+                {sending ? 'Sending…' : 'Send Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
