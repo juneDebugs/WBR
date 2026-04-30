@@ -30,9 +30,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-primary to-primary-dark px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <div className="w-20 h-20 rounded-3xl overflow-hidden mx-auto mb-4 bg-white/20 p-1.5">
-            <img src="/icons/icon-192.png" alt="WBR" className="w-full h-full object-contain" />
-          </div>
+          <img src="/icons/icon-192.png" alt="WBR" className="w-20 h-20 object-contain mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-white">WBR 2027</h1>
           <p className="text-white/70 mt-2 text-sm">Your all-in-one conference companion</p>
         </div>
