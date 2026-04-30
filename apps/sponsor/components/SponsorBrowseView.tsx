@@ -67,6 +67,34 @@ const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
 
 const ALL_SOLUTIONS = SOLUTION_CATEGORIES.flatMap(c => c.items)
 
+const CATEGORY_COLORS: Record<string, string> = {
+  'Marketing Solutions': '#f43f5e',                        // rose
+  'Data, Analytics & AI': '#8b5cf6',                       // violet
+  'Commerce Platforms': '#3b82f6',                         // blue
+  'Web & Mobile': '#06b6d4',                               // cyan
+  'In-Store Solutions': '#f59e0b',                         // amber
+  'Payments, Banking & Embedded Products': '#10b981',      // emerald
+  'CRM & Customer Service': '#ec4899',                     // pink
+  'Infrastructure & IT': '#6366f1',                        // indigo
+  'Supply Chain, Merchandising, Pricing & Planning': '#f97316', // orange
+  'Professional Services': '#14b8a6',                      // teal
+  'Back Office & HR': '#a855f7',                           // purple
+}
+
+function getCategoryForSolution(solution: string): string | null {
+  for (const cat of SOLUTION_CATEGORIES) {
+    if (cat.items.includes(solution)) return cat.label
+  }
+  return null
+}
+
+function getBorderColor(seekingJson: string | null | undefined): string {
+  const seeking = parseArr(seekingJson)
+  if (seeking.length === 0) return '#d1d5db' // gray-300
+  const cat = getCategoryForSolution(seeking[0])
+  return cat ? (CATEGORY_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
+}
+
 const INDUSTRIES = [
   'Fashion & Apparel', 'Beauty & Cosmetics', 'Skincare', 'Health & Wellness',
   'Food & Beverage', 'Home & Lifestyle', 'Jewelry & Accessories', 'Pet', 'Kids & Baby',
@@ -344,9 +372,10 @@ export function SponsorBrowseView({
               const jobFn = getJobFnFromLib(p.jobTitle)
               const titleLevel = getTitleLevel(p.jobTitle)
               const companyDesc = getCompanyDescription(p.company)
+              const borderColor = getBorderColor(p.solutionsSeeking)
 
               return (
-                <div key={p.id} className="card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4" style={{ borderTopColor: `hsl(${(p.id.charCodeAt(0) * 37 + p.id.charCodeAt(1) * 53) % 360}, 70%, 75%)` }}>
+                <div key={p.id} className="card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4" style={{ borderTopColor: borderColor }}>
                   <div className="flex items-start gap-3 mb-3">
                     <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
                       {p.image ? (
