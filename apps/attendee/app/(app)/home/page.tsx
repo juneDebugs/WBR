@@ -51,6 +51,7 @@ export default async function HomePage() {
     prisma.sponsor.findMany({
       select: { id: true, name: true, logoUrl: true, tier: true, website: true },
       orderBy: [{ tier: 'asc' }, { name: 'asc' }],
+      take: 50,
     }),
   ])
 

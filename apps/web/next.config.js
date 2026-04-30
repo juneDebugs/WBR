@@ -9,8 +9,10 @@ const securityHeaders = [
 
 module.exports = {
   reactStrictMode: true,
+  poweredByHeader: false,
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
+  transpilePackages: ['@conference/db'],
   serverExternalPackages: ['@prisma/adapter-libsql'],
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }]

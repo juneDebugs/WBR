@@ -2,7 +2,10 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaLibSQL } from '@prisma/adapter-libsql'
 import { createClient as createLibsql } from '@libsql/client/web'
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+  libsqlAdapter: any
+}
 
 // Track connection mode for diagnostics
 export let dbConnectionMode = 'unknown'
@@ -18,13 +21,15 @@ function createClient(): PrismaClient {
     return new PrismaClient()
   }
 
-  // At runtime: use Turso if env vars are set
+  // At runtime: use Turso if env vars are set — cache the adapter globally
   if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
     try {
-      const libsql = createLibsql({ url: tursoUrl, authToken: tursoToken })
-      const adapter = new PrismaLibSQL(libsql)
+      if (!globalForPrisma.libsqlAdapter) {
+        const libsql = createLibsql({ url: tursoUrl, authToken: tursoToken })
+        globalForPrisma.libsqlAdapter = new PrismaLibSQL(libsql)
+      }
       dbConnectionMode = 'turso'
-      return new PrismaClient({ adapter } as any)
+      return new PrismaClient({ adapter: globalForPrisma.libsqlAdapter } as any)
     } catch (e: any) {
       dbConnectionMode = 'turso-failed: ' + (e?.message ?? 'unknown error')
       console.error('[prisma] CRITICAL: Turso adapter failed:', e?.message, e?.stack)

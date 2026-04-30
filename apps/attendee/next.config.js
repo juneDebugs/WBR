@@ -9,6 +9,7 @@ const securityHeaders = [
 
 module.exports = {
   reactStrictMode: true,
+  poweredByHeader: false,
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   serverExternalPackages: ['@prisma/adapter-libsql'],

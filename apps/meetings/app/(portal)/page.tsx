@@ -144,7 +144,7 @@ export default async function DashboardPage() {
     !isStaff
       ? prisma.user.findUnique({
           where: { id: user.id },
-          select: { name: true, image: true, bio: true, company: true, jobTitle: true, website: true, solutionsSeeking: true, solutionsOffering: true },
+          select: { name: true, image: true, bio: true, company: true, jobTitle: true, website: true, solutionsSeeking: true, solutionsOffering: true, companySize: true, annualRevenue: true, sponsorId: true },
         })
       : Promise.resolve(null),
     !isStaff
@@ -180,17 +180,7 @@ export default async function DashboardPage() {
   let recSubheading = ''
 
   if (!isStaff) {
-    const fullUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: {
-        solutionsSeeking: true,
-        solutionsOffering: true,
-        companySize: true,
-        annualRevenue: true,
-        company: true,
-        sponsorId: true,
-      },
-    })
+    const fullUser = profileUser // reuse — already fetched with all needed fields
 
     if (isSponsor && user.sponsorId) {
       const sponsor = await prisma.sponsor.findUnique({
