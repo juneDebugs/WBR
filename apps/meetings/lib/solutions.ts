@@ -46,6 +46,40 @@ export const SOLUTIONS = [
   'AI & Automation',
 ]
 
+// ── Solution Categories & Colors ─────────────────────────────────────────────
+
+export const SOLUTION_CATEGORY_GROUPS: { label: string; items: string[] }[] = [
+  { label: 'Marketing', items: ['Email Marketing', 'SMS Marketing', 'Reviews & UGC', 'Personalization'] },
+  { label: 'Commerce & Payments', items: ['Payment Processing', 'Subscription Management', 'B2B Commerce', 'Headless Commerce', 'Marketplace Integration'] },
+  { label: 'Operations', items: ['Shipping & Fulfillment', 'Inventory Management', 'Returns Management', 'ERP / Operations'] },
+  { label: 'Data & AI', items: ['Analytics & Reporting', 'AI & Automation', 'Search & Discovery'] },
+  { label: 'Customer', items: ['Customer Support', 'Loyalty & Rewards'] },
+]
+
+export const CATEGORY_BORDER_COLORS: Record<string, string> = {
+  'Marketing': '#f43f5e',
+  'Commerce & Payments': '#3b82f6',
+  'Operations': '#f97316',
+  'Data & AI': '#8b5cf6',
+  'Customer': '#ec4899',
+}
+
+export function getSolutionCategory(solution: string): string | null {
+  for (const cat of SOLUTION_CATEGORY_GROUPS) {
+    if (cat.items.includes(solution)) return cat.label
+  }
+  return null
+}
+
+export function getBorderColorForSeeking(seekingJson: string | null | undefined): string {
+  if (!seekingJson) return '#d1d5db'
+  let seeking: string[]
+  try { seeking = JSON.parse(seekingJson) } catch { return '#d1d5db' }
+  if (seeking.length === 0) return '#d1d5db'
+  const cat = getSolutionCategory(seeking[0])
+  return cat ? (CATEGORY_BORDER_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
+}
+
 export const COMPANY_SIZES = ['STARTUP', 'SMB', 'MIDMARKET', 'ENTERPRISE'] as const
 export const REVENUE_RANGES = ['<1M', '1M-10M', '10M-50M', '50M-250M', '250M+'] as const
 

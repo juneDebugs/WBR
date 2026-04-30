@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { getIndustry, getJobFunction, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
+import { getIndustry, getJobFunction, getTitleLevel, getCompanyDescription, getBorderColorForSeeking } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
 interface Person {
@@ -44,6 +44,7 @@ export function PersonCard({ person, requested: initialRequested }: Props) {
   const jobFn = getJobFunction(person.jobTitle)
   const titleLevel = getTitleLevel(person.jobTitle)
   const companyDesc = getCompanyDescription(person.company)
+  const borderColor = getBorderColorForSeeking(person.solutionsSeeking)
 
   async function sendRequest() {
     setLoading(true)
@@ -62,7 +63,7 @@ export function PersonCard({ person, requested: initialRequested }: Props) {
 
   return (
     <>
-      <div className="card hover:shadow-md transition-shadow flex flex-col justify-between">
+      <div className="card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4" style={{ borderTopColor: borderColor }}>
         <div className="flex items-start gap-3 mb-3">
           <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
             {person.image ? (

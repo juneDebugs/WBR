@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import {
   SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS,
-  INDUSTRIES, JOB_FUNCTIONS, TITLE_LEVELS,
+  INDUSTRIES, JOB_FUNCTIONS, TITLE_LEVELS, CATEGORY_BORDER_COLORS,
 } from '@/lib/solutions'
 
 export interface Filters {
@@ -91,7 +91,10 @@ function SolutionCategoryFilter({ selected, toggleSolution }: { selected: string
                   isOpen ? 'bg-primary/10 text-primary' : count > 0 ? 'bg-primary/5 text-primary' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                <span className="truncate text-left">{cat.label}</span>
+                <span className="flex items-center gap-2 truncate text-left">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: CATEGORY_BORDER_COLORS[cat.label] ?? '#d1d5db' }} />
+                  {cat.label}
+                </span>
                 <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
                   {count > 0 && (
                     <span className="bg-primary text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{count}</span>
