@@ -211,7 +211,7 @@ const COMPANY_DESCRIPTIONS: Record<string, string> = {
   // Food & Beverage
   'Magic Spoon': 'High-protein, low-carb cereal that tastes like childhood.',
   'Goldbelly': 'Iconic restaurant food shipped nationwide.',
-  'Poppi': 'Prebiotic soda that's actually good for your gut.',
+  'Poppi': 'Prebiotic soda that is actually good for your gut.',
 
   // Home & Lifestyle
   'Brooklinen': 'Luxury bedding and bath essentials at a fair price.',
