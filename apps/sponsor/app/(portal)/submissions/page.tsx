@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 import { SubmissionsView } from '@/components/SubmissionsView'
+import { RegisterTeammate } from '@/components/RegisterTeammate'
 
 export default async function SubmissionsPage() {
   const session = await getServerSession(authOptions)
@@ -11,14 +12,22 @@ export default async function SubmissionsPage() {
   const user = session.user as any
   if (!user.sponsorId) redirect('/dashboard')
 
-  const forms = await prisma.submissionForm.findMany({
-    where: { sponsorId: user.sponsorId },
-    include: { _count: { select: { submissions: true } } },
-    orderBy: { createdAt: 'desc' },
-  })
+  const [forms, teammates] = await Promise.all([
+    prisma.submissionForm.findMany({
+      where: { sponsorId: user.sponsorId },
+      include: { _count: { select: { submissions: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.user.findMany({
+      where: { sponsorId: user.sponsorId, id: { not: user.id } },
+      select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
+      orderBy: { name: 'asc' },
+    }),
+  ])
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+      <RegisterTeammate teammates={teammates} />
       <SubmissionsView
         initialForms={forms.map(f => ({
           id: f.id,

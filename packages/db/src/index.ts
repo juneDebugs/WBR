@@ -16,6 +16,13 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return timingSafeEqual(buf, hashedBuf)
 }
 
+export async function hashPassword(password: string): Promise<string> {
+  const { randomBytes } = await import('crypto')
+  const salt = randomBytes(16).toString('hex')
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer
+  return `${buf.toString('hex')}.${salt}`
+}
+
 // ─── Composite types ──────────────────────────────────────────────────────────
 
 export type SessionWithSpeaker = ConfSession & {
