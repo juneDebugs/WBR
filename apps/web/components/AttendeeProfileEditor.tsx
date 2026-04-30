@@ -28,6 +28,38 @@ const ROLES = [
   { value: 'ADMIN', label: 'Admin' },
 ]
 
+const SOLUTIONS = [
+  'Email Marketing', 'SMS Marketing', 'Loyalty & Rewards', 'Subscription Management',
+  'Returns Management', 'Customer Support', 'Shipping & Fulfillment', 'Inventory Management',
+  'Analytics & Reporting', 'Payment Processing', 'Search & Discovery', 'ERP / Operations',
+  'Personalization', 'Reviews & UGC', 'Marketplace Integration', 'B2B Commerce',
+  'Headless Commerce', 'AI & Automation',
+]
+
+function parseArr(val: string | null | undefined): string[] {
+  if (!val) return []
+  try { return JSON.parse(val) } catch { return [] }
+}
+
+function ChipPicker({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  function toggle(s: string) {
+    onChange(selected.includes(s) ? selected.filter(x => x !== s) : [...selected, s])
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {SOLUTIONS.map(s => (
+        <button key={s} type="button" onClick={() => toggle(s)}
+          className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+            selected.includes(s)
+              ? 'bg-primary text-white border-primary'
+              : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'
+          }`}
+        >{s}</button>
+      ))}
+    </div>
+  )
+}
+
 interface UserData {
   id: string
   name: string | null
@@ -62,9 +94,10 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
     website: user.website ?? '',
     companySize: user.companySize ?? '',
     annualRevenue: user.annualRevenue ?? '',
-    solutionsOffering: user.solutionsOffering ?? '[]',
-    solutionsSeeking: user.solutionsSeeking ?? '[]',
   })
+
+  const [offering, setOffering] = useState<string[]>(parseArr(user.solutionsOffering))
+  const [seeking, setSeeking] = useState<string[]>(parseArr(user.solutionsSeeking))
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -90,8 +123,8 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
           website: form.website || null,
           companySize: form.companySize || null,
           annualRevenue: form.annualRevenue || null,
-          solutionsOffering: form.solutionsOffering,
-          solutionsSeeking: form.solutionsSeeking,
+          solutionsOffering: JSON.stringify(offering),
+          solutionsSeeking: JSON.stringify(seeking),
         }),
       })
       if (!res.ok) {
@@ -197,14 +230,12 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
               className="form-input resize-none" />
           </div>
           <div className="col-span-2">
-            <label className="text-xs font-medium text-gray-600 block mb-1">Solutions Offering (JSON array)</label>
-            <input type="text" value={form.solutionsOffering} onChange={e => set('solutionsOffering', e.target.value)}
-              placeholder='["Email Marketing","AI & Automation"]' className="form-input font-mono text-xs" />
+            <label className="text-xs font-medium text-gray-600 block mb-2">Solutions Offering</label>
+            <ChipPicker selected={offering} onChange={setOffering} />
           </div>
           <div className="col-span-2">
-            <label className="text-xs font-medium text-gray-600 block mb-1">Solutions Seeking (JSON array)</label>
-            <input type="text" value={form.solutionsSeeking} onChange={e => set('solutionsSeeking', e.target.value)}
-              placeholder='["Analytics & Reporting"]' className="form-input font-mono text-xs" />
+            <label className="text-xs font-medium text-gray-600 block mb-2">Solutions Seeking</label>
+            <ChipPicker selected={seeking} onChange={setSeeking} />
           </div>
         </div>
 
