@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getCompanyDescription } from '@/lib/solutions'
 
 interface Attendee {
   id: string
@@ -95,6 +96,16 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
                     {[a.jobTitle, a.company].filter(Boolean).join(' · ')}
                   </p>
                 )}
+
+                {/* Company description */}
+                {(() => {
+                  const desc = getCompanyDescription(a.company)
+                  return desc ? (
+                    <p className="text-[10px] leading-snug text-gray-400 mt-1.5 line-clamp-2 min-h-[28px]">{desc}</p>
+                  ) : (
+                    <div className="min-h-[28px] mt-1.5" />
+                  )
+                })()}
 
                 {/* Tags */}
                 <div className="flex flex-wrap gap-1 mt-2.5">
