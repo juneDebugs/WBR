@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { notFound } from 'next/navigation'
+import { AttendeeProfileEditor } from '@/components/AttendeeProfileEditor'
 
 function parseArr(val: string | null | undefined): string[] {
   if (!val) return []
@@ -138,7 +139,15 @@ export default async function AttendeeProfilePage({ params }: { params: { userId
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold text-gray-900">{user.name ?? '—'}</h2>
+              <div className="flex items-start justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">{user.name ?? '—'}</h2>
+                <AttendeeProfileEditor user={{
+                  id: user.id, name: user.name, email: user.email, image: user.image,
+                  bio: user.bio, company: user.company, jobTitle: user.jobTitle, role: user.role,
+                  website: user.website, companySize: user.companySize, annualRevenue: user.annualRevenue,
+                  solutionsOffering: user.solutionsOffering, solutionsSeeking: user.solutionsSeeking,
+                }} />
+              </div>
               <p className="text-sm text-gray-500">{user.email ?? '—'}</p>
               {(user.jobTitle || user.company) && (
                 <p className="text-sm text-gray-600 mt-1">
