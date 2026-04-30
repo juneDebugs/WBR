@@ -30,11 +30,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-primary to-primary-dark px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
+          <div className="w-20 h-20 rounded-3xl overflow-hidden mx-auto mb-4 bg-white/20 p-1.5">
+            <img src="/icons/icon-192.png" alt="WBR" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-white">WBR 2027</h1>
           <p className="text-white/70 mt-2 text-sm">Your all-in-one conference companion</p>
