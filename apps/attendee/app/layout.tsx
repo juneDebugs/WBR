@@ -30,8 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
       </head>
-      <body className="bg-gray-50 text-gray-900 antialiased">
-        <SessionProvider>{children}</SessionProvider>
+      <body className="bg-gray-50 text-gray-900 antialiased flex justify-center min-h-screen">
+        <div className="w-full max-w-[430px] min-h-screen shadow-2xl bg-gray-50 relative">
+          <SessionProvider>{children}</SessionProvider>
+        </div>
       </body>
     </html>
   )
