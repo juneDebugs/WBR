@@ -168,3 +168,93 @@ export function getTitleLevel(jobTitle: string | null | undefined): TitleLevel {
   if (t.startsWith('head of') || t.startsWith('head,')) return 'Head of'
   return 'Manager / Lead'
 }
+
+// ── Company Description ──────────────────────────────────────────────────────
+
+const COMPANY_DESCRIPTIONS: Record<string, string> = {
+  // Fashion & Apparel
+  'Allbirds': 'Sustainable footwear brand using natural materials.',
+  'Everlane': 'Transparent pricing and ethical modern essentials.',
+  'Reformation': 'Sustainable women's fashion with a cool-girl edge.',
+  'Stitch Fix': 'AI-powered personal styling delivered to your door.',
+  'Rent the Runway': 'Designer fashion rental for everyday and events.',
+  'ThredUp': 'Online consignment and thrift for secondhand fashion.',
+  'Warby Parker': 'Affordable designer eyewear with a social mission.',
+  'Vuori': 'Performance apparel inspired by the active California lifestyle.',
+  'Quince': 'Luxury-quality essentials at radically low prices.',
+  'Faherty Brand': 'Sustainably-minded coastal lifestyle clothing.',
+  'Outdoor Voices': 'Activewear designed for recreation, not competition.',
+  'Buck Mason': 'Elevated American basics for the modern wardrobe.',
+  'Chubbies': 'Weekend wear and shorts with a fun-first philosophy.',
+  'Cotopaxi': 'Outdoor gear brand fueled by adventure and social impact.',
+  'True Classic': 'Premium-fit basics at accessible price points.',
+  'Torrid': 'Fashion-forward plus-size clothing and intimates.',
+
+  // Beauty & Cosmetics
+  'Glossier': 'Beauty products inspired by real life and real skin.',
+  'Fenty Beauty DTC': 'Inclusive beauty for every skin tone by Rihanna.',
+  'Charlotte Tilbury DTC': 'Luxury beauty powered by backstage expertise.',
+  'IL MAKIAGE': 'Tech-driven beauty with AI shade matching.',
+  'Kosas': 'Clean makeup that feels like skincare.',
+  'Tower 28': 'Clean, non-toxic beauty made for sensitive skin.',
+  'Saie Beauty': 'Clean beauty essentials with an effortless glow.',
+  'Ilia Beauty': 'Clean beauty that delivers real results.',
+  'ColourPop': 'Trend-driven beauty at drugstore prices.',
+
+  // Skincare
+  'Drunk Elephant': 'Biocompatible skincare free of the "suspicious six."',
+  'Glow Recipe': 'Fruit-powered skincare for a dewy, lit-from-within glow.',
+  'Tatcha': 'Japanese beauty rituals for timeless skin.',
+  'Tula Skincare': 'Probiotic-powered skincare for balanced, healthy skin.',
+  "Paula's Choice": 'Research-backed skincare with ingredient transparency.',
+
+  // Food & Beverage
+  'Magic Spoon': 'High-protein, low-carb cereal that tastes like childhood.',
+  'Goldbelly': 'Iconic restaurant food shipped nationwide.',
+  'Poppi': 'Prebiotic soda that's actually good for your gut.',
+
+  // Home & Lifestyle
+  'Brooklinen': 'Luxury bedding and bath essentials at a fair price.',
+  'Parachute Home': 'Premium bedding, bath, and home essentials.',
+  'Article': 'Modern furniture delivered directly to your door.',
+  'Eight Sleep': 'Smart mattress technology for optimal sleep.',
+  'Burrow': 'Modular, easy-to-assemble furniture for modern living.',
+
+  // Health & Wellness
+  'AG1 (Athletic Greens)': 'All-in-one daily nutritional supplement.',
+  'Hims & Hers': 'Telehealth platform for personalized wellness.',
+  'Peloton DTC': 'Connected fitness platform with world-class instructors.',
+  'Oura': 'Smart ring tracking sleep, readiness, and activity.',
+  'Therabody': 'Percussive therapy and wellness technology.',
+  'Whoop': 'Wearable performance optimization and recovery tracker.',
+
+  // Pet
+  "The Farmer's Dog": 'Fresh, human-grade dog food delivered to your door.',
+  'BarkBox DTC': 'Monthly themed toys and treats for dogs.',
+  'Wild One': 'Modern essentials designed for dogs and their people.',
+
+  // Kids & Baby
+  'Kyte Baby': 'Ultra-soft bamboo sleepwear and essentials for babies.',
+  'Little Sleepies': 'Buttery-soft bamboo pajamas for the whole family.',
+}
+
+const INDUSTRY_FALLBACKS: Record<string, string> = {
+  'Fashion & Apparel': 'Fashion and apparel brand redefining modern style.',
+  'Jewelry & Accessories': 'Accessories brand crafting standout everyday pieces.',
+  'Luxury': 'Luxury retailer curating premium experiences.',
+  'Beauty & Cosmetics': 'Beauty brand innovating color and self-expression.',
+  'Skincare': 'Skincare company focused on healthy, radiant skin.',
+  'Health & Wellness': 'Health and wellness company empowering better living.',
+  'Food & Beverage': 'Food and beverage brand with a fresh take on flavor.',
+  'Home & Lifestyle': 'Home brand designing spaces people love to live in.',
+  'Pet': 'Pet brand making life better for pets and their people.',
+  'Kids & Baby': 'Kids and baby brand crafted with care and comfort.',
+  'Technology': 'Technology company building solutions for modern commerce.',
+}
+
+export function getCompanyDescription(company: string | null | undefined): string | null {
+  if (!company) return null
+  if (COMPANY_DESCRIPTIONS[company]) return COMPANY_DESCRIPTIONS[company]
+  const industry = getIndustry(company)
+  return INDUSTRY_FALLBACKS[industry] ?? null
+}

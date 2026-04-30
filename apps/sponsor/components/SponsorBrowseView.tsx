@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel } from '@/lib/solutions'
+import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
 const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
@@ -343,6 +343,7 @@ export function SponsorBrowseView({
               const industry = getIndustryFromLib(p.company)
               const jobFn = getJobFnFromLib(p.jobTitle)
               const titleLevel = getTitleLevel(p.jobTitle)
+              const companyDesc = getCompanyDescription(p.company)
 
               return (
                 <div key={p.id} className="card hover:shadow-md transition-shadow flex flex-col justify-between">
@@ -373,6 +374,13 @@ export function SponsorBrowseView({
                       )}
                     </div>
                   </div>
+
+                  {/* Company description — iOS style */}
+                  {companyDesc && (
+                    <div className="mb-3 rounded-2xl bg-gray-50 px-3.5 py-2.5">
+                      <p className="text-[11px] leading-relaxed text-gray-500">{companyDesc}</p>
+                    </div>
+                  )}
 
                   {/* Industry / Function / Title metadata */}
                   <div className="flex flex-wrap gap-1.5 mb-3">

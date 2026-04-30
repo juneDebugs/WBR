@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { getIndustry, getJobFunction, getTitleLevel } from '@/lib/solutions'
+import { getIndustry, getJobFunction, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
 interface Person {
@@ -43,6 +43,7 @@ export function PersonCard({ person, requested: initialRequested }: Props) {
   const industry = getIndustry(person.company)
   const jobFn = getJobFunction(person.jobTitle)
   const titleLevel = getTitleLevel(person.jobTitle)
+  const companyDesc = getCompanyDescription(person.company)
 
   async function sendRequest() {
     setLoading(true)
@@ -87,6 +88,13 @@ export function PersonCard({ person, requested: initialRequested }: Props) {
             )}
           </div>
         </div>
+
+        {/* Company description — iOS style */}
+        {companyDesc && (
+          <div className="mb-3 rounded-2xl bg-gray-50 px-3.5 py-2.5">
+            <p className="text-[11px] leading-relaxed text-gray-500">{companyDesc}</p>
+          </div>
+        )}
 
         {/* Industry / Function / Title metadata */}
         <div className="flex flex-wrap gap-1.5 mb-3">
