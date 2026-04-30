@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import {
   SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS,
-  INDUSTRIES, JOB_FUNCTIONS, TITLE_LEVELS, SOLUTION_COLORS,
+  INDUSTRIES, JOB_FUNCTIONS, TITLE_LEVELS,
 } from '@/lib/solutions'
 
 export interface Filters {
@@ -38,14 +38,14 @@ function Section({ label, children }: { label: string; children: React.ReactNode
     <div>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between mb-2 group"
+        className="flex items-center justify-between w-full mb-2 group"
       >
-        <span className="text-sm font-bold text-pink-500 tracking-wide">{label}</span>
+        <span className="text-sm font-bold text-primary">{label}</span>
         <svg
-          className={`w-4 h-4 text-pink-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
       {open && <div className="flex flex-wrap gap-1.5">{children}</div>}
@@ -53,29 +53,87 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
-function Chip({ active, onClick, children, solution }: { active: boolean; onClick: () => void; children: React.ReactNode; solution?: string }) {
-  const c = solution ? SOLUTION_COLORS[solution] : null
-  if (c) {
-    const bg = active
-      ? `linear-gradient(to right, ${c.activeFrom}, ${c.activeTo})`
-      : `linear-gradient(to right, ${c.bgFrom}, ${c.bgTo})`
-    const color = active ? '#fff' : c.text
-    const dot = active ? 'rgba(255,255,255,0.6)' : c.dot
-    return (
-      <button
-        onClick={onClick}
-        className="chip border border-transparent"
-        style={{ background: bg, color }}
-      >
-        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />
-        {children}
-      </button>
-    )
-  }
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`chip ${active ? 'chip-active' : 'chip-inactive'}`}>
+    <button onClick={onClick} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+      active ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-200 hover:border-primary hover:text-primary'
+    }`}>
       {children}
     </button>
+  )
+}
+
+const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
+  { label: 'Marketing', items: ['Email Marketing', 'SMS Marketing', 'Reviews & UGC', 'Personalization'] },
+  { label: 'Commerce & Payments', items: ['Payment Processing', 'Subscription Management', 'B2B Commerce', 'Headless Commerce', 'Marketplace Integration'] },
+  { label: 'Operations', items: ['Shipping & Fulfillment', 'Inventory Management', 'Returns Management', 'ERP / Operations'] },
+  { label: 'Data & AI', items: ['Analytics & Reporting', 'AI & Automation', 'Search & Discovery'] },
+  { label: 'Customer', items: ['Customer Support', 'Loyalty & Rewards'] },
+]
+
+function SolutionCategoryFilter({ selected, toggleSolution }: { selected: string[]; toggleSolution: (s: string) => void }) {
+  const [openCat, setOpenCat] = useState<string | null>(null)
+
+  const selectedCountByCat = (items: string[]) => items.filter(s => selected.includes(s)).length
+
+  return (
+    <div>
+      <p className="text-sm font-bold text-primary mb-3">Strategic Solutions</p>
+      <div className="space-y-1">
+        {SOLUTION_CATEGORIES.map(cat => {
+          const isOpen = openCat === cat.label
+          const count = selectedCountByCat(cat.items)
+          return (
+            <div key={cat.label}>
+              <button
+                onClick={() => setOpenCat(isOpen ? null : cat.label)}
+                className={`flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  isOpen ? 'bg-primary/10 text-primary' : count > 0 ? 'bg-primary/5 text-primary' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span className="truncate text-left">{cat.label}</span>
+                <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
+                  {count > 0 && (
+                    <span className="bg-primary text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{count}</span>
+                  )}
+                  <svg className={`w-3 h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+              {isOpen && (
+                <div className="pl-1 py-1 space-y-0.5">
+                  {cat.items.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => toggleSolution(s)}
+                      className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                        selected.includes(s) ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center ${
+                        selected.includes(s) ? 'bg-primary border-primary' : 'border-gray-300'
+                      }`}>
+                        {selected.includes(s) && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {selected.length > 0 && (
+        <p className="text-[10px] text-primary font-medium mt-2">{selected.length} selected</p>
+      )}
+    </div>
   )
 }
 
@@ -120,8 +178,8 @@ export function FilterPanel({ filters, onChange, mode }: Props) {
         ))}
       </Section>
 
-      {/* Brand & Retailer Job Function */}
-      <Section label="Solution Provider Job Function">
+      {/* Job Function */}
+      <Section label="Brand & Retailer Job Function">
         {JOB_FUNCTIONS.map(fn => (
           <Chip key={fn} active={f.jobFunctions.includes(fn)} onClick={() => onChange({ ...f, jobFunctions: toggle(f.jobFunctions, fn) })}>
             {fn}
@@ -167,18 +225,15 @@ export function FilterPanel({ filters, onChange, mode }: Props) {
         ))}
       </Section>
 
-      {/* Strategic Solutions */}
-      <Section label="Strategic Solutions">
-        {SOLUTIONS.map(sol => (
-          <Chip key={sol} solution={sol} active={f.solutionsOffering.includes(sol)} onClick={() => onChange({ ...f, solutionsOffering: toggle(f.solutionsOffering, sol) })}>
-            {sol}
-          </Chip>
-        ))}
-      </Section>
+      {/* Strategic Solutions — nested accordion */}
+      <SolutionCategoryFilter
+        selected={f.solutionsOffering}
+        toggleSolution={(s) => onChange({ ...f, solutionsOffering: toggle(f.solutionsOffering, s) })}
+      />
 
       {/* Clear */}
       {hasAny && (
-        <button onClick={() => onChange(EMPTY_FILTERS)} className="text-xs text-primary hover:underline">
+        <button onClick={() => onChange(EMPTY_FILTERS)} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
           Clear all filters
         </button>
       )}
