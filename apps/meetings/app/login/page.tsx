@@ -186,7 +186,7 @@ export default function LoginPage() {
           <div className="mt-8 border border-white/10 rounded-xl p-4">
             <p className="text-xs font-semibold text-gray-400 mb-3">Demo accounts</p>
             <div className="space-y-2 text-xs text-gray-500">
-              <p><span className="text-gray-400">Attendee:</span> steph@curry.com / demo123</p>
+              <p><span className="text-gray-400">Attendee:</span> steph@curry.com / stephcurry</p>
               <p><span className="text-gray-400">Sponsor (Tailor):</span> june@tailor.tech / admin123</p>
               <p><span className="text-gray-400">Staff:</span> staff@wbr.com / staff123</p>
             </div>
