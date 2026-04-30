@@ -175,7 +175,7 @@ const COMPANY_DESCRIPTIONS: Record<string, string> = {
   // Fashion & Apparel
   'Allbirds': 'Sustainable footwear brand using natural materials.',
   'Everlane': 'Transparent pricing and ethical modern essentials.',
-  'Reformation': 'Sustainable women's fashion with a cool-girl edge.',
+  'Reformation': 'Sustainable fashion with a cool-girl edge.',
   'Stitch Fix': 'AI-powered personal styling delivered to your door.',
   'Rent the Runway': 'Designer fashion rental for everyday and events.',
   'ThredUp': 'Online consignment and thrift for secondhand fashion.',
