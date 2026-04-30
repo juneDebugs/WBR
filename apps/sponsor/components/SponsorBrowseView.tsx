@@ -344,11 +344,10 @@ export function SponsorBrowseView({
               const jobFn = getJobFnFromLib(p.jobTitle)
               const titleLevel = getTitleLevel(p.jobTitle)
               const companyDesc = getCompanyDescription(p.company)
-              const borderColors = ['border-blue-300', 'border-purple-300', 'border-pink-300', 'border-amber-300', 'border-emerald-300', 'border-cyan-300', 'border-rose-300', 'border-violet-300', 'border-orange-300', 'border-teal-300']
-              const borderColor = borderColors[p.id.charCodeAt(0) % borderColors.length]
+              const roleBorder = p.role === 'SPEAKER' ? 'border-purple-200' : 'border-blue-200'
 
               return (
-                <div key={p.id} className={`card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4 ${borderColor}`}>
+                <div key={p.id} className={`card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4 ${roleBorder}`}>
                   <div className="flex items-start gap-3 mb-3">
                     <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
                       {p.image ? (
