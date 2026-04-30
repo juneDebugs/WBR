@@ -163,8 +163,8 @@ function LocationTile({ venue, startDate, endDate }: { venue: string | null; sta
         </div>
         {/* Mini map grid decoration */}
         <div className="mt-3 grid grid-cols-4 gap-0.5 opacity-20">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-1.5 rounded-sm bg-indigo-300" style={{ opacity: Math.random() > 0.4 ? 1 : 0.3 }} />
+          {[1, 0.3, 1, 1, 0.3, 1, 0.3, 1].map((o, i) => (
+            <div key={i} className="h-1.5 rounded-sm bg-indigo-300" style={{ opacity: o }} />
           ))}
         </div>
       </div>
