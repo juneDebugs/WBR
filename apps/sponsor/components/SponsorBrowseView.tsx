@@ -1,6 +1,5 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
 const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
@@ -123,6 +122,23 @@ function getIndustry(company: string | null | undefined): string {
   if (PET_SET.has(company)) return 'Pet'
   if (KIDS_SET.has(company)) return 'Kids & Baby'
   return 'Technology'
+}
+
+const TIER_COLORS: Record<string, string> = {
+  PLATINUM: 'bg-slate-100 text-slate-700',
+  GOLD: 'bg-amber-100 text-amber-700',
+  SILVER: 'bg-gray-100 text-gray-600',
+  BRONZE: 'bg-orange-100 text-orange-700',
+}
+
+const ROLE_COLORS: Record<string, string> = {
+  SPEAKER: 'bg-purple-100 text-purple-700',
+  ATTENDEE: 'bg-blue-100 text-blue-700',
+}
+
+const ROLE_BORDER: Record<string, string> = {
+  SPEAKER: 'border-purple-200',
+  ATTENDEE: 'border-blue-200',
 }
 
 function parseArr(val: string | null | undefined): string[] {
@@ -337,72 +353,60 @@ export function SponsorBrowseView({
           {/* Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
             {filtered.map(p => {
-              const theirSeeking = parseArr(p.solutionsSeeking)
-              const theirOffering = parseArr(p.solutionsOffering)
+              const sponsorOffers = p.sponsor?.solutionsOffering ? parseArr(p.sponsor.solutionsOffering) : []
               const isRequested = requested.has(p.id)
-              const industry = getIndustryFromLib(p.company)
-              const jobFn = getJobFnFromLib(p.jobTitle)
-              const titleLevel = getTitleLevel(p.jobTitle)
 
               return (
-                <div key={p.id} className="card hover:shadow-md transition-shadow flex flex-col justify-between">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
-                      {p.image ? (
-                        <img src={p.image} alt={p.name ?? ''} loading="lazy" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-lg">
-                          {(p.name ?? '?')[0].toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-gray-900 text-sm">{p.name ?? '—'}</h3>
-                        <span className={`badge ${
-                          p.role === 'SPEAKER' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {p.role.charAt(0) + p.role.slice(1).toLowerCase()}
-                        </span>
+                <div key={p.id} className={`card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4 ${ROLE_BORDER[p.role] ?? 'border-gray-200'}`}>
+
+                  {/* Sponsor identity row */}
+                  {p.sponsor && (
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 rounded-lg border border-gray-200 bg-white flex-shrink-0 overflow-hidden flex items-center justify-center p-0.5">
+                        {p.sponsor.logoUrl ? (
+                          <img src={p.sponsor.logoUrl} alt={p.sponsor.name} loading="lazy" className="w-full h-full object-contain" />
+                        ) : (
+                          <span className="text-gray-500 font-bold text-xs">{p.sponsor.name[0]}</span>
+                        )}
                       </div>
-                      {p.jobTitle && (
-                        <p className="text-xs text-gray-700 font-medium mt-0.5">{p.jobTitle}</p>
-                      )}
-                      {p.company && (
-                        <p className="text-xs text-gray-400">{p.company}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Industry / Function / Title metadata */}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    <span className="badge bg-violet-50 text-violet-700">{industry}</span>
-                    <span className="badge bg-sky-50 text-sky-700">{jobFn}</span>
-                    <span className="badge bg-gray-100 text-gray-600">{titleLevel}</span>
-                    {p.annualRevenue && (
-                      <span className="badge bg-emerald-50 text-emerald-700">{p.annualRevenue} ARR</span>
-                    )}
-                  </div>
-
-                  {p.bio && <p className="text-xs text-gray-500 mb-3 line-clamp-2">{p.bio}</p>}
-                  <div className="flex-1" />
-
-                  {theirOffering.length > 0 && (
-                    <div className="mb-2">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Offers</p>
-                      <div className="flex flex-wrap gap-1">
-                        {theirOffering.slice(0, 4).map(t => <SolutionBadge key={t} label={t} />)}
-                        {theirOffering.length > 4 && <span className="badge bg-gray-100 text-gray-500">+{theirOffering.length - 4}</span>}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-600">{p.sponsor.name}</span>
+                        <span className={`badge text-[10px] ${TIER_COLORS[p.sponsor.tier] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {p.sponsor.tier}
+                        </span>
                       </div>
                     </div>
                   )}
 
-                  {theirSeeking.length > 0 && (
-                    <div className="mb-3 bg-primary/5 rounded-xl p-2.5">
-                      <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-1.5">Looking For</p>
+                  {/* Person — the star of the card */}
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-14 h-14 rounded-2xl bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                      {p.image ? (
+                        <img src={p.image} alt={p.name ?? ''} loading="lazy" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-gray-500 font-bold text-xl">{(p.name ?? '?')[0].toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900 text-base leading-tight">{p.name ?? '—'}</p>
+                      {p.jobTitle && (
+                        <p className="text-sm font-semibold text-primary mt-0.5">{p.jobTitle}</p>
+                      )}
+                      <span className={`inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-bold ${ROLE_COLORS[p.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {p.role.charAt(0) + p.role.slice(1).toLowerCase()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1" />
+
+                  {/* Sponsor solution offers */}
+                  {sponsorOffers.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Sponsor Offers</p>
                       <div className="flex flex-wrap gap-1">
-                        {theirSeeking.slice(0, 5).map(t => <SolutionBadge key={t} label={t} />)}
-                        {theirSeeking.length > 5 && <span className="badge bg-gray-100 text-gray-500">+{theirSeeking.length - 5}</span>}
+                        {sponsorOffers.slice(0, 5).map(t => <SolutionBadge key={t} label={t} />)}
+                        {sponsorOffers.length > 5 && <span className="badge bg-gray-100 text-gray-500">+{sponsorOffers.length - 5}</span>}
                       </div>
                     </div>
                   )}

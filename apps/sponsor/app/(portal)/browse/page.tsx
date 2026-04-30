@@ -23,6 +23,7 @@ export default async function BrowsePage() {
       id: true, name: true, image: true, company: true, jobTitle: true, bio: true,
       role: true, companySize: true, annualRevenue: true,
       solutionsOffering: true, solutionsSeeking: true, website: true, sponsorId: true,
+      sponsor: { select: { id: true, name: true, logoUrl: true, tier: true, solutionsOffering: true } },
     },
     orderBy: { name: 'asc' },
   }) : []
