@@ -22,10 +22,15 @@ const ROLE_COLORS: Record<string, string> = {
   STAFF: 'bg-emerald-50 text-emerald-700',
 }
 
-export function AttendeesTable({ users }: { users: User[] }) {
+export function AttendeesTable({ users: initialUsers }: { users: User[] }) {
+  const [users, setUsers] = useState(initialUsers)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('')
   const [page, setPage] = useState(0)
+  const [showAdd, setShowAdd] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [form, setForm] = useState({ name: '', email: '', company: '', jobTitle: '', role: 'ATTENDEE', password: '' })
 
   const filtered = useMemo(() => {
     let result = users
@@ -52,6 +57,28 @@ export function AttendeesTable({ users }: { users: User[] }) {
     setPage(0)
   }, [])
 
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setAddError(null)
+    try {
+      const res = await fetch('/api/attendees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) { setAddError(data.error ?? 'Failed to create attendee.'); return }
+      setUsers(prev => [...prev, data].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')))
+      setForm({ name: '', email: '', company: '', jobTitle: '', role: 'ATTENDEE', password: '' })
+      setShowAdd(false)
+    } catch {
+      setAddError('Something went wrong.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <>
       {/* Toolbar */}
@@ -68,23 +95,34 @@ export function AttendeesTable({ users }: { users: User[] }) {
             <option value="SPEAKER">Speaker</option>
           </select>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl bg-white focus-within:ring-2 focus-within:ring-primary/40 w-72">
-          <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            className="flex-1 text-sm focus:outline-none bg-transparent"
-            placeholder="Search name, email, company…"
-            value={search}
-            onChange={handleSearch}
-          />
-          {search && (
-            <button onClick={() => { setSearch(''); setPage(0) }} className="text-gray-300 hover:text-gray-500">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          )}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl bg-white focus-within:ring-2 focus-within:ring-primary/40 w-72">
+            <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              className="flex-1 text-sm focus:outline-none bg-transparent"
+              placeholder="Search name, email, company…"
+              value={search}
+              onChange={handleSearch}
+            />
+            {search && (
+              <button onClick={() => { setSearch(''); setPage(0) }} className="text-gray-300 hover:text-gray-500">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => { setShowAdd(true); setAddError(null) }}
+            className="btn-primary flex items-center gap-1.5 text-xs whitespace-nowrap"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Attendee
+          </button>
         </div>
       </div>
 
@@ -181,6 +219,69 @@ export function AttendeesTable({ users }: { users: User[] }) {
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Attendee Modal */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl">
+            <h2 className="font-bold text-gray-900 text-lg mb-1">Add New Attendee</h2>
+            <p className="text-sm text-gray-500 mb-5">Create a login for a new attendee or speaker</p>
+
+            {addError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200/60 text-red-600 text-xs mb-4">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {addError}
+              </div>
+            )}
+
+            <form onSubmit={handleAdd} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Full Name</label>
+                  <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Steph Curry" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                  <input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="steph@curry.com" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Company</label>
+                  <input type="text" value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
+                    placeholder="Curry Brand" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Job Title</label>
+                  <input type="text" value={form.jobTitle} onChange={e => setForm(f => ({ ...f, jobTitle: e.target.value }))}
+                    placeholder="CEO" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                  <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white">
+                    <option value="ATTENDEE">Attendee</option>
+                    <option value="SPEAKER">Speaker</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
+                  <input type="password" required minLength={6} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Min 6 characters" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary text-sm">Cancel</button>
+                <button type="submit" disabled={saving} className="btn-primary text-sm">
+                  {saving ? 'Creating...' : 'Create Attendee'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
