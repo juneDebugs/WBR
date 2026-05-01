@@ -337,29 +337,29 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
       style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 100%)' }}>
 
       {/* Top label */}
-      <div className="px-3 pt-2.5 pb-1 flex-shrink-0">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">My Profile</span>
+      <div className="px-3 pt-2 flex-shrink-0">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">My Profile</span>
       </div>
 
       {/* Avatar with progress ring */}
-      <div className="flex-1 flex flex-col items-center justify-center relative" style={{ gap: 4 }}>
+      <div className="flex-1 flex flex-col items-center justify-center relative" style={{ gap: 2 }}>
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div style={{
-            width: 70, height: 70, borderRadius: '50%',
+            width: 56, height: 56, borderRadius: '50%',
             background: `radial-gradient(ellipse at center, ${barColor}55 0%, transparent 70%)`,
-            filter: 'blur(16px)',
+            filter: 'blur(14px)',
           }} />
         </div>
-        <div className="relative" style={{ width: 80, height: 80 }}>
-          <svg width="80" height="80" viewBox="0 0 80 80" className="absolute inset-0 -rotate-90">
-            <circle cx="40" cy="40" r="37" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3.5" />
+        <div className="relative" style={{ width: 64, height: 64 }}>
+          <svg width="64" height="64" viewBox="0 0 64 64" className="absolute inset-0 -rotate-90">
+            <circle cx="32" cy="32" r="29" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
             <circle
-              cx="40" cy="40" r="37"
+              cx="32" cy="32" r="29"
               fill="none"
               stroke={barColor}
-              strokeWidth="3.5"
+              strokeWidth="3"
               strokeLinecap="round"
-              strokeDasharray={`${(animatedPct / 100) * (2 * Math.PI * 37)} ${2 * Math.PI * 37}`}
+              strokeDasharray={`${(animatedPct / 100) * (2 * Math.PI * 29)} ${2 * Math.PI * 29}`}
               style={{
                 transition: 'stroke-dasharray 1.2s cubic-bezier(0.4,0,0.2,1)',
                 filter: `drop-shadow(0 0 4px ${barColor})`,
@@ -370,27 +370,27 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
             {image ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={image} alt="" loading="lazy" className="object-cover"
-                style={{ width: 66, height: 66, borderRadius: '50%', objectPosition: 'center 20%' }} />
+                style={{ width: 52, height: 52, borderRadius: '50%', objectPosition: 'center 20%' }} />
             ) : (
               <div className="flex items-center justify-center bg-slate-700"
-                style={{ width: 66, height: 66, borderRadius: '50%' }}>
-                <span className="text-2xl font-black text-white/50">{(name ?? '?')[0]}</span>
+                style={{ width: 52, height: 52, borderRadius: '50%' }}>
+                <span className="text-xl font-black text-white/50">{(name ?? '?')[0]}</span>
               </div>
             )}
           </div>
         </div>
-        <p className="text-xl font-black leading-none" style={{ color: barColor }}>{animatedPct}%</p>
-        <p className="text-[10px] font-semibold text-slate-500 leading-none">complete</p>
+        <p className="text-lg font-black leading-none" style={{ color: barColor }}>{animatedPct}%</p>
+        <p className="text-[9px] font-semibold text-slate-500 leading-none">complete</p>
       </div>
 
       {/* CTA row */}
-      <div className="mx-3 mb-3 flex items-center gap-1.5 rounded-xl px-2.5 py-2 flex-shrink-0"
+      <div className="mx-2.5 mb-2.5 flex items-center gap-1.5 rounded-lg px-2 py-1.5 flex-shrink-0"
         style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${barColor}33` }}>
         <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: barColor }} />
-        <p className="text-[10px] font-medium flex-1 truncate" style={{ color: pct === 100 ? '#10b981' : '#94a3b8' }}>
+        <p className="text-[9px] font-medium flex-1 truncate" style={{ color: pct === 100 ? '#10b981' : '#94a3b8' }}>
           {pct === 100 ? 'Profile complete ✓' : `Missing: ${missingFields.join(' · ')}`}
         </p>
-        <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+        <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
           style={{ color: barColor }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
