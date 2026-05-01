@@ -601,7 +601,7 @@ function SpeakerCarouselTile({ speakers }: { speakers: Speaker[] }) {
 
       {/* Full-bleed photo */}
       {s.photoUrl ? (
-        <img src={s.photoUrl} alt={s.name} loading="lazy" decoding="async"
+        <img src={s.photoUrl.replace(/w=\d+/, 'w=300').replace(/q=\d+/, 'q=70')} alt={s.name} loading="lazy" decoding="async"
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: 'center 20%' }} />
       ) : (

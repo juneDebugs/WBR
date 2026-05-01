@@ -2,6 +2,12 @@
 
 import { useState, useMemo, useEffect } from 'react'
 
+// Resize Unsplash URLs to optimal size for context
+function optimizePhoto(url: string | null, width: number): string | null {
+  if (!url) return null
+  return url.replace(/w=\d+/, `w=${width}`).replace(/q=\d+/, `q=${width > 600 ? 85 : 70}`)
+}
+
 const COMPANY_LOGOS: Record<string, string> = {
   'Google Cloud':       'https://logo.clearbit.com/cloud.google.com',
   'Robinhood':          'https://logo.clearbit.com/robinhood.com',
@@ -128,7 +134,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
             {speaker.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={speaker.photoUrl}
+                src={optimizePhoto(speaker.photoUrl, 800)!}
                 alt={speaker.name}
                 loading="eager"
                 decoding="async"
@@ -392,7 +398,7 @@ export function SpeakersClient({ speakers }: { speakers: Speaker[] }) {
                                 {speaker.photoUrl ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
-                                    src={speaker.photoUrl}
+                                    src={optimizePhoto(speaker.photoUrl, 300)!}
                                     alt={speaker.name}
                                     loading="lazy"
                                     decoding="async"
