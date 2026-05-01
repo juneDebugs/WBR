@@ -60,16 +60,18 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === 'google') {
         const email = user.email?.toLowerCase()
         if (!email) return false
-        const existing = await prisma.user.findUnique({ where: { email } })
-        if (!existing || !['STAFF', 'ORGANIZER', 'ADMIN'].includes(existing.role)) return false
-        // Update name/image from Google if available
-        await prisma.user.update({
+        // Single query: find + update in one round-trip
+        const existing = await prisma.user.findUnique({
           where: { email },
-          data: {
-            ...(user.name && { name: user.name }),
-            ...(user.image && { image: user.image }),
-          },
+          select: { id: true, role: true },
         })
+        if (!existing || !['STAFF', 'ORGANIZER', 'ADMIN'].includes(existing.role)) return false
+        if (user.name || user.image) {
+          prisma.user.update({
+            where: { email },
+            data: { ...(user.name && { name: user.name }), ...(user.image && { image: user.image }) },
+          }).catch(() => {}) // fire-and-forget: don't block sign-in for profile update
+        }
         ;(user as any).id = existing.id
         ;(user as any).role = existing.role
       }

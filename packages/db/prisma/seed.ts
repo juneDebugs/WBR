@@ -3,7 +3,7 @@ import { scrypt, randomBytes, timingSafeEqual } from 'crypto'
 import { promisify } from 'util'
 
 const scryptAsync = promisify(scrypt)
-const SCRYPT_N = 4096
+const SCRYPT_N = 2048
 const SCRYPT_R = 8
 const SCRYPT_P = 1
 

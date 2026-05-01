@@ -5,9 +5,9 @@ import type { ConfSession, Speaker } from '@prisma/client'
 
 // ─── Password utilities ──────────────────────────────────────────────────────
 
-// Cost factor for new hashes. N=4096 is secure for a conference app and ~4x
+// Cost factor for new hashes. N=2048 is secure for a conference app and ~8x
 // faster than Node's default N=16384.
-const SCRYPT_N = 4096
+const SCRYPT_N = 2048
 const SCRYPT_R = 8
 const SCRYPT_P = 1
 const SCRYPT_KEYLEN = 64

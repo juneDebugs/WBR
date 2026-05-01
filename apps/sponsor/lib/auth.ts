@@ -63,6 +63,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider === 'google' && user.email) {
         const email = user.email.toLowerCase()
+        // Single query with nested sponsor include — no second round-trip
         const dbUser = await prisma.user.upsert({
           where: { email },
           update: {
@@ -70,14 +71,12 @@ export const authOptions: NextAuthOptions = {
             ...(user.image && { image: user.image }),
           },
           create: { email, name: user.name ?? email.split('@')[0], role: 'ATTENDEE', image: user.image },
+          include: { sponsor: { select: { name: true } } },
         })
         ;(user as any).id = dbUser.id
         ;(user as any).role = dbUser.role
         ;(user as any).sponsorId = dbUser.sponsorId ?? null
-        if (dbUser.sponsorId) {
-          const sponsor = await prisma.sponsor.findUnique({ where: { id: dbUser.sponsorId } })
-          ;(user as any).sponsorName = sponsor?.name ?? null
-        }
+        ;(user as any).sponsorName = dbUser.sponsor?.name ?? null
       }
       return true
     },
