@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma, verifyPassword } from '@conference/db'
+import { prisma, verifyPassword, dbConnectionMode } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -19,10 +19,11 @@ export const authOptions: NextAuthOptions = {
         try {
           if (!credentials?.email || !credentials?.password) return null
           const email = credentials.email.trim().toLowerCase()
+          console.log('[auth] Login attempt:', email, '| DB mode:', dbConnectionMode)
 
           const user = await prisma.user.findUnique({ where: { email } })
           if (!user) {
-            console.error('[auth] User not found:', email)
+            console.error('[auth] User not found:', email, '| DB mode:', dbConnectionMode)
             return null
           }
           if (!user.password) {
@@ -49,7 +50,7 @@ export const authOptions: NextAuthOptions = {
 
           return { id: user.id, email: user.email!, name: user.name, role: user.role, sponsorId: user.sponsorId }
         } catch (e: any) {
-          console.error('[auth] authorize() error:', e?.message)
+          console.error('[auth] authorize() CRITICAL error:', e?.message, '| DB mode:', dbConnectionMode, '| Stack:', e?.stack?.split('\n')[0])
           return null
         }
       },
