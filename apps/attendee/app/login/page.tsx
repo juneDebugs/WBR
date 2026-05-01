@@ -27,7 +27,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-primary to-primary-dark px-6">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, #1e1b4b 0%, #312e81 25%, #4338ca 50%, #6366f1 75%, #818cf8 100%)' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <img src="/icons/icon-192.png" alt="WBR" className="w-20 h-20 object-contain mx-auto mb-4" />
