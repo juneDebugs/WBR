@@ -140,13 +140,7 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
   const [friendState, setFriendState] = useState<Record<string, boolean>>(
     Object.fromEntries(friendIds.map(id => [id, true]))
   )
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    'Fashion & Style': true,
-    'Beauty & Wellness': true,
-    'Home, Food & Lifestyle': true,
-    'Technology': true,
-    'Other': true,
-  })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [pending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -325,7 +319,7 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
   }
 
   function GroupSection({ group, people }: { group: Group; people: Person[] }) {
-    const open = openGroups[group] ?? true
+    const open = openGroups[group] ?? false
     return (
       <div className="mb-4">
         <button
