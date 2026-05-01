@@ -3,14 +3,6 @@
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
-interface Session {
-  id: string
-  title: string
-  startsAt: string
-  room: string | null
-  track: string | null
-}
-
 interface Person {
   id: string
   name: string | null
@@ -19,7 +11,6 @@ interface Person {
   jobTitle: string | null
   bio: string | null
   website: string | null
-  sessions: Session[]
 }
 
 interface Props {
@@ -42,67 +33,21 @@ interface Conversation {
 
 const TABS = ['Discover', 'Friends', 'Messages'] as const
 
-// ── Category mapping ─────────────────────────────────────────────────────────
-
-const FASHION_STYLE = new Set([
-  'ASOS DTC', 'Aerie', 'Alex Mill', 'Allbirds', 'Boohoo DTC', 'Browns Fashion',
-  'Buck Mason', 'Chubbies', 'Cotopaxi', 'Cuyana', 'Danner', 'Depop', 'Eloquii',
-  'Entireworld', 'Everlane', 'Faherty Brand', 'Farfetch', 'Fossil DTC', 'Grailed',
-  'Helm Boots', 'Koio', 'M.Gemi', 'Margaux', 'Michael Kors DTC', 'Ministry of Supply',
-  'Natori', 'Nisolo', 'Noihsaf Bazaar', 'Outdoor Voices', 'Outerknown',
-  'PrettyLittleThing', 'Public Rec', 'Quince', 'Reformation', 'Rent the Runway',
-  "Rothy's", 'SSENSE', 'Saks Fifth Avenue DTC', 'Selfridges Digital', 'Shein DTC',
-  'Shopbop', 'Stitch Fix', 'Tecovas', 'Temu Brand', 'ThredUp', 'Thursday Boot',
-  'Torrid', 'True Classic', 'Universal Standard', 'Vuori', 'Warby Parker',
-  'Wolf & Badger',
-  // Jewelry, accessories & luxury
-  'Alex and Ani', 'Ana Luisa', 'Aurate', 'Baublebar', 'Catbird', 'Clocks and Colours',
-  'EyeBuyDirect', 'Gorjana', 'JINS Eyewear', 'MVMT', 'Mejuri', 'Missoma',
-  'Monica Vinader', 'Olive & Piper', 'Pandora DTC', 'Studs', 'Vrai',
-  'Barneys NY Online', 'Harrods Digital', 'Harvey Nichols DTC', 'Kate Spade DTC',
-  'Liberty London', 'Luisaviaroma', 'Mytheresa', 'Net-a-Porter', 'Neiman Marcus DTC',
-  'The RealReal', 'Vestiaire Collective',
-])
-
-const BEAUTY_WELLNESS = new Set([
-  'Charlotte Tilbury DTC', 'ColourPop', 'Fenty Beauty DTC', 'Florence by Mills',
-  'Glossier', 'Gwyneth Paltrow Beauty', 'Haus Labs', 'Huda Beauty DTC', 'IL MAKIAGE',
-  'Ilia Beauty', 'Jones Road', 'Kosas', 'Kylie Cosmetics', 'Milk Makeup', 'Morphe',
-  'NARS DTC', 'Saie Beauty', 'Summer Fridays', 'Tarte Cosmetics', 'Too Faced DTC',
-  'Tower 28', 'Urban Decay DTC', 'Victoria Beckham Beauty', 'Westman Atelier',
-  'Beautycounter', 'Biossance', 'COSRX', 'Care/of', 'CeraVe DTC', 'Credo Beauty',
-  'Dermalogica DTC', 'Dermstore', 'Drunk Elephant', 'Follain', 'Glow Recipe',
-  'Herbivore Botanicals', 'Innisfree DTC', 'La Roche-Posay DTC', 'Murad DTC',
-  'Ordinary DTC', "Paula's Choice", 'Peter Thomas Roth DTC', 'Rescue Spa', 'SK-II DTC',
-  'SkinCeuticals DTC', 'Sulwhasoo DTC', 'Sunday Riley DTC', 'Tatcha', 'The Detox Market',
-  'Tula Skincare', 'Versed',
-  'AG1 (Athletic Greens)', 'Calm', 'Headspace DTC', 'Hims & Hers', 'Hyperice',
-  'Mirror DTC', 'NordicTrack DTC', 'Oura', 'Peloton DTC', 'Roman Health',
-  'Therabody', 'Tonal', 'Wahoo Fitness', 'Whoop',
-])
-
-const HOME_FOOD_LIFESTYLE = new Set([
-  'Baked by Melissa DTC', 'Brightland', 'Burlap & Barrel', 'Compartés',
-  'Diaspora Co', 'Goldbelly', 'Jacobsen Salt', "Jeni's Ice Cream", 'Levain Bakery DTC',
-  'Magic Spoon', 'Milk Bar DTC', 'Poppi', 'Salt & Straw DTC', 'Sugarfina', 'Vosges',
-  'Albany Park', 'Apt2B', 'Arhaus DTC', 'Article', 'Bear Mattress', 'Boll & Branch',
-  'Brooklinen', 'Brooklyn Bedding', 'Buffy', 'Burrow', 'Cedar & Moss', 'Coyuchi',
-  'Design Within Reach DTC', 'Eight Sleep', 'Floyd', 'Hawkins NY', 'Helix Sleep',
-  'Interior Define', 'Interior Icons', 'Joybird', 'Parachute Home', 'Purple Innovation',
-  'Rejuvenation', 'Room & Board DTC', 'Schoolhouse', 'Snowe', 'Tuft & Needle',
-  'Visual Comfort DTC', 'Year & Day',
-  'A Pup Above', 'BarkBox DTC', 'Ollie', 'Open Farm', 'Spot & Tango',
-  'Sundays for Dogs', "The Farmer's Dog", 'Wild One',
-  '4moms DTC', 'BIBS', 'Ergobaby DTC', 'Kyte Baby', 'Little Sleepies',
-])
+// ── Lightweight category mapping (no massive Sets in bundle) ─────────────────
 
 type Group = 'Fashion & Style' | 'Beauty & Wellness' | 'Home, Food & Lifestyle' | 'Technology' | 'Other'
 
+const FASHION_KW = ['apparel','fashion','boot','shoe','wear','clothing','outfit','denim','luxury','jewelry','eyewear','accessori','watch','ring','sneaker','style']
+const BEAUTY_KW = ['beauty','cosmetic','skincare','skin','makeup','wellness','health','fitness','vitamin','supplement','fragrance','hair','spa','glow','serum']
+const HOME_KW = ['home','food','kitchen','mattress','bedding','furniture','pet','dog','cat','baby','kid','decor','candle','plant','sleep','bakery','snack','spice']
+
 function getGroup(company: string | null): Group {
   if (!company) return 'Other'
-  if (FASHION_STYLE.has(company)) return 'Fashion & Style'
-  if (BEAUTY_WELLNESS.has(company)) return 'Beauty & Wellness'
-  if (HOME_FOOD_LIFESTYLE.has(company)) return 'Home, Food & Lifestyle'
+  const c = company.toLowerCase()
+  if (FASHION_KW.some(k => c.includes(k))) return 'Fashion & Style'
+  if (BEAUTY_KW.some(k => c.includes(k))) return 'Beauty & Wellness'
+  if (HOME_KW.some(k => c.includes(k))) return 'Home, Food & Lifestyle'
+  // Known sponsor/tech companies default to Technology
   return 'Technology'
 }
 

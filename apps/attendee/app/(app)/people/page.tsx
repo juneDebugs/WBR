@@ -5,29 +5,21 @@ import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { PeopleClient } from '@/components/people/PeopleClient'
 
+const userSelect = {
+  id: true,
+  name: true,
+  image: true,
+  company: true,
+  jobTitle: true,
+  bio: true,
+  website: true,
+} as const
+
 export default async function PeoplePage() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) redirect('/login')
 
   const userId = session.user.id
-
-  const userSelect = {
-    id: true,
-    name: true,
-    image: true,
-    company: true,
-    jobTitle: true,
-    bio: true,
-    website: true,
-    speakerProfile: {
-      select: {
-        confSessions: {
-          select: { id: true, title: true, startsAt: true, room: true, track: true },
-          orderBy: { startsAt: 'asc' as const },
-        },
-      },
-    },
-  }
 
   const [allUsers, following, dmRooms] = await Promise.all([
     prisma.user.findMany({
@@ -37,15 +29,15 @@ export default async function PeoplePage() {
     }),
     prisma.follow.findMany({
       where: { followerId: userId },
-      include: { following: { select: userSelect } },
+      select: { followingId: true, following: { select: userSelect } },
     }),
     prisma.chatRoom.findMany({
       where: { type: 'DIRECT', members: { some: { userId } } },
       include: {
-        members: { include: { user: { select: { id: true, name: true, image: true } } } },
-        messages: { orderBy: { createdAt: 'desc' }, take: 1, include: { sender: { select: { id: true } } } },
+        members: { select: { userId: true, user: { select: { id: true, name: true, image: true } } } },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { content: true, senderId: true, createdAt: true } },
       },
-      orderBy: { messages: { _count: 'desc' } },
+      orderBy: { createdAt: 'desc' },
     }),
   ])
 
@@ -58,13 +50,6 @@ export default async function PeoplePage() {
       jobTitle: u.jobTitle,
       bio: u.bio,
       website: u.website,
-      sessions: u.speakerProfile?.confSessions.map(s => ({
-        id: s.id,
-        title: s.title,
-        startsAt: s.startsAt.toISOString(),
-        room: s.room,
-        track: s.track,
-      })) ?? [],
     }
   }
 
@@ -85,7 +70,7 @@ export default async function PeoplePage() {
         name: other?.name ?? 'Unknown',
         image: other?.image ?? null,
         lastMessage: lastMsg?.content ?? null,
-        lastMessageSenderId: lastMsg?.sender.id ?? null,
+        lastMessageSenderId: lastMsg?.senderId ?? null,
         lastMessageAt: lastMsg?.createdAt.toISOString() ?? null,
       }
     })
