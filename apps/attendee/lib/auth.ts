@@ -16,43 +16,17 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        try {
           if (!credentials?.email || !credentials?.password) return null
           const email = credentials.email.trim().toLowerCase()
-          console.log('[auth] Login attempt:', email, '| DB mode:', dbConnectionMode)
 
           const user = await prisma.user.findUnique({ where: { email } })
-          if (!user) {
-            console.error('[auth] User not found:', email, '| DB mode:', dbConnectionMode)
-            return null
-          }
-          if (!user.password) {
-            console.error('[auth] User has no password:', email)
-            return null
-          }
+          if (!user) return null
+          if (!user.password) return null
 
           const valid = await verifyPassword(credentials.password, user.password)
-          if (!valid) {
-            console.error('[auth] Password mismatch for:', email)
-            return null
-          }
-
-          // Join General chat in background — don't block login
-          prisma.chatRoom.findFirst({ where: { type: 'CHANNEL', name: 'General' } }).then(general => {
-            if (general) {
-              prisma.chatMember.upsert({
-                where: { roomId_userId: { roomId: general.id, userId: user.id } },
-                update: {},
-                create: { roomId: general.id, userId: user.id },
-              }).catch(() => {})
-            }
-          }).catch(() => {})
+          if (!valid) return null
 
           return { id: user.id, email: user.email!, name: user.name, role: user.role, sponsorId: user.sponsorId }
-        } catch (e: any) {
-          console.error('[auth] authorize() CRITICAL error:', e?.message, '| DB mode:', dbConnectionMode, '| Stack:', e?.stack?.split('\n')[0])
-          return null
-        }
       },
     }),
   ],
