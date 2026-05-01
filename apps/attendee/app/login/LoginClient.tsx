@@ -25,7 +25,8 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
       redirect: false,
     })
     if (result?.error) {
-      setError('Invalid email or password.')
+      console.error('[login] signIn error:', result.error, result.status, result.ok, result.url)
+      setError(result.error === 'CredentialsSignin' ? 'Invalid email or password.' : 'Login failed: ' + result.error)
       setLoading(false)
     } else if (result?.url) {
       window.location.href = result.url
