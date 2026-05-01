@@ -28,7 +28,7 @@ export default async function SpeakersPage() {
     lookingFor: s.lookingFor,
     twitterHandle: s.twitterHandle,
     linkedinUrl: s.linkedinUrl,
-    track: s.confSessions[0]?.track ?? null,
+    track: s.confSessions[0]?.track ?? s.role ?? null,
   }))
 
   return (
