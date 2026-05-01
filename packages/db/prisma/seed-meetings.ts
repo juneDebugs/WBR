@@ -32,6 +32,7 @@ async function main() {
 
   // ── Attendee users ─────────────────────────────────────────────────────────
   const u = {
+    SC: 'demo-attendee-steph',        // Steph Curry — Point Guard, Golden State
     JL: 'cmnf5o3zh0000o6gl8ph6p741', // Jordan Lee — VP Sales, Arhaus DTC
     MP: 'cmnf5o3zk0003o6gl1dkbwyba', // Maya Patel — Head of DTC, Urban Decay
     CN: 'cmnf5o3zm0006o6gljz3rs2fi', // Chris Nakamura — VP Customer Success, Noihsaf Bazaar
@@ -347,6 +348,16 @@ async function main() {
     [u.ZA, s.RE, tb(1,5), "Hey Rebuy — Zoe from Year & Day. Subscription upsells and add-ons. Can Rebuy integrate with subscription platforms?"],
     [u.DK, s.RE, tb(1,1), "Hi Rebuy — Daniel from ColourPop. ROI on personalization — what's the measurable revenue impact for beauty brands?"],
     [u.AD, s.RE, tb(2,1), "Hey Rebuy — Amara from Depop. Marketplace-style recommendations. Can Rebuy work for peer-to-peer commerce?"],
+
+    // ── Steph Curry — confirmed sponsor meetings ──
+    [u.SC, s.SHO, tb(1,8), "Hi Shopify — Steph Curry from Golden State. We're launching a DTC merch line and need a platform that scales for drops and limited editions."],
+    [u.SC, s.KL, tb(1,4), "Hey Klaviyo — Steph from Golden State. Email and SMS for athlete brand. How do you handle celebrity-scale subscriber lists?"],
+    [u.SC, s.GOR, tb(1,6), "Hi Gorgias — Steph from Golden State. Customer support for merch drops is chaos. Need automation that still feels personal."],
+    [u.SC, s.RC, tb(1,10), "Hey Recharge — Steph from Golden State. Subscription model for a monthly merch box. Premium tier for season ticket holders."],
+    [u.SC, s.LR, tb(2,3), "Hi Loop Returns — Steph from Golden State. Jersey sizing returns are a huge volume. Exchange flow is critical to keep revenue."],
+    [u.SC, s.YO, tb(2,5), "Hey Yotpo — Steph from Golden State. Fan reviews and UGC are our best marketing. How do you scale social proof for athlete brands?"],
+    [u.SC, s.ATT, tb(2,7), "Hi Attentive — Steph from Golden State. Game day SMS campaigns. Real-time engagement tied to live events."],
+    [u.SC, s.NAR, tb(2,9), "Hey Narvar — Steph from Golden State. Fans expect real-time tracking on limited drops. Post-purchase experience matters."],
   ]
 
   // ── APPROVED sponsor meetings (no time block yet) ──────────────────────────
@@ -371,6 +382,10 @@ async function main() {
     [u.CB, s.KL,  "Hey Klaviyo — Chloe from Kylie Cosmetics. Large subscriber list, declining engagement."],
     [u.MP, s.GOR, "Hi Gorgias — Maya from Urban Decay. Beauty CS is complex. Shade matching, ingredients."],
     [u.ST, s.GC,  "Hey Google Cloud — Sam from Boohoo DTC. Cloud infrastructure for high-traffic ecommerce."],
+    [u.SC, s.BC,   "Hi BigCommerce — Steph from Golden State. Evaluating headless commerce for our athlete brand platform."],
+    [u.SC, s.TER,  "Hey Tailor — Steph from Golden State. Merch inventory across 50+ SKUs, seasonal drops, and arena retail. Need a real ERP."],
+    [u.SC, s.SS,   "Hi ShipStation — Steph from Golden State. Multi-carrier shipping for game day merch — speed is everything."],
+    [u.SC, s.OK,   "Hey Okendo — Steph from Golden State. Fan-generated content is gold. How do attribute reviews work for apparel?"],
   ]
 
   // ── PENDING sponsor meetings ───────────────────────────────────────────────
@@ -400,6 +415,12 @@ async function main() {
     [u.CN, s.GC,  "Hi Google Cloud — Chris from Noihsaf Bazaar. Marketplace infrastructure on GCP."],
     [u.DK, s.YO,  "Hey Yotpo — Daniel from ColourPop. Beauty reviews driving conversion. ROI analysis."],
     [u.ZA, s.NAR, "Hi Narvar — Zoe from Year & Day. Home goods delivery tracking. Long lead times."],
+    [u.SC, s.RE,   "Hi Rebuy — Steph from Golden State. Post-purchase upsells for merch. Jersey buyers should see matching shorts and accessories."],
+    [u.SC, s.PSC,  "Hey Postscript — Steph from Golden State. SMS for game day flash sales. What's the best practice for time-sensitive drops?"],
+    [u.SC, s.SR,   "Hi Searchspring — Steph from Golden State. Product discovery for a merch catalog. Size, color, player — lots of attributes."],
+    [u.SC, s.SKI,  "Hey Skio — Steph from Golden State. Subscription model for exclusive merch drops. Passwordless login for fans."],
+    [u.SC, s.EXT,  "Hi Extensiv — Steph from Golden State. Warehouse ops for seasonal merch surges. 3PL network flexibility matters."],
+    [u.SC, s.GC,   "Hey Google Cloud — Steph from Golden State. AI-powered merch recommendations and demand forecasting for drops."],
   ]
 
   // ── REJECTED sponsor meetings ──────────────────────────────────────────────
@@ -412,6 +433,9 @@ async function main() {
     [u.FW, s.BC,  "Hey BigCommerce — Felix from Cedar & Moss. After evaluation, Shopify is a better fit for our size."],
     [u.CN, s.ATT, "Hi Attentive — Chris from Noihsaf Bazaar. Our marketplace model doesn't fit traditional SMS platforms."],
     [u.DK, s.GC,  "Hey Google Cloud — Daniel from ColourPop. Staying with AWS for now. Switching cost too high."],
+    [u.SC, s.OG,   "Hi Ordergroove — Steph from Golden State. Looked into embedded subscriptions but our merch model is drop-based, not replenishment."],
+    [u.SC, s.AS,   "Hey AfterShip — Steph from Golden State. Already using Narvar for tracking. Decided to stay with current setup."],
+    [u.SC, s.GOR,  "Hi Gorgias — Steph from Golden State. Follow-up request — team decided Zendesk is a better fit for our scale."],
   ]
 
   // ── CONFIRMED peer meetings ────────────────────────────────────────────────
@@ -426,6 +450,9 @@ async function main() {
     [u.DK, u.ZA, tb(1,10), "Hi Zoe — Daniel from ColourPop. Finance meets revenue ops. Let's talk unit economics and LTV modeling."],
     [u.JO, u.FW, tb(2,10), "Hey Felix — James from Glossier. Retail and DTC hybrid models. Your furniture approach is interesting."],
     [u.SM, u.NV, tb(2,10), "Hi Nina — Sophie from Boohoo DTC EU. Both navigating international expansion challenges. Let's connect."],
+    [u.SC, u.JL, tb(1,9), "Hey Jordan — Steph from Golden State. Both building DTC brands in very different categories. Would love to compare notes on scaling merch ops."],
+    [u.SC, u.KO, tb(2,8), "Hi Kwesi — Steph from Golden State. Premium brand positioning in DTC — luxury skincare and athlete brands have more in common than you'd think."],
+    [u.SC, u.MP, tb(2,4), "Hey Maya — Steph from Golden State. Urban Decay and athlete brands both rely on limited drops. Let's talk launch playbooks."],
   ]
 
   // ── APPROVED peer meetings ─────────────────────────────────────────────────
@@ -435,6 +462,8 @@ async function main() {
     [u.MP, u.ZA, "Hey Zoe — Maya from Urban Decay. Both subscription-curious. Let's talk about what we're learning."],
     [u.JL, u.RO, "Hi Ryan — Jordan from Arhaus DTC. Both in large-format DTC. Ops challenges are similar."],
     [u.CN, u.JO, "Hey James — Chris from Noihsaf Bazaar. Marketplace and retail — different models, shared learnings."],
+    [u.SC, u.AB, "Hey Aaliyah — Steph from Golden State. Growth strategies for DTC brands with built-in audiences. Let's compare playbooks."],
+    [u.SC, u.HS, "Hi Hana — Steph from Golden State. SSENSE and athlete brands both play in premium streetwear. Would love to connect."],
   ]
 
   // ── PENDING peer meetings ──────────────────────────────────────────────────
@@ -445,6 +474,9 @@ async function main() {
     [u.ST, u.DK, "Hi Daniel — Sam from Boohoo DTC. Engineering and finance alignment. Let's talk about it."],
     [u.FW, u.TE, "Hey Tom — Felix from Cedar & Moss. Both small brands punching above our weight. Let's swap stories."],
     [u.AB, u.SM, "Hi Sophie — Aaliyah from Entireworld. Growth strategies in crowded DTC markets."],
+    [u.SC, u.CB, "Hey Chloe — Steph from Golden State. Both in the drop/limited edition game. Kylie and Curry Brand have parallel challenges."],
+    [u.SC, u.AD, "Hi Amara — Steph from Golden State. Depop's resale model is interesting for authenticated athlete memorabilia."],
+    [u.RO, u.SC, "Hey Steph — Ryan from Beautycounter. COO-to-founder chat on scaling ops when demand is unpredictable."],
   ]
 
   // ── Session bookmarks ──────────────────────────────────────────────────────
@@ -469,6 +501,7 @@ async function main() {
     [u.SM, ['ses-1', 'cmnh270yl0001h91bl4e9zl10', 'cmnh270z20019h91b274w032a', 'cmngg3us00003t4n0ljqh8sbi']],
     [u.JO, ['ses-1', 'cmngg5zmc000551i70g4bb30x', 'cmngg3us20007t4n0jg0oqkfv', 'cmnh270yw000rh91b5dzyhnk2', 'cmnh270yv000ph91bzjs4eat2']],
     [u.CB, ['ses-1', 'cmngg5zme000951i7twrmtzuj', 'cmnh270yy000xh91bcxnc435f', 'cmnh270z3001bh91bi1l8mco7']],
+    [u.SC, ['ses-1', 'cmnh270yl0001h91bl4e9zl10', 'cmngg3us00003t4n0ljqh8sbi', 'cmnh270yq0009h91b4jhq9u1v', 'cmnh270z3001dh91b7a5s0lim', 'cmngg5zmc000551i70g4bb30x']],
   ]
 
   // ── Insert everything ──────────────────────────────────────────────────────
