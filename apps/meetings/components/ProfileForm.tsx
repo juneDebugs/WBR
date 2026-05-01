@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS, SOLUTION_COLORS } from '@/lib/solutions'
 
 interface User {
@@ -80,10 +80,20 @@ export function ProfileForm({ user }: { user: User }) {
     annualRevenue: user.annualRevenue ?? '',
     solutionsOffering: user.solutionsOffering ? JSON.parse(user.solutionsOffering) as string[] : [],
     solutionsSeeking: user.solutionsSeeking ? JSON.parse(user.solutionsSeeking) as string[] : [],
+    image: user.image ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function handlePhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setForm(f => ({ ...f, image: ev.target?.result as string }))
+    reader.readAsDataURL(file)
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -132,20 +142,41 @@ export function ProfileForm({ user }: { user: User }) {
       </div>
 
       {/* Profile preview card */}
-      <div className="card p-4 flex items-center gap-4">
-        {user.image ? (
-          <img src={user.image} alt="" className="w-14 h-14 rounded-full object-cover flex-shrink-0" />
-        ) : (
-          <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-lg font-bold text-primary">{(user.name ?? '?')[0]}</span>
+      <div className="card p-5 flex items-center gap-5">
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handlePhotoFile} />
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="relative group flex-shrink-0">
+          {form.image ? (
+            <img src={form.image} alt="" className="w-16 h-16 rounded-full object-cover" />
+          ) : (
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <span className="text-xl font-bold text-primary">{(user.name ?? '?')[0]}</span>
+            </div>
+          )}
+          <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
           </div>
-        )}
-        <div className="min-w-0">
+        </button>
+        <div className="min-w-0 flex-1">
           <p className="font-bold text-gray-900 text-lg">{user.name ?? 'No name'}</p>
           <p className="text-sm text-gray-500 truncate">
             {form.jobTitle && form.company ? `${form.jobTitle} at ${form.company}` : form.company || form.jobTitle || user.email}
           </p>
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="text-xs text-primary font-medium mt-1 hover:underline">
+            Change photo
+          </button>
         </div>
+        {form.image && form.image !== user.image && (
+          <button type="button" onClick={() => setForm(f => ({ ...f, image: user.image ?? '' }))}
+            className="text-xs text-gray-400 hover:text-red-500 flex-shrink-0">
+            Undo
+          </button>
+        )}
       </div>
 
       {/* About You */}

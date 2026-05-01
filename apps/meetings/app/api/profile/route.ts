@@ -11,10 +11,10 @@ export async function PATCH(req: Request) {
   const userId = (session.user as any).id as string
 
   const body = await req.json()
-  const { company, jobTitle, companySize, annualRevenue, solutionsOffering, solutionsSeeking, website, bio } = body
+  const { company, jobTitle, companySize, annualRevenue, solutionsOffering, solutionsSeeking, website, bio, image } = body
 
   // Validate string lengths
-  for (const [key, val] of Object.entries({ company, jobTitle, website, bio })) {
+  for (const [key, val] of Object.entries({ company, jobTitle, website, bio, image })) {
     if (val !== undefined && typeof val === 'string' && val.length > MAX_LEN) {
       return NextResponse.json({ error: `${key} too long` }, { status: 400 })
     }
@@ -39,6 +39,7 @@ export async function PATCH(req: Request) {
       solutionsSeeking: solutionsSeeking ? JSON.stringify(solutionsSeeking) : null,
       website,
       bio,
+      ...(image !== undefined && { image }),
     },
   })
   return NextResponse.json(updated)
