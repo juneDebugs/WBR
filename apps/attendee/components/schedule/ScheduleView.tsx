@@ -36,42 +36,48 @@ export function ScheduleView({ days, savedIds: initialSavedIds, conflictedIds = 
 
   return (
     <div>
-      {/* My Schedule toggle */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-          {days.length > 1 && days.map((day, i) => (
-            <button
-              key={day.date}
-              onClick={() => setSelectedDay(i)}
-              className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                selectedDay === i
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'bg-white text-gray-600 border border-gray-200'
-              }`}
-            >
-              {format(new Date(day.date + 'T00:00:00'), 'EEE MMM d')}
-            </button>
-          ))}
-        </div>
+      {/* iOS-style segmented control for days + My Schedule */}
+      <div className="flex items-center gap-2.5 mb-4">
+        {days.length > 1 && (
+          <div className="flex-1 flex p-1 rounded-xl" style={{ background: 'rgba(118,118,128,0.12)' }}>
+            {days.map((day, i) => (
+              <button
+                key={day.date}
+                onClick={() => setSelectedDay(i)}
+                className="flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all"
+                style={{
+                  background: selectedDay === i ? '#fff' : 'transparent',
+                  color: selectedDay === i ? '#000' : '#8e8e93',
+                  boxShadow: selectedDay === i ? '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                }}
+              >
+                {format(new Date(day.date + 'T00:00:00'), 'EEE d')}
+              </button>
+            ))}
+          </div>
+        )}
         <button
           onClick={() => router.push('/my-schedule')}
-          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ml-2 bg-white text-gray-600 border border-gray-200"
+          className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-colors"
+          style={{ background: 'rgba(255,45,85,0.1)', color: '#ff2d55' }}
         >
-          <svg className="w-4 h-4 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
-          My Schedule
+          Saved
         </button>
       </div>
 
+      {/* Track filter pills — iOS style */}
       {tracks.length > 0 && (
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
+        <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
           <button
             onClick={() => setTrackFilter(null)}
-            className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-              !trackFilter ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'
-            }`}
+            className="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all"
+            style={{
+              background: !trackFilter ? '#000' : 'rgba(118,118,128,0.12)',
+              color: !trackFilter ? '#fff' : '#3c3c43',
+            }}
           >
             All
           </button>
@@ -79,9 +85,11 @@ export function ScheduleView({ days, savedIds: initialSavedIds, conflictedIds = 
             <button
               key={track}
               onClick={() => setTrackFilter(trackFilter === track ? null : track)}
-              className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                trackFilter === track ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'
-              }`}
+              className="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all"
+              style={{
+                background: trackFilter === track ? '#000' : 'rgba(118,118,128,0.12)',
+                color: trackFilter === track ? '#fff' : '#3c3c43',
+              }}
             >
               {track}
             </button>
@@ -89,7 +97,13 @@ export function ScheduleView({ days, savedIds: initialSavedIds, conflictedIds = 
         </div>
       )}
 
-      <div className="space-y-3">
+      {/* Session count */}
+      <p className="text-[12px] text-gray-400 mb-3 px-0.5">
+        {(filtered ?? []).length} session{(filtered ?? []).length !== 1 ? 's' : ''}
+      </p>
+
+      {/* Session cards */}
+      <div className="space-y-2.5">
         {(filtered ?? []).map((session) => (
           <SessionCard
             key={session.id}
@@ -100,9 +114,15 @@ export function ScheduleView({ days, savedIds: initialSavedIds, conflictedIds = 
           />
         ))}
         {(filtered ?? []).length === 0 && (
-          <p className="text-center text-gray-400 py-8">
-            No sessions for this day.
-          </p>
+          <div className="text-center py-16">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(118,118,128,0.08)' }}>
+              <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-[15px] font-medium text-gray-400">No sessions</p>
+            <p className="text-[13px] text-gray-300 mt-1">Try a different day or track</p>
+          </div>
         )}
       </div>
     </div>
