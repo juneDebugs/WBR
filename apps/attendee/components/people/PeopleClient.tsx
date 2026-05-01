@@ -53,6 +53,34 @@ function getGroup(company: string | null): Group {
 
 const GROUP_ORDER: Group[] = ['Fashion & Style', 'Beauty & Wellness', 'Home, Food & Lifestyle', 'Technology', 'Other']
 
+const GROUP_ICONS: Record<Group, React.ReactNode> = {
+  'Fashion & Style': (
+    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l3.057-3 3.943 3v7.5c0 1.38-1.12 2.5-2.5 2.5S7 11.88 7 10.5V7H5V3zm4 0h2M16 3h3v4h-2v3.5c0 1.38-1.12 2.5-2.5 2.5S12 11.88 12 10.5V10" />
+    </svg>
+  ),
+  'Beauty & Wellness': (
+    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+    </svg>
+  ),
+  'Home, Food & Lifestyle': (
+    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
+    </svg>
+  ),
+  'Technology': (
+    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  ),
+  'Other': (
+    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+    </svg>
+  ),
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -273,7 +301,10 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
           onClick={() => toggleGroup(group)}
           className="w-full flex items-center justify-between py-2 text-left"
         >
-          <span className="text-base font-bold text-pink-500">{group}</span>
+          <div className="flex items-center gap-2">
+            {GROUP_ICONS[group]}
+            <span className="text-base font-bold text-pink-500">{group}</span>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-gray-400">{people.length}</span>
             <svg
