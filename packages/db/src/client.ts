@@ -39,10 +39,11 @@ function createClient(): PrismaClient {
   // Local dev: use DATABASE_URL (file:./dev.db)
   dbConnectionMode = process.env.DATABASE_URL ? 'sqlite: ' + process.env.DATABASE_URL : 'no-database'
   return new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    log: ['error'],
   })
 }
 
 export const prisma = globalForPrisma.prisma ?? createClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Cache singleton in ALL environments (including production)
+if (!globalForPrisma.prisma) globalForPrisma.prisma = prisma

@@ -23,7 +23,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
   const initialMessages = await prisma.message.findMany({
     where: { roomId: params.roomId },
-    include: { sender: true },
+    include: { sender: { select: { id: true, name: true, image: true } } },
     orderBy: { createdAt: 'asc' },
     take: 100,
   })

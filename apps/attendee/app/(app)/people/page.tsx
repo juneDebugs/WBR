@@ -26,6 +26,7 @@ export default async function PeoplePage() {
       where: { id: { not: userId } },
       orderBy: { name: 'asc' },
       select: userSelect,
+      take: 200,
     }),
     prisma.follow.findMany({
       where: { followerId: userId },

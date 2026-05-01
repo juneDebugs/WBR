@@ -195,6 +195,7 @@ export default async function DashboardPage() {
             id: true, name: true, image: true, company: true, jobTitle: true,
             solutionsOffering: true, solutionsSeeking: true, companySize: true,
           },
+          take: 100,
         }),
         prisma.meetingRequest.findMany({
           where: { requesterId: user.id, targetUserId: { not: null } },
@@ -234,6 +235,7 @@ export default async function DashboardPage() {
             solutionsOffering: true, solutionsSeeking: true,
             companySize: true, tagline: true,
           },
+          take: 100,
         }),
         prisma.meetingRequest.findMany({
           where: { requesterId: user.id, targetSponsorId: { not: null } },

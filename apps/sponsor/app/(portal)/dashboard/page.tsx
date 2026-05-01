@@ -50,7 +50,7 @@ export default async function DashboardPage() {
   let recentRequests: any[] = []
 
   if (user.sponsorId) {
-    const [sponsorResult, inboundRequests, allRequests, sponsorMeetings] = await Promise.all([
+    const [sponsorResult, inboundRequests, pendingCountResult, confirmedCountResult, totalRequestCount, sponsorMeetings] = await Promise.all([
       prisma.sponsor.findUnique({
         where: { id: user.sponsorId },
         include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
@@ -64,24 +64,43 @@ export default async function DashboardPage() {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
-      // All inbound + outbound requests combined
-      prisma.meetingRequest.findMany({
+      // Pending requests count
+      prisma.meetingRequest.count({
+        where: {
+          status: 'PENDING',
+          OR: [
+            { targetSponsorId: user.sponsorId },
+            { requester: { sponsorId: user.sponsorId }, targetSponsorId: null },
+          ],
+        },
+      }),
+      // Confirmed/Approved requests count
+      prisma.meetingRequest.count({
+        where: {
+          status: { in: ['CONFIRMED', 'APPROVED'] },
+          OR: [
+            { targetSponsorId: user.sponsorId },
+            { requester: { sponsorId: user.sponsorId }, targetSponsorId: null },
+          ],
+        },
+      }),
+      // Total request count
+      prisma.meetingRequest.count({
         where: {
           OR: [
             { targetSponsorId: user.sponsorId },
             { requester: { sponsorId: user.sponsorId }, targetSponsorId: null },
           ],
         },
-        select: { status: true },
       }),
       prisma.sponsorMeeting.count({ where: { sponsorId: user.sponsorId } }),
     ])
 
     sponsor = sponsorResult
     recentRequests = inboundRequests
-    pendingCount = allRequests.filter(r => r.status === 'PENDING').length
-    confirmedCount = allRequests.filter(r => r.status === 'CONFIRMED' || r.status === 'APPROVED').length
-    totalMeetings = allRequests.length + sponsorMeetings
+    pendingCount = pendingCountResult
+    confirmedCount = confirmedCountResult
+    totalMeetings = totalRequestCount + sponsorMeetings
   }
 
   // Recommended attendees — match sponsor's solutionsOffering + targetIndustries against attendee solutionsSeeking + solutionsOffering
@@ -100,7 +119,7 @@ export default async function DashboardPage() {
       const attendees = await prisma.user.findMany({
         where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, sponsorId: null },
         select: { id: true, name: true, image: true, company: true, jobTitle: true, solutionsSeeking: true, solutionsOffering: true },
-        take: 50,
+        take: 100,
       })
 
       for (const a of attendees) {

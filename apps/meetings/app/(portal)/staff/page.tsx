@@ -19,6 +19,7 @@ export default async function StaffPage() {
         timeBlock: true,
       },
       orderBy: { createdAt: 'desc' },
+      take: 100,
     }),
     prisma.timeBlock.findMany({
       where: { conferenceId: 'conf-2025' },

@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 import { prisma } from '@conference/db'
 import { SpeakersClient } from '@/components/speakers/SpeakersClient'
 

@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import Image from 'next/image'
@@ -6,7 +6,14 @@ import Link from 'next/link'
 
 export default async function SpeakersPage() {
   const speakers = await prisma.speaker.findMany({
-    include: { _count: { select: { confSessions: true } } },
+    select: {
+      id: true,
+      name: true,
+      photoUrl: true,
+      jobTitle: true,
+      company: true,
+      _count: { select: { confSessions: true } },
+    },
     orderBy: { name: 'asc' },
   })
 

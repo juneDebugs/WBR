@@ -12,7 +12,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
   const [session, authSession] = await Promise.all([
     prisma.confSession.findUnique({
       where: { id: params.id },
-      include: { speaker: true },
+      include: { speaker: { select: { id: true, name: true, jobTitle: true, company: true, photoUrl: true } } },
     }),
     getServerSession(authOptions),
   ])

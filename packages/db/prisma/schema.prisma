@@ -27,6 +27,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
@@ -35,6 +36,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -110,6 +113,8 @@ model Conference {
   active        Boolean  @default(false)
   createdAt     DateTime @default(now())
 
+  @@index([active])
+
   speakers     Speaker[]
   confSessions ConfSession[]
   timeBlocks   TimeBlock[]
@@ -138,6 +143,8 @@ model Speaker {
   user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   confSessions ConfSession[]
   conflicts    ConflictLog[]
+
+  @@index([conferenceId])
 }
 
 // ─── Conference Sessions ──────────────────────────────────────────────────────
@@ -161,6 +168,9 @@ model ConfSession {
   bookmarks    SessionBookmark[]
   conflictsAsA ConflictLog[]    @relation("ConflictSessionA")
   conflictsAsB ConflictLog[]    @relation("ConflictSessionB")
+
+  @@index([conferenceId, startsAt])
+  @@index([speakerId])
 }
 
 // ─── Time Blocks ─────────────────────────────────────────────────────────────
@@ -178,6 +188,8 @@ model TimeBlock {
   meetings        Meeting[]
   sponsorMeetings SponsorMeeting[]
   meetingRequests MeetingRequest[]
+
+  @@index([conferenceId, startsAt])
 }
 
 // ─── Blackout Times ──────────────────────────────────────────────────────────
@@ -292,6 +304,8 @@ model Sponsor {
   meetingRequests  MeetingRequest[]
   users            User[]           @relation("SponsorUser")
   submissionForms  SubmissionForm[]
+
+  @@index([conferenceId])
 }
 
 model SessionBookmark {
@@ -346,6 +360,8 @@ model MeetingRequest {
   @@index([targetUserId])
   @@index([targetSponsorId])
   @@index([status])
+  @@index([status, timeBlockId])
+  @@index([timeBlockId])
 }
 
 // ─── Follow ───────────────────────────────────────────────────────────────────

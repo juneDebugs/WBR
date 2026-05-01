@@ -21,7 +21,7 @@ export default async function SpeakerDetailPage({ params }: { params: { id: stri
   const speaker = await prisma.speaker.findUnique({
     where: { id: params.id },
     include: {
-      confSessions: { orderBy: { startsAt: 'asc' } },
+      confSessions: { select: { id: true, title: true, startsAt: true, endsAt: true, room: true, track: true, type: true }, orderBy: { startsAt: 'asc' } },
     },
   })
 

@@ -28,20 +28,8 @@ export default async function MeetingsPage({
   const statusFilter = searchParams.status?.toUpperCase()
   const typeFilter = searchParams.type === 'attendee' ? 'attendee' : searchParams.type === 'sponsor' ? 'sponsor' : undefined
 
-  const typeWhere = typeFilter === 'sponsor'
-    ? { targetSponsorId: { not: null as string | null } }
-    : typeFilter === 'attendee'
-    ? { targetSponsorId: null as string | null }
-    : undefined
-
-  const [meetingRequests, sponsorMeetings, statusCounts, requesterCounts, sponsorCounts, bookmarkCounts] = await Promise.all([
+  const [allMeetingRequests, sponsorMeetings, bookmarkCounts] = await Promise.all([
     prisma.meetingRequest.findMany({
-      where: {
-        ...(statusFilter && ['PENDING', 'APPROVED', 'CONFIRMED', 'REJECTED'].includes(statusFilter)
-          ? { status: statusFilter }
-          : {}),
-        ...typeWhere,
-      },
       include: {
         requester: { select: { id: true, name: true, email: true, company: true, role: true } },
         targetUser: { select: { id: true, name: true, email: true, company: true, role: true } },
@@ -51,7 +39,6 @@ export default async function MeetingsPage({
       orderBy: { createdAt: 'desc' },
     }),
     prisma.sponsorMeeting.findMany({
-      where: { status: 'CONFIRMED' },
       include: {
         sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
         user:    { select: { id: true, name: true, email: true, company: true, role: true } },
@@ -59,39 +46,52 @@ export default async function MeetingsPage({
       },
       orderBy: { timeBlock: { startsAt: 'asc' } },
     }),
-    prisma.meetingRequest.groupBy({ by: ['status'], _count: { _all: true } }),
-    // Meetings committed per attendee (requester)
-    prisma.meetingRequest.groupBy({
-      by: ['requesterId'],
-      where: { status: { notIn: ['REJECTED', 'CANCELLED'] } },
-      _count: { _all: true },
-    }),
-    // Meetings committed per sponsor
-    prisma.sponsorMeeting.groupBy({
-      by: ['sponsorId'],
-      where: { status: { not: 'CANCELLED' } },
-      _count: { _all: true },
-    }),
-    // Session bookmarks (events) per user
+    // Session bookmarks (events) per user — different table, keep as groupBy
     prisma.sessionBookmark.groupBy({
       by: ['userId'],
       _count: { _all: true },
     }),
   ])
 
-  const counts = statusCounts.reduce((acc, r) => {
-    acc[r.status] = r._count._all
-    return acc
-  }, {} as Record<string, number>)
+  // Compute status counts in-memory from all requests
+  const counts: Record<string, number> = {}
+  for (const r of allMeetingRequests) {
+    counts[r.status] = (counts[r.status] ?? 0) + 1
+  }
 
-  const requesterCommitments = Object.fromEntries(requesterCounts.map(r => [r.requesterId, r._count._all]))
-  const sponsorCommitments = Object.fromEntries(sponsorCounts.map(r => [r.sponsorId, r._count._all]))
+  // Compute requester commitments in-memory (non-rejected/cancelled)
+  const requesterCommitments: Record<string, number> = {}
+  for (const r of allMeetingRequests) {
+    if (r.status !== 'REJECTED' && r.status !== 'CANCELLED') {
+      requesterCommitments[r.requesterId] = (requesterCommitments[r.requesterId] ?? 0) + 1
+    }
+  }
+
+  // Compute sponsor commitments in-memory (non-cancelled sponsor meetings)
+  const sponsorCommitments: Record<string, number> = {}
+  for (const sm of sponsorMeetings) {
+    if (sm.status !== 'CANCELLED') {
+      sponsorCommitments[sm.sponsorId] = (sponsorCommitments[sm.sponsorId] ?? 0) + 1
+    }
+  }
+
   const bookmarkCommitments = Object.fromEntries(bookmarkCounts.map(r => [r.userId, r._count._all]))
+
+  // Apply filters for the displayed list
+  const meetingRequests = allMeetingRequests.filter(r => {
+    if (statusFilter && ['PENDING', 'APPROVED', 'CONFIRMED', 'REJECTED'].includes(statusFilter) && r.status !== statusFilter) return false
+    if (typeFilter === 'sponsor' && r.targetSponsorId === null) return false
+    if (typeFilter === 'attendee' && r.targetSponsorId !== null) return false
+    return true
+  })
+
+  // Filter sponsor meetings to confirmed only for schedule view
+  const confirmedSponsorMeetings = sponsorMeetings.filter(sm => sm.status === 'CONFIRMED')
 
   // Build master schedule: group confirmed sponsor meetings by time slot
   const confirmedRequests = meetingRequests.filter(r => r.status === 'CONFIRMED' && r.timeBlock)
   const allConfirmed = [
-    ...sponsorMeetings.map(sm => ({
+    ...confirmedSponsorMeetings.map(sm => ({
       id: sm.id,
       type: 'sponsor' as const,
       timeBlock: sm.timeBlock,
@@ -121,7 +121,7 @@ export default async function MeetingsPage({
 
   // Sponsor fill-rate summary (for schedule tab)
   const sponsorFillMap = new Map<string, { id: string; name: string; tier: string; logoUrl: string | null; count: number }>()
-  for (const sm of sponsorMeetings) {
+  for (const sm of confirmedSponsorMeetings) {
     const id = sm.sponsor.id
     if (!sponsorFillMap.has(id)) sponsorFillMap.set(id, { id, name: sm.sponsor.name, tier: sm.sponsor.tier, logoUrl: sm.sponsor.logoUrl, count: 0 })
     sponsorFillMap.get(id)!.count++
@@ -193,11 +193,11 @@ export default async function MeetingsPage({
               <p className="text-[10px] text-gray-300">/ 200</p>
             </div>
             <p className="text-2xl font-bold text-gray-800">
-              {sponsorMeetings.length}
+              {confirmedSponsorMeetings.length}
             </p>
             <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
               <div className="h-full bg-green-400 rounded-full transition-all"
-                style={{ width: `${Math.min((sponsorMeetings.length / 200) * 100, 100)}%` }} />
+                style={{ width: `${Math.min((confirmedSponsorMeetings.length / 200) * 100, 100)}%` }} />
             </div>
           </div>
         </div>
