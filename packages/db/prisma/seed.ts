@@ -321,7 +321,7 @@ async function main() {
         return prisma.timeBlock.upsert({
           where: { id },
           update: { startsAt, endsAt },
-          create: { id, conferenceId: conf.id, startsAt, endsAt, location: 'Networking Lounge', capacity: 1 },
+          create: { id, conferenceId: conf.id, startsAt, endsAt, location: 'Networking Lounge', capacity: 20 },
         })
       })
     )
