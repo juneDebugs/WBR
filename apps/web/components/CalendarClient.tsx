@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import {
   format, parseISO, isBefore, isToday, isSameDay,
-  startOfWeek, addDays, addWeeks, subWeeks
+  startOfWeek, startOfDay, addDays, addWeeks, subWeeks
 } from 'date-fns'
 
 type Kind = 'session' | 'timeblock' | 'meeting'
@@ -126,15 +126,17 @@ function EventModal({ ev, onClose }: { ev: CalEvent; onClose: () => void }) {
   )
 }
 
-export function CalendarClient({ events }: { events: CalEvent[] }) {
+export function CalendarClient({ events, confStartDate, confEndDate }: { events: CalEvent[]; confStartDate: string | null; confEndDate: string | null }) {
   const [filter, setFilter] = useState<Kind | 'all'>('all')
   const [activeEvent, setActiveEvent] = useState<CalEvent | null>(null)
+  const confStart = confStartDate ? parseISO(confStartDate) : null
+  const confEnd = confEndDate ? parseISO(confEndDate) : null
+
   const [weekStart, setWeekStart] = useState(() => {
-    // Start on the week containing the first event, or today if no events
-    const first = events.length > 0
-      ? events.reduce((a, b) => a.startsAt < b.startsAt ? a : b).startsAt
-      : null
-    return startOfWeek(first ? parseISO(first) : new Date(), { weekStartsOn: 0 })
+    // Start on the week containing the conference start date, first event, or today
+    const anchor = confStart
+      ?? (events.length > 0 ? parseISO(events.reduce((a, b) => a.startsAt < b.startsAt ? a : b).startsAt) : null)
+    return startOfWeek(anchor ?? new Date(), { weekStartsOn: 0 })
   })
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
 
@@ -216,10 +218,9 @@ export function CalendarClient({ events }: { events: CalEvent[] }) {
             </button>
             <button
               onClick={() => {
-                const first = events.length > 0
-                  ? events.reduce((a, b) => a.startsAt < b.startsAt ? a : b).startsAt
-                  : null
-                setWeekStart(startOfWeek(first ? parseISO(first) : new Date(), { weekStartsOn: 0 }))
+                const anchor = confStart
+                  ?? (events.length > 0 ? parseISO(events.reduce((a, b) => a.startsAt < b.startsAt ? a : b).startsAt) : null)
+                setWeekStart(startOfWeek(anchor ?? new Date(), { weekStartsOn: 0 }))
                 setSelectedDay(null)
               }}
               className="px-3 h-7 rounded-full text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
@@ -243,7 +244,10 @@ export function CalendarClient({ events }: { events: CalEvent[] }) {
             const dayEvents = eventsForDay(day)
             const today = isToday(day)
             const past = isBefore(day, new Date()) && !today
-            const isConfDay = (day.getMonth() === 3 && (day.getDate() === 7 || day.getDate() === 8) && day.getFullYear() === 2027)
+            const dayStart = startOfDay(day)
+            const isConfDay = confStart && confEnd
+              ? dayStart >= startOfDay(confStart) && dayStart <= startOfDay(confEnd)
+              : false
             return (
               <div key={day.toISOString()} className={`flex flex-col gap-1.5 ${isConfDay ? 'flex-[3]' : 'flex-[1]'}`}>
                 {/* Day header — clickable */}

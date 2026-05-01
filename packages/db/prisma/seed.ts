@@ -194,13 +194,13 @@ async function main() {
   )
 
   // ── Sessions — Day 1 & 2 ──────────────────────────────────────────────────
-  const day1 = '2025-09-15'
-  const day2 = '2025-09-16'
+  const day1 = '2027-04-07'
+  const day2 = '2027-04-08'
 
   const sessions = await Promise.all([
     prisma.confSession.upsert({
       where: { id: 'ses-1' },
-      update: {},
+      update: { startsAt: new Date(`${day1}T09:00:00Z`), endsAt: new Date(`${day1}T10:00:00Z`) },
       create: {
         id: 'ses-1', conferenceId: conf.id,
         title: 'Opening Keynote: The Future of Cloud-Native Development',
@@ -212,7 +212,7 @@ async function main() {
     }),
     prisma.confSession.upsert({
       where: { id: 'ses-2' },
-      update: {},
+      update: { startsAt: new Date(`${day1}T10:30:00Z`), endsAt: new Date(`${day1}T11:30:00Z`) },
       create: {
         id: 'ses-2', conferenceId: conf.id,
         title: 'Building LLM Applications at Scale',
@@ -224,7 +224,7 @@ async function main() {
     }),
     prisma.confSession.upsert({
       where: { id: 'ses-3' },
-      update: {},
+      update: { startsAt: new Date(`${day1}T10:30:00Z`), endsAt: new Date(`${day1}T11:30:00Z`) },
       create: {
         id: 'ses-3', conferenceId: conf.id,
         title: 'Platform Engineering: From Pain to Product',
@@ -236,7 +236,7 @@ async function main() {
     }),
     prisma.confSession.upsert({
       where: { id: 'ses-4' },
-      update: {},
+      update: { startsAt: new Date(`${day1}T12:00:00Z`), endsAt: new Date(`${day1}T13:00:00Z`) },
       create: {
         id: 'ses-4', conferenceId: conf.id,
         title: 'Lunch Break', room: 'Atrium',
@@ -246,7 +246,7 @@ async function main() {
     }),
     prisma.confSession.upsert({
       where: { id: 'ses-5' },
-      update: {},
+      update: { startsAt: new Date(`${day1}T13:00:00Z`), endsAt: new Date(`${day1}T15:00:00Z`) },
       create: {
         id: 'ses-5', conferenceId: conf.id,
         title: 'Attacking Modern Web Applications',
@@ -258,7 +258,7 @@ async function main() {
     }),
     prisma.confSession.upsert({
       where: { id: 'ses-6' },
-      update: {},
+      update: { startsAt: new Date(`${day2}T09:00:00Z`), endsAt: new Date(`${day2}T10:00:00Z`) },
       create: {
         id: 'ses-6', conferenceId: conf.id,
         title: 'Day 2 Keynote: Engineering at Scale',
@@ -270,7 +270,7 @@ async function main() {
     }),
     prisma.confSession.upsert({
       where: { id: 'ses-7' },
-      update: {},
+      update: { startsAt: new Date(`${day2}T10:30:00Z`), endsAt: new Date(`${day2}T11:30:00Z`) },
       create: {
         id: 'ses-7', conferenceId: conf.id,
         title: 'Zero Trust Architecture in Practice',
@@ -282,7 +282,7 @@ async function main() {
     }),
     prisma.confSession.upsert({
       where: { id: 'ses-8' },
-      update: {},
+      update: { startsAt: new Date(`${day2}T10:30:00Z`), endsAt: new Date(`${day2}T11:30:00Z`) },
       create: {
         id: 'ses-8', conferenceId: conf.id,
         title: 'Fine-Tuning LLMs for Domain-Specific Tasks',

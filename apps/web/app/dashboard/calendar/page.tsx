@@ -4,6 +4,11 @@ import { AdminHeader } from '@/components/AdminHeader'
 import { CalendarClient } from '@/components/CalendarClient'
 
 export default async function CalendarPage() {
+  const conference = await prisma.conference.findFirst({
+    where: { active: true },
+    select: { startDate: true, endDate: true },
+  })
+
   const [sessions, timeBlocks, meetings] = await Promise.all([
     prisma.confSession.findMany({
       orderBy: { startsAt: 'asc' },
@@ -57,7 +62,11 @@ export default async function CalendarPage() {
     <>
       <AdminHeader title="Calendar" />
       <main className="flex-1 p-6">
-        <CalendarClient events={events} />
+        <CalendarClient
+          events={events}
+          confStartDate={conference?.startDate.toISOString() ?? null}
+          confEndDate={conference?.endDate.toISOString() ?? null}
+        />
       </main>
     </>
   )
