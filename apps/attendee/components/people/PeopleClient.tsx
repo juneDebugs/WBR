@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, memo } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Person {
@@ -206,15 +206,17 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
     setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  // Group by broad category (only used in Discover tab)
-  const grouped: Partial<Record<Group, Person[]>> = {}
-  if (tab === 'Discover') {
+  // Group by broad category (only used in Discover tab) - memoized
+  const grouped = useMemo(() => {
+    if (tab !== 'Discover') return {} as Partial<Record<Group, Person[]>>
+    const result: Partial<Record<Group, Person[]>> = {}
     for (const u of filteredPeople) {
       const g = getGroup(u.company)
-      if (!grouped[g]) grouped[g] = []
-      grouped[g]!.push(u)
+      if (!result[g]) result[g] = []
+      result[g]!.push(u)
     }
-  }
+    return result
+  }, [tab, filteredPeople])
 
   function PersonRow({ user }: { user: Person }) {
     const isFriend = friendState[user.id] ?? false

@@ -14,14 +14,16 @@ export default async function ChatPage() {
 
   const rooms = await prisma.chatRoom.findMany({
     where: { members: { some: { userId } } },
-    include: {
-      members: { include: { user: true } },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      members: { select: { userId: true, user: { select: { id: true, name: true, image: true } } } },
       messages: {
         orderBy: { createdAt: 'desc' },
         take: 1,
-        include: { sender: true },
+        select: { id: true, content: true, createdAt: true, sender: { select: { id: true, name: true } } },
       },
-      _count: { select: { messages: true } },
     },
   })
 
@@ -48,7 +50,7 @@ export default async function ChatPage() {
       </div>
 
       {/* Conversation list */}
-      <div className="divide-y divide-gray-50 pb-24">
+      <div className="divide-y divide-gray-50 pb-6">
         {sorted.map(room => {
           const lastMsg = room.messages[0]
           const isChannel = room.type === 'CHANNEL'

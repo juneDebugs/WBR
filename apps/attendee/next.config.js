@@ -14,7 +14,21 @@ module.exports = {
   eslint: { ignoreDuringBuilds: true },
   serverExternalPackages: ['@prisma/adapter-libsql'],
   async headers() {
-    return [{ source: '/(.*)', headers: securityHeaders }]
+    return [
+      { source: '/(.*)', headers: securityHeaders },
+      {
+        source: '/icons/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        source: '/sponsors/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
+      },
+      {
+        source: '/manifest.json',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],
+      },
+    ]
   },
   images: {
     remotePatterns: [

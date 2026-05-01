@@ -297,9 +297,11 @@ async function main() {
   const staffHash = await hashPassword('staff123')
   const demoHash = await hashPassword('demo123')
   const sponsorHash = await hashPassword('sponsor123')
+  const stephHash = await hashPassword('stephcurry')
 
   const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string }[] = [
     { id: 'demo-admin-june', email: 'june@tailor.tech', name: 'June Cho', role: 'ORGANIZER', password: adminHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor', jobTitle: 'CEO' },
+    { id: 'demo-attendee-steph', email: 'steph@curry.com', name: 'Steph Curry', role: 'ATTENDEE', password: stephHash, company: 'Golden State', jobTitle: 'Point Guard' },
     { id: 'demo-staff', email: 'staff@wbr.com', name: 'WBR Staff', role: 'STAFF', password: staffHash, company: 'WBR', jobTitle: 'Event Coordinator' },
     { id: 'demo-sponsor-shopify', email: 'sponsor@shopify.com', name: 'Shopify Rep', role: 'ATTENDEE', password: sponsorHash, sponsorId: 'cmngb2h4h0000vm28ssjt1m0z', company: 'Shopify', jobTitle: 'Partner Manager' },
     { id: 'demo-sponsor-klaviyo', email: 'sponsor@klaviyo.com', name: 'Klaviyo Rep', role: 'ATTENDEE', password: sponsorHash, sponsorId: 'cmngb2h4h0004vm28nn3rme1o', company: 'Klaviyo', jobTitle: 'Account Executive' },
@@ -412,7 +414,7 @@ async function main() {
   console.log(`   Sessions: ${sessions.length}`)
   console.log(`   Time blocks: ${timeBlocks.length}`)
   console.log(`   Sponsors: ${sponsorDefs.length}`)
-  console.log(`   Demo accounts: ${demoUsers.length} (june@tailor.tech/admin123, staff@wbr.com/staff123, sponsor@shopify.com/sponsor123, sponsor@klaviyo.com/sponsor123)`)
+  console.log(`   Demo accounts: ${demoUsers.length} (steph@curry.com/stephcurry, june@tailor.tech/admin123, staff@wbr.com/staff123, sponsor@shopify.com/sponsor123)`)
   console.log(`   Attendee users: ${attendeeUsers.length} (jordan@demo.com/demo123, etc.)`)
   console.log(`   Chat: General channel + members`)
 }

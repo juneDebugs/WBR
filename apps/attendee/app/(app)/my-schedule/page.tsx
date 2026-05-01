@@ -17,7 +17,7 @@ export default async function MySchedulePage() {
       where: { userId },
       include: {
         session: {
-          include: { speaker: true },
+          select: { id: true, title: true, track: true, room: true, type: true, startsAt: true, endsAt: true, speaker: { select: { name: true, company: true } } },
         },
       },
       orderBy: { session: { startsAt: 'asc' } },
@@ -32,9 +32,9 @@ export default async function MySchedulePage() {
         ],
       },
       include: {
-        sponsor: true,
+        sponsor: { select: { name: true, tier: true } },
         user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-        timeBlock: true,
+        timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
       },
       orderBy: { timeBlock: { startsAt: 'asc' } },
     }),
@@ -53,7 +53,7 @@ export default async function MySchedulePage() {
         requester: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
         targetUser: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
         targetSponsor: { select: { id: true, name: true, tier: true } },
-        timeBlock: true,
+        timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
       },
       orderBy: { timeBlock: { startsAt: 'asc' } },
     }),

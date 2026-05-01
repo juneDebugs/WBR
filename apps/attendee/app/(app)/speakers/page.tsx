@@ -3,16 +3,15 @@ import { prisma } from '@conference/db'
 import { SpeakersClient } from '@/components/speakers/SpeakersClient'
 
 export default async function SpeakersPage() {
-  const conference = await prisma.conference.findFirst({ where: { active: true } })
+  const conference = await prisma.conference.findFirst({ where: { active: true }, select: { id: true } })
 
   const speakers = conference
     ? await prisma.speaker.findMany({
         where: { conferenceId: conference.id },
-        include: {
-          confSessions: {
-            select: { track: true },
-            orderBy: { startsAt: 'asc' },
-          },
+        select: {
+          id: true, name: true, jobTitle: true, company: true, photoUrl: true,
+          bio: true, role: true, lookingFor: true, twitterHandle: true, linkedinUrl: true,
+          confSessions: { select: { track: true }, orderBy: { startsAt: 'asc' }, take: 1 },
         },
         orderBy: { name: 'asc' },
       })
@@ -29,8 +28,7 @@ export default async function SpeakersPage() {
     lookingFor: s.lookingFor,
     twitterHandle: s.twitterHandle,
     linkedinUrl: s.linkedinUrl,
-    // Primary track = first session's track, or null
-    track: s.confSessions.find(cs => cs.track)?.track ?? null,
+    track: s.confSessions[0]?.track ?? null,
   }))
 
   return (

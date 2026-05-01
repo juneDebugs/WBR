@@ -18,13 +18,14 @@ async function declineRequest(formData: FormData) {
   revalidatePath('/meetings')
 }
 
-export default async function MeetingsPage({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const authSession = await getServerSession(authOptions)
   if (!authSession?.user?.id) redirect('/login')
 
   const userId = authSession.user.id
   const role = (authSession.user as any).role as string
-  const tab = searchParams.tab ?? 'upcoming'
+  const { tab: rawTab } = await searchParams
+  const tab = rawTab ?? 'upcoming'
   const now = new Date()
 
   // ── Sponsor view ──────────────────────────────────────────────────────────

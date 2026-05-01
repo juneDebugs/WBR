@@ -14,12 +14,14 @@ export default async function HomePage() {
 
   const now = new Date()
 
+  const userPromise = prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true, image: true, bio: true, company: true, jobTitle: true, website: true, sponsorId: true },
+  })
+
   const [conference, user, meetingCount, sessionCount, upcomingMeetings, upcomingSessionBookmarks, speakers, sponsors] = await Promise.all([
-    prisma.conference.findFirst({ where: { active: true } }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, email: true, image: true, bio: true, company: true, jobTitle: true, website: true, sponsorId: true },
-    }),
+    prisma.conference.findFirst({ where: { active: true }, select: { name: true, venue: true, venueLat: true, venueLon: true, venueTimezone: true, startDate: true, endDate: true, heroImageUrl: true, wifiName: true, wifiPassword: true } }),
+    userPromise,
     prisma.meeting.count({
       where: { OR: [{ attendeeAId: userId }, { attendeeBId: userId }], status: { not: 'CANCELLED' } },
     }),
@@ -33,7 +35,7 @@ export default async function HomePage() {
       orderBy: { timeBlock: { startsAt: 'asc' } },
       take: 5,
       include: {
-        timeBlock: true,
+        timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
         attendeeA: { select: { name: true, image: true } },
         attendeeB: { select: { name: true, image: true } },
       },
@@ -55,13 +57,14 @@ export default async function HomePage() {
     }),
   ])
 
-  // Add sponsor meeting count
+  // Resolve user first so we can query sponsorMeetingCount with sponsorId
+  const resolvedUser = user
   const sponsorMeetingCount = await prisma.sponsorMeeting.count({
     where: {
       status: 'CONFIRMED',
       OR: [
         { userId },
-        ...(user?.sponsorId ? [{ sponsorId: user.sponsorId }] : []),
+        ...(resolvedUser?.sponsorId ? [{ sponsorId: resolvedUser.sponsorId }] : []),
       ],
     },
   })
@@ -117,14 +120,14 @@ export default async function HomePage() {
       conference={conference ? {
         name: conference.name,
         venue: conference.venue,
-        venueLat: conference.venueLat,
-        venueLon: conference.venueLon,
-        venueTimezone: conference.venueTimezone,
+        venueLat: conference.venueLat ?? null,
+        venueLon: conference.venueLon ?? null,
+        venueTimezone: conference.venueTimezone ?? null,
         startDate: conference.startDate.toISOString(),
         endDate: conference.endDate.toISOString(),
-        heroImageUrl: conference.heroImageUrl,
-        wifiName: conference.wifiName,
-        wifiPassword: conference.wifiPassword,
+        heroImageUrl: conference.heroImageUrl ?? null,
+        wifiName: conference.wifiName ?? null,
+        wifiPassword: conference.wifiPassword ?? null,
       } : null}
       user={{ name: user?.name ?? null, image: user?.image ?? null, company: user?.company ?? null, jobTitle: user?.jobTitle ?? null }}
       meetingCount={totalMeetingCount}

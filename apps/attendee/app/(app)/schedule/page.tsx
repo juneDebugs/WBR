@@ -21,7 +21,7 @@ export default async function SchedulePage() {
   const [sessions, bookmarks, conflicts] = await Promise.all([
     prisma.confSession.findMany({
       where: { conferenceId: conference.id },
-      include: { speaker: true },
+      include: { speaker: { select: { id: true, name: true, company: true, photoUrl: true } } },
       orderBy: { startsAt: 'asc' },
     }),
     session?.user?.id

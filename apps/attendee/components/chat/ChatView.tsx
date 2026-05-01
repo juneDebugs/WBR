@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 
@@ -33,7 +33,7 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
-  // Poll for new messages every 3 seconds
+  // Poll for new messages every 5 seconds
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -46,7 +46,7 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
           setMessages(data)
         }
       } catch {}
-    }, 3000)
+    }, 5000)
     return () => clearInterval(interval)
   }, [roomId])
 
@@ -80,10 +80,10 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
     setSending(false)
   }
 
-  const grouped = messages.map((msg, i) => ({
+  const grouped = useMemo(() => messages.map((msg, i) => ({
     ...msg,
     showHeader: i === 0 || messages[i - 1].sender.id !== msg.sender.id,
-  }))
+  })), [messages])
 
   return (
     <div className="flex flex-col bg-gray-50" style={{ height: '100dvh' }}>
