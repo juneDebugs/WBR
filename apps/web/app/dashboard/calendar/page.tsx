@@ -9,21 +9,23 @@ export default async function CalendarPage() {
     select: { startDate: true, endDate: true },
   })
 
-  const [sessions, timeBlocks, meetings] = await Promise.all([
+  const [sessions, timeBlocks, meetingRequests] = await Promise.all([
     prisma.confSession.findMany({
       orderBy: { startsAt: 'asc' },
       include: { speaker: { select: { name: true } } },
     }),
     prisma.timeBlock.findMany({
       orderBy: { startsAt: 'asc' },
-      include: { _count: { select: { meetings: true } } },
+      include: { _count: { select: { meetingRequests: { where: { status: 'CONFIRMED' } } } } },
     }),
-    prisma.meeting.findMany({
+    prisma.meetingRequest.findMany({
+      where: { status: 'CONFIRMED', timeBlockId: { not: null } },
       orderBy: { createdAt: 'asc' },
       include: {
         timeBlock: true,
-        attendeeA: { select: { name: true, image: true } },
-        attendeeB: { select: { name: true, image: true } },
+        requester: { select: { name: true } },
+        targetUser: { select: { name: true } },
+        targetSponsor: { select: { name: true } },
       },
     }),
   ])
@@ -41,18 +43,18 @@ export default async function CalendarPage() {
     ...timeBlocks.map(b => ({
       id: b.id,
       kind: 'timeblock' as const,
-      title: `Meeting Slot${b._count.meetings > 0 ? ` (${b._count.meetings} booked)` : ''}`,
+      title: `Meeting Slot${b._count.meetingRequests > 0 ? ` (${b._count.meetingRequests} booked)` : ''}`,
       startsAt: b.startsAt.toISOString(),
       endsAt: b.endsAt.toISOString(),
       meta: b.location ?? null,
       sub: null,
     })),
-    ...meetings.map(m => ({
+    ...meetingRequests.map(m => ({
       id: m.id,
       kind: 'meeting' as const,
-      title: `${m.attendeeA.name ?? '?'} & ${m.attendeeB.name ?? '?'}`,
-      startsAt: m.timeBlock.startsAt.toISOString(),
-      endsAt: m.timeBlock.endsAt.toISOString(),
+      title: `${m.requester.name ?? '?'} & ${m.targetUser?.name ?? m.targetSponsor?.name ?? '?'}`,
+      startsAt: m.timeBlock!.startsAt.toISOString(),
+      endsAt: m.timeBlock!.endsAt.toISOString(),
       meta: m.status,
       sub: null,
     })),
