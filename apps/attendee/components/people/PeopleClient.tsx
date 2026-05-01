@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo, memo } from 'react'
+import React, { useState, useTransition, useEffect, useRef, useMemo, memo } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Person {
