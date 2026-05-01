@@ -27,17 +27,35 @@ export async function GET(req: Request) {
     const authorizeResult = valid ? { id: user.id, email: user.email, name: user.name, role: user.role, sponsorId: user.sponsorId } : null
     steps.push('authorize would return: ' + (authorizeResult ? 'user object' : 'null'))
 
-    // Test 5: Call actual authorize function from authOptions
+    // Test 5: Call actual authorize function step by step
     try {
       const credentialsProvider = authOptions.providers.find((p: any) => p.id === 'credentials') as any
-      if (credentialsProvider?.authorize) {
+      if (credentialsProvider?.options?.authorize) {
+        const authResult = await credentialsProvider.options.authorize({ email, password: pw }, {} as any)
+        steps.push('ACTUAL authorize() (via options) returned: ' + (authResult ? JSON.stringify({ id: authResult.id, name: authResult.name }) : 'null'))
+      } else if (credentialsProvider?.authorize) {
         const authResult = await credentialsProvider.authorize({ email, password: pw }, {} as any)
         steps.push('ACTUAL authorize() returned: ' + (authResult ? JSON.stringify({ id: authResult.id, name: authResult.name }) : 'null'))
       } else {
-        steps.push('Could not find credentials provider')
+        steps.push('Provider keys: ' + Object.keys(credentialsProvider ?? {}).join(', '))
       }
     } catch (e: any) {
-      steps.push('ACTUAL authorize() THREW: ' + e.message)
+      steps.push('ACTUAL authorize() THREW: ' + e.message + ' | Stack: ' + (e.stack?.split('\n').slice(0, 2).join(' ') ?? ''))
+    }
+
+    // Test 6: Run authorize logic inline (no NextAuth wrapper)
+    try {
+      const u = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+      if (u && u.password) {
+        const v = await verifyPassword(pw, u.password)
+        if (v) {
+          steps.push('INLINE authorize: SUCCESS -> { id: ' + u.id + ', role: ' + u.role + ' }')
+        } else {
+          steps.push('INLINE authorize: password mismatch')
+        }
+      }
+    } catch (e: any) {
+      steps.push('INLINE authorize ERROR: ' + e.message)
     }
 
     return NextResponse.json({ steps })
