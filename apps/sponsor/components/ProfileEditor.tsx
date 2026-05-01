@@ -374,7 +374,7 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
             placeholder="https://yourcompany.com/banner.jpg" />
         </Field>
         <Field label="Website">
-          <input className="input" type="url" value={website} onChange={e => setWebsite(e.target.value)}
+          <input className="input" value={website} onChange={e => setWebsite(e.target.value)}
             placeholder="https://yourcompany.com" />
         </Field>
       </Section>

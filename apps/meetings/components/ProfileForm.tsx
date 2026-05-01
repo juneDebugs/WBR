@@ -169,7 +169,7 @@ export function ProfileForm({ user }: { user: User }) {
         </Field>
         <Field label="Website">
           <input className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-            type="url" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+            value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
             placeholder="https://yourcompany.com" />
         </Field>
       </Section>
