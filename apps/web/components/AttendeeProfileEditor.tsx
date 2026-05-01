@@ -94,6 +94,7 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
     website: user.website ?? '',
     companySize: user.companySize ?? '',
     annualRevenue: user.annualRevenue ?? '',
+    password: '',
   })
 
   const [offering, setOffering] = useState<string[]>(parseArr(user.solutionsOffering))
@@ -125,6 +126,7 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
           annualRevenue: form.annualRevenue || null,
           solutionsOffering: JSON.stringify(offering),
           solutionsSeeking: JSON.stringify(seeking),
+          ...(form.password && { password: form.password }),
         }),
       })
       if (!res.ok) {
@@ -219,10 +221,15 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
               {REVENUE_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
-          <div className="col-span-2">
+          <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Website</label>
             <input type="url" value={form.website} onChange={e => set('website', e.target.value)}
               placeholder="https://..." className="form-input" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Reset Password</label>
+            <input type="password" value={form.password} onChange={e => set('password', e.target.value)}
+              placeholder="Leave blank to keep current" minLength={6} className="form-input" />
           </div>
           <div className="col-span-2">
             <label className="text-xs font-medium text-gray-600 block mb-1">Bio</label>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
+import { hashPassword } from '@/lib/password'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -25,6 +26,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  // Hash password if provided
+  let hashedPassword: string | undefined
+  if (body.password && body.password.length >= 6) {
+    hashedPassword = await hashPassword(body.password)
+  } else if (body.password && body.password.length > 0 && body.password.length < 6) {
+    return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
+  }
+
   const updated = await prisma.user.update({
     where: { id },
     data: {
@@ -40,6 +49,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       ...(body.annualRevenue !== undefined && { annualRevenue: body.annualRevenue }),
       ...(body.solutionsOffering !== undefined && { solutionsOffering: body.solutionsOffering }),
       ...(body.solutionsSeeking !== undefined && { solutionsSeeking: body.solutionsSeeking }),
+      ...(hashedPassword && { password: hashedPassword }),
     },
     select: { id: true, name: true, email: true },
   })
