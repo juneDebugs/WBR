@@ -20,7 +20,10 @@ export const authOptions: NextAuthOptions = {
           if (!credentials?.email || !credentials?.password) return null
           const email = credentials.email.trim().toLowerCase()
 
-          const user = await prisma.user.findUnique({ where: { email } })
+          const user = await prisma.user.findUnique({
+            where: { email },
+            select: { id: true, email: true, name: true, password: true, role: true, sponsorId: true },
+          })
           if (!user) {
             console.error('[auth] User not found:', email)
             return null

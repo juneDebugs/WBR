@@ -20,7 +20,13 @@ export const authOptions: NextAuthOptions = {
           if (!credentials?.email || !credentials?.password) return null
           const email = credentials.email.trim().toLowerCase()
 
-          let user = await prisma.user.findUnique({ where: { email } })
+          const user = await prisma.user.findUnique({
+            where: { email },
+            select: {
+              id: true, email: true, name: true, password: true, role: true, sponsorId: true,
+              sponsor: { select: { name: true } },
+            },
+          })
           if (!user) {
             console.error('[auth] User not found:', email)
             return null
@@ -36,17 +42,13 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
-          const sponsor = user.sponsorId
-            ? await prisma.sponsor.findUnique({ where: { id: user.sponsorId } }).catch(() => null)
-            : null
-
           return {
             id: user.id,
             email: user.email!,
             name: user.name ?? email.split('@')[0],
             role: user.role,
             sponsorId: user.sponsorId ?? null,
-            sponsorName: sponsor?.name ?? null,
+            sponsorName: user.sponsor?.name ?? null,
           }
         } catch (e: any) {
           console.error('[auth] authorize() error:', e?.message)

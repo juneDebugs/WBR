@@ -6,11 +6,14 @@ const require = createRequire(import.meta.url)
 const { PrismaClient } = require('@prisma/client')
 
 const scryptAsync = promisify(scrypt)
+const SCRYPT_N = 4096
+const SCRYPT_R = 8
+const SCRYPT_P = 1
 
 async function hashPassword(password) {
   const salt = randomBytes(16).toString('hex')
-  const buf = await scryptAsync(password, salt, 64)
-  return `${buf.toString('hex')}.${salt}`
+  const buf = await scryptAsync(password, salt, 64, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P })
+  return `${buf.toString('hex')}.${salt}.${SCRYPT_N}`
 }
 
 function derivePassword(name, email) {

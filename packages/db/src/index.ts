@@ -1,26 +1,42 @@
 export { prisma, dbConnectionMode } from './client'
 export * from '@prisma/client'
-import { scrypt, timingSafeEqual } from 'crypto'
-import { promisify } from 'util'
+import { scrypt, timingSafeEqual, randomBytes, type ScryptOptions } from 'crypto'
 import type { ConfSession, Speaker } from '@prisma/client'
 
 // ─── Password utilities ──────────────────────────────────────────────────────
 
-const scryptAsync = promisify(scrypt)
+// Cost factor for new hashes. N=4096 is secure for a conference app and ~4x
+// faster than Node's default N=16384.
+const SCRYPT_N = 4096
+const SCRYPT_R = 8
+const SCRYPT_P = 1
+const SCRYPT_KEYLEN = 64
+
+function scryptAsync(password: string, salt: string, keylen: number, opts: ScryptOptions): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, keylen, opts, (err, key) => {
+      if (err) reject(err)
+      else resolve(key)
+    })
+  })
+}
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const [hashed, salt] = hash.split('.')
+  const parts = hash.split('.')
+  if (parts.length < 2) return false
+  const [hashed, salt, costStr] = parts
   if (!hashed || !salt) return false
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer
+  // Old hashes lack a cost field — fall back to Node default (N=16384)
+  const N = costStr ? parseInt(costStr, 10) : 16384
+  const buf = await scryptAsync(password, salt, SCRYPT_KEYLEN, { N, r: SCRYPT_R, p: SCRYPT_P })
   const hashedBuf = Buffer.from(hashed, 'hex')
   return timingSafeEqual(buf, hashedBuf)
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  const { randomBytes } = await import('crypto')
   const salt = randomBytes(16).toString('hex')
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer
-  return `${buf.toString('hex')}.${salt}`
+  const buf = await scryptAsync(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P })
+  return `${buf.toString('hex')}.${salt}.${SCRYPT_N}`
 }
 
 // ─── Composite types ──────────────────────────────────────────────────────────

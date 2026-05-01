@@ -1,8 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma } from '@conference/db'
-import { verifyPassword } from './password'
+import { prisma, verifyPassword } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -21,7 +20,10 @@ export const authOptions: NextAuthOptions = {
           if (!credentials?.email || !credentials?.password) return null
 
           const email = credentials.email.trim().toLowerCase()
-          const existing = await prisma.user.findUnique({ where: { email } })
+          const existing = await prisma.user.findUnique({
+            where: { email },
+            select: { id: true, email: true, name: true, password: true, role: true },
+          })
 
           if (!existing) {
             console.error('[auth] User not found:', email)

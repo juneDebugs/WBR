@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@conference/db'
-import { hashPassword } from '@/lib/password'
+import { prisma, hashPassword } from '@conference/db'
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
