@@ -76,13 +76,23 @@ export function SessionCard({ session, saved = false, hasConflict = false, onBoo
       )}
 
       <div className="p-4 flex gap-3.5">
-        {/* Type indicator */}
+        {/* Speaker photo or type icon */}
         <div className="flex-shrink-0 pt-0.5">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: config.bg }}>
-            <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke={config.text} strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d={config.icon} />
-            </svg>
-          </div>
+          {session.speaker?.photoUrl ? (
+            <img
+              src={session.speaker.photoUrl.replace(/w=\d+/, 'w=100').replace(/q=\d+/, 'q=70')}
+              alt={session.speaker.name}
+              loading="lazy"
+              className="w-10 h-10 rounded-xl object-cover"
+              style={{ border: `2px solid ${config.bg}` }}
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: config.bg }}>
+              <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke={config.text} strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d={config.icon} />
+              </svg>
+            </div>
+          )}
         </div>
 
         {/* Content */}
