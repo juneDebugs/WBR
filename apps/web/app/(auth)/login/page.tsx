@@ -39,12 +39,6 @@ export default function LoginPage() {
       <div className="relative w-full max-w-[380px] mx-4">
         {/* Frosted glass card */}
         <div className="backdrop-blur-2xl bg-white/70 rounded-2xl shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_8px_40px_rgba(0,0,0,0.12)] p-8">
-          {/* Window dots */}
-          <div className="flex gap-2 mb-8">
-            <div className="w-3 h-3 rounded-full bg-[#ff5f57] shadow-[inset_0_-1px_1px_rgba(0,0,0,0.15)]" />
-            <div className="w-3 h-3 rounded-full bg-[#febc2e] shadow-[inset_0_-1px_1px_rgba(0,0,0,0.15)]" />
-            <div className="w-3 h-3 rounded-full bg-[#28c840] shadow-[inset_0_-1px_1px_rgba(0,0,0,0.15)]" />
-          </div>
 
           {/* Header */}
           <div className="text-center mb-7">
