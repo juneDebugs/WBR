@@ -40,13 +40,16 @@ async function main() {
   // ── Conference ──────────────────────────────────────────────────────────────
   const conf = await prisma.conference.upsert({
     where: { id: 'conf-2025' },
-    update: {},
+    update: {
+      startDate: new Date('2027-04-06T09:00:00Z'),
+      endDate: new Date('2027-04-07T18:00:00Z'),
+    },
     create: {
       id: 'conf-2025',
       name: 'WBR 2027',
       description: 'The premier technology conference of the year.',
-      startDate: new Date('2027-04-07T09:00:00Z'),
-      endDate: new Date('2027-04-08T18:00:00Z'),
+      startDate: new Date('2027-04-06T09:00:00Z'),
+      endDate: new Date('2027-04-07T18:00:00Z'),
       venue: 'Convention Center, San Francisco',
       active: true,
     },
@@ -194,8 +197,8 @@ async function main() {
   )
 
   // ── Sessions — Day 1 & 2 ──────────────────────────────────────────────────
-  const day1 = '2027-04-07'
-  const day2 = '2027-04-08'
+  const day1 = '2027-04-06'
+  const day2 = '2027-04-07'
 
   const sessions = await Promise.all([
     prisma.confSession.upsert({
@@ -295,7 +298,7 @@ async function main() {
   ])
 
   // ── Time blocks ────────────────────────────────────────────────────────────
-  const tbDays = ['2025-09-15', '2025-09-16']
+  const tbDays = ['2027-04-06', '2027-04-07']
   const tbSlots: [number, number][] = [
     [18, 0], [18, 30],
     [19, 0], [19, 30],
