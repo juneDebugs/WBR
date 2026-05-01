@@ -1,17 +1,31 @@
+export const dynamic = 'force-dynamic'
+
 import { prisma } from '@conference/db'
 import { LoginClient } from './LoginClient'
 
 export default async function LoginPage() {
-  const conference = await prisma.conference.findFirst({
-    where: { active: true },
-    select: { loginTitle: true, loginSubtitle: true, loginButtonText: true },
-  }).catch(() => null)
+  let loginTitle = 'eTail Palm Springs'
+  let loginSubtitle = 'Your all-in-one conference companion'
+  let loginButtonText = 'Enter Conference'
+
+  try {
+    const conference = await prisma.conference.findFirst({
+      where: { active: true },
+    })
+    if (conference) {
+      loginTitle = (conference as any).loginTitle || loginTitle
+      loginSubtitle = (conference as any).loginSubtitle || loginSubtitle
+      loginButtonText = (conference as any).loginButtonText || loginButtonText
+    }
+  } catch {
+    // DB query failed — use defaults
+  }
 
   return (
     <LoginClient
-      loginTitle={(conference as any)?.loginTitle ?? 'eTail Palm Springs'}
-      loginSubtitle={(conference as any)?.loginSubtitle ?? 'Your all-in-one conference companion'}
-      loginButtonText={(conference as any)?.loginButtonText ?? 'Enter Conference'}
+      loginTitle={loginTitle}
+      loginSubtitle={loginSubtitle}
+      loginButtonText={loginButtonText}
     />
   )
 }
