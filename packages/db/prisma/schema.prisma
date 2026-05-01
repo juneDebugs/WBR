@@ -104,6 +104,9 @@ model Conference {
   heroImageUrl  String?
   wifiName      String?
   wifiPassword  String?
+  loginTitle    String?
+  loginSubtitle String?
+  loginButtonText String?
   active        Boolean  @default(false)
   createdAt     DateTime @default(now())
 

@@ -34,6 +34,9 @@ export default async function AppSettingsPage() {
             heroImageUrl: conference.heroImageUrl ?? '',
             wifiName: conference.wifiName ?? '',
             wifiPassword: conference.wifiPassword ?? '',
+            loginTitle: (conference as any).loginTitle ?? '',
+            loginSubtitle: (conference as any).loginSubtitle ?? '',
+            loginButtonText: (conference as any).loginButtonText ?? '',
           }}
         />
       </main>

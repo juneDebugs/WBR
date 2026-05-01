@@ -15,6 +15,9 @@ interface Props {
     heroImageUrl: string
     wifiName: string
     wifiPassword: string
+    loginTitle: string
+    loginSubtitle: string
+    loginButtonText: string
   }
 }
 
@@ -213,6 +216,50 @@ export function AppSettingsForm({ conference }: Props) {
           </div>
         </div>
         <p className="text-xs text-gray-400">Shown on the WiFi tile on the mobile app. Attendees can tap to copy.</p>
+      </div>
+
+      {/* Login Page Text */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
+        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+          <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+          Login Page Text
+        </h3>
+        <p className="text-xs text-gray-400">Customize the text shown on the mobile app login screen.</p>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Login Title</label>
+          <input
+            value={form.loginTitle}
+            onChange={e => set('loginTitle', e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            placeholder="e.g. eTail Palm Springs"
+          />
+          <p className="text-xs text-gray-400 mt-1">The large heading on the login page.</p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Login Subtitle</label>
+          <input
+            value={form.loginSubtitle}
+            onChange={e => set('loginSubtitle', e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            placeholder="e.g. Your all-in-one conference companion"
+          />
+          <p className="text-xs text-gray-400 mt-1">The subtitle text below the title.</p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Login Button Text</label>
+          <input
+            value={form.loginButtonText}
+            onChange={e => set('loginButtonText', e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            placeholder="e.g. Enter Conference"
+          />
+          <p className="text-xs text-gray-400 mt-1">The text on the sign-in button.</p>
+        </div>
       </div>
     </div>
   )
