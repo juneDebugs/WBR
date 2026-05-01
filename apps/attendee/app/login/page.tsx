@@ -31,7 +31,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <img src="/icons/icon-192.png" alt="WBR" className="w-20 h-20 object-contain mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-white">WBR 2027</h1>
+          <h1 className="text-3xl font-bold text-white">eTail Palm Springs</h1>
           <p className="text-white/70 mt-2 text-sm">Your all-in-one conference companion</p>
         </div>
 
