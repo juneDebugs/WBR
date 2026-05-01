@@ -18,8 +18,8 @@ export default async function RequestsPage() {
       ],
     },
     include: {
-      requester: { select: { id: true, name: true, email: true, image: true, company: true, role: true } },
-      targetUser: { select: { id: true, name: true, email: true, image: true, company: true, role: true } },
+      requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true, role: true } },
+      targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true, role: true } },
       targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
       timeBlock: true,
     },
