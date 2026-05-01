@@ -128,6 +128,13 @@ export function SessionCard({ session, saved = false, hasConflict = false, onBoo
               <span className="text-[12px] text-gray-400">{session.room}</span>
             </div>
           )}
+
+          {/* About this session */}
+          {session.description && (
+            <div className="mt-2.5 rounded-xl px-3 py-2.5" style={{ background: `${config.bg}08`, border: `1px solid ${config.bg}15` }}>
+              <p className="text-[12px] leading-relaxed text-gray-500 line-clamp-3">{session.description}</p>
+            </div>
+          )}
         </div>
 
         {/* Bookmark */}
