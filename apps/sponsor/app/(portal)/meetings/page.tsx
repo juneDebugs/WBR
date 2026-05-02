@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
@@ -15,38 +15,36 @@ export default async function MeetingsPage() {
   let sponsorMeetings: any[] = []
 
   if (user.sponsorId) {
-    // Inbound: attendees requesting a meeting with this sponsor
-    inbound = await prisma.meetingRequest.findMany({
-      where: { targetSponsorId: user.sponsorId },
-      include: {
-        requester: { select: { id: true, name: true, image: true, company: true, jobTitle: true, email: true } },
-        timeBlock: true,
-      },
-      orderBy: { updatedAt: 'desc' },
-    })
-
-    // Outbound: this sponsor's reps requesting meetings with attendees
-    outbound = await prisma.meetingRequest.findMany({
-      where: {
-        requester: { sponsorId: user.sponsorId },
-        targetUserId: { not: null },
-        targetSponsorId: null,
-      },
-      include: {
-        targetUser: { select: { id: true, name: true, image: true, company: true, jobTitle: true, email: true } },
-        timeBlock: true,
-      },
-      orderBy: { updatedAt: 'desc' },
-    })
-
-    sponsorMeetings = await prisma.sponsorMeeting.findMany({
-      where: { sponsorId: user.sponsorId },
-      include: {
-        user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-        timeBlock: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    ;[inbound, outbound, sponsorMeetings] = await Promise.all([
+      prisma.meetingRequest.findMany({
+        where: { targetSponsorId: user.sponsorId },
+        include: {
+          requester: { select: { id: true, name: true, image: true, company: true, jobTitle: true, email: true } },
+          timeBlock: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.meetingRequest.findMany({
+        where: {
+          requester: { sponsorId: user.sponsorId },
+          targetUserId: { not: null },
+          targetSponsorId: null,
+        },
+        include: {
+          targetUser: { select: { id: true, name: true, image: true, company: true, jobTitle: true, email: true } },
+          timeBlock: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.sponsorMeeting.findMany({
+        where: { sponsorId: user.sponsorId },
+        include: {
+          user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+          timeBlock: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
   }
 
   return (

@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
@@ -166,13 +166,21 @@ export default async function DashboardPage() {
       : Promise.resolve(null),
   ])
 
-  // ── Sponsor team (for team reps section) ──
-  const sponsorWithTeam = isSponsor && user.sponsorId
-    ? await prisma.sponsor.findUnique({
-        where: { id: user.sponsorId },
-        include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
-      })
-    : null
+  // ── Sponsor team + sponsor details (for recs) — fetch in parallel ──
+  const [sponsorWithTeam, sponsorForRecs] = await Promise.all([
+    isSponsor && user.sponsorId
+      ? prisma.sponsor.findUnique({
+          where: { id: user.sponsorId },
+          include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
+        })
+      : Promise.resolve(null),
+    isSponsor && user.sponsorId
+      ? prisma.sponsor.findUnique({
+          where: { id: user.sponsorId },
+          select: { solutionsSeeking: true, solutionsOffering: true, name: true },
+        })
+      : Promise.resolve(null),
+  ])
 
   // ── Recommendations ──
   let recommendations: RecommendedMatch[] = []
@@ -183,10 +191,7 @@ export default async function DashboardPage() {
     const fullUser = profileUser // reuse — already fetched with all needed fields
 
     if (isSponsor && user.sponsorId) {
-      const sponsor = await prisma.sponsor.findUnique({
-        where: { id: user.sponsorId },
-        select: { solutionsSeeking: true, solutionsOffering: true, name: true },
-      })
+      const sponsor = sponsorForRecs
 
       const [allAttendees, alreadyRequestedIds] = await Promise.all([
         prisma.user.findMany({

@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
@@ -48,9 +48,10 @@ export default async function DashboardPage() {
   let confirmedCount = 0
   let totalMeetings = 0
   let recentRequests: any[] = []
+  let conflicts: any[] = []
 
   if (user.sponsorId) {
-    const [sponsorResult, inboundRequests, pendingCountResult, confirmedCountResult, totalRequestCount, sponsorMeetings] = await Promise.all([
+    const [sponsorResult, inboundRequests, pendingCountResult, confirmedCountResult, totalRequestCount, sponsorMeetings, conflictsResult] = await Promise.all([
       prisma.sponsor.findUnique({
         where: { id: user.sponsorId },
         include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
@@ -94,6 +95,7 @@ export default async function DashboardPage() {
         },
       }),
       prisma.sponsorMeeting.count({ where: { sponsorId: user.sponsorId } }),
+      getActiveConflicts(prisma),
     ])
 
     sponsor = sponsorResult
@@ -101,6 +103,7 @@ export default async function DashboardPage() {
     pendingCount = pendingCountResult
     confirmedCount = confirmedCountResult
     totalMeetings = totalRequestCount + sponsorMeetings
+    conflicts = conflictsResult
   }
 
   // Recommended attendees — match sponsor's solutionsOffering + targetIndustries against attendee solutionsSeeking + solutionsOffering
@@ -142,7 +145,6 @@ export default async function DashboardPage() {
   }
 
   const profile = completeness(sponsor ?? {})
-  const conflicts = await getActiveConflicts(prisma)
 
   const stats = [
     { label: 'Total Requests', value: totalMeetings, color: 'text-primary', bg: 'bg-primary/10', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },

@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { SponsorReadinessWidget } from '@/components/SponsorReadinessWidget'

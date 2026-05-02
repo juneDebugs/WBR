@@ -10,14 +10,9 @@ export default async function BrowsePage() {
   if (!session) redirect('/login')
   const user = session.user as any
 
-  const conference = await prisma.conference.findFirst({ where: { active: true } })
-
-  const people = conference ? await prisma.user.findMany({
+  const people = await prisma.user.findMany({
     where: {
-      OR: [
-        { role: 'ATTENDEE' },
-        { role: 'SPEAKER' },
-      ],
+      role: { in: ['ATTENDEE', 'SPEAKER'] },
     },
     select: {
       id: true, name: true, image: true, company: true, jobTitle: true, bio: true,
@@ -25,7 +20,8 @@ export default async function BrowsePage() {
       solutionsOffering: true, solutionsSeeking: true, website: true, sponsorId: true,
     },
     orderBy: { name: 'asc' },
-  }) : []
+    take: 500,
+  })
 
   return (
     <SponsorBrowseView

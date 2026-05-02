@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, getActiveConflicts } from '@conference/db'
@@ -9,40 +9,39 @@ export default async function MeetingsPage() {
   const userId = (session!.user as any).id as string
   const sponsorId = (session!.user as any).sponsorId as string | null
 
-  const requests = await prisma.meetingRequest.findMany({
-    where: {
-      OR: [
-        { requesterId: userId },
-        { targetUserId: userId },
-        ...(sponsorId ? [{ targetSponsorId: sponsorId }] : []),
+  const [requests, sponsorMeetings, conflicts] = await Promise.all([
+    prisma.meetingRequest.findMany({
+      where: {
+        OR: [
+          { requesterId: userId },
+          { targetUserId: userId },
+          ...(sponsorId ? [{ targetSponsorId: sponsorId }] : []),
+        ],
+      },
+      include: {
+        requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
+        targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
+        targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true, website: true } },
+        timeBlock: true,
+      },
+      orderBy: [
+        { status: 'asc' },
+        { createdAt: 'desc' },
       ],
-    },
-    include: {
-      requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
-      targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
-      targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true, website: true } },
-      timeBlock: true,
-    },
-    orderBy: [
-      { status: 'asc' },
-      { createdAt: 'desc' },
-    ],
-  })
-
-  // Also fetch confirmed sponsor meetings (where sponsor staff is viewing)
-  const sponsorMeetings = sponsorId
-    ? await prisma.sponsorMeeting.findMany({
-        where: { sponsorId, status: 'CONFIRMED' },
-        include: {
-          user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-          timeBlock: true,
-          sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
-        },
-        orderBy: { timeBlock: { startsAt: 'asc' } },
-      })
-    : []
-
-  const conflicts = await getActiveConflicts(prisma)
+    }),
+    sponsorId
+      ? prisma.sponsorMeeting.findMany({
+          where: { sponsorId, status: 'CONFIRMED' },
+          include: {
+            user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+            timeBlock: true,
+            sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
+          },
+          orderBy: { timeBlock: { startsAt: 'asc' } },
+        })
+      : Promise.resolve([]),
+    getActiveConflicts(prisma),
+  ])
 
   return (
     <>

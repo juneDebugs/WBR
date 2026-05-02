@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
@@ -19,24 +19,24 @@ export default async function ProfilePage() {
     )
   }
 
-  const sponsor = await prisma.sponsor.findUnique({
-    where: { id: user.sponsorId },
-    include: {
-      users: {
-        select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
+  const [sponsor, allUsers] = await Promise.all([
+    prisma.sponsor.findUnique({
+      where: { id: user.sponsorId },
+      include: {
+        users: {
+          select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
+        },
       },
-    },
-  })
+    }),
+    prisma.user.findMany({
+      where: { sponsorId: null, role: { not: 'ORGANIZER' } },
+      select: { id: true, name: true, email: true, image: true, jobTitle: true },
+      orderBy: { name: 'asc' },
+      take: 200,
+    }),
+  ])
 
   if (!sponsor) redirect('/dashboard')
-
-  // All users who could be added as teammates (not already linked)
-  const allUsers = await prisma.user.findMany({
-    where: { sponsorId: null, role: { not: 'ORGANIZER' } },
-    select: { id: true, name: true, email: true, image: true, jobTitle: true },
-    orderBy: { name: 'asc' },
-    take: 200,
-  })
 
   return (
     <ProfileEditor
