@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
@@ -66,6 +66,8 @@ const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
 ]
 
 const ALL_SOLUTIONS = SOLUTION_CATEGORIES.flatMap(c => c.items)
+
+const PAGE_SIZE = 48
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Marketing Solutions': '#f43f5e',                        // rose
@@ -253,9 +255,10 @@ function SolutionOfferingsFilter({ seeking, toggle }: { seeking: string[]; toggl
 }
 
 export function SponsorBrowseView({
-  people, sponsorId, isStaff,
+  people, sponsorId, isStaff, initialRequestedIds = [],
 }: {
   people: any[]; sponsorId: string | null; isStaff: boolean;
+  initialRequestedIds?: string[];
 }) {
   const [search, setSearch] = useState('')
   const [roles, setRoles] = useState<string[]>([])
@@ -265,14 +268,17 @@ export function SponsorBrowseView({
   const [revenues, setRevenues] = useState<string[]>([])
   const [seeking, setSeeking] = useState<string[]>([])
   const [requesting, setRequesting] = useState<string | null>(null)
-  const [requested, setRequested] = useState<Set<string>>(new Set())
+  const [requested, setRequested] = useState<Set<string>>(() => new Set(initialRequestedIds))
   const [message, setMessage] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
-  const toggle = (val: string, arr: string[], set: (v: string[]) => void) =>
+  const toggle = (val: string, arr: string[], set: (v: string[]) => void) => {
     set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
+    setVisibleCount(PAGE_SIZE)
+  }
 
-  const clearAll = () => { setRoles([]); setJobFunctions([]); setIndustries([]); setSizes([]); setRevenues([]); setSeeking([]); setSearch('') }
+  const clearAll = () => { setRoles([]); setJobFunctions([]); setIndustries([]); setSizes([]); setRevenues([]); setSeeking([]); setSearch(''); setVisibleCount(PAGE_SIZE) }
 
   const filtered = useMemo(() => {
     return people.filter(p => {
@@ -319,11 +325,11 @@ export function SponsorBrowseView({
             type="text"
             placeholder="Search by name, company, or topic…"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE) }}
             className="flex-1 text-sm focus:outline-none bg-transparent"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="text-gray-300 hover:text-gray-500">
+            <button onClick={() => { setSearch(''); setVisibleCount(PAGE_SIZE) }} className="text-gray-300 hover:text-gray-500">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
               </svg>
@@ -445,8 +451,9 @@ export function SponsorBrowseView({
               <button onClick={clearAll} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
             </div>
           ) : (
+            <>
             <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
-              {filtered.map(p => {
+              {filtered.slice(0, visibleCount).map(p => {
                 const theirSeeking = parseArr(p.solutionsSeeking)
                 const theirOffering = parseArr(p.solutionsOffering)
                 const isRequested = requested.has(p.id)
@@ -544,6 +551,19 @@ export function SponsorBrowseView({
                 )
               })}
             </div>
+
+            {/* Load more */}
+            {visibleCount < filtered.length && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                  className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
+                >
+                  Show more ({filtered.length - visibleCount} remaining)
+                </button>
+              </div>
+            )}
+            </>
           )}
         </div>
       </div>

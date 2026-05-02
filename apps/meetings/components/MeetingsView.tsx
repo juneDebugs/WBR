@@ -97,7 +97,7 @@ export function MeetingsView({ requests, sponsorMeetings, currentUserId, current
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   useEffect(() => {
-    const i = setInterval(refresh, 3000)
+    const i = setInterval(refresh, 30_000)
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { clearInterval(i); document.removeEventListener('visibilitychange', onVisible) }
@@ -236,10 +236,6 @@ export function MeetingsView({ requests, sponsorMeetings, currentUserId, current
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Meetings</h1>
           <p className="text-sm text-gray-500 mt-1">All meeting requests — inbound from attendees and sent by your team</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-          <span className="text-xs text-gray-400">Live</span>
         </div>
       </div>
 

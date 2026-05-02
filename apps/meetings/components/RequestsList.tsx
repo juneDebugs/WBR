@@ -90,7 +90,7 @@ export function RequestsList({ requests, currentUserId }: { requests: any[], cur
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   useEffect(() => {
-    const i = setInterval(refresh, 3000)
+    const i = setInterval(refresh, 30_000)
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { clearInterval(i); document.removeEventListener('visibilitychange', onVisible) }
