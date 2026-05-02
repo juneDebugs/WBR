@@ -62,10 +62,13 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
         {attendees.map(a => {
           const isRequested = requested.has(a.id)
           const isLoading = loading === a.id
-          const topMatched = a.matchedTags.slice(0, 2)
-          const otherTags = a.allTags.filter(t => !topMatched.includes(t))
-          const visibleOther = otherTags.slice(0, Math.max(0, 4 - topMatched.length))
-          const extraCount = otherTags.length - visibleOther.length
+          // Show up to 4 tags: matched tags first (purple), then remaining (gray)
+          const matchedSet = new Set(a.matchedTags)
+          const matched = a.allTags.filter(t => matchedSet.has(t))
+          const unmatched = a.allTags.filter(t => !matchedSet.has(t))
+          const orderedTags = [...matched, ...unmatched]
+          const visibleTags = orderedTags.slice(0, 4)
+          const extraCount = orderedTags.length - visibleTags.length
 
           return (
             <div
@@ -102,15 +105,14 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
                 {/* Company description */}
                 <p className="text-[10px] leading-snug text-gray-400 mt-1.5 line-clamp-2 min-h-[28px]">{getCompanyDescription(a.company)}</p>
 
-                {/* Tags */}
+                {/* Tags — at least 2, up to 4 */}
                 <div className="flex flex-wrap gap-1 mt-2.5">
-                  {topMatched.map(tag => (
-                    <span key={tag} className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full truncate max-w-[10rem]">
-                      {tag}
-                    </span>
-                  ))}
-                  {visibleOther.map(tag => (
-                    <span key={tag} className="text-[10px] font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full truncate max-w-[10rem]">
+                  {visibleTags.map(tag => (
+                    <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full truncate max-w-[10rem] ${
+                      matchedSet.has(tag)
+                        ? 'font-semibold text-primary bg-primary/10'
+                        : 'font-medium text-gray-600 bg-gray-100'
+                    }`}>
                       {tag}
                     </span>
                   ))}
