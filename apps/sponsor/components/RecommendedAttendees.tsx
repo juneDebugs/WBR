@@ -62,14 +62,15 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
         {attendees.map(a => {
           const isRequested = requested.has(a.id)
           const isLoading = loading === a.id
-          const topMatched = a.matchedTags.slice(0, 1)
+          const topMatched = a.matchedTags.slice(0, 2)
           const otherTags = a.allTags.filter(t => !topMatched.includes(t))
-          const extraCount = otherTags.length > 1 ? otherTags.length - 1 : 0
+          const visibleOther = otherTags.slice(0, Math.max(0, 4 - topMatched.length))
+          const extraCount = otherTags.length - visibleOther.length
 
           return (
             <div
               key={a.id}
-              className="flex-shrink-0 w-52 bg-white border border-gray-100 rounded-2xl shadow-sm flex flex-col overflow-hidden hover:shadow-md transition-shadow"
+              className="flex-shrink-0 w-56 bg-white border border-gray-100 rounded-2xl shadow-sm flex flex-col overflow-hidden hover:shadow-md transition-shadow"
             >
               {/* Avatar + score */}
               <div className="relative px-4 pt-5 pb-2 flex flex-col items-center">
@@ -99,24 +100,17 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
                 )}
 
                 {/* Company description */}
-                {(() => {
-                  const desc = getCompanyDescription(a.company)
-                  return desc ? (
-                    <p className="text-[10px] leading-snug text-gray-400 mt-1.5 line-clamp-2 min-h-[28px]">{desc}</p>
-                  ) : (
-                    <div className="min-h-[28px] mt-1.5" />
-                  )
-                })()}
+                <p className="text-[10px] leading-snug text-gray-400 mt-1.5 line-clamp-2 min-h-[28px]">{getCompanyDescription(a.company)}</p>
 
                 {/* Tags */}
                 <div className="flex flex-wrap gap-1 mt-2.5">
                   {topMatched.map(tag => (
-                    <span key={tag} className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                    <span key={tag} className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full truncate max-w-[10rem]">
                       {tag}
                     </span>
                   ))}
-                  {otherTags.slice(0, 1).map(tag => (
-                    <span key={tag} className="text-[10px] font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+                  {visibleOther.map(tag => (
+                    <span key={tag} className="text-[10px] font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full truncate max-w-[10rem]">
                       {tag}
                     </span>
                   ))}
@@ -131,7 +125,7 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
                 <button
                   onClick={() => connect(a.id)}
                   disabled={isRequested || isLoading || !sponsorId}
-                  className={`mt-3 w-full py-2 rounded-xl text-sm font-semibold transition-all ${
+                  className={`mt-auto pt-3 w-full py-2 rounded-xl text-sm font-semibold transition-all ${
                     isRequested
                       ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                       : 'bg-primary text-white hover:bg-primary/90 disabled:opacity-50'

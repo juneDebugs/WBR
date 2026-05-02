@@ -252,6 +252,14 @@ const COMPANY_DESCRIPTIONS: Record<string, string> = {
   'Cotopaxi': 'Outdoor gear brand fueled by adventure and social impact.',
   'True Classic': 'Premium-fit basics at accessible price points.',
   'Torrid': 'Fashion-forward plus-size clothing and intimates.',
+  'Boohoo DTC': 'Fast-fashion retailer delivering trend-led styles worldwide.',
+  'Depop': 'Social marketplace for unique fashion and vintage finds.',
+  'Entireworld': 'Colorful, comfort-first essentials for everyday wear.',
+  'Noihsaf Bazaar': 'Curated vintage and pre-loved designer fashion.',
+  'SSENSE': 'Luxury and streetwear platform curating global designers.',
+
+  // Jewelry & Accessories
+  'Olive & Piper': 'Affordable everyday jewelry with a modern feminine touch.',
 
   // Beauty & Cosmetics
   'Glossier': 'Beauty products inspired by real life and real skin.',
@@ -263,25 +271,82 @@ const COMPANY_DESCRIPTIONS: Record<string, string> = {
   'Saie Beauty': 'Clean beauty essentials with an effortless glow.',
   'Ilia Beauty': 'Clean beauty that delivers real results.',
   'ColourPop': 'Trend-driven beauty at drugstore prices.',
+  'Florence by Mills': 'Clean beauty brand created for Gen Z by Millie Bobby Brown.',
+  'Haus Labs': 'Supercharged clean artistry beauty by Lady Gaga.',
+  'Huda Beauty DTC': 'Global beauty empire driven by social-first innovation.',
+  'Jones Road': 'Clean, high-performance makeup for effortless beauty.',
+  'Kylie Cosmetics': 'Culture-driven beauty brand by Kylie Jenner.',
+  'Milk Makeup': 'Vegan, cruelty-free beauty built for real life.',
+  'Morphe': 'Creator-led beauty brand known for bold color palettes.',
+  'NARS DTC': 'Iconic luxury beauty brand known for bold color and artistry.',
+  'Summer Fridays': 'Feel-good skincare and beauty rooted in self-care rituals.',
+  'Tarte Cosmetics': 'High-performance natural beauty powered by superfruits.',
+  'Too Faced DTC': 'Playful, cruelty-free cosmetics with bold color payoff.',
+  'Urban Decay': 'Edgy, high-performance beauty for rule-breakers.',
+  'Victoria Beckham Beauty': 'Luxury clean beauty with a modern British point of view.',
+  'Westman Atelier': 'Clean luxury makeup crafted for a lit-from-within glow.',
 
   // Skincare
+  'Beautycounter': 'Clean beauty and skincare with rigorous safety standards.',
   'Drunk Elephant': 'Biocompatible skincare free of the "suspicious six."',
   'Glow Recipe': 'Fruit-powered skincare for a dewy, lit-from-within glow.',
   'Tatcha': 'Japanese beauty rituals for timeless skin.',
   'Tula Skincare': 'Probiotic-powered skincare for balanced, healthy skin.',
   "Paula's Choice": 'Research-backed skincare with ingredient transparency.',
+  'Biossance': 'Squalane-powered clean skincare backed by biotech.',
+  'COSRX': 'Korean skincare essentials for simple, effective routines.',
+  'CeraVe DTC': 'Dermatologist-recommended skincare with essential ceramides.',
+  'Herbivore Botanicals': 'Natural, plant-based skincare with luxe ingredients.',
+  'SK-II DTC': 'Prestige Japanese skincare powered by PITERA essence.',
+  'Versed': 'Affordable clean skincare voted on by the community.',
 
   // Food & Beverage
   'Magic Spoon': 'High-protein, low-carb cereal that tastes like childhood.',
   'Goldbelly': 'Iconic restaurant food shipped nationwide.',
   'Poppi': 'Prebiotic soda that is actually good for your gut.',
+  'Baked by Melissa DTC': 'Bite-size cupcakes in an ever-changing lineup of flavors.',
+  'Brightland': 'California-crafted olive oils and vinegars for home cooks.',
+  'Burlap & Barrel': 'Single-origin spices sourced directly from smallholder farmers.',
+  'Compartés': 'Artisan chocolate blending unexpected flavors and fine art.',
+  'Diaspora Co': 'Single-origin spices supporting equitable farm partnerships.',
+  'Jacobsen Salt': 'Hand-harvested sea salt from the Oregon coast.',
+  "Jeni's Ice Cream": 'Artisan ice cream made with grass-fed milk and creative flavors.',
+  'Levain Bakery DTC': 'Legendary oversized cookies baked fresh and shipped nationwide.',
+  'Milk Bar DTC': 'Inventive desserts and treats from the cult NYC bakery.',
+  'Salt & Straw DTC': 'Small-batch ice cream featuring imaginative, seasonal flavors.',
+  'Sugarfina': 'Luxury candy boutique with artisan sweets from around the globe.',
+  'Vosges': 'Exotic luxury chocolate infusing global flavors and spices.',
 
   // Home & Lifestyle
+  'Year & Day': 'Modern tableware designed to elevate everyday dining.',
   'Brooklinen': 'Luxury bedding and bath essentials at a fair price.',
   'Parachute Home': 'Premium bedding, bath, and home essentials.',
   'Article': 'Modern furniture delivered directly to your door.',
   'Eight Sleep': 'Smart mattress technology for optimal sleep.',
   'Burrow': 'Modular, easy-to-assemble furniture for modern living.',
+  'Albany Park': 'Beautifully designed sofas and furniture delivered in a box.',
+  'Apt2B': 'Stylish, affordable furniture built to last.',
+  'Arhaus DTC': 'Handcrafted, sustainably sourced home furnishings.',
+  'Bear Mattress': 'Recovery-focused mattresses designed for active lifestyles.',
+  'Boll & Branch': 'Organic, Fair Trade-certified luxury bedding.',
+  'Brooklyn Bedding': 'Handcrafted mattresses offering personalized comfort.',
+  'Buffy': 'Eco-friendly bedding made from recycled and natural materials.',
+  'Cedar & Moss': 'Handcrafted modern lighting made in Portland, Oregon.',
+  'Coyuchi': 'Organic bedding and bath essentials for sustainable living.',
+  'Design Within Reach DTC': 'Authentic modern furniture from iconic designers.',
+  'Floyd': 'Modular, American-made furniture for flexible living.',
+  'Hawkins NY': 'Simple, functional kitchen and homeware essentials.',
+  'Helix Sleep': 'Personalized mattresses matched to your sleep style.',
+  'Interior Define': 'Custom furniture designed to fit your space and style.',
+  'Interior Icons': 'Iconic designer furniture reproductions at accessible prices.',
+  'Joybird': 'Custom mid-century modern furniture in bold colors and fabrics.',
+  'Purple Innovation': 'Comfort technology mattresses using the GelFlex Grid.',
+  'Rejuvenation': 'Period-authentic lighting and hardware for classic homes.',
+  'Room & Board DTC': 'Modern, American-made furniture built to last.',
+  'Schoolhouse': 'Timeless lighting, hardware, and home goods made in Portland.',
+  'Snowe': 'Elevated everyday home essentials with clean design.',
+  'Tuft & Needle': 'Honestly built mattresses at a fair price.',
+  'Visual Comfort DTC': 'Designer lighting collections for luxury interiors.',
 
   // Health & Wellness
   'AG1 (Athletic Greens)': 'All-in-one daily nutritional supplement.',
@@ -290,15 +355,62 @@ const COMPANY_DESCRIPTIONS: Record<string, string> = {
   'Oura': 'Smart ring tracking sleep, readiness, and activity.',
   'Therabody': 'Percussive therapy and wellness technology.',
   'Whoop': 'Wearable performance optimization and recovery tracker.',
+  'Roman Health': 'Digital health clinic for convenient, everyday care.',
 
   // Pet
   "The Farmer's Dog": 'Fresh, human-grade dog food delivered to your door.',
   'BarkBox DTC': 'Monthly themed toys and treats for dogs.',
   'Wild One': 'Modern essentials designed for dogs and their people.',
+  'Ollie': 'Human-grade fresh dog food customized for every dog.',
+  'Open Farm': 'Ethically sourced, transparently crafted pet food.',
+  'A Pup Above': 'Sous-vide cooked, human-grade dog food.',
+  'Spot & Tango': 'Fresh and dry dog food made with real ingredients.',
+  'Sundays for Dogs': 'Air-dried dog food with simple, human-grade ingredients.',
 
   // Kids & Baby
   'Kyte Baby': 'Ultra-soft bamboo sleepwear and essentials for babies.',
   'Little Sleepies': 'Buttery-soft bamboo pajamas for the whole family.',
+  '4moms DTC': 'Innovative baby gear powered by robotics and technology.',
+  'BIBS': 'Danish-designed baby essentials rooted in Scandinavian simplicity.',
+  'Ergobaby DTC': 'Ergonomic baby carriers and gear for on-the-go families.',
+
+  // Luxury Retail
+  'Selfridges Digital': 'Iconic luxury department store with a digital-first experience.',
+
+  // Technology & Commerce
+  'Algolia Search': 'AI-powered search and discovery platform for digital commerce.',
+  'Amplitude Analytics': 'Product analytics platform for understanding user behavior.',
+  'Braze': 'Customer engagement platform for cross-channel messaging.',
+  'Builder.io': 'Visual development platform for building digital experiences.',
+  'Census': 'Reverse ETL platform syncing data warehouse to business tools.',
+  'Cloudflare Edge': 'Edge computing and security platform for web performance.',
+  'Contentful CMS': 'Composable content platform powering digital experiences.',
+  'Datadog Commerce': 'Observability platform for monitoring commerce infrastructure.',
+  'Fivetran': 'Automated data integration delivering analysis-ready data.',
+  'FullStory': 'Digital experience intelligence platform with session replay.',
+  'Golden State': 'Innovative retail brand based in California.',
+  'Heap Analytics': 'Auto-capture analytics for complete user journey insights.',
+  'Hotjar': 'Behavior analytics with heatmaps and session recordings.',
+  'Iterable': 'AI-powered customer communication platform for growth.',
+  'Klaviyo': 'Marketing automation platform purpose-built for ecommerce.',
+  'LaunchDarkly': 'Feature management platform for controlled software rollouts.',
+  'Mixpanel': 'Product analytics helping teams understand user engagement.',
+  'Netlify Commerce': 'Web platform for building and deploying modern storefronts.',
+  'Optimizely': 'Digital experience platform for experimentation and optimization.',
+  'PlanetScale': 'Serverless MySQL database platform built for scale.',
+  'Rudderstack': 'Customer data platform for building data pipelines.',
+  'Sanity CMS': 'Composable content platform for structured, real-time editing.',
+  'Segment CDP': 'Customer data platform unifying data across every touchpoint.',
+  'Sentry': 'Application monitoring and error tracking for developers.',
+  'Shopify': 'Commerce platform powering millions of online stores worldwide.',
+  'Snowflake Retail': 'Cloud data platform enabling retail analytics at scale.',
+  'Split.io': 'Feature delivery platform combining flags with data insights.',
+  'Statsig': 'Feature gating and experimentation platform for product teams.',
+  'Stripe Commerce': 'Financial infrastructure platform powering online payments.',
+  'Supabase': 'Open-source backend platform with database, auth, and APIs.',
+  'Twilio Engage': 'Customer engagement platform with multichannel communication.',
+  'Vercel DTC': 'Frontend cloud platform for deploying fast web experiences.',
+  'dbt Labs': 'Analytics engineering platform transforming data in warehouses.',
 }
 
 const INDUSTRY_FALLBACKS: Record<string, string> = {
@@ -315,9 +427,9 @@ const INDUSTRY_FALLBACKS: Record<string, string> = {
   'Technology': 'Technology company building solutions for modern commerce.',
 }
 
-export function getCompanyDescription(company: string | null | undefined): string | null {
-  if (!company) return null
+export function getCompanyDescription(company: string | null | undefined): string {
+  if (!company) return 'Innovative brand driving modern commerce forward.'
   if (COMPANY_DESCRIPTIONS[company]) return COMPANY_DESCRIPTIONS[company]
   const industry = getIndustry(company)
-  return INDUSTRY_FALLBACKS[industry] ?? null
+  return INDUSTRY_FALLBACKS[industry] ?? 'Innovative brand driving modern commerce forward.'
 }

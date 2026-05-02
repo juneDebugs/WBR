@@ -416,7 +416,7 @@ async function main() {
   ]
 
   // Helper: upsert user by email, handling existing IDs gracefully
-  async function upsertUser(data: { id: string; email: string; name: string; role: string; password?: string; sponsorId?: string; company?: string; jobTitle?: string }) {
+  async function upsertUser(data: { id: string; email: string; name: string; role: string; password?: string; sponsorId?: string; company?: string; jobTitle?: string; solutionsSeeking?: string; solutionsOffering?: string }) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
     if (existing) {
       await prisma.user.update({
@@ -428,6 +428,8 @@ async function main() {
           ...(data.sponsorId !== undefined ? { sponsorId: data.sponsorId } : {}),
           ...(data.company ? { company: data.company } : {}),
           ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
+          ...(data.solutionsSeeking ? { solutionsSeeking: data.solutionsSeeking } : {}),
+          ...(data.solutionsOffering ? { solutionsOffering: data.solutionsOffering } : {}),
         },
       })
       return
@@ -446,6 +448,8 @@ async function main() {
           ...(data.sponsorId !== undefined ? { sponsorId: data.sponsorId } : {}),
           ...(data.company ? { company: data.company } : {}),
           ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
+          ...(data.solutionsSeeking ? { solutionsSeeking: data.solutionsSeeking } : {}),
+          ...(data.solutionsOffering ? { solutionsOffering: data.solutionsOffering } : {}),
         },
       })
       return
@@ -461,6 +465,8 @@ async function main() {
         sponsorId: data.sponsorId,
         company: data.company,
         jobTitle: data.jobTitle,
+        solutionsSeeking: data.solutionsSeeking,
+        solutionsOffering: data.solutionsOffering,
       },
     })
   }
@@ -506,6 +512,28 @@ async function main() {
   // Distributed equally across 4 industry categories for the People page
   const FIRST_NAMES = ['Alex','Anna','Ben','Beth','Blake','Brooke','Caleb','Cara','Chase','Clara','Cole','Dana','Dean','Diana','Drew','Elena','Eli','Emma','Evan','Faye','Finn','Gina','Grant','Grace','Hank','Hope','Hugo','Iris','Ivan','Jade','Jake','Jane','Jay','Jess','Joel','Julia','Kai','Kate','Kyle','Lana','Leo','Lily','Luke','Luna','Mara','Mark','Mila','Nate','Nell','Noah','Nora','Omar','Owen','Paige','Paul','Quinn','Ray','Reed','Remy','Rosa','Ruby','Ryan','Sara','Sean','Skye','Tara','Tess','Theo','Tina','Troy','Uma','Vera','Wade','Will','Wren','Xena','Yara','Zane','Zara','Zoe']
   const LAST_NAMES = ['Adams','Baker','Brown','Clark','Cohen','Cruz','Davis','Diaz','Ellis','Evans','Flores','Fox','Garcia','Grant','Green','Hall','Harris','Hill','Hunt','James','Jones','Kelly','Khan','Kim','King','Lane','Lee','Lewis','Lin','Lopez','Lowe','Mann','Mason','Meyer','Mills','Moore','Nash','Ngo','Novak','Park','Patel','Perry','Price','Quinn','Rao','Reed','Reyes','Rice','Ross','Roy','Ryan','Scott','Shah','Sharp','Silva','Singh','Smith','Stone','Sun','Tran','Vega','Wade','Walsh','Wang','Ward','Webb','West','White','Wolf','Wong','Wood','Wright','Wu','Xu','Yang','York','Young','Zhao','Zhou']
+
+  const ALL_SOLUTIONS = [
+    'Email Marketing','SMS Marketing','Loyalty & Rewards','Subscription Management',
+    'Returns Management','Customer Support','Shipping & Fulfillment','Inventory Management',
+    'Analytics & Reporting','Payment Processing','Search & Discovery','ERP / Operations',
+    'Personalization','Reviews & UGC','Marketplace Integration','B2B Commerce',
+    'Headless Commerce','AI & Automation',
+  ]
+
+  // Deterministic pick of N solutions from an array, seeded by index
+  function pickSolutions(index: number, count: number): string[] {
+    const picked: string[] = []
+    const pool = [...ALL_SOLUTIONS]
+    let seed = index * 7 + 13
+    for (let i = 0; i < count && pool.length > 0; i++) {
+      seed = (seed * 31 + 17) % 997
+      const idx = seed % pool.length
+      picked.push(pool[idx])
+      pool.splice(idx, 1)
+    }
+    return picked
+  }
 
   const SEED_CATEGORIES = [
     {
@@ -577,6 +605,9 @@ async function main() {
       const email = `${first.toLowerCase()}.${last.toLowerCase()}${emailSuffix}@demo.com`
       const id = `gen-attendee-${String(genIdx).padStart(4, '0')}`
 
+      const seeking = pickSolutions(genIdx, 2 + (genIdx % 2))      // 2–3 solutions seeking
+      const offering = pickSolutions(genIdx + 500, 1 + (genIdx % 2)) // 1–2 solutions offering
+
       await upsertUser({
         id,
         email,
@@ -585,6 +616,8 @@ async function main() {
         password: demoHash,
         company,
         jobTitle,
+        solutionsSeeking: JSON.stringify(seeking),
+        solutionsOffering: JSON.stringify(offering),
       })
       genIdx++
     }
