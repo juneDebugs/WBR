@@ -23,10 +23,9 @@ export default async function PeoplePage() {
 
   const [allUsers, following, dmRooms] = await Promise.all([
     prisma.user.findMany({
-      where: { id: { not: userId } },
+      where: { id: { not: userId }, role: { in: ['ATTENDEE', 'SPEAKER'] } },
       orderBy: { name: 'asc' },
       select: userSelect,
-      take: 200,
     }),
     prisma.follow.findMany({
       where: { followerId: userId },

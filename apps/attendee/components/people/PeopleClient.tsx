@@ -33,25 +33,29 @@ interface Conversation {
 
 const TABS = ['Discover', 'Friends', 'Messages'] as const
 
-// ── Lightweight category mapping (no massive Sets in bundle) ─────────────────
+import { getIndustry, type Industry } from '@/lib/solutions'
 
-type Group = 'Fashion & Style' | 'Beauty & Wellness' | 'Home, Food & Lifestyle' | 'Technology' | 'Other'
+type Group = 'Fashion & Style' | 'Beauty & Wellness' | 'Home, Food & Lifestyle' | 'Technology'
 
-const FASHION_KW = ['apparel','fashion','boot','shoe','wear','clothing','outfit','denim','luxury','jewelry','eyewear','accessori','watch','ring','sneaker','style']
-const BEAUTY_KW = ['beauty','cosmetic','skincare','skin','makeup','wellness','health','fitness','vitamin','supplement','fragrance','hair','spa','glow','serum']
-const HOME_KW = ['home','food','kitchen','mattress','bedding','furniture','pet','dog','cat','baby','kid','decor','candle','plant','sleep','bakery','snack','spice']
-
-function getGroup(company: string | null): Group {
-  if (!company) return 'Other'
-  const c = company.toLowerCase()
-  if (FASHION_KW.some(k => c.includes(k))) return 'Fashion & Style'
-  if (BEAUTY_KW.some(k => c.includes(k))) return 'Beauty & Wellness'
-  if (HOME_KW.some(k => c.includes(k))) return 'Home, Food & Lifestyle'
-  // Known sponsor/tech companies default to Technology
-  return 'Technology'
+const INDUSTRY_TO_GROUP: Record<Industry, Group> = {
+  'Fashion & Apparel': 'Fashion & Style',
+  'Jewelry & Accessories': 'Fashion & Style',
+  'Luxury': 'Fashion & Style',
+  'Beauty & Cosmetics': 'Beauty & Wellness',
+  'Skincare': 'Beauty & Wellness',
+  'Health & Wellness': 'Beauty & Wellness',
+  'Food & Beverage': 'Home, Food & Lifestyle',
+  'Home & Lifestyle': 'Home, Food & Lifestyle',
+  'Pet': 'Home, Food & Lifestyle',
+  'Kids & Baby': 'Home, Food & Lifestyle',
+  'Technology': 'Technology',
 }
 
-const GROUP_ORDER: Group[] = ['Fashion & Style', 'Beauty & Wellness', 'Home, Food & Lifestyle', 'Technology', 'Other']
+function getGroup(company: string | null): Group {
+  return INDUSTRY_TO_GROUP[getIndustry(company)]
+}
+
+const GROUP_ORDER: Group[] = ['Fashion & Style', 'Beauty & Wellness', 'Home, Food & Lifestyle', 'Technology']
 
 const GROUP_ICONS: Record<Group, React.ReactNode> = {
   'Fashion & Style': (
@@ -72,11 +76,6 @@ const GROUP_ICONS: Record<Group, React.ReactNode> = {
   'Technology': (
     <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-    </svg>
-  ),
-  'Other': (
-    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
     </svg>
   ),
 }
