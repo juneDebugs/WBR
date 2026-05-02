@@ -39,6 +39,7 @@ module.exports = {
       { protocol: 'https', hostname: 'randomuser.me' },
       { protocol: 'https', hostname: 'github.com' },
       { protocol: 'https', hostname: 'api.dicebear.com' },
+      { protocol: 'https', hostname: 'agcdn-1d97e.kxcdn.com' },
     ],
   },
 }
