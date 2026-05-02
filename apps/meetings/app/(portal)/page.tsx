@@ -1,4 +1,5 @@
 export const revalidate = 0
+import { Suspense } from 'react'
 import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import Link from 'next/link'
@@ -52,6 +53,124 @@ function scoreSponsorVsAttendee(
   return { score, matched }
 }
 
+function buildSponsorRecs(
+  allAttendees: any[], alreadyRequestedIds: any[],
+  sponsor: any, sponsorName: string | null,
+): RecommendedMatch[] {
+  const requestedSet = new Set(alreadyRequestedIds.map(r => r.targetUserId).filter(Boolean) as string[])
+  const sponsorOffering = parseSolutions(sponsor?.solutionsOffering ?? null)
+  const sponsorSeeking = parseSolutions(sponsor?.solutionsSeeking ?? null)
+  const sponsorIndustry = getIndustry(sponsorName)
+
+  return allAttendees
+    .map(a => {
+      const userOffering = parseSolutions(a.solutionsOffering)
+      const userSeeking = parseSolutions(a.solutionsSeeking)
+      const userIndustry = getIndustry(a.company)
+      const { score, matched } = scoreSponsorVsAttendee(sponsorSeeking, sponsorOffering, userOffering, userSeeking, sponsorIndustry, userIndustry)
+      return {
+        id: a.id, type: 'person' as const, name: a.name ?? 'Unknown',
+        logoUrl: a.image, company: a.company, jobTitle: a.jobTitle,
+        tier: null, matchScore: score, matchedSolutions: matched,
+        alreadyRequested: requestedSet.has(a.id),
+      }
+    })
+    .filter(m => m.matchScore > 0)
+    .sort((a, b) => b.matchScore - a.matchScore)
+    .slice(0, 12)
+}
+
+function buildAttendeeRecs(
+  allSponsors: any[], alreadyRequestedIds: any[],
+  fullUser: any,
+): RecommendedMatch[] {
+  const requestedSet = new Set(alreadyRequestedIds.map(r => r.targetSponsorId).filter(Boolean) as string[])
+  const userSeeking = parseSolutions(fullUser?.solutionsSeeking ?? null)
+  const userOffering = parseSolutions(fullUser?.solutionsOffering ?? null)
+
+  return allSponsors
+    .map(s => {
+      const sponsorOffering = parseSolutions(s.solutionsOffering)
+      const sponsorSeeking = parseSolutions(s.solutionsSeeking)
+      const { score, matched } = scoreAttendeeVsSponsor(
+        userSeeking, userOffering, sponsorOffering, sponsorSeeking,
+        fullUser?.companySize ?? null, s.companySize ?? null,
+      )
+      return {
+        id: s.id, type: 'sponsor' as const, name: s.name,
+        logoUrl: s.logoUrl, company: null, jobTitle: s.tagline ?? null,
+        tier: s.tier, matchScore: score, matchedSolutions: matched,
+        alreadyRequested: requestedSet.has(s.id),
+      }
+    })
+    .filter(m => m.matchScore > 0)
+    .sort((a, b) => b.matchScore - a.matchScore)
+    .slice(0, 12)
+}
+
+/** Async server component streamed via Suspense — keeps main dashboard render fast */
+async function RecommendationsAsync({ userId, sponsorId, isSponsor }: { userId: string; sponsorId: string | null; isSponsor: boolean }) {
+  if (isSponsor && sponsorId) {
+    const [sponsor, allAttendees, alreadyRequestedIds] = await Promise.all([
+      prisma.sponsor.findUnique({
+        where: { id: sponsorId },
+        select: { solutionsSeeking: true, solutionsOffering: true, name: true },
+      }),
+      prisma.user.findMany({
+        where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, id: { not: userId } },
+        select: {
+          id: true, name: true, image: true, company: true, jobTitle: true,
+          solutionsOffering: true, solutionsSeeking: true, companySize: true,
+        },
+        take: 100,
+      }),
+      prisma.meetingRequest.findMany({
+        where: { requesterId: userId, targetUserId: { not: null } },
+        select: { targetUserId: true },
+      }),
+    ])
+
+    const recs = buildSponsorRecs(allAttendees, alreadyRequestedIds, sponsor, sponsor?.name ?? null)
+    if (recs.length === 0) return null
+    return (
+      <RecommendedMatchesClient
+        matches={recs}
+        heading="Recommended Attendees"
+        subheading="People whose offerings & interests align with your solutions"
+      />
+    )
+  } else {
+    const [profileUser, allSponsors, alreadyRequestedIds] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { solutionsSeeking: true, solutionsOffering: true, companySize: true },
+      }),
+      prisma.sponsor.findMany({
+        select: {
+          id: true, name: true, logoUrl: true, tier: true,
+          solutionsOffering: true, solutionsSeeking: true,
+          companySize: true, tagline: true,
+        },
+        take: 100,
+      }),
+      prisma.meetingRequest.findMany({
+        where: { requesterId: userId, targetSponsorId: { not: null } },
+        select: { targetSponsorId: true },
+      }),
+    ])
+
+    const recs = buildAttendeeRecs(allSponsors, alreadyRequestedIds, profileUser)
+    if (recs.length === 0) return null
+    return (
+      <RecommendedMatchesClient
+        matches={recs}
+        heading="Recommended Sponsors"
+        subheading="Matched to your solutions seeking profile"
+      />
+    )
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
@@ -60,7 +179,7 @@ export default async function DashboardPage() {
   const isStaff = user.role === 'STAFF'
   const isSponsor = !!user.sponsorId
 
-  // ── Core metrics ──
+  // ── ALL queries in a single parallel batch ──
   const [
     totalRequests,
     pendingRequests,
@@ -76,6 +195,7 @@ export default async function DashboardPage() {
     inboundRequests,
     profileUser,
     myMeetings,
+    sponsorWithTeam,
   ] = await Promise.all([
     isStaff
       ? prisma.meetingRequest.count()
@@ -161,117 +281,13 @@ export default async function DashboardPage() {
           },
         })
       : Promise.resolve(null),
-  ])
-
-  // ── Sponsor team + sponsor details (for recs) — fetch in parallel ──
-  const [sponsorWithTeam, sponsorForRecs] = await Promise.all([
     isSponsor && user.sponsorId
       ? prisma.sponsor.findUnique({
           where: { id: user.sponsorId },
           include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
         })
       : Promise.resolve(null),
-    isSponsor && user.sponsorId
-      ? prisma.sponsor.findUnique({
-          where: { id: user.sponsorId },
-          select: { solutionsSeeking: true, solutionsOffering: true, name: true },
-        })
-      : Promise.resolve(null),
   ])
-
-  // ── Recommendations ──
-  let recommendations: RecommendedMatch[] = []
-  let recHeading = ''
-  let recSubheading = ''
-
-  if (!isStaff) {
-    const fullUser = profileUser // reuse — already fetched with all needed fields
-
-    if (isSponsor && user.sponsorId) {
-      const sponsor = sponsorForRecs
-
-      const [allAttendees, alreadyRequestedIds] = await Promise.all([
-        prisma.user.findMany({
-          where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, id: { not: user.id } },
-          select: {
-            id: true, name: true, image: true, company: true, jobTitle: true,
-            solutionsOffering: true, solutionsSeeking: true, companySize: true,
-          },
-          take: 100,
-        }),
-        prisma.meetingRequest.findMany({
-          where: { requesterId: user.id, targetUserId: { not: null } },
-          select: { targetUserId: true },
-        }),
-      ])
-
-      const requestedSet = new Set(alreadyRequestedIds.map(r => r.targetUserId).filter(Boolean) as string[])
-      const sponsorOffering = parseSolutions(sponsor?.solutionsOffering ?? null)
-      const sponsorSeeking = parseSolutions(sponsor?.solutionsSeeking ?? null)
-      const sponsorIndustry = getIndustry(sponsor?.name ?? null)
-
-      recommendations = allAttendees
-        .map(a => {
-          const userOffering = parseSolutions(a.solutionsOffering)
-          const userSeeking = parseSolutions(a.solutionsSeeking)
-          const userIndustry = getIndustry(a.company)
-          const { score, matched } = scoreSponsorVsAttendee(sponsorSeeking, sponsorOffering, userOffering, userSeeking, sponsorIndustry, userIndustry)
-          return {
-            id: a.id, type: 'person' as const, name: a.name ?? 'Unknown',
-            logoUrl: a.image, company: a.company, jobTitle: a.jobTitle,
-            tier: null, matchScore: score, matchedSolutions: matched,
-            alreadyRequested: requestedSet.has(a.id),
-          }
-        })
-        .filter(m => m.matchScore > 0)
-        .sort((a, b) => b.matchScore - a.matchScore)
-        .slice(0, 12)
-
-      recHeading = 'Recommended Attendees'
-      recSubheading = 'People whose offerings & interests align with your solutions'
-    } else {
-      const [allSponsors, alreadyRequestedIds] = await Promise.all([
-        prisma.sponsor.findMany({
-          select: {
-            id: true, name: true, logoUrl: true, tier: true,
-            solutionsOffering: true, solutionsSeeking: true,
-            companySize: true, tagline: true,
-          },
-          take: 100,
-        }),
-        prisma.meetingRequest.findMany({
-          where: { requesterId: user.id, targetSponsorId: { not: null } },
-          select: { targetSponsorId: true },
-        }),
-      ])
-
-      const requestedSet = new Set(alreadyRequestedIds.map(r => r.targetSponsorId).filter(Boolean) as string[])
-      const userSeeking = parseSolutions(fullUser?.solutionsSeeking ?? null)
-      const userOffering = parseSolutions(fullUser?.solutionsOffering ?? null)
-
-      recommendations = allSponsors
-        .map(s => {
-          const sponsorOffering = parseSolutions(s.solutionsOffering)
-          const sponsorSeeking = parseSolutions(s.solutionsSeeking)
-          const { score, matched } = scoreAttendeeVsSponsor(
-            userSeeking, userOffering, sponsorOffering, sponsorSeeking,
-            fullUser?.companySize ?? null, s.companySize ?? null,
-          )
-          return {
-            id: s.id, type: 'sponsor' as const, name: s.name,
-            logoUrl: s.logoUrl, company: null, jobTitle: s.tagline ?? null,
-            tier: s.tier, matchScore: score, matchedSolutions: matched,
-            alreadyRequested: requestedSet.has(s.id),
-          }
-        })
-        .filter(m => m.matchScore > 0)
-        .sort((a, b) => b.matchScore - a.matchScore)
-        .slice(0, 12)
-
-      recHeading = 'Recommended Sponsors'
-      recSubheading = 'Matched to your solutions seeking profile'
-    }
-  }
 
   const confirmRate = totalRequests > 0 ? Math.round((confirmedRequests / totalRequests) * 100) : 0
 
@@ -451,14 +467,31 @@ export default async function DashboardPage() {
       {/* ════════════════ ATTENDEE / SPONSOR ════════════════ */}
       {!isStaff && (
         <>
-          {/* Recommended */}
-          {recommendations.length > 0 && (
-            <RecommendedMatchesClient
-              matches={recommendations}
-              heading={recHeading}
-              subheading={recSubheading}
-            />
-          )}
+          {/* Recommended — streamed via Suspense so stats render instantly */}
+          <Suspense fallback={
+            <div>
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <div className="h-5 w-48 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-3.5 w-72 bg-gray-100 rounded animate-pulse mt-1.5" />
+                </div>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-2">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="flex-shrink-0 w-52 bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse" />
+                    </div>
+                    <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mx-auto" />
+                    <div className="h-3 w-32 bg-gray-100 rounded animate-pulse mx-auto" />
+                    <div className="h-8 bg-gray-200 rounded-xl animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          }>
+            <RecommendationsAsync userId={user.id} sponsorId={user.sponsorId ?? null} isSponsor={isSponsor} />
+          </Suspense>
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* Profile completeness */}
@@ -574,8 +607,8 @@ export default async function DashboardPage() {
             <TeamMembers members={sponsorWithTeam.users} />
           )}
 
-          {/* No profile → CTA */}
-          {recommendations.length === 0 && (
+          {/* No profile → CTA (shown when profile is incomplete, recs may stream separately) */}
+          {profilePct < 50 && (
             <div className="card p-6 flex items-start gap-4 bg-gradient-to-br from-indigo-50 to-violet-50 border-indigo-100">
               <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

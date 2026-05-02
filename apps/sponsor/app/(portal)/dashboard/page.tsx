@@ -1,4 +1,5 @@
 export const revalidate = 0
+import { Suspense } from 'react'
 import { getSession } from '@/lib/session'
 import { prisma, getActiveConflicts } from '@conference/db'
 import Link from 'next/link'
@@ -36,6 +37,50 @@ function completeness(sponsor: any): { score: number; missing: string[] } {
   return { score, missing }
 }
 
+function matchAttendees(sponsor: any) {
+  const sponsorOffering = parseArr(sponsor.solutionsOffering)
+  const sponsorSeeking = parseArr(sponsor.solutionsSeeking)
+  const sponsorTargetIndustries = parseArr(sponsor.targetIndustries)
+  return [...sponsorOffering, ...sponsorSeeking, ...sponsorTargetIndustries]
+}
+
+function scoreAttendees(attendees: any[], sponsorSignals: string[]) {
+  const results: {
+    id: string; name: string; image: string | null; company: string | null; jobTitle: string | null;
+    matchScore: number; matchedTags: string[]; allTags: string[]
+  }[] = []
+
+  for (const a of attendees) {
+    const attendeeTags = [...parseArr(a.solutionsSeeking), ...parseArr(a.solutionsOffering)]
+    if (attendeeTags.length === 0) continue
+    const matched = sponsorSignals.filter(s => attendeeTags.some(t => t === s))
+    if (matched.length === 0) continue
+    const score = Math.round((matched.length / Math.max(sponsorSignals.length, attendeeTags.length)) * 100)
+    results.push({
+      id: a.id, name: a.name ?? 'Attendee', image: a.image, company: a.company, jobTitle: a.jobTitle,
+      matchScore: Math.min(score, 99),
+      matchedTags: [...new Set(matched)],
+      allTags: [...new Set(attendeeTags)],
+    })
+  }
+
+  results.sort((a, b) => b.matchScore - a.matchScore)
+  return results.slice(0, 12)
+}
+
+/** Async server component streamed via Suspense — keeps main dashboard render fast */
+async function RecommendedAttendeesAsync({ sponsorId, sponsorSignals }: { sponsorId: string; sponsorSignals: string[] }) {
+  if (sponsorSignals.length === 0) return null
+  const attendees = await prisma.user.findMany({
+    where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, sponsorId: null },
+    select: { id: true, name: true, image: true, company: true, jobTitle: true, solutionsSeeking: true, solutionsOffering: true },
+    take: 100,
+  })
+  const recommended = scoreAttendees(attendees, sponsorSignals)
+  if (recommended.length === 0) return null
+  return <RecommendedAttendees attendees={recommended} sponsorId={sponsorId} />
+}
+
 export default async function DashboardPage() {
   const session = await getSession()
   const user = session!.user as any
@@ -48,12 +93,14 @@ export default async function DashboardPage() {
   let conflicts: any[] = []
 
   if (user.sponsorId) {
-    const [sponsorResult, inboundRequests, pendingCountResult, confirmedCountResult, totalRequestCount, sponsorMeetings, conflictsResult] = await Promise.all([
-      prisma.sponsor.findUnique({
-        where: { id: user.sponsorId },
-        include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
-      }),
-      // Inbound requests (attendees → this sponsor)
+    // Phase 1: Get sponsor data first (needed for attendee matching signals)
+    sponsor = await prisma.sponsor.findUnique({
+      where: { id: user.sponsorId },
+      include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
+    })
+
+    // Phase 2: ALL remaining queries in parallel
+    const [inboundRequests, pendingCountResult, confirmedCountResult, totalRequestCount, sponsorMeetings, conflictsResult] = await Promise.all([
       prisma.meetingRequest.findMany({
         where: { targetSponsorId: user.sponsorId },
         include: {
@@ -62,7 +109,6 @@ export default async function DashboardPage() {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
-      // Pending requests count
       prisma.meetingRequest.count({
         where: {
           status: 'PENDING',
@@ -72,7 +118,6 @@ export default async function DashboardPage() {
           ],
         },
       }),
-      // Confirmed/Approved requests count
       prisma.meetingRequest.count({
         where: {
           status: { in: ['CONFIRMED', 'APPROVED'] },
@@ -82,7 +127,6 @@ export default async function DashboardPage() {
           ],
         },
       }),
-      // Total request count
       prisma.meetingRequest.count({
         where: {
           OR: [
@@ -95,7 +139,6 @@ export default async function DashboardPage() {
       getActiveConflicts(prisma),
     ])
 
-    sponsor = sponsorResult
     recentRequests = inboundRequests
     pendingCount = pendingCountResult
     confirmedCount = confirmedCountResult
@@ -103,45 +146,8 @@ export default async function DashboardPage() {
     conflicts = conflictsResult
   }
 
-  // Recommended attendees — match sponsor's solutionsOffering + targetIndustries against attendee solutionsSeeking + solutionsOffering
-  const recommendedAttendees: {
-    id: string; name: string; image: string | null; company: string | null; jobTitle: string | null;
-    matchScore: number; matchedTags: string[]; allTags: string[]
-  }[] = []
-
-  if (sponsor) {
-    const sponsorOffering = parseArr(sponsor.solutionsOffering)
-    const sponsorSeeking = parseArr(sponsor.solutionsSeeking)
-    const sponsorTargetIndustries = parseArr(sponsor.targetIndustries)
-    const sponsorSignals = [...sponsorOffering, ...sponsorSeeking, ...sponsorTargetIndustries]
-
-    if (sponsorSignals.length > 0) {
-      const attendees = await prisma.user.findMany({
-        where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, sponsorId: null },
-        select: { id: true, name: true, image: true, company: true, jobTitle: true, solutionsSeeking: true, solutionsOffering: true },
-        take: 100,
-      })
-
-      for (const a of attendees) {
-        const attendeeTags = [...parseArr(a.solutionsSeeking), ...parseArr(a.solutionsOffering)]
-        if (attendeeTags.length === 0) continue
-        const matched = sponsorSignals.filter(s => attendeeTags.some(t => t === s))
-        if (matched.length === 0) continue
-        const score = Math.round((matched.length / Math.max(sponsorSignals.length, attendeeTags.length)) * 100)
-        recommendedAttendees.push({
-          id: a.id, name: a.name ?? 'Attendee', image: a.image, company: a.company, jobTitle: a.jobTitle,
-          matchScore: Math.min(score, 99),
-          matchedTags: [...new Set(matched)],
-          allTags: [...new Set(attendeeTags)],
-        })
-      }
-
-      recommendedAttendees.sort((a, b) => b.matchScore - a.matchScore)
-      recommendedAttendees.splice(12)
-    }
-  }
-
   const profile = completeness(sponsor ?? {})
+  const sponsorSignals = sponsor ? matchAttendees(sponsor) : []
 
   const stats = [
     { label: 'Total Requests', value: totalMeetings, color: 'text-primary', bg: 'bg-primary/10', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
@@ -195,12 +201,32 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* Recommended Attendees */}
-      {recommendedAttendees.length > 0 && (
-        <RecommendedAttendees
-          attendees={recommendedAttendees}
-          sponsorId={user.sponsorId ?? null}
-        />
+      {/* Recommended Attendees — streamed via Suspense so stats render instantly */}
+      {sponsor && sponsorSignals.length > 0 && (
+        <Suspense fallback={
+          <div>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="h-5 w-48 bg-gray-200 rounded animate-pulse" />
+                <div className="h-3.5 w-72 bg-gray-100 rounded animate-pulse mt-1.5" />
+              </div>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="flex-shrink-0 w-52 bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse" />
+                  </div>
+                  <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mx-auto" />
+                  <div className="h-3 w-32 bg-gray-100 rounded animate-pulse mx-auto" />
+                  <div className="h-8 bg-gray-200 rounded-xl animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </div>
+        }>
+          <RecommendedAttendeesAsync sponsorId={user.sponsorId} sponsorSignals={sponsorSignals} />
+        </Suspense>
       )}
 
       <div className="grid md:grid-cols-2 gap-6">
