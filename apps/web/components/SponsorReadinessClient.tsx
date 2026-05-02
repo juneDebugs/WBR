@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 
 const TIER_COLOR: Record<string, string> = {
@@ -265,7 +266,7 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
                   <div className="flex items-start gap-3">
                     {/* Logo */}
                     {s.logoUrl ? (
-                      <img src={s.logoUrl} alt="" loading="lazy" className="w-8 h-8 object-contain rounded border border-gray-100 bg-white flex-shrink-0 mt-0.5" />
+                      <Image src={s.logoUrl} alt="" width={32} height={32} className="w-8 h-8 object-contain rounded border border-gray-100 bg-white flex-shrink-0 mt-0.5" />
                     ) : (
                       <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-xs font-bold text-gray-400">{s.name[0]}</span>

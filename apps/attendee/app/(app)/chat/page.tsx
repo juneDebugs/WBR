@@ -2,6 +2,7 @@ export const revalidate = 0
 import { prisma } from '@conference/db'
 import { getSession } from '@/lib/session'
 import Link from 'next/link'
+import Image from 'next/image'
 import { formatDistanceToNow } from 'date-fns'
 
 export default async function ChatPage() {
@@ -68,8 +69,7 @@ export default async function ChatPage() {
                   {isChannel ? (
                     <span className="text-white font-bold text-xl">#</span>
                   ) : avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatar} alt="" className="w-14 h-14 rounded-full object-cover" />
+                    <Image src={avatar} alt="" width={56} height={56} className="w-14 h-14 rounded-full object-cover" />
                   ) : (
                     <span className="text-gray-600 font-bold text-xl">{(displayName ?? '?')[0]}</span>
                   )}

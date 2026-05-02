@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { SOLUTION_COLORS } from '@/lib/solutions'
 
 export interface RecommendedMatch {
@@ -105,11 +106,12 @@ export function RecommendedMatchesClient({ matches, heading, subheading }: Props
 
                 {/* Logo / avatar */}
                 {match.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={match.logoUrl}
                     alt=""
-                    className="w-12 h-12 rounded-xl object-cover shadow-sm"
+                    width={48}
+                    height={48}
+                    className="rounded-xl object-cover shadow-sm"
                     onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                   />
                 ) : (

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 
 const tierColors: Record<string, string> = {
   PLATINUM: 'bg-slate-100 text-slate-700',
@@ -65,7 +66,7 @@ export function SponsorMeetingsView({ sponsor, upcoming, past, inboundRequests, 
       {/* Sponsor header */}
       <div className="flex items-center gap-3 mb-5">
         {sponsor.logoUrl ? (
-          <img src={sponsor.logoUrl} alt={sponsor.name} loading="lazy" className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-100 p-1 flex-shrink-0" />
+          <Image src={sponsor.logoUrl} alt={sponsor.name} width={40} height={40} className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-100 p-1 flex-shrink-0" />
         ) : (
           <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
             <span className="font-bold text-amber-600 text-sm">{sponsor.name[0]}</span>
@@ -178,7 +179,7 @@ export function SponsorMeetingsView({ sponsor, upcoming, past, inboundRequests, 
                   <div className="px-4 pb-4 flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden bg-amber-100 flex items-center justify-center mt-1">
                       {req.requester.image
-                        ? <img src={req.requester.image} alt={req.requester.name ?? ''} loading="lazy" className="w-10 h-10 rounded-full object-cover" />
+                        ? <Image src={req.requester.image} alt={req.requester.name ?? ''} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
                         : <span className="text-amber-700 font-bold text-sm">{(req.requester.name ?? '?')[0]}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -257,7 +258,7 @@ function SponsorMeetingCard({
           <div className="flex items-center gap-2.5 mb-1">
             <div className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden bg-amber-100 flex items-center justify-center">
               {meeting.attendee.image
-                ? <img src={meeting.attendee.image} alt={meeting.attendee.name ?? ''} loading="lazy" className="w-9 h-9 rounded-full object-cover" />
+                ? <Image src={meeting.attendee.image} alt={meeting.attendee.name ?? ''} width={36} height={36} className="w-9 h-9 rounded-full object-cover" />
                 : <span className="text-amber-700 font-bold text-sm">{(meeting.attendee.name ?? '?')[0]}</span>}
             </div>
             <div className="min-w-0">

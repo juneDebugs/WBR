@@ -1,5 +1,6 @@
 'use client'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useDeferredValue } from 'react'
+import Image from 'next/image'
 import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
@@ -273,6 +274,14 @@ export function SponsorBrowseView({
   const [filterOpen, setFilterOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
+  const deferredSearch = useDeferredValue(search)
+  const deferredRoles = useDeferredValue(roles)
+  const deferredJobFunctions = useDeferredValue(jobFunctions)
+  const deferredIndustries = useDeferredValue(industries)
+  const deferredSizes = useDeferredValue(sizes)
+  const deferredRevenues = useDeferredValue(revenues)
+  const deferredSeeking = useDeferredValue(seeking)
+
   const toggle = (val: string, arr: string[], set: (v: string[]) => void) => {
     set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
     setVisibleCount(PAGE_SIZE)
@@ -282,22 +291,22 @@ export function SponsorBrowseView({
 
   const filtered = useMemo(() => {
     return people.filter(p => {
-      if (search) {
-        const q = search.toLowerCase()
+      if (deferredSearch) {
+        const q = deferredSearch.toLowerCase()
         if (!`${p.name} ${p.company} ${p.jobTitle} ${p.bio}`.toLowerCase().includes(q)) return false
       }
-      if (roles.length && !roles.includes(p.role)) return false
-      if (jobFunctions.length && !jobFunctions.includes(getJobFunction(p.jobTitle))) return false
-      if (industries.length && !industries.includes(getIndustry(p.company))) return false
-      if (sizes.length && !sizes.includes(p.companySize)) return false
-      if (revenues.length && !revenues.includes(p.annualRevenue)) return false
-      if (seeking.length) {
+      if (deferredRoles.length && !deferredRoles.includes(p.role)) return false
+      if (deferredJobFunctions.length && !deferredJobFunctions.includes(getJobFunction(p.jobTitle))) return false
+      if (deferredIndustries.length && !deferredIndustries.includes(getIndustry(p.company))) return false
+      if (deferredSizes.length && !deferredSizes.includes(p.companySize)) return false
+      if (deferredRevenues.length && !deferredRevenues.includes(p.annualRevenue)) return false
+      if (deferredSeeking.length) {
         const their = parseArr(p.solutionsSeeking)
-        if (!seeking.some(s => their.includes(s))) return false
+        if (!deferredSeeking.some(s => their.includes(s))) return false
       }
       return true
     })
-  }, [people, search, roles, jobFunctions, industries, sizes, revenues, seeking])
+  }, [people, deferredSearch, deferredRoles, deferredJobFunctions, deferredIndustries, deferredSizes, deferredRevenues, deferredSeeking])
 
   async function requestMeeting(personId: string) {
     if (!sponsorId) return
@@ -468,7 +477,7 @@ export function SponsorBrowseView({
                     <div className="flex items-start gap-3 mb-3">
                       <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
                         {p.image ? (
-                          <img src={p.image} alt={p.name ?? ''} loading="lazy" className="w-full h-full object-cover" />
+                          <Image src={p.image} alt={p.name ?? ''} width={48} height={48} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-lg">
                             {(p.name ?? '?')[0].toUpperCase()}

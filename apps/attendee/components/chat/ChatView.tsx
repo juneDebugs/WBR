@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { format } from 'date-fns'
 
 interface ChatMessage {
@@ -111,8 +112,7 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
                 <div className="flex items-center gap-2 mb-1 ml-1">
                   <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
                     {msg.sender.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={msg.sender.image} alt="" loading="lazy" className="w-6 h-6 rounded-full object-cover" />
+                      <Image src={msg.sender.image} alt="" width={24} height={24} className="w-6 h-6 rounded-full object-cover" />
                     ) : (
                       <span className="text-primary text-xs font-bold">{(msg.sender.name ?? '?')[0]}</span>
                     )}

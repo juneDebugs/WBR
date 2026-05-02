@@ -30,7 +30,10 @@ export async function GET(req: Request) {
     filename = 'agenda.csv'
     const sessions = await prisma.confSession.findMany({
       orderBy: { startsAt: 'asc' },
-      include: { speaker: true },
+      select: {
+        title: true, type: true, track: true, room: true, startsAt: true, endsAt: true,
+        speaker: { select: { name: true } },
+      },
     })
     data = csv([
       ['Title', 'Type', 'Track', 'Room', 'Starts At', 'Ends At', 'Speaker'],
@@ -48,11 +51,12 @@ export async function GET(req: Request) {
     filename = 'meetings.csv'
     const meetings = await prisma.meeting.findMany({
       orderBy: { createdAt: 'asc' },
-      include: {
-        attendeeA: true,
-        attendeeB: true,
-        organizer: true,
-        timeBlock: true,
+      select: {
+        status: true,
+        attendeeA: { select: { name: true, email: true } },
+        attendeeB: { select: { name: true, email: true } },
+        organizer: { select: { name: true } },
+        timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
       },
     })
     data = csv([
@@ -73,7 +77,10 @@ export async function GET(req: Request) {
     filename = 'speakers.csv'
     const speakers = await prisma.speaker.findMany({
       orderBy: { name: 'asc' },
-      include: { user: true },
+      select: {
+        name: true, company: true, jobTitle: true, bio: true,
+        user: { select: { email: true } },
+      },
     })
     data = csv([
       ['Name', 'Email', 'Company', 'Job Title', 'Bio'],

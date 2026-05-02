@@ -1,4 +1,4 @@
-export const revalidate = 0
+export const revalidate = 15
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AutoScheduleButton } from '@/components/AutoScheduleButton'
@@ -10,6 +10,7 @@ function fmtTime(d: Date | string, showAmPm = false) {
     hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ,
   }).replace(/\s?(AM|PM)/g, (_, p1: string) => showAmPm ? `\u202f${p1.toLowerCase()}` : '')
 }
+import Image from 'next/image'
 import Link from 'next/link'
 
 const TIER_COLORS: Record<string, string> = {
@@ -368,7 +369,7 @@ export default async function MeetingsPage({
                                   <div className="flex items-center gap-2.5">
                                     {item.sponsorLogo ? (
                                       <div className="w-8 h-8 rounded-lg border border-gray-100 bg-white flex items-center justify-center overflow-hidden flex-shrink-0 p-0.5">
-                                        <img src={item.sponsorLogo} alt={item.sponsorName} className="w-full h-full object-contain" />
+                                        <Image src={item.sponsorLogo} alt={item.sponsorName} width={32} height={32} className="w-full h-full object-contain" />
                                       </div>
                                     ) : (
                                       <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">

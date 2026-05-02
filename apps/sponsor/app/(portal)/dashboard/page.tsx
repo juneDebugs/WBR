@@ -1,8 +1,9 @@
-export const revalidate = 0
+export const revalidate = 15
 import { Suspense } from 'react'
 import { getSession } from '@/lib/session'
 import { prisma, getActiveConflicts } from '@conference/db'
 import Link from 'next/link'
+import Image from 'next/image'
 import { RecommendedAttendees } from '@/components/RecommendedAttendees'
 import { TeamMembers } from '@/components/TeamMembers'
 
@@ -273,7 +274,7 @@ export default async function DashboardPage() {
               {recentRequests.map(r => (
                 <div key={r.id} className="flex items-center gap-3">
                   {r.requester.image ? (
-                    <img src={r.requester.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                    <Image src={r.requester.image} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <span className="text-xs font-bold text-primary">{r.requester.name?.[0] ?? '?'}</span>

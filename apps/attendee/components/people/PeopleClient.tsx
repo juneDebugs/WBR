@@ -34,6 +34,7 @@ interface Conversation {
 
 const TABS = ['Discover', 'Friends', 'Messages'] as const
 
+import Image from 'next/image'
 import { getIndustry, type Industry } from '@/lib/solutions'
 
 type Group = 'Fashion & Style' | 'Beauty & Wellness' | 'Home, Food & Lifestyle' | 'Technology'
@@ -99,8 +100,7 @@ const PersonRow = memo(function PersonRow({ user, isFriend, pending, onSelect, o
     >
       <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
         {user.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.image} alt="" loading="lazy" decoding="async" className="w-11 h-11 rounded-full object-cover" />
+          <Image src={user.image} alt="" width={44} height={44} className="w-11 h-11 rounded-full object-cover" />
         ) : (
           <span className="text-primary font-bold">{(user.name ?? '?')[0]}</span>
         )}
@@ -469,8 +469,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
                 >
                   <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden flex items-center justify-center">
                     {convo.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={convo.image} alt="" loading="lazy" className="w-12 h-12 object-cover" />
+                      <Image src={convo.image} alt="" width={48} height={48} className="w-12 h-12 object-cover" />
                     ) : (
                       <span className="text-gray-600 font-bold text-lg">{convo.name[0]}</span>
                     )}
@@ -526,8 +525,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
             style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)' }}
           >
             <div className="flex-shrink-0 rounded-full p-[2px]" style={{ boxShadow: '0 0 8px 2px #f72585, 0 0 16px 4px #f72585', background: 'linear-gradient(135deg, #f72585, #ff85c1)' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSgAAvPlrRRvUDB1RF75eTXwrpt20VLulV3Dg&s" alt="WBR 2027" loading="lazy" className="w-11 h-11 rounded-full object-cover block" />
+              <Image src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSgAAvPlrRRvUDB1RF75eTXwrpt20VLulV3Dg&s" alt="WBR 2027" width={44} height={44} className="w-11 h-11 rounded-full object-cover block" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-white text-sm">WBR</p>
@@ -621,8 +619,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
                       {!isMe && (
                         <div className="w-6 h-6 rounded-full overflow-hidden bg-indigo-100 flex items-center justify-center flex-shrink-0 mb-0.5">
                           {msg.sender.image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={msg.sender.image} alt="" loading="lazy" className="w-6 h-6 object-cover" />
+                            <Image src={msg.sender.image} alt="" width={24} height={24} className="w-6 h-6 object-cover" />
                           ) : (
                             <span className="text-indigo-700 font-bold text-[10px]">{(msg.sender.name ?? '?')[0]}</span>
                           )}
@@ -687,8 +684,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
             <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-shrink-0">
               <div className="w-9 h-9 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0">
                 {selected.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selected.image} alt="" loading="lazy" className="w-9 h-9 object-cover" />
+                  <Image src={selected.image} alt="" width={36} height={36} className="w-9 h-9 object-cover" />
                 ) : (
                   <span className="text-primary font-bold text-sm">{(selected.name ?? '?')[0]}</span>
                 )}
@@ -746,8 +742,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
                       {!isMe && (
                         <div className="w-6 h-6 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 mb-0.5">
                           {msg.sender.image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={msg.sender.image} alt="" loading="lazy" className="w-6 h-6 object-cover" />
+                            <Image src={msg.sender.image} alt="" width={24} height={24} className="w-6 h-6 object-cover" />
                           ) : (
                             <span className="text-primary font-bold text-[10px]">{(msg.sender.name ?? '?')[0]}</span>
                           )}

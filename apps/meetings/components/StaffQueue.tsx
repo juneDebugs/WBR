@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { format } from 'date-fns'
 
 const STATUS_STYLES: Record<string, string> = {
@@ -102,7 +103,7 @@ export function StaffQueue({ requests: initialRequests, timeBlocks }: { requests
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 overflow-hidden flex items-center justify-center flex-shrink-0">
                           {sponsor?.logoUrl ? (
-                            <img src={sponsor.logoUrl} alt={sponsor.name} loading="lazy" className="w-full h-full object-contain p-0.5" />
+                            <Image src={sponsor.logoUrl} alt={sponsor.name} width={32} height={32} className="object-contain p-0.5" />
                           ) : (
                             <span className="text-amber-600 font-bold text-xs">
                               {(sponsor?.name ?? target?.name ?? '?')[0].toUpperCase()}

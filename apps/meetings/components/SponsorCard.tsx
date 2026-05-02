@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { SolutionBadge } from './SolutionBadge'
 
 interface SponsorRep {
@@ -75,7 +76,7 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
         <div className="flex items-start gap-3 mb-3">
           <div className="w-12 h-12 rounded-xl border border-gray-200 bg-white flex-shrink-0 overflow-hidden flex items-center justify-center p-1">
             {sponsor.logoUrl ? (
-              <img src={sponsor.logoUrl} alt={sponsor.name} loading="lazy" className="w-full h-full object-contain" />
+              <Image src={sponsor.logoUrl} alt={sponsor.name} width={48} height={48} className="object-contain" />
             ) : (
               <span className="text-gray-500 font-bold text-lg">{sponsor.name[0]}</span>
             )}
@@ -106,7 +107,7 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
                 <div key={rep.id} className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
                     {rep.image ? (
-                      <img src={rep.image} alt={rep.name ?? ''} loading="lazy" className="w-full h-full object-cover" />
+                      <Image src={rep.image} alt={rep.name ?? ''} width={28} height={28} className="object-cover" />
                     ) : (
                       <span className="text-gray-500 font-bold text-xs">{(rep.name ?? '?')[0].toUpperCase()}</span>
                     )}

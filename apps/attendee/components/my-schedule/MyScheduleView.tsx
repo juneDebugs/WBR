@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 
 type SessionItem = {
   id: string
@@ -325,7 +326,7 @@ function PeerCard({ item, isNext, countdown }: { item: PeerItem; isNext?: boolea
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2.5 mb-1.5">
             {item.otherImage ? (
-              <img src={item.otherImage} alt="" loading="lazy" className="w-10 h-10 rounded-full object-cover flex-shrink-0 ring-2 ring-violet-200 shadow-sm" />
+              <Image src={item.otherImage} alt="" width={40} height={40} className="w-10 h-10 rounded-full object-cover flex-shrink-0 ring-2 ring-violet-200 shadow-sm" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-violet-200 flex items-center justify-center flex-shrink-0 ring-2 ring-violet-100">
                 <span className="text-violet-700 font-bold text-sm">{(item.otherName ?? '?')[0]}</span>

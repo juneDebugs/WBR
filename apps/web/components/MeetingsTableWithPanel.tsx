@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
+import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { MeetingRequestActions } from './MeetingRequestActions'
 
 const TZ = 'America/Los_Angeles'
@@ -77,6 +79,7 @@ interface Props {
 }
 
 export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsorCommitments, bookmarkCommitments }: Props) {
+  const router = useRouter()
   const [selected, setSelected] = useState<MeetingRequest | null>(null)
   const [blocks, setBlocks] = useState<Block[]>([])
   const [requester, setRequester] = useState<Participant | null>(null)
@@ -94,8 +97,8 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
     })
     setBooking(null)
     setSelected(null)
-    window.location.reload()
-  }, [selected])
+    router.refresh()
+  }, [selected, router])
 
   const fetchSchedules = useCallback(async (r: MeetingRequest) => {
     setLoading(true)
@@ -182,7 +185,7 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {sponsor?.logoUrl && (
-                        <img src={sponsor.logoUrl} alt={sponsor.name} loading="lazy" className="w-6 h-6 object-contain rounded flex-shrink-0" />
+                        <Image src={sponsor.logoUrl} alt={sponsor.name} width={24} height={24} className="w-6 h-6 object-contain rounded flex-shrink-0" />
                       )}
                       <div>
                         <p className="font-medium text-gray-900">{sponsor?.name ?? r.targetUser?.name ?? '—'}</p>
@@ -272,7 +275,7 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
                 {p ? (
                   <div className="flex items-center gap-2">
                     {(p.image || p.logoUrl) ? (
-                      <img src={(p.image ?? p.logoUrl)!} alt="" loading="lazy" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                      <Image src={(p.image ?? p.logoUrl)!} alt="" width={24} height={24} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
                     ) : (
                       <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-[10px] font-bold text-primary">{(p.name ?? '?')[0]}</span>

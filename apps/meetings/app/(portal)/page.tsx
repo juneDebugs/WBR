@@ -1,8 +1,9 @@
-export const revalidate = 0
+export const revalidate = 15
 import { Suspense } from 'react'
 import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import Link from 'next/link'
+import Image from 'next/image'
 import { format } from 'date-fns'
 import { RecommendedMatchesClient, type RecommendedMatch } from '@/components/RecommendedMatchesClient'
 import { getIndustry } from '@/lib/solutions'
@@ -420,7 +421,7 @@ export default async function DashboardPage() {
                 {recentRequests.map(r => (
                   <div key={r.id} className="flex items-center gap-3">
                     {r.requester.image ? (
-                      <img src={r.requester.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                      <Image src={r.requester.image} alt="" width={32} height={32} className="rounded-full object-cover flex-shrink-0" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-xs font-bold text-primary">{r.requester.name?.[0] ?? '?'}</span>
@@ -542,7 +543,7 @@ export default async function DashboardPage() {
                   {inboundRequests.map(r => (
                     <div key={r.id} className="flex items-center gap-3">
                       {r.requester.image ? (
-                        <img src={r.requester.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                        <Image src={r.requester.image} alt="" width={32} height={32} className="rounded-full object-cover flex-shrink-0" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <span className="text-xs font-bold text-primary">{r.requester.name?.[0] ?? '?'}</span>
@@ -579,7 +580,7 @@ export default async function DashboardPage() {
                   return (
                     <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
                       {img ? (
-                        <img src={img} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                        <Image src={img} alt="" width={32} height={32} className="rounded-full object-cover flex-shrink-0" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                           <span className="text-xs font-bold text-emerald-700">{name[0]}</span>

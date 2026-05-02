@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import Image from 'next/image'
 import { format } from 'date-fns'
 
 
@@ -368,8 +369,7 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
             {image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={image} alt="" loading="lazy" className="object-cover"
+              <Image src={image} alt="" width={52} height={52} className="object-cover"
                 style={{ width: 52, height: 52, borderRadius: '50%', objectPosition: 'center 20%' }} />
             ) : (
               <div className="flex items-center justify-center bg-slate-700"
@@ -451,8 +451,7 @@ function WhatsNextTile({ items }: { items: ScheduleItem[] }) {
 
                 {/* Type icon or avatar */}
                 {item.type === 'meeting' && item.otherImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.otherImage} alt="" loading="lazy" className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-white/20" />
+                  <Image src={item.otherImage} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-white/20" />
                 ) : item.type === 'meeting' ? (
                   <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: cfg.bg }}>
@@ -566,7 +565,7 @@ function SponsorCarouselTile({ sponsors }: { sponsors: Sponsor[] }) {
             <div className="flex items-center justify-center rounded-2xl"
               style={{ width: 96, height: 96, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
               {s.logoUrl ? (
-                <img src={s.logoUrl} alt={s.name} loading="lazy" decoding="async"
+                <Image src={s.logoUrl} alt={s.name} width={64} height={64}
                   className="w-16 h-16 object-contain rounded-xl" />
               ) : (
                 <span className="text-xs font-bold text-white/50 text-center px-2 leading-tight">{s.name}</span>
@@ -601,7 +600,7 @@ function SpeakerCarouselTile({ speakers }: { speakers: Speaker[] }) {
 
       {/* Full-bleed photo */}
       {s.photoUrl ? (
-        <img src={s.photoUrl.replace(/w=\d+/, 'w=300').replace(/q=\d+/, 'q=70')} alt={s.name} loading="lazy" decoding="async"
+        <Image src={s.photoUrl.replace(/w=\d+/, 'w=300').replace(/q=\d+/, 'q=70')} alt={s.name} fill
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: 'center 20%' }} />
       ) : (
@@ -662,10 +661,10 @@ export function HomeScreen({ conference, user, meetingCount, sessionCount, profi
         {/* ── Full hero — image behind everything ── */}
         <div className="relative overflow-hidden" style={{ borderRadius: '0 0 28px 28px' }}>
           {/* Image */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={conference?.heroImageUrl ?? 'https://agcdn-1d97e.kxcdn.com/wp-content/uploads/2020/12/alphagamma-eTail-2021-opportunities-1024x640.jpg'}
             alt=""
+            fill
             className="absolute inset-0 w-full h-full object-cover"
             style={{ objectPosition: '50% 100%', transform: 'translateY(50px)', height: 'calc(100% + 50px)', top: '-50px' }}
           />

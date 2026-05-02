@@ -18,7 +18,13 @@ const TIER_ORDER: Record<string, number> = { PLATINUM: 0, GOLD: 1, SILVER: 2, BR
 
 export async function SponsorReadinessWidget() {
   const sponsors = await prisma.sponsor.findMany({
-    include: { _count: { select: { users: true, meetings: true } } },
+    select: {
+      id: true, name: true, tier: true, logoUrl: true,
+      contactEmail: true, contactName: true, tagline: true,
+      description: true, boothNumber: true, website: true,
+      solutionsOffering: true, socialLinkedIn: true, socialTwitter: true,
+      _count: { select: { users: true, meetings: true } },
+    },
   })
 
   const sorted = [...sponsors].sort((a, b) =>

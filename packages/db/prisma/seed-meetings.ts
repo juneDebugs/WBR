@@ -30,9 +30,13 @@ async function main() {
   await prisma.sponsorMeeting.deleteMany({})
   await prisma.sessionBookmark.deleteMany({})
 
+  // ── Resolve Steph Curry's ID dynamically (differs between local/Turso) ────
+  const stephUser = await prisma.user.findFirst({ where: { email: 'steph@curry.com' }, select: { id: true } })
+  if (!stephUser) throw new Error('Steph Curry user not found — run main seed first')
+
   // ── Attendee users ─────────────────────────────────────────────────────────
   const u = {
-    SC: 'demo-attendee-steph',        // Steph Curry — Point Guard, Golden State
+    SC: stephUser.id,                  // Steph Curry — Point Guard, Golden State
     JL: 'cmnf5o3zh0000o6gl8ph6p741', // Jordan Lee — VP Sales, Arhaus DTC
     MP: 'cmnf5o3zk0003o6gl1dkbwyba', // Maya Patel — Head of DTC, Urban Decay
     CN: 'cmnf5o3zm0006o6gljz3rs2fi', // Chris Nakamura — VP Customer Success, Noihsaf Bazaar

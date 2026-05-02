@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { signOut } from 'next-auth/react'
+import Image from 'next/image'
 import { SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS } from '@/lib/solutions'
 
 function toggle<T>(arr: T[], val: T): T[] {

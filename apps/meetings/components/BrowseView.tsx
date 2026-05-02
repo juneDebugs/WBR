@@ -1,10 +1,12 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useDeferredValue } from 'react'
 import { FilterPanel, Filters, EMPTY_FILTERS } from './FilterPanel'
 import { PersonCard } from './PersonCard'
 import { SponsorCard } from './SponsorCard'
 import { SponsorRepCard } from './SponsorRepCard'
-import { getIndustry, getJobFunction, getTitleLevel } from '@/lib/solutions'
+import { getIndustry, getJobFunction, getTitleLevel, getPeopleCategory, PEOPLE_CATEGORIES } from '@/lib/solutions'
+
+const PAGE_SIZE = 48
 
 interface Props {
   mode: 'sponsor-browsing-people' | 'attendee-browsing-sponsors'
@@ -18,66 +20,103 @@ export function BrowseView({ mode, people, sponsors, requestedUserIds, requested
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [filterOpen, setFilterOpen] = useState(false)
   const [browseTab, setBrowseTab] = useState<'sponsors' | 'people'>('sponsors')
+  const [category, setCategory] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+
+  const deferredFilters = useDeferredValue(filters)
+  const deferredCategory = useDeferredValue(category)
 
   const requestedUserSet = new Set(requestedUserIds)
   const requestedSponsorSet = new Set(requestedSponsorIds)
 
+  // Reset pagination when filters or category change
+  const handleCategoryChange = useCallback((cat: string | null) => {
+    setCategory(cat)
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const handleFiltersChange = useCallback((f: Filters) => {
+    setFilters(f)
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const handleTabChange = useCallback((tab: 'sponsors' | 'people') => {
+    setBrowseTab(tab)
+    setVisibleCount(PAGE_SIZE)
+    setCategory(null)
+    setFilters(EMPTY_FILTERS)
+  }, [])
+
   const filteredPeople = useMemo(() => {
     return people.filter(p => {
-      if (filters.roles.length > 0 && !filters.roles.includes(p.role)) return false
-      if (filters.industries.length > 0 && !filters.industries.includes(getIndustry(p.company))) return false
-      if (filters.titleLevels.length > 0 && !filters.titleLevels.includes(getTitleLevel(p.jobTitle))) return false
-      if (filters.jobFunctions.length > 0 && !filters.jobFunctions.includes(getJobFunction(p.jobTitle))) return false
-      if (filters.companySizes.length > 0 && !filters.companySizes.includes(p.companySize)) return false
-      if (filters.revenues.length > 0 && !filters.revenues.includes(p.annualRevenue)) return false
-      if (filters.solutionsOffering.length > 0) {
+      // Category filter (from sub-tabs)
+      if (deferredCategory !== null && getPeopleCategory(p.company) !== deferredCategory) return false
+      if (deferredFilters.roles.length > 0 && !deferredFilters.roles.includes(p.role)) return false
+      if (deferredFilters.industries.length > 0 && !deferredFilters.industries.includes(getIndustry(p.company))) return false
+      if (deferredFilters.titleLevels.length > 0 && !deferredFilters.titleLevels.includes(getTitleLevel(p.jobTitle))) return false
+      if (deferredFilters.jobFunctions.length > 0 && !deferredFilters.jobFunctions.includes(getJobFunction(p.jobTitle))) return false
+      if (deferredFilters.companySizes.length > 0 && !deferredFilters.companySizes.includes(p.companySize)) return false
+      if (deferredFilters.revenues.length > 0 && !deferredFilters.revenues.includes(p.annualRevenue)) return false
+      if (deferredFilters.solutionsOffering.length > 0) {
         const pOffers: string[] = p.solutionsOffering ? JSON.parse(p.solutionsOffering) : []
-        if (!filters.solutionsOffering.some(s => pOffers.includes(s))) return false
+        if (!deferredFilters.solutionsOffering.some(s => pOffers.includes(s))) return false
       }
-      if (filters.solutionsSeeking.length > 0) {
+      if (deferredFilters.solutionsSeeking.length > 0) {
         const pSeeks: string[] = p.solutionsSeeking ? JSON.parse(p.solutionsSeeking) : []
-        if (!filters.solutionsSeeking.some(s => pSeeks.includes(s))) return false
+        if (!deferredFilters.solutionsSeeking.some(s => pSeeks.includes(s))) return false
       }
-      if (filters.search) {
-        const q = filters.search.toLowerCase()
+      if (deferredFilters.search) {
+        const q = deferredFilters.search.toLowerCase()
         if (!`${p.name ?? ''} ${p.company ?? ''} ${p.jobTitle ?? ''} ${p.email ?? ''}`.toLowerCase().includes(q)) return false
       }
       return true
     })
-  }, [people, filters])
+  }, [people, deferredFilters, deferredCategory])
 
   const filteredSponsors = useMemo(() => {
     return sponsors.filter(s => {
-      if (filters.industries.length > 0 && !filters.industries.includes(getIndustry(s.name))) return false
-      if (filters.companySizes.length > 0 && !filters.companySizes.includes(s.companySize)) return false
-      if (filters.revenues.length > 0 && !filters.revenues.includes(s.annualRevenue)) return false
-      if (filters.solutionsOffering.length > 0) {
+      if (deferredFilters.industries.length > 0 && !deferredFilters.industries.includes(getIndustry(s.name))) return false
+      if (deferredFilters.companySizes.length > 0 && !deferredFilters.companySizes.includes(s.companySize)) return false
+      if (deferredFilters.revenues.length > 0 && !deferredFilters.revenues.includes(s.annualRevenue)) return false
+      if (deferredFilters.solutionsOffering.length > 0) {
         const sOffers: string[] = s.solutionsOffering ? JSON.parse(s.solutionsOffering) : []
-        if (!filters.solutionsOffering.some(x => sOffers.includes(x))) return false
+        if (!deferredFilters.solutionsOffering.some(x => sOffers.includes(x))) return false
       }
-      if (filters.solutionsSeeking.length > 0) {
+      if (deferredFilters.solutionsSeeking.length > 0) {
         const sSeeks: string[] = s.solutionsSeeking ? JSON.parse(s.solutionsSeeking) : []
-        if (!filters.solutionsSeeking.some(x => sSeeks.includes(x))) return false
+        if (!deferredFilters.solutionsSeeking.some(x => sSeeks.includes(x))) return false
       }
-      if (filters.search) {
-        const q = filters.search.toLowerCase()
+      if (deferredFilters.search) {
+        const q = deferredFilters.search.toLowerCase()
         if (!`${s.name} ${s.description ?? ''}`.toLowerCase().includes(q)) return false
       }
       return true
     })
-  }, [sponsors, filters])
+  }, [sponsors, deferredFilters])
+
+  // Category counts for sub-tabs (memoized)
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const cat of PEOPLE_CATEGORIES) counts[cat] = 0
+    for (const p of people) {
+      const cat = getPeopleCategory(p.company)
+      if (cat) counts[cat]++
+    }
+    return counts
+  }, [people])
 
   const activeFilterCount =
     filters.roles.length + filters.industries.length + filters.titleLevels.length +
     filters.jobFunctions.length + filters.companySizes.length + filters.revenues.length +
     filters.solutionsOffering.length + filters.solutionsSeeking.length + (filters.search ? 1 : 0)
 
-  // What to render in the grid
+  // What to render
   const isSponsorsView = mode === 'sponsor-browsing-people' ? false : browseTab === 'sponsors'
-  const gridItems = isSponsorsView ? filteredSponsors : filteredPeople
-  const totalItems = isSponsorsView
+  const isPeopleView = mode === 'sponsor-browsing-people' || browseTab === 'people'
+  const totalFiltered = isSponsorsView
     ? filteredSponsors.flatMap(s => { const r = (s.users ?? []).filter((u: any) => u.role !== 'SPONSOR'); return r.length ? r : [s] }).length
     : filteredPeople.length
+  const hasMore = isPeopleView && visibleCount < filteredPeople.length
 
   return (
     <div className="flex h-[calc(100vh-56px)]">
@@ -85,7 +124,7 @@ export function BrowseView({ mode, people, sponsors, requestedUserIds, requested
       <aside className="hidden lg:block w-72 xl:w-80 flex-shrink-0 border-r border-gray-100 bg-white overflow-y-auto">
         <div className="p-5">
           <h2 className="font-bold text-gray-900 text-sm mb-4">Filters</h2>
-          <FilterPanel filters={filters} onChange={setFilters} mode={mode === 'sponsor-browsing-people' ? mode : browseTab === 'people' ? 'sponsor-browsing-people' : mode} />
+          <FilterPanel filters={filters} onChange={handleFiltersChange} mode={mode === 'sponsor-browsing-people' ? mode : browseTab === 'people' ? 'sponsor-browsing-people' : mode} />
         </div>
       </aside>
 
@@ -105,7 +144,7 @@ export function BrowseView({ mode, people, sponsors, requestedUserIds, requested
           </button>
         </div>
         <div className="p-5">
-          <FilterPanel filters={filters} onChange={setFilters} mode={mode === 'sponsor-browsing-people' ? mode : browseTab === 'people' ? 'sponsor-browsing-people' : mode} />
+          <FilterPanel filters={filters} onChange={handleFiltersChange} mode={mode === 'sponsor-browsing-people' ? mode : browseTab === 'people' ? 'sponsor-browsing-people' : mode} />
         </div>
       </div>
 
@@ -117,9 +156,11 @@ export function BrowseView({ mode, people, sponsors, requestedUserIds, requested
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="font-bold text-gray-900">
-                {mode === 'sponsor-browsing-people' ? 'Browse Attendees & Speakers' : 'Solution Providers'}
+                {mode === 'sponsor-browsing-people'
+                  ? 'Browse Attendees & Speakers'
+                  : browseTab === 'sponsors' ? 'Solution Providers' : 'People'}
               </h1>
-              <p className="text-xs text-gray-400 mt-0.5">{totalItems} result{totalItems !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</p>
             </div>
             <button
               onClick={() => setFilterOpen(true)}
@@ -135,72 +176,131 @@ export function BrowseView({ mode, people, sponsors, requestedUserIds, requested
             </button>
           </div>
 
+          {/* Sponsors / People tab switcher (attendee mode only) */}
+          {mode === 'attendee-browsing-sponsors' && (
+            <div className="flex gap-1 mb-4 p-1 bg-gray-100 rounded-xl w-fit">
+              <button
+                onClick={() => handleTabChange('sponsors')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  browseTab === 'sponsors' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Solution Providers
+              </button>
+              <button
+                onClick={() => handleTabChange('people')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  browseTab === 'people' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                People
+              </button>
+            </div>
+          )}
+
+          {/* Category sub-tabs (People view only) */}
+          {isPeopleView && mode === 'attendee-browsing-sponsors' && (
+            <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+              <CategoryTab label="All" count={people.length} active={category === null} onClick={() => handleCategoryChange(null)} />
+              {PEOPLE_CATEGORIES.map(cat => (
+                <CategoryTab key={cat} label={cat} count={categoryCounts[cat]} active={category === cat} onClick={() => handleCategoryChange(cat)} />
+              ))}
+            </div>
+          )}
 
           {/* Active filter chips */}
           {activeFilterCount > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-4">
               {filters.industries.map(v => (
-                <ActiveChip key={v} label={v} onRemove={() => setFilters(f => ({ ...f, industries: f.industries.filter(x => x !== v) }))} />
+                <ActiveChip key={v} label={v} onRemove={() => handleFiltersChange({ ...filters, industries: filters.industries.filter(x => x !== v) })} />
               ))}
               {filters.titleLevels.map(v => (
-                <ActiveChip key={v} label={v} onRemove={() => setFilters(f => ({ ...f, titleLevels: f.titleLevels.filter(x => x !== v) }))} />
+                <ActiveChip key={v} label={v} onRemove={() => handleFiltersChange({ ...filters, titleLevels: filters.titleLevels.filter(x => x !== v) })} />
               ))}
               {filters.jobFunctions.map(v => (
-                <ActiveChip key={v} label={v} onRemove={() => setFilters(f => ({ ...f, jobFunctions: f.jobFunctions.filter(x => x !== v) }))} />
+                <ActiveChip key={v} label={v} onRemove={() => handleFiltersChange({ ...filters, jobFunctions: filters.jobFunctions.filter(x => x !== v) })} />
               ))}
               {filters.roles.map(v => (
-                <ActiveChip key={v} label={v.charAt(0) + v.slice(1).toLowerCase()} onRemove={() => setFilters(f => ({ ...f, roles: f.roles.filter(x => x !== v) }))} />
+                <ActiveChip key={v} label={v.charAt(0) + v.slice(1).toLowerCase()} onRemove={() => handleFiltersChange({ ...filters, roles: filters.roles.filter(x => x !== v) })} />
               ))}
               {filters.companySizes.map(v => (
-                <ActiveChip key={v} label={v} onRemove={() => setFilters(f => ({ ...f, companySizes: f.companySizes.filter(x => x !== v) }))} />
+                <ActiveChip key={v} label={v} onRemove={() => handleFiltersChange({ ...filters, companySizes: filters.companySizes.filter(x => x !== v) })} />
               ))}
               {filters.revenues.map(v => (
-                <ActiveChip key={v} label={v} onRemove={() => setFilters(f => ({ ...f, revenues: f.revenues.filter(x => x !== v) }))} />
+                <ActiveChip key={v} label={v} onRemove={() => handleFiltersChange({ ...filters, revenues: filters.revenues.filter(x => x !== v) })} />
               ))}
               {filters.solutionsOffering.map(v => (
-                <ActiveChip key={`off-${v}`} label={`Offers: ${v}`} onRemove={() => setFilters(f => ({ ...f, solutionsOffering: f.solutionsOffering.filter(x => x !== v) }))} />
+                <ActiveChip key={`off-${v}`} label={`Offers: ${v}`} onRemove={() => handleFiltersChange({ ...filters, solutionsOffering: filters.solutionsOffering.filter(x => x !== v) })} />
               ))}
               {filters.solutionsSeeking.map(v => (
-                <ActiveChip key={`seek-${v}`} label={`Seeks: ${v}`} onRemove={() => setFilters(f => ({ ...f, solutionsSeeking: f.solutionsSeeking.filter(x => x !== v) }))} />
+                <ActiveChip key={`seek-${v}`} label={`Seeks: ${v}`} onRemove={() => handleFiltersChange({ ...filters, solutionsSeeking: filters.solutionsSeeking.filter(x => x !== v) })} />
               ))}
-              <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-xs text-gray-400 hover:text-red-500 px-2 py-1">
+              <button onClick={() => handleFiltersChange(EMPTY_FILTERS)} className="text-xs text-gray-400 hover:text-red-500 px-2 py-1">
                 Clear all
               </button>
             </div>
           )}
 
           {/* Grid */}
-          {totalItems === 0 ? (
+          {totalFiltered === 0 ? (
             <div className="text-center py-16">
               <p className="text-gray-400 text-sm">No results match your filters.</p>
-              <button onClick={() => setFilters(EMPTY_FILTERS)} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
+              <button onClick={() => { handleFiltersChange(EMPTY_FILTERS); handleCategoryChange(null) }} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
             </div>
           ) : (
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
-              {isSponsorsView
-                ? filteredSponsors.flatMap(s => {
-                    const reps = (s.users ?? []).filter((u: any) => u.role !== 'SPONSOR')
-                    if (reps.length === 0) {
-                      return [<SponsorCard key={s.id} sponsor={s} requested={requestedSponsorSet.has(s.id)} />]
-                    }
-                    return reps.map((rep: any) => (
-                      <SponsorRepCard
-                        key={`${s.id}-${rep.id}`}
-                        sponsor={s}
-                        rep={rep}
-                        requested={requestedSponsorSet.has(s.id)}
-                      />
+            <>
+              <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
+                {isSponsorsView
+                  ? filteredSponsors.flatMap(s => {
+                      const reps = (s.users ?? []).filter((u: any) => u.role !== 'SPONSOR')
+                      if (reps.length === 0) {
+                        return [<SponsorCard key={s.id} sponsor={s} requested={requestedSponsorSet.has(s.id)} />]
+                      }
+                      return reps.map((rep: any) => (
+                        <SponsorRepCard
+                          key={`${s.id}-${rep.id}`}
+                          sponsor={s}
+                          rep={rep}
+                          requested={requestedSponsorSet.has(s.id)}
+                        />
+                      ))
+                    })
+                  : filteredPeople.slice(0, visibleCount).map(p => (
+                      <PersonCard key={p.id} person={p} requested={requestedUserSet.has(p.id)} />
                     ))
-                  })
-                : filteredPeople.map(p => (
-                    <PersonCard key={p.id} person={p} requested={requestedUserSet.has(p.id)} />
-                  ))
-              }
-            </div>
+                }
+              </div>
+
+              {/* Load more */}
+              {hasMore && (
+                <div className="flex justify-center mt-6">
+                  <button
+                    onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                    className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
+                  >
+                    Show more ({filteredPeople.length - visibleCount} remaining)
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
     </div>
+  )
+}
+
+function CategoryTab({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+        active ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-primary hover:text-primary'
+      }`}
+    >
+      {label}
+      <span className={`ml-1.5 text-xs ${active ? 'text-white/70' : 'text-gray-400'}`}>{count}</span>
+    </button>
   )
 }
 

@@ -1,4 +1,4 @@
-export const revalidate = 0
+export const revalidate = 15
 import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import { SponsorMeetingsView } from '@/components/SponsorMeetingsView'

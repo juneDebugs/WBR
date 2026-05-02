@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import Image from 'next/image'
 
 // Resize Unsplash URLs to optimal size for context
 function optimizePhoto(url: string | null, width: number): string | null {
@@ -132,12 +133,11 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
           {/* Hero photo / gradient */}
           <div className="relative w-full" style={{ height: 'clamp(200px, 38vw, 320px)' }}>
             {speaker.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={optimizePhoto(speaker.photoUrl, 800)!}
                 alt={speaker.name}
-                loading="eager"
-                decoding="async"
+                fill
+                priority
                 className="absolute inset-0 w-full h-full object-cover object-top"
               />
             ) : (
@@ -175,8 +175,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
           {speaker.company && (
             <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100">
               {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt={speaker.company} loading="lazy" className="w-7 h-7 rounded-lg object-contain flex-shrink-0" />
+                <Image src={logoUrl} alt={speaker.company} width={28} height={28} className="w-7 h-7 rounded-lg object-contain flex-shrink-0" />
               ) : (
                 <div
                   className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -396,12 +395,10 @@ export function SpeakersClient({ speakers }: { speakers: Speaker[] }) {
                             <div className="relative bg-white rounded-[10px] sm:rounded-[13px] overflow-hidden">
                               <div className="relative w-full" style={{ paddingBottom: '130%' }}>
                                 {speaker.photoUrl ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
+                                  <Image
                                     src={optimizePhoto(speaker.photoUrl, 300)!}
                                     alt={speaker.name}
-                                    loading="lazy"
-                                    decoding="async"
+                                    fill
                                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                   />
                                 ) : (

@@ -1,10 +1,11 @@
-export const revalidate = 0
+export const revalidate = 30
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { notFound } from 'next/navigation'
+import Image from 'next/image'
 import { AttendeeProfileEditor } from '@/components/AttendeeProfileEditor'
 
 function parseArr(val: string | null | undefined): string[] {
@@ -131,8 +132,7 @@ export default async function AttendeeProfilePage({ params }: { params: { userId
         <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
           <div className="flex items-start gap-4">
             {user.image ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={user.image} alt="" className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
+              <Image src={user.image} alt="" width={64} height={64} className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
             ) : (
               <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
                 <span className="text-gray-500 text-xl font-semibold">{(user.name ?? '?')[0]}</span>

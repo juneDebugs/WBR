@@ -89,6 +89,10 @@ model User {
   requestsMade     MeetingRequest[] @relation("RequestsMade")
   requestsReceived MeetingRequest[] @relation("RequestsReceived")
   sponsor          Sponsor?         @relation("SponsorUser", fields: [sponsorId], references: [id], onDelete: SetNull)
+
+  @@index([role])
+  @@index([sponsorId])
+  @@index([createdAt])
 }
 
 // ─── Conference ──────────────────────────────────────────────────────────────
@@ -230,6 +234,9 @@ model Meeting {
   @@index([attendeeAId])
   @@index([attendeeBId])
   @@index([timeBlockId])
+  @@index([conferenceId])
+  @@index([organizerId])
+  @@index([status])
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
@@ -338,6 +345,9 @@ model SponsorMeeting {
   @@index([sponsorId])
   @@index([userId])
   @@index([repId])
+  @@index([status])
+  @@index([sponsorId, status])
+  @@index([timeBlockId])
 }
 
 model MeetingRequest {
@@ -362,6 +372,8 @@ model MeetingRequest {
   @@index([status])
   @@index([status, timeBlockId])
   @@index([timeBlockId])
+  @@index([requesterId, status])
+  @@index([createdAt])
 }
 
 // ─── Follow ───────────────────────────────────────────────────────────────────

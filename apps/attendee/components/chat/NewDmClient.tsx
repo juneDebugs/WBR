@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 interface User {
   id: string
@@ -47,8 +48,7 @@ export function NewDmClient({ users }: { users: User[] }) {
             className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 transition-colors text-left">
             <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
               {user.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.image} alt="" loading="lazy" className="w-12 h-12 rounded-full object-cover" />
+                <Image src={user.image} alt="" width={48} height={48} className="w-12 h-12 rounded-full object-cover" />
               ) : (
                 <span className="text-gray-600 font-bold text-lg">{(user.name ?? '?')[0]}</span>
               )}

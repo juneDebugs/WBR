@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
 
@@ -34,7 +35,7 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
     }`}>
       <div className="flex items-start gap-4">
         {person?.image ? (
-          <img src={person.image} alt="" loading="lazy" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+          <Image src={person.image} alt="" width={48} height={48} className="rounded-full object-cover flex-shrink-0" />
         ) : (
           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
             <span className="text-sm font-bold text-primary">{person?.name?.[0] ?? '?'}</span>
