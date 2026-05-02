@@ -103,6 +103,7 @@ export default async function DashboardPage() {
   let totalMeetings = 0
   let recentRequests: any[] = []
   let conflicts: any[] = []
+  let upcomingMeetings: any[] = []
 
   if (user.sponsorId) {
     // Phase 1: Get sponsor data first (needed for attendee matching signals)
@@ -111,8 +112,10 @@ export default async function DashboardPage() {
       include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
     })
 
+    const now = new Date()
+
     // Phase 2: ALL remaining queries in parallel
-    const [inboundRequests, pendingCountResult, confirmedCountResult, totalRequestCount, sponsorMeetings, conflictsResult] = await Promise.all([
+    const [inboundRequests, pendingCountResult, confirmedCountResult, totalRequestCount, sponsorMeetings, conflictsResult, upcomingBoothMeetings, upcomingConfirmedRequests] = await Promise.all([
       prisma.meetingRequest.findMany({
         where: { targetSponsorId: user.sponsorId },
         include: {
@@ -149,6 +152,38 @@ export default async function DashboardPage() {
       }),
       prisma.sponsorMeeting.count({ where: { sponsorId: user.sponsorId } }),
       getActiveConflicts(prisma),
+      // Upcoming booth meetings
+      prisma.sponsorMeeting.findMany({
+        where: {
+          sponsorId: user.sponsorId,
+          status: 'CONFIRMED',
+          timeBlock: { startsAt: { gte: now } },
+        },
+        include: {
+          user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+          timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
+        },
+        orderBy: { timeBlock: { startsAt: 'asc' } },
+        take: 5,
+      }),
+      // Upcoming confirmed meeting requests
+      prisma.meetingRequest.findMany({
+        where: {
+          status: { in: ['CONFIRMED', 'APPROVED'] },
+          timeBlock: { startsAt: { gte: now } },
+          OR: [
+            { targetSponsorId: user.sponsorId },
+            { requester: { sponsorId: user.sponsorId }, targetSponsorId: null },
+          ],
+        },
+        include: {
+          requester: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+          targetUser: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+          timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
+        },
+        orderBy: { timeBlock: { startsAt: 'asc' } },
+        take: 5,
+      }),
     ])
 
     recentRequests = inboundRequests
@@ -156,6 +191,32 @@ export default async function DashboardPage() {
     confirmedCount = confirmedCountResult
     totalMeetings = totalRequestCount + sponsorMeetings
     conflicts = conflictsResult
+
+    // Normalize upcoming meetings into a unified list
+    for (const m of upcomingBoothMeetings) {
+      upcomingMeetings.push({
+        id: m.id,
+        type: 'booth' as const,
+        person: m.user,
+        startsAt: m.timeBlock.startsAt,
+        endsAt: m.timeBlock.endsAt,
+        location: m.timeBlock.location,
+      })
+    }
+    for (const r of upcomingConfirmedRequests) {
+      // Show the other party (not the sponsor's own team)
+      const person = r.targetSponsorId === user.sponsorId ? r.requester : r.targetUser
+      upcomingMeetings.push({
+        id: r.id,
+        type: 'request' as const,
+        person,
+        startsAt: r.timeBlock!.startsAt,
+        endsAt: r.timeBlock!.endsAt,
+        location: r.timeBlock!.location,
+      })
+    }
+    upcomingMeetings.sort((a: any, b: any) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+    upcomingMeetings.splice(5) // keep top 5
   }
 
   const profile = completeness(sponsor ?? {})
@@ -306,6 +367,39 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Upcoming Meetings */}
+      {upcomingMeetings.length > 0 && (
+        <div className="card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Upcoming Meetings</h2>
+            <Link href="/meetings" className="text-sm text-primary hover:underline">View all →</Link>
+          </div>
+          <div className="space-y-3">
+            {upcomingMeetings.map((m: any) => {
+              const starts = new Date(m.startsAt)
+              return (
+                <div key={m.id} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-3">
+                  {m.person?.image ? (
+                    <img src={m.person.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-semibold text-emerald-700">{(m.person?.name ?? '?')[0]}</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{m.person?.name ?? 'Attendee'}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {starts.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {starts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}{m.location ? ` · ${m.location}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium text-emerald-600 flex-shrink-0">Confirmed</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Team reps */}
       {sponsor?.users?.length > 0 && (
