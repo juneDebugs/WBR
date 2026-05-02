@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import Image from 'next/image'
+
 import { useRouter } from 'next/navigation'
 
 interface SearchResult {
@@ -144,7 +144,7 @@ export function GlobalSearch() {
                         {/* Avatar / icon */}
                         <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-gray-100">
                           {r.image ? (
-                            <Image src={r.image} alt="" width={32} height={32} className="w-full h-full object-cover" />
+                            <img src={r.image} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <span className="text-xs font-bold text-gray-500">{r.title?.[0] ?? '?'}</span>
                           )}

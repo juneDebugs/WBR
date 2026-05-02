@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
+
 import { format } from 'date-fns'
 
 interface Member {
@@ -140,7 +140,7 @@ export function DMRoomsClient({ rooms }: { rooms: Room[] }) {
 function Avatar({ user, className }: { user: { name: string | null; email: string | null; image?: string | null } | undefined; className?: string }) {
   if (!user) return null
   return user?.image ? (
-    <Image src={user.image} alt="" width={28} height={28} className={`rounded-full object-cover ${className}`} />
+    <img src={user.image} alt="" className={`rounded-full object-cover ${className}`} />
   ) : (
     <div className={`rounded-full bg-primary/10 flex items-center justify-center ${className}`}>
       <span className="text-primary font-semibold text-[10px]">

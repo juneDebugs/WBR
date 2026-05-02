@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
+
 
 interface TeamMember {
   id: string
@@ -29,7 +29,7 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
               className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-left w-full"
             >
               {u.image ? (
-                <Image src={u.image} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                <img src={u.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <span className="text-xs font-bold text-primary">{u.name?.[0] ?? '?'}</span>
@@ -65,7 +65,7 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
             {/* Avatar */}
             <div className="flex flex-col items-center">
               {selected.image ? (
-                <Image src={selected.image} alt="" width={80} height={80} className="w-20 h-20 rounded-full object-cover ring-4 ring-gray-100" />
+                <img src={selected.image} alt="" className="w-20 h-20 rounded-full object-cover ring-4 ring-gray-100" />
               ) : (
                 <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center ring-4 ring-gray-100">
                   <span className="text-2xl font-bold text-primary">{selected.name?.[0] ?? '?'}</span>

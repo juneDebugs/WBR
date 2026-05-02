@@ -98,7 +98,7 @@ export function SponsorRepCard({ sponsor, rep, requested: initialRequested }: Pr
         <div className="flex items-start gap-3 mb-4">
           <div className="w-14 h-14 rounded-2xl bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
             {rep.image ? (
-              <Image src={rep.image} alt={rep.name ?? ''} width={56} height={56} className="object-cover" />
+              <img src={rep.image} alt={rep.name ?? ''} className="w-full h-full object-cover" />
             ) : (
               <span className="text-gray-500 font-bold text-xl">{(rep.name ?? '?')[0].toUpperCase()}</span>
             )}

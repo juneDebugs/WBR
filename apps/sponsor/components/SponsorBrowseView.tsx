@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo, useCallback, useDeferredValue } from 'react'
-import Image from 'next/image'
+
 import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
@@ -477,7 +477,7 @@ export function SponsorBrowseView({
                     <div className="flex items-start gap-3 mb-3">
                       <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
                         {p.image ? (
-                          <Image src={p.image} alt={p.name ?? ''} width={48} height={48} className="w-full h-full object-cover" />
+                          <img src={p.image} alt={p.name ?? ''} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-lg">
                             {(p.name ?? '?')[0].toUpperCase()}

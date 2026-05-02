@@ -4,7 +4,7 @@ import { AdminHeader } from '@/components/AdminHeader'
 import { SponsorLogo } from '@/components/SponsorLogo'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
+
 import { format } from 'date-fns'
 import { revalidatePath } from 'next/cache'
 
@@ -231,7 +231,7 @@ export default async function SponsorDetailPage({ params }: { params: { id: stri
                             <div className="flex items-center gap-2">
                               <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                                 {meeting.user.image ? (
-                                  <Image src={meeting.user.image} alt="" width={32} height={32} className="w-full h-full object-cover" />
+                                  <img src={meeting.user.image} alt="" className="w-full h-full object-cover" />
                                 ) : (
                                   <span className="w-full h-full flex items-center justify-center text-gray-500 text-xs font-bold">
                                     {(meeting.user.name ?? '?')[0]}

@@ -1,7 +1,7 @@
 export const revalidate = 15
 import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
-import Image from 'next/image'
+
 
 function formatSlot(start: string, end: string) {
   const s = new Date(start)
@@ -122,7 +122,7 @@ export default async function SchedulePage() {
                     </div>
                     <div className="w-px bg-gray-100 self-stretch" />
                     {item.person.image ? (
-                      <Image src={item.person.image} alt="" width={40} height={40} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                      <img src={item.person.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-sm font-bold text-primary">{item.person.name?.[0] ?? '?'}</span>

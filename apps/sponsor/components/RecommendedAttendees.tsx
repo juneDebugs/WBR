@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+
 import { getCompanyDescription } from '@/lib/solutions'
 
 interface Attendee {
@@ -75,7 +75,7 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
               <div className="relative px-4 pt-5 pb-2 flex flex-col items-center">
                 <div className="relative">
                   {a.image ? (
-                    <Image src={a.image} alt={a.name ?? ''} width={64} height={64} className="w-16 h-16 rounded-full object-cover ring-2 ring-white shadow" />
+                    <img src={a.image} alt={a.name ?? ''} className="w-16 h-16 rounded-full object-cover ring-2 ring-white shadow" />
                   ) : (
                     <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center ring-2 ring-white shadow">
                       <span className="text-xl font-bold text-primary">{(a.name ?? '?')[0]}</span>

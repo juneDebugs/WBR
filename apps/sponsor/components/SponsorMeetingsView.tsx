@@ -1,7 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
 
@@ -35,7 +35,7 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
     }`}>
       <div className="flex items-start gap-4">
         {person?.image ? (
-          <Image src={person.image} alt="" width={48} height={48} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+          <img src={person.image} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
         ) : (
           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
             <span className="text-sm font-bold text-primary">{person?.name?.[0] ?? '?'}</span>
@@ -152,7 +152,7 @@ export function SponsorMeetingsView({
           <div key={m.id} className="card p-5 border-l-4 border-primary/50">
             <div className="flex items-center gap-4">
               {m.user.image ? (
-                <Image src={m.user.image} alt="" width={40} height={40} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                <img src={m.user.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <span className="text-xs font-bold text-primary">{m.user.name?.[0]}</span>

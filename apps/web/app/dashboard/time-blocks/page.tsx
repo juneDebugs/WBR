@@ -5,7 +5,7 @@ import { SponsorLogo } from '@/components/SponsorLogo'
 import { TimeBlockSearch } from '@/components/TimeBlockSearch'
 import { TimeBlockGroup } from '@/components/TimeBlockGroup'
 import { format } from 'date-fns'
-import Image from 'next/image'
+
 import Link from 'next/link'
 import { Suspense } from 'react'
 
@@ -170,7 +170,7 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: {
                       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
                         <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-200 flex items-center justify-center flex-shrink-0">
                           {user.image ? (
-                            <Image src={user.image} alt={user.name ?? ''} width={32} height={32} className="w-full h-full object-cover" />
+                            <img src={user.image} alt={user.name ?? ''} className="w-full h-full object-cover" />
                           ) : (
                             <span className="text-gray-500 text-xs font-bold">{(user.name ?? '?')[0]}</span>
                           )}

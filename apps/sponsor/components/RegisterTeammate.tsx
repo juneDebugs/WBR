@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
+
 
 interface Teammate {
   id: string
@@ -187,7 +187,7 @@ export function RegisterTeammate({ teammates: initial }: Props) {
           {teammates.map(t => (
             <div key={t.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 hover:border-gray-200 transition-colors group">
               {t.image ? (
-                <Image src={t.image} alt="" width={36} height={36} className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
+                <img src={t.image} alt="" className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
               ) : (
                 <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <span className="text-sm font-bold text-primary">{(t.name ?? t.email ?? '?')[0].toUpperCase()}</span>

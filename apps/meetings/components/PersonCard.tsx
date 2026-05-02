@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+
 import { getIndustry, getJobFunction, getTitleLevel, getCompanyDescription, getBorderColorForSeeking } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
@@ -67,7 +67,7 @@ export function PersonCard({ person, requested: initialRequested }: Props) {
         <div className="flex items-start gap-3 mb-3">
           <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
             {person.image ? (
-              <Image src={person.image} alt={person.name ?? ''} width={48} height={48} className="w-full h-full object-cover" />
+              <img src={person.image} alt={person.name ?? ''} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-lg">
                 {(person.name ?? '?')[0].toUpperCase()}

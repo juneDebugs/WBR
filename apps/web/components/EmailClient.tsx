@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+
 import { EmailThreadPanel } from './EmailThreadPanel'
 
 export interface EmailUser {
@@ -316,7 +316,7 @@ export function EmailClient({ users, emails }: Props) {
 
                   {/* Avatar */}
                   {user.image ? (
-                    <Image src={user.image} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-sm ring-1 ring-gray-100" />
+                    <img src={user.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-sm ring-1 ring-gray-100" />
                   ) : (
                     <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-sm"
                       style={{ background: user.isSponsor ? 'linear-gradient(135deg, #f472b6, #ec4899)' : (ROLE_GRADIENT[user.role] ?? 'linear-gradient(135deg, #94a3b8, #64748b)') }}>
@@ -484,7 +484,7 @@ export function EmailClient({ users, emails }: Props) {
                 <span className="text-xs text-gray-400 w-14 flex-shrink-0">To</span>
                 <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-2.5 py-1">
                   {compose.image ? (
-                    <Image src={compose.image} alt="" width={16} height={16} className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+                    <img src={compose.image} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0"
                       style={{ background: compose.isSponsor ? 'linear-gradient(135deg, #f472b6, #ec4899)' : ROLE_GRADIENT[compose.role] }}>

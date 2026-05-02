@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import Image from 'next/image'
+
 import Link from 'next/link'
 
 interface User {
@@ -144,7 +144,7 @@ export function AttendeesTable({ users: initialUsers }: { users: User[] }) {
                 <td className="px-4 py-3">
                   <Link href={`/dashboard/attendees/${user.id}`} className="flex items-center gap-3 group">
                     {user.image ? (
-                      <Image src={user.image} alt="" width={36} height={36} className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
+                      <img src={user.image} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-gray-100" />
                     ) : (
                       <div className="w-9 h-9 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
                         <span className="text-gray-500 text-sm font-semibold">{(user.name ?? '?')[0]}</span>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import Image from 'next/image'
+
 
 type UserRow = {
   id: string
@@ -263,7 +263,7 @@ export function AccessClient({ users: initial }: { users: UserRow[] }) {
             {filtered.map(user => (
               <div key={user.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
                 {user.image ? (
-                  <Image src={user.image} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                  <img src={user.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-500">
                     {(user.name ?? user.email ?? '?')[0].toUpperCase()}

@@ -275,7 +275,7 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
                 {p ? (
                   <div className="flex items-center gap-2">
                     {(p.image || p.logoUrl) ? (
-                      <Image src={(p.image ?? p.logoUrl)!} alt="" width={24} height={24} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                      <img src={(p.image ?? p.logoUrl)!} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
                     ) : (
                       <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-[10px] font-bold text-primary">{(p.name ?? '?')[0]}</span>

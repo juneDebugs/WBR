@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { format, isToday, isYesterday, isThisYear } from 'date-fns'
-import Image from 'next/image'
+
 import { useRouter } from 'next/navigation'
 
 export interface ThreadEmail {
@@ -110,7 +110,7 @@ export function EmailThreadPanel({ user, emails: initialEmails, roleGradient, on
 
           {/* Avatar */}
           {user.image ? (
-            <Image src={user.image} alt="" width={40} height={40} className="w-10 h-10 rounded-full object-cover flex-shrink-0 shadow-sm" />
+            <img src={user.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0 shadow-sm" />
           ) : (
             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold"
               style={{ background: roleGradient }}>
@@ -165,7 +165,7 @@ export function EmailThreadPanel({ user, emails: initialEmails, roleGradient, on
                       </div>
                     ) : (
                       user.image ? (
-                        <Image src={user.image} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                        <img src={user.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                       ) : (
                         <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
                           style={{ background: roleGradient }}>
