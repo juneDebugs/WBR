@@ -371,9 +371,10 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
             {image && !imgError ? (
-              <Image src={image} alt="" width={52} height={52}
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={image} alt="" referrerPolicy="no-referrer"
                 className="object-cover"
-                style={{ width: 52, height: 52, borderRadius: '50%', objectPosition: 'center 20%' }}
+                style={{ width: 52, height: 52, borderRadius: '50%' }}
                 onError={() => setImgError(true)} />
             ) : (
               <div className="flex items-center justify-center bg-slate-700"
