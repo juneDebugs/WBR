@@ -661,13 +661,15 @@ export function HomeScreen({ conference, user, meetingCount, sessionCount, profi
         {/* ── Full hero — image behind everything ── */}
         <div className="relative overflow-hidden" style={{ borderRadius: '0 0 28px 28px' }}>
           {/* Image */}
-          <Image
-            src={conference?.heroImageUrl ?? 'https://agcdn-1d97e.kxcdn.com/wp-content/uploads/2020/12/alphagamma-eTail-2021-opportunities-1024x640.jpg'}
-            alt=""
-            fill
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ objectPosition: '50% 100%', transform: 'translateY(50px)', height: 'calc(100% + 50px)', top: '-50px' }}
-          />
+          <div className="absolute inset-0" style={{ top: '-50px', height: 'calc(100% + 50px)' }}>
+            <Image
+              src={conference?.heroImageUrl ?? 'https://agcdn-1d97e.kxcdn.com/wp-content/uploads/2020/12/alphagamma-eTail-2021-opportunities-1024x640.jpg'}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ objectPosition: '50% 100%' }}
+            />
+          </div>
           {/* Black gradient from top */}
           <div className="absolute inset-0 z-10 pointer-events-none"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0) 100%)' }} />
