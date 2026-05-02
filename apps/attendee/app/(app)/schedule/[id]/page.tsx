@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -14,7 +13,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
       where: { id: params.id },
       include: { speaker: { select: { id: true, name: true, jobTitle: true, company: true, photoUrl: true } } },
     }),
-    getServerSession(authOptions),
+    getSession(),
   ])
 
   if (!session) notFound()

@@ -1,11 +1,10 @@
 export const revalidate = 120
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import { BrowseView } from '@/components/BrowseView'
 
 export default async function BrowsePage() {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   const userId = (session!.user as any).id as string
 
   const [myRequests, sponsors, people] = await Promise.all([

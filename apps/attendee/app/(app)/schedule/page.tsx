@@ -1,11 +1,10 @@
 export const revalidate = 300
 import { prisma, groupSessionsByDay, getActiveConflicts } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { ScheduleView } from '@/components/schedule/ScheduleView'
 
 export default async function SchedulePage() {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
 
   const [conference, allSessions, bookmarks, conflicts] = await Promise.all([
     prisma.conference.findFirst({ where: { active: true } }),

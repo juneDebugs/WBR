@@ -1,16 +1,13 @@
 export const revalidate = 0
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 
 export default async function ChatPage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) redirect('/login')
+  const session = (await getSession())!
 
-  const userId = session.user.id
+  const userId = session.user!.id
 
   const rooms = await prisma.chatRoom.findMany({
     where: { members: { some: { userId } } },

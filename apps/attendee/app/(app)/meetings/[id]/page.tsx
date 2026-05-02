@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
@@ -14,8 +13,7 @@ const statusColors: Record<string, string> = {
 }
 
 export default async function MeetingDetailPage({ params }: { params: { id: string } }) {
-  const authSession = await getServerSession(authOptions)
-  if (!authSession?.user?.id) redirect('/login')
+  const authSession = (await getSession())!
 
   const userId = authSession.user.id
 

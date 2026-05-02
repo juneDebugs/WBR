@@ -1,7 +1,5 @@
 export const revalidate = 0
-import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -57,8 +55,7 @@ function scoreSponsorVsAttendee(
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions)
-  if (!session) redirect('/login')
+  const session = (await getSession())!
   const user = session.user as any
   const isStaff = user.role === 'STAFF'
   const isSponsor = !!user.sponsorId

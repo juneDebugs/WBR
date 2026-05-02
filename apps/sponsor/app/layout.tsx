@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { SessionProvider } from './session-provider'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 
 export const metadata: Metadata = {
   title: 'Sponsor Portal',
@@ -15,7 +14,7 @@ export const viewport = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   return (
     <html lang="en" suppressHydrationWarning>
       <body>

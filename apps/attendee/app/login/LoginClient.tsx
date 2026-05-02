@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Props) {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,8 +30,8 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
       console.error('[login] signIn error:', result.error, result.status, result.ok, result.url)
       setError(result.error === 'CredentialsSignin' ? 'Invalid email or password.' : 'Login failed: ' + result.error)
       setLoading(false)
-    } else if (result?.url) {
-      window.location.href = result.url
+    } else {
+      router.push('/home')
     }
   }
 

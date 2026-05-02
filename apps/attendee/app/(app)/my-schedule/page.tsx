@@ -1,15 +1,12 @@
 export const revalidate = 0
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
 import { MyScheduleView } from '@/components/my-schedule/MyScheduleView'
 
 export default async function MySchedulePage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) redirect('/login')
+  const session = (await getSession())!
 
-  const userId = session.user.id
+  const userId = session.user!.id
   const sponsorId = (session.user as any).sponsorId as string | null
 
   const [bookmarks, sponsorMeetings, peerRequests] = await Promise.all([

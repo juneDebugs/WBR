@@ -1,8 +1,6 @@
 export const revalidate = 0
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
 import { PeopleClient } from '@/components/people/PeopleClient'
 
 const userSelect = {
@@ -16,10 +14,9 @@ const userSelect = {
 } as const
 
 export default async function PeoplePage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) redirect('/login')
+  const session = (await getSession())!
 
-  const userId = session.user.id
+  const userId = session.user!.id
 
   const [allUsers, totalCount, following, dmRooms] = await Promise.all([
     prisma.user.findMany({

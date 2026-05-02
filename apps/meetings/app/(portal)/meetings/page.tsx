@@ -1,11 +1,10 @@
 export const revalidate = 0
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { prisma, getActiveConflicts } from '@conference/db'
 import { MeetingsView } from '@/components/MeetingsView'
 
 export default async function MeetingsPage() {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   const userId = (session!.user as any).id as string
   const sponsorId = (session!.user as any).sponsorId as string | null
 

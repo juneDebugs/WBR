@@ -1,12 +1,11 @@
 export const revalidate = 0
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { prisma } from '@conference/db'
 import { StaffQueue } from '@/components/StaffQueue'
 
 export default async function StaffPage() {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   const role = (session!.user as any).role as string
   if (role !== 'STAFF') redirect('/browse')
 

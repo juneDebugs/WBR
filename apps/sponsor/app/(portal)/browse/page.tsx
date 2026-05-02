@@ -1,14 +1,11 @@
 export const revalidate = 120
-import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import { SponsorBrowseView } from '@/components/SponsorBrowseView'
 
 export default async function BrowsePage() {
-  const session = await getServerSession(authOptions)
-  if (!session) redirect('/login')
-  const user = session.user as any
+  const session = await getSession()
+  const user = session!.user as any
 
   const people = await prisma.user.findMany({
     where: {

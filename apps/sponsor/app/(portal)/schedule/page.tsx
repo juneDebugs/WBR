@@ -1,7 +1,5 @@
 export const revalidate = 0
-import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 
 function formatSlot(start: string, end: string) {
@@ -14,9 +12,8 @@ function formatSlot(start: string, end: string) {
 }
 
 export default async function SchedulePage() {
-  const session = await getServerSession(authOptions)
-  if (!session) redirect('/login')
-  const user = session.user as any
+  const session = await getSession()
+  const user = session!.user as any
 
   let confirmedRequests: any[] = []
   let sponsorMeetings: any[] = []

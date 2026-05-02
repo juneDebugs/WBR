@@ -1,15 +1,12 @@
 export const dynamic = 'force-dynamic'
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
 import { SetupClient } from '@/components/setup/SetupClient'
 
 export default async function SetupPage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) redirect('/login')
+  const session = (await getSession())!
 
-  const userId = session.user.id
+  const userId = session.user!.id
 
   const [user, blackouts] = await Promise.all([
     prisma.user.findUnique({

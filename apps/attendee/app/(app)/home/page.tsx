@@ -1,14 +1,11 @@
 export const revalidate = 0
 
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import { HomeScreen } from '@/components/HomeScreen'
 
 export default async function HomePage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/login')
+  const session = (await getSession())!
 
   const userId = (session.user as any).id as string
   const sponsorId = (session.user as any).sponsorId as string | null

@@ -1,15 +1,13 @@
 export const revalidate = 0
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
 import { AttendeesMeetingsView } from '@/components/meetings/AttendeesMeetingsView'
 import { SponsorMeetingsView } from '@/components/meetings/SponsorMeetingsView'
 
 async function declineRequest(formData: FormData) {
   'use server'
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   if (!session?.user?.id) return
   const id = formData.get('id') as string
   const mr = await prisma.meetingRequest.findUnique({ where: { id }, select: { targetUserId: true } })
@@ -19,8 +17,7 @@ async function declineRequest(formData: FormData) {
 }
 
 export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const authSession = await getServerSession(authOptions)
-  if (!authSession?.user?.id) redirect('/login')
+  const authSession = (await getSession())!
 
   const userId = authSession.user.id
   const role = (authSession.user as any).role as string

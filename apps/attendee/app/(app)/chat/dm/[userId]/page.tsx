@@ -1,14 +1,12 @@
 export const dynamic = 'force-dynamic'
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 
 export default async function StartDmPage({ params }: { params: { userId: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) redirect('/login')
+  const session = (await getSession())!
 
-  const myId = session.user.id
+  const myId = session.user!.id
   const targetId = params.userId
 
   if (myId === targetId) redirect('/chat')

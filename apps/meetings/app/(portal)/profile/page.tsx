@@ -1,11 +1,10 @@
 export const revalidate = 0
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import { ProfileForm } from '@/components/ProfileForm'
 
 export default async function ProfilePage() {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   const userId = (session!.user as any).id as string
 
   const user = await prisma.user.findUnique({

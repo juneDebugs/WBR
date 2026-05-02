@@ -1,10 +1,9 @@
-import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { NavBar } from '@/components/NavBar'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   if (!session) redirect('/login')
   return (
     <div className="min-h-screen flex flex-col">

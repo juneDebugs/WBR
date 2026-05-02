@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 
 const slides = [
@@ -21,6 +22,7 @@ const slides = [
 ]
 
 export default function LoginPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -49,8 +51,8 @@ export default function LoginPage() {
     if (result?.error) {
       setError('Invalid email or password.')
       setLoading(false)
-    } else if (result?.url) {
-      window.location.href = result.url
+    } else {
+      router.push('/')
     }
   }
 

@@ -1,16 +1,13 @@
 export const dynamic = 'force-dynamic'
 import { prisma } from '@conference/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/session'
 import Link from 'next/link'
 import { NewDmClient } from '@/components/chat/NewDmClient'
 
 export default async function NewMessagePage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) redirect('/login')
+  const session = (await getSession())!
 
-  const userId = session.user.id
+  const userId = session.user!.id
 
   const users = await prisma.user.findMany({
     where: { id: { not: userId } },
