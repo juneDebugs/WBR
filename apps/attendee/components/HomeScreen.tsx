@@ -326,10 +326,12 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
   missingFields: string[]
 }) {
   const [animatedPct, setAnimatedPct] = useState(0)
+  const [imgError, setImgError] = useState(false)
   useEffect(() => {
     const t = setTimeout(() => setAnimatedPct(pct), 100)
     return () => clearTimeout(t)
   }, [pct])
+  useEffect(() => { setImgError(false) }, [image])
 
   const barColor = pct === 100 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#f43f5e'
 
@@ -368,9 +370,11 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            {image ? (
-              <Image src={image} alt="" width={52} height={52} className="object-cover"
-                style={{ width: 52, height: 52, borderRadius: '50%', objectPosition: 'center 20%' }} />
+            {image && !imgError ? (
+              <Image src={image} alt="" width={52} height={52}
+                className="object-cover"
+                style={{ width: 52, height: 52, borderRadius: '50%', objectPosition: 'center 20%' }}
+                onError={() => setImgError(true)} />
             ) : (
               <div className="flex items-center justify-center bg-slate-700"
                 style={{ width: 52, height: 52, borderRadius: '50%' }}>
@@ -451,7 +455,7 @@ function WhatsNextTile({ items }: { items: ScheduleItem[] }) {
 
                 {/* Type icon or avatar */}
                 {item.type === 'meeting' && item.otherImage ? (
-                  <Image src={item.otherImage} alt="" width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-white/20" />
+                  <img src={item.otherImage} alt="" loading="lazy" className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-white/20" />
                 ) : item.type === 'meeting' ? (
                   <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: cfg.bg }}>
