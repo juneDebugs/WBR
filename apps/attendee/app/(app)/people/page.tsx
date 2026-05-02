@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { prisma } from '@conference/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -21,11 +21,15 @@ export default async function PeoplePage() {
 
   const userId = session.user.id
 
-  const [allUsers, following, dmRooms] = await Promise.all([
+  const [allUsers, totalCount, following, dmRooms] = await Promise.all([
     prisma.user.findMany({
       where: { id: { not: userId }, role: { in: ['ATTENDEE', 'SPEAKER'] } },
       orderBy: { name: 'asc' },
       select: userSelect,
+      take: 200,
+    }),
+    prisma.user.count({
+      where: { id: { not: userId }, role: { in: ['ATTENDEE', 'SPEAKER'] } },
     }),
     prisma.follow.findMany({
       where: { followerId: userId },
@@ -79,6 +83,7 @@ export default async function PeoplePage() {
     <PeopleClient
       currentUserId={userId}
       allUsers={allUsers.map(mapUser)}
+      totalCount={totalCount}
       friends={following.map(f => mapUser(f.following))}
       friendIds={friendIds}
       conversations={conversations}

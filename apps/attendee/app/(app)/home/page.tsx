@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -11,21 +11,29 @@ export default async function HomePage() {
   if (!session?.user) redirect('/login')
 
   const userId = (session.user as any).id as string
+  const sponsorId = (session.user as any).sponsorId as string | null
 
   const now = new Date()
 
-  const userPromise = prisma.user.findUnique({
-    where: { id: userId },
-    select: { name: true, email: true, image: true, bio: true, company: true, jobTitle: true, website: true, sponsorId: true },
-  })
-
-  const [conference, user, meetingCount, sessionCount, upcomingMeetings, upcomingSessionBookmarks, speakers, sponsors] = await Promise.all([
+  const [conference, user, meetingCount, sessionCount, sponsorMeetingCount, upcomingMeetings, upcomingSessionBookmarks, speakers, sponsors] = await Promise.all([
     prisma.conference.findFirst({ where: { active: true }, select: { name: true, venue: true, venueLat: true, venueLon: true, venueTimezone: true, startDate: true, endDate: true, heroImageUrl: true, wifiName: true, wifiPassword: true } }),
-    userPromise,
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true, image: true, bio: true, company: true, jobTitle: true, website: true, sponsorId: true },
+    }),
     prisma.meeting.count({
       where: { OR: [{ attendeeAId: userId }, { attendeeBId: userId }], status: { not: 'CANCELLED' } },
     }),
     prisma.sessionBookmark.count({ where: { userId } }),
+    prisma.sponsorMeeting.count({
+      where: {
+        status: 'CONFIRMED',
+        OR: [
+          { userId },
+          ...(sponsorId ? [{ sponsorId }] : []),
+        ],
+      },
+    }),
     prisma.meeting.findMany({
       where: {
         OR: [{ attendeeAId: userId }, { attendeeBId: userId }],
@@ -57,17 +65,6 @@ export default async function HomePage() {
     }),
   ])
 
-  // Resolve user first so we can query sponsorMeetingCount with sponsorId
-  const resolvedUser = user
-  const sponsorMeetingCount = await prisma.sponsorMeeting.count({
-    where: {
-      status: 'CONFIRMED',
-      OR: [
-        { userId },
-        ...(resolvedUser?.sponsorId ? [{ sponsorId: resolvedUser.sponsorId }] : []),
-      ],
-    },
-  })
   const totalMeetingCount = meetingCount + sponsorMeetingCount
 
   // Profile completion: count filled optional fields

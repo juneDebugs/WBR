@@ -5,9 +5,21 @@ import { authOptions } from '@/lib/auth'
 import { ScheduleView } from '@/components/schedule/ScheduleView'
 
 export default async function SchedulePage() {
-  const [conference, session] = await Promise.all([
+  const session = await getServerSession(authOptions)
+
+  const [conference, allSessions, bookmarks, conflicts] = await Promise.all([
     prisma.conference.findFirst({ where: { active: true } }),
-    getServerSession(authOptions),
+    prisma.confSession.findMany({
+      include: { speaker: { select: { id: true, name: true, company: true, photoUrl: true } } },
+      orderBy: { startsAt: 'asc' },
+    }),
+    session?.user?.id
+      ? prisma.sessionBookmark.findMany({
+          where: { userId: session.user.id },
+          select: { sessionId: true },
+        })
+      : Promise.resolve([]),
+    getActiveConflicts(prisma),
   ])
 
   if (!conference) {
@@ -18,20 +30,7 @@ export default async function SchedulePage() {
     )
   }
 
-  const [sessions, bookmarks, conflicts] = await Promise.all([
-    prisma.confSession.findMany({
-      where: { conferenceId: conference.id },
-      include: { speaker: { select: { id: true, name: true, company: true, photoUrl: true } } },
-      orderBy: { startsAt: 'asc' },
-    }),
-    session?.user?.id
-      ? prisma.sessionBookmark.findMany({
-          where: { userId: session.user.id },
-          select: { sessionId: true },
-        })
-      : [],
-    getActiveConflicts(prisma),
-  ])
+  const sessions = allSessions.filter(s => s.conferenceId === conference.id)
 
   const days = groupSessionsByDay(sessions)
   const savedIds = new Set(bookmarks.map((b: { sessionId: string }) => b.sessionId))

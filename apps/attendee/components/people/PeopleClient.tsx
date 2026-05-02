@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useTransition, useEffect, useRef, useMemo, memo } from 'react'
+import React, { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Person {
@@ -16,6 +16,7 @@ interface Person {
 interface Props {
   currentUserId: string
   allUsers: Person[]
+  totalCount: number
   friends: Person[]
   friendIds: string[]
   conversations: Conversation[]
@@ -80,6 +81,61 @@ const GROUP_ICONS: Record<Group, React.ReactNode> = {
   ),
 }
 
+const PAGE_SIZE = 20
+
+// ── Memoized PersonRow ──────────────────────────────────────────────────────
+
+const PersonRow = memo(function PersonRow({ user, isFriend, pending, onSelect, onToggleFriend }: {
+  user: Person
+  isFriend: boolean
+  pending: boolean
+  onSelect: (user: Person) => void
+  onToggleFriend: (userId: string, e?: React.MouseEvent) => void
+}) {
+  return (
+    <div
+      onClick={() => onSelect(user)}
+      className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-3 cursor-pointer active:bg-gray-50 transition-colors"
+    >
+      <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+        {user.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={user.image} alt="" loading="lazy" decoding="async" className="w-11 h-11 rounded-full object-cover" />
+        ) : (
+          <span className="text-primary font-bold">{(user.name ?? '?')[0]}</span>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-gray-900 text-sm truncate">{user.name ?? 'Unknown'}</p>
+        {user.jobTitle && <p className="text-xs text-gray-400 truncate">{user.jobTitle}</p>}
+        {user.company && (
+          user.website ? (
+            <a href={user.website} target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="text-xs font-medium text-primary truncate flex items-center gap-0.5 hover:underline w-fit">
+              {user.company}
+              <svg className="w-2.5 h-2.5 opacity-60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          ) : (
+            <p className="text-xs font-medium text-primary truncate">{user.company}</p>
+          )
+        )}
+      </div>
+      <button
+        onClick={e => onToggleFriend(user.id, e)}
+        disabled={pending}
+        className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          isFriend ? 'bg-gray-100 text-gray-600' : 'bg-primary text-white'
+        }`}>
+        {isFriend ? 'Added' : 'Add'}
+      </button>
+    </div>
+  )
+})
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -90,10 +146,16 @@ interface ChatMessage {
   sender: { name: string | null; image: string | null }
 }
 
-export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conversations }: Props) {
+export function PeopleClient({ currentUserId, allUsers, totalCount, friends, friendIds, conversations }: Props) {
   const [tab, setTab] = useState<typeof TABS[number]>('Discover')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Person | null>(null)
+  const [searchResults, setSearchResults] = useState<Person[] | null>(null)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [loadedUsers, setLoadedUsers] = useState<Person[]>(allUsers)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(allUsers.length < totalCount ? allUsers[allUsers.length - 1]?.id ?? null : null)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [chatRoomId, setChatRoomId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
@@ -113,8 +175,44 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
     Object.fromEntries(friendIds.map(id => [id, true]))
   )
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const [groupLimits, setGroupLimits] = useState<Record<string, number>>({})
   const [pending, startTransition] = useTransition()
   const router = useRouter()
+
+  // Debounced search via API when user types
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (!search.trim()) {
+      setSearchResults(null)
+      return
+    }
+    setSearchLoading(true)
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/people?search=${encodeURIComponent(search.trim())}&limit=100`)
+        const data = await res.json()
+        setSearchResults(data.users ?? [])
+      } catch {
+        setSearchResults(null)
+      } finally {
+        setSearchLoading(false)
+      }
+    }, 300)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [search])
+
+  async function loadMoreUsers() {
+    if (!nextCursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(`/api/people?cursor=${nextCursor}&limit=200`)
+      const data = await res.json()
+      setLoadedUsers(prev => [...prev, ...(data.users ?? [])])
+      setNextCursor(data.nextCursor)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
     if (!selected) { setChatRoomId(null); setMessages([]); setChatInput(''); return }
@@ -199,26 +297,33 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
     setSending(false)
   }
 
-  const peopleLists: Record<Exclude<typeof TABS[number], 'Messages'>, Person[]> = {
-    Discover: allUsers,
-    Friends: friends,
-  }
-
-  const filteredPeople = tab !== 'Messages'
-    ? peopleLists[tab as Exclude<typeof TABS[number], 'Messages'>].filter(u =>
-        !search ||
-        (u.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
-        (u.company ?? '').toLowerCase().includes(search.toLowerCase())
+  const searchLower = search.toLowerCase()
+  const filteredPeople = useMemo(() => {
+    if (tab === 'Messages') return []
+    if (tab === 'Discover') {
+      if (search && searchResults !== null) return searchResults
+      if (!search) return loadedUsers
+      // Fallback: filter loaded users while API search is in flight
+      return loadedUsers.filter(u =>
+        (u.name ?? '').toLowerCase().includes(searchLower) ||
+        (u.company ?? '').toLowerCase().includes(searchLower)
       )
-    : []
+    }
+    // Friends tab
+    if (!search) return friends
+    return friends.filter(u =>
+      (u.name ?? '').toLowerCase().includes(searchLower) ||
+      (u.company ?? '').toLowerCase().includes(searchLower)
+    )
+  }, [tab, loadedUsers, friends, search, searchLower, searchResults])
 
-  const filteredConvos = tab === 'Messages'
-    ? conversations.filter(c =>
-        !search || c.name.toLowerCase().includes(search.toLowerCase())
-      )
-    : []
+  const filteredConvos = useMemo(() => {
+    if (tab !== 'Messages') return []
+    if (!search) return conversations
+    return conversations.filter(c => c.name.toLowerCase().includes(searchLower))
+  }, [tab, conversations, search, searchLower])
 
-  function toggleFriend(userId: string, e?: React.MouseEvent) {
+  const toggleFriend = useCallback((userId: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
     startTransition(async () => {
       const res = await fetch(`/api/follow/${userId}`, { method: 'POST' })
@@ -227,10 +332,18 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
       setFriendState(prev => ({ ...prev, [userId]: data.following }))
       router.refresh()
     })
-  }
+  }, [router])
+
+  const handleSelect = useCallback((user: Person) => setSelected(user), [])
 
   function toggleGroup(key: string) {
     setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }))
+    // Reset page limit when opening a group
+    setGroupLimits(prev => ({ ...prev, [key]: PAGE_SIZE }))
+  }
+
+  function showMore(group: string) {
+    setGroupLimits(prev => ({ ...prev, [group]: (prev[group] ?? PAGE_SIZE) + PAGE_SIZE }))
   }
 
   // Group by broad category (only used in Discover tab) - memoized
@@ -245,55 +358,11 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
     return result
   }, [tab, filteredPeople])
 
-  function PersonRow({ user }: { user: Person }) {
-    const isFriend = friendState[user.id] ?? false
-    return (
-      <div
-        key={user.id}
-        onClick={() => setSelected(user)}
-        className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-3 cursor-pointer active:bg-gray-50 transition-colors"
-      >
-        <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-          {user.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.image} alt="" loading="lazy" decoding="async" className="w-11 h-11 rounded-full object-cover" />
-          ) : (
-            <span className="text-primary font-bold">{(user.name ?? '?')[0]}</span>
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-900 text-sm truncate">{user.name ?? 'Unknown'}</p>
-          {user.jobTitle && <p className="text-xs text-gray-400 truncate">{user.jobTitle}</p>}
-          {user.company && (
-            user.website ? (
-              <a href={user.website} target="_blank" rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                className="text-xs font-medium text-primary truncate flex items-center gap-0.5 hover:underline w-fit">
-                {user.company}
-                <svg className="w-2.5 h-2.5 opacity-60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            ) : (
-              <p className="text-xs font-medium text-primary truncate">{user.company}</p>
-            )
-          )}
-        </div>
-        <button
-          onClick={e => toggleFriend(user.id, e)}
-          disabled={pending}
-          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-            isFriend ? 'bg-gray-100 text-gray-600' : 'bg-primary text-white'
-          }`}>
-          {isFriend ? 'Added' : 'Add'}
-        </button>
-      </div>
-    )
-  }
-
   function GroupSection({ group, people }: { group: Group; people: Person[] }) {
     const open = openGroups[group] ?? false
+    const limit = groupLimits[group] ?? PAGE_SIZE
+    const visible = people.slice(0, limit)
+    const hasMore = people.length > limit
     return (
       <div className="mb-4">
         <button
@@ -316,7 +385,24 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
         </button>
         {open && (
           <div className="space-y-2">
-            {people.map(u => <PersonRow key={u.id} user={u} />)}
+            {visible.map(u => (
+              <PersonRow
+                key={u.id}
+                user={u}
+                isFriend={friendState[u.id] ?? false}
+                pending={pending}
+                onSelect={handleSelect}
+                onToggleFriend={toggleFriend}
+              />
+            ))}
+            {hasMore && (
+              <button
+                onClick={() => showMore(group)}
+                className="w-full py-2.5 text-sm font-semibold text-primary bg-primary/5 rounded-xl active:bg-primary/10 transition-colors"
+              >
+                Show more ({people.length - limit} remaining)
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -413,7 +499,16 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
       {/* Friends tab */}
       {tab === 'Friends' && (
         <div className="space-y-2">
-          {filteredPeople.map(u => <PersonRow key={u.id} user={u} />)}
+          {filteredPeople.map(u => (
+            <PersonRow
+              key={u.id}
+              user={u}
+              isFriend={friendState[u.id] ?? false}
+              pending={pending}
+              onSelect={handleSelect}
+              onToggleFriend={toggleFriend}
+            />
+          ))}
           {filteredPeople.length === 0 && (
             <p className="text-center text-gray-400 py-12">
               {search ? 'No results found.' : "No friends added yet. Discover people and hit Add."}
@@ -442,12 +537,28 @@ export function PeopleClient({ currentUserId, allUsers, friends, friendIds, conv
             </div>
           </div>
 
-          {filteredPeople.length === 0 ? (
+          {searchLoading && tab === 'Discover' && search && (
+            <div className="flex justify-center py-8">
+              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {filteredPeople.length === 0 && !searchLoading ? (
             <p className="text-center text-gray-400 py-12">{search ? 'No results found.' : 'No other attendees yet.'}</p>
           ) : (
-            GROUP_ORDER.filter(g => grouped[g]?.length).map(g => (
-              <GroupSection key={g} group={g} people={grouped[g]!} />
-            ))
+            <>
+              {GROUP_ORDER.filter(g => grouped[g]?.length).map(g => (
+                <GroupSection key={g} group={g} people={grouped[g]!} />
+              ))}
+              {!search && nextCursor && (
+                <button
+                  onClick={loadMoreUsers}
+                  disabled={loadingMore}
+                  className="w-full py-3 mt-2 text-sm font-semibold text-primary bg-primary/5 rounded-xl active:bg-primary/10 transition-colors disabled:opacity-50"
+                >
+                  {loadingMore ? 'Loading...' : `Load more people (${totalCount - loadedUsers.length} remaining)`}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

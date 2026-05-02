@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { prisma } from '@conference/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'

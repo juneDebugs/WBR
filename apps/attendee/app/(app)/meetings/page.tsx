@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { prisma } from '@conference/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -30,11 +30,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
 
   // ── Sponsor view ──────────────────────────────────────────────────────────
   if (role === 'SPONSOR') {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { sponsorId: true, name: true },
-    })
-    const sponsorId = user?.sponsorId
+    const sponsorId = (authSession.user as any).sponsorId as string | null
 
     if (!sponsorId) {
       return (

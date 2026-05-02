@@ -3,18 +3,21 @@ import { prisma } from '@conference/db'
 import { SpeakersClient } from '@/components/speakers/SpeakersClient'
 
 export default async function SpeakersPage() {
-  const conference = await prisma.conference.findFirst({ where: { active: true }, select: { id: true } })
+  const [conference, allSpeakers] = await Promise.all([
+    prisma.conference.findFirst({ where: { active: true }, select: { id: true } }),
+    prisma.speaker.findMany({
+      select: {
+        id: true, name: true, jobTitle: true, company: true, photoUrl: true,
+        bio: true, role: true, lookingFor: true, twitterHandle: true, linkedinUrl: true,
+        conferenceId: true,
+        confSessions: { select: { track: true }, orderBy: { startsAt: 'asc' }, take: 1 },
+      },
+      orderBy: { name: 'asc' },
+    }),
+  ])
 
   const speakers = conference
-    ? await prisma.speaker.findMany({
-        where: { conferenceId: conference.id },
-        select: {
-          id: true, name: true, jobTitle: true, company: true, photoUrl: true,
-          bio: true, role: true, lookingFor: true, twitterHandle: true, linkedinUrl: true,
-          confSessions: { select: { track: true }, orderBy: { startsAt: 'asc' }, take: 1 },
-        },
-        orderBy: { name: 'asc' },
-      })
+    ? allSpeakers.filter(s => s.conferenceId === conference.id)
     : []
 
   const data = speakers.map(s => ({
