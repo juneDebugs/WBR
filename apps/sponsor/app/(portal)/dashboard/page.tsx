@@ -52,8 +52,8 @@ function scoreAttendees(attendees: any[], sponsorSignals: string[]) {
   }[] = []
 
   for (const a of attendees) {
-    const attendeeTags = [...parseArr(a.solutionsSeeking), ...parseArr(a.solutionsOffering)]
-    if (attendeeTags.length === 0) continue
+    const attendeeTags = [...new Set([...parseArr(a.solutionsSeeking), ...parseArr(a.solutionsOffering)])]
+    if (attendeeTags.length < 2) continue
     const matched = sponsorSignals.filter(s => attendeeTags.some(t => t === s))
     if (matched.length === 0) continue
     const score = Math.round((matched.length / Math.max(sponsorSignals.length, attendeeTags.length)) * 100)
@@ -73,9 +73,20 @@ function scoreAttendees(attendees: any[], sponsorSignals: string[]) {
 async function RecommendedAttendeesAsync({ sponsorId, sponsorSignals }: { sponsorId: string; sponsorSignals: string[] }) {
   if (sponsorSignals.length === 0) return null
   const attendees = await prisma.user.findMany({
-    where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, sponsorId: null },
+    where: {
+      role: { in: ['ATTENDEE', 'SPEAKER'] },
+      sponsorId: null,
+      NOT: [
+        { solutionsSeeking: null },
+        { solutionsSeeking: '' },
+        { solutionsSeeking: '[]' },
+        { solutionsOffering: null },
+        { solutionsOffering: '' },
+        { solutionsOffering: '[]' },
+      ],
+    },
     select: { id: true, name: true, image: true, company: true, jobTitle: true, solutionsSeeking: true, solutionsOffering: true },
-    take: 100,
+    take: 200,
   })
   const recommended = scoreAttendees(attendees, sponsorSignals)
   if (recommended.length === 0) return null

@@ -3,7 +3,28 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { getCompanyDescription } from '@/lib/solutions'
+import { getCompanyDescription, SOLUTION_COLORS } from '@/lib/solutions'
+
+const FALLBACK_COLORS = [
+  { bg: '#fff1f2', text: '#e11d48' }, // rose
+  { bg: '#fff7ed', text: '#ea580c' }, // orange
+  { bg: '#fefce8', text: '#ca8a04' }, // yellow
+  { bg: '#f0fdfa', text: '#0d9488' }, // teal
+  { bg: '#ecfdf5', text: '#059669' }, // emerald
+  { bg: '#f0f9ff', text: '#0284c7' }, // sky
+  { bg: '#eef2ff', text: '#4f46e5' }, // indigo
+  { bg: '#f5f3ff', text: '#7c3aed' }, // violet
+  { bg: '#fdf4ff', text: '#c026d3' }, // fuchsia
+  { bg: '#ecfeff', text: '#0e7490' }, // cyan
+]
+
+function tagColor(tag: string): { bg: string; text: string } {
+  const c = SOLUTION_COLORS[tag]
+  if (c) return { bg: c.bgFrom, text: c.text }
+  let hash = 0
+  for (let i = 0; i < tag.length; i++) hash = ((hash << 5) - hash + tag.charCodeAt(i)) | 0
+  return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length]
+}
 
 interface Attendee {
   id: string
@@ -106,16 +127,19 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
                 <p className="text-[10px] leading-snug text-gray-400 mt-1.5 line-clamp-2 min-h-[28px]">{getCompanyDescription(a.company)}</p>
 
                 {/* Tags — at least 2, up to 4 */}
-                <div className="flex flex-wrap gap-1 mt-2.5">
-                  {visibleTags.map(tag => (
-                    <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full truncate max-w-[10rem] ${
-                      matchedSet.has(tag)
-                        ? 'font-semibold text-primary bg-primary/10'
-                        : 'font-medium text-gray-600 bg-gray-100'
-                    }`}>
-                      {tag}
-                    </span>
-                  ))}
+                <div className="flex flex-wrap gap-1 mt-2.5 mb-2">
+                  {visibleTags.map(tag => {
+                    const tc = tagColor(tag)
+                    return (
+                      <span
+                        key={tag}
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full truncate max-w-[10rem]"
+                        style={{ background: tc.bg, color: tc.text }}
+                      >
+                        {tag}
+                      </span>
+                    )
+                  })}
                   {extraCount > 0 && (
                     <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                       +{extraCount}
