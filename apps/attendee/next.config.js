@@ -40,6 +40,7 @@ module.exports = {
       { protocol: 'https', hostname: 'github.com' },
       { protocol: 'https', hostname: 'api.dicebear.com' },
       { protocol: 'https', hostname: 'agcdn-1d97e.kxcdn.com' },
+      { protocol: 'https', hostname: 'encrypted-tbn0.gstatic.com' },
     ],
   },
 }
