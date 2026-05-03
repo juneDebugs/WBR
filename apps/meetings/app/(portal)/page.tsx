@@ -181,6 +181,8 @@ export default async function DashboardPage() {
   const isSponsor = !!user.sponsorId
 
   // ── ALL queries in a single parallel batch ──
+  const now = new Date()
+
   const [
     totalRequests,
     pendingRequests,
@@ -270,13 +272,14 @@ export default async function DashboardPage() {
           where: {
             status: 'CONFIRMED',
             timeBlockId: { not: null },
+            timeBlock: { startsAt: { gte: now } },
             OR: [{ requesterId: user.id }, { targetUserId: user.id }],
           },
           orderBy: { timeBlock: { startsAt: 'asc' } },
-          take: 3,
+          take: 5,
           include: {
-            requester: { select: { name: true, image: true } },
-            targetUser: { select: { name: true, image: true } },
+            requester: { select: { name: true, image: true, jobTitle: true, company: true } },
+            targetUser: { select: { name: true, image: true, jobTitle: true, company: true } },
             targetSponsor: { select: { name: true } },
             timeBlock: true,
           },
@@ -570,32 +573,31 @@ export default async function DashboardPage() {
             <div className="card p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Upcoming Meetings</h2>
-                <Link href="/meetings" className="text-xs text-primary hover:underline">View all →</Link>
+                <Link href="/meetings" className="text-sm text-primary hover:underline">View all →</Link>
               </div>
               <div className="space-y-3">
                 {myMeetings.map(r => {
+                  if (!r.timeBlock) return null
                   const other = r.requesterId === user.id ? r.targetUser : r.requester
                   const name = r.targetSponsor?.name ?? other?.name ?? '—'
                   const img = other?.image ?? null
+                  const starts = new Date(r.timeBlock.startsAt)
                   return (
-                    <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                    <div key={r.id} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-3">
                       {img ? (
-                        <img src={img} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                        <img src={img} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-emerald-700">{name[0]}</span>
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-semibold text-emerald-700">{name[0]}</span>
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
-                        {r.timeBlock && (
-                          <p className="text-xs text-gray-500">
-                            {format(new Date(r.timeBlock.startsAt), 'EEE MMM d · h:mm a')}
-                            {r.timeBlock.location ? ` · ${r.timeBlock.location}` : ''}
-                          </p>
-                        )}
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {starts.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {starts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}{r.timeBlock.location ? ` · ${r.timeBlock.location}` : ''}
+                        </p>
                       </div>
-                      <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">Confirmed</span>
+                      <span className="text-sm font-medium text-emerald-600 flex-shrink-0">Confirmed</span>
                     </div>
                   )
                 })}
