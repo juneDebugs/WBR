@@ -50,7 +50,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       ...(body.solutionsSeeking !== undefined && { solutionsSeeking: body.solutionsSeeking }),
       ...(hashedPassword && { password: hashedPassword }),
     },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, image: true, role: true, company: true, jobTitle: true },
   })
 
   return NextResponse.json(updated)
