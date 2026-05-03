@@ -321,10 +321,10 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                     </div>
 
                     {/* Reposition area with circular mask */}
-                    <div className="relative flex items-center justify-center py-6 px-6">
+                    <div className="relative flex items-center justify-center py-12 px-12 overflow-hidden">
                       <div
                         ref={reposContainerRef}
-                        className="relative w-44 h-44 cursor-grab active:cursor-grabbing select-none"
+                        className="relative w-48 h-48 cursor-grab active:cursor-grabbing select-none"
                         onMouseDown={handleReposMouseDown}
                         onMouseMove={handleReposMouseMove}
                         onMouseUp={handleReposMouseUp}
@@ -343,7 +343,7 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                         />
                         {/* Semi-transparent ring overlay */}
                         <div className="absolute inset-0 rounded-full pointer-events-none"
-                          style={{ boxShadow: '0 0 0 40px rgba(27,31,35,0.65)' }} />
+                          style={{ boxShadow: '0 0 0 80px rgba(27,31,35,0.65)' }} />
                         {/* Dashed circle border */}
                         <div className="absolute inset-0 rounded-full border-2 border-dashed border-white/40 pointer-events-none" />
                       </div>
