@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import Image from 'next/image'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 
 type Speaker = {
@@ -39,6 +38,7 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [repositioning, setRepositioning] = useState(false)
+  const [visible, setVisible] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const reposContainerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
@@ -57,13 +57,27 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
     })
     setError('')
     setRepositioning(false)
+    // Trigger animation
+    requestAnimationFrame(() => setVisible(true))
   }
 
   function closeEdit() {
-    setEditingSpeaker(null)
-    setError('')
-    setRepositioning(false)
+    setVisible(false)
+    setTimeout(() => {
+      setEditingSpeaker(null)
+      setError('')
+      setRepositioning(false)
+    }, 250)
   }
+
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && editingSpeaker) closeEdit()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editingSpeaker])
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -88,11 +102,9 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
       setUploading(false)
     }
     reader.readAsDataURL(file)
-    // Reset input so the same file can be re-selected
     e.target.value = ''
   }
 
-  // Drag-to-reposition handlers
   const handleReposMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     isDragging.current = true
@@ -110,7 +122,6 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
     isDragging.current = false
   }, [])
 
-  // Touch support for repositioning
   const handleReposTouchMove = useCallback((e: React.TouchEvent) => {
     if (!reposContainerRef.current) return
     const touch = e.touches[0]
@@ -125,27 +136,18 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
     if (!editingSpeaker) return
     setSaving(true)
     setError('')
-
     try {
       const res = await fetch(`/api/speakers/${editingSpeaker.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error || 'Failed to save')
       }
-
       const updated = await res.json()
-      setSpeakers(prev =>
-        prev.map(s =>
-          s.id === editingSpeaker.id
-            ? { ...s, ...updated }
-            : s
-        )
-      )
+      setSpeakers(prev => prev.map(s => s.id === editingSpeaker.id ? { ...s, ...updated } : s))
       closeEdit()
     } catch (err: any) {
       setError(err.message)
@@ -159,17 +161,12 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
     if (!confirm('Delete this speaker? This cannot be undone.')) return
     setDeleting(true)
     setError('')
-
     try {
-      const res = await fetch(`/api/speakers/${editingSpeaker.id}`, {
-        method: 'DELETE',
-      })
-
+      const res = await fetch(`/api/speakers/${editingSpeaker.id}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error || 'Failed to delete')
       }
-
       setSpeakers(prev => prev.filter(s => s.id !== editingSpeaker.id))
       closeEdit()
     } catch (err: any) {
@@ -179,15 +176,14 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
     }
   }
 
-  const inputClass = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/40'
+  // iOS-style grouped input
+  const iosInput = 'w-full bg-transparent text-[15px] text-gray-900 placeholder:text-gray-400 outline-none'
 
   return (
     <>
       <div className="flex items-center justify-between mb-6">
         <p className="text-sm text-gray-500">{speakers.length} speakers total</p>
-        <Link href="/dashboard/speakers/new" className="btn-primary text-sm">
-          + New Speaker
-        </Link>
+        <Link href="/dashboard/speakers/new" className="btn-primary text-sm">+ New Speaker</Link>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -206,14 +202,14 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     {speaker.photoUrl ? (
-                      <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
                         <img src={speaker.photoUrl} alt={speaker.name} width={40} height={40}
                           className="w-full h-full object-cover"
                           style={{ objectPosition: speaker.photoPosition ?? '50% 50%' }} />
                       </div>
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-primary font-semibold text-sm">{speaker.name[0]}</span>
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">
+                        <span className="text-gray-500 font-semibold text-sm">{speaker.name[0]}</span>
                       </div>
                     )}
                     <div>
@@ -225,260 +221,232 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                 <td className="px-4 py-3 text-gray-600">{speaker.company ?? '—'}</td>
                 <td className="px-4 py-3 text-gray-600">{speaker._count.confSessions}</td>
                 <td className="px-4 py-3 text-right">
-                  <span className="text-primary hover:underline text-xs font-medium">Edit</span>
+                  <span className="text-primary text-xs font-medium">Edit</span>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {speakers.length === 0 && (
-          <p className="text-center text-gray-400 py-12">No speakers yet.</p>
-        )}
+        {speakers.length === 0 && <p className="text-center text-gray-400 py-12">No speakers yet.</p>}
       </div>
 
-      {/* Hidden file input */}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileUpload}
-      />
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
 
-      {/* Edit Speaker Modal */}
+      {/* iOS-style Edit Speaker Modal */}
       {editingSpeaker && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeEdit}>
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-              <div>
-                <h2 className="font-bold text-gray-900 text-lg">Edit Speaker</h2>
-                <p className="text-sm text-gray-500">{editingSpeaker.name}</p>
-              </div>
-              <button onClick={closeEdit} className="text-gray-400 hover:text-gray-600 p-1">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-250"
+          style={{
+            backgroundColor: visible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
+            backdropFilter: visible ? 'blur(8px)' : 'blur(0px)',
+            WebkitBackdropFilter: visible ? 'blur(8px)' : 'blur(0px)',
+          }}
+          onClick={closeEdit}
+        >
+          <div
+            className="w-full max-w-md max-h-[88vh] flex flex-col transition-all duration-250"
+            style={{
+              opacity: visible ? 1 : 0,
+              transform: visible ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(20px)',
+              borderRadius: '20px',
+              background: '#f2f2f7',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.25), 0 0 0 0.5px rgba(0,0,0,0.08)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* iOS-style navigation bar */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-2 flex-shrink-0">
+              <button onClick={closeEdit} className="text-[#007AFF] text-[15px] font-normal hover:opacity-70 transition-opacity">
+                Cancel
+              </button>
+              <h2 className="text-[17px] font-semibold text-gray-900">Edit Speaker</h2>
+              <button
+                onClick={handleSave as any}
+                disabled={saving || deleting || !form.name.trim()}
+                className="text-[#007AFF] text-[15px] font-semibold hover:opacity-70 transition-opacity disabled:opacity-40"
+              >
+                {saving ? 'Saving...' : 'Done'}
               </button>
             </div>
 
-            {/* Content */}
             <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0">
-              <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
+              <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-5">
                 {error && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200/60 text-red-600 text-xs">
-                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <div className="mx-1 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-[13px] flex items-center gap-2">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     {error}
                   </div>
                 )}
 
-                {/* Profile Image Section */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Profile Image</label>
-
-                  {/* Image preview + reposition */}
-                  <div className="flex items-start gap-4 mb-3">
-                    <div className="flex flex-col items-center gap-2">
-                      {form.photoUrl ? (
-                        repositioning ? (
-                          /* Reposition mode: larger preview with drag */
-                          <div
-                            ref={reposContainerRef}
-                            className="w-32 h-32 rounded-xl overflow-hidden bg-gray-100 border-2 border-primary cursor-crosshair relative select-none"
-                            onMouseDown={handleReposMouseDown}
-                            onMouseMove={handleReposMouseMove}
-                            onMouseUp={handleReposMouseUp}
-                            onMouseLeave={handleReposMouseUp}
-                            onTouchStart={() => { isDragging.current = true }}
-                            onTouchMove={handleReposTouchMove}
-                            onTouchEnd={handleReposMouseUp}
-                          >
-                            <img
-                              src={form.photoUrl}
-                              alt="Reposition"
-                              className="w-full h-full object-cover pointer-events-none"
-                              style={{ objectPosition: form.photoPosition }}
-                              draggable={false}
-                            />
-                            {/* Crosshair overlay */}
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <div className="w-6 h-6 rounded-full border-2 border-white/80 shadow-sm" />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
-                            <img
-                              src={form.photoUrl}
-                              alt="Preview"
-                              className="w-full h-full object-cover"
-                              style={{ objectPosition: form.photoPosition }}
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                            />
-                          </div>
-                        )
-                      ) : (
-                        <div className="w-20 h-20 rounded-xl bg-primary/10 flex items-center justify-center">
-                          <span className="text-primary font-bold text-2xl">{form.name?.[0] ?? '?'}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 space-y-2">
-                      {/* Upload + Reposition buttons */}
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => fileRef.current?.click()}
-                          disabled={uploading}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary text-xs font-medium rounded-lg hover:bg-primary/20 transition-colors"
+                {/* Profile Photo Card */}
+                <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+                  <div className="flex flex-col items-center py-5 px-4">
+                    {/* Avatar */}
+                    {form.photoUrl ? (
+                      repositioning ? (
+                        <div
+                          ref={reposContainerRef}
+                          className="w-28 h-28 rounded-full overflow-hidden bg-gray-100 cursor-crosshair relative select-none ring-4 ring-[#007AFF]/20"
+                          onMouseDown={handleReposMouseDown}
+                          onMouseMove={handleReposMouseMove}
+                          onMouseUp={handleReposMouseUp}
+                          onMouseLeave={handleReposMouseUp}
+                          onTouchStart={() => { isDragging.current = true }}
+                          onTouchMove={handleReposTouchMove}
+                          onTouchEnd={handleReposMouseUp}
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          {uploading ? 'Uploading...' : 'Upload Image'}
-                        </button>
+                          <img src={form.photoUrl} alt="Reposition" className="w-full h-full object-cover pointer-events-none"
+                            style={{ objectPosition: form.photoPosition }} draggable={false} />
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/10">
+                            <svg className="w-8 h-8 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
+                            </svg>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 ring-1 ring-black/5">
+                          <img src={form.photoUrl} alt="Preview" className="w-full h-full object-cover"
+                            style={{ objectPosition: form.photoPosition }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                        </div>
+                      )
+                    ) : (
+                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+                        <span className="text-gray-500 font-bold text-3xl">{form.name?.[0] ?? '?'}</span>
+                      </div>
+                    )}
 
-                        {form.photoUrl && (
+                    {/* Action buttons row */}
+                    <div className="flex items-center gap-3 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploading}
+                        className="text-[#007AFF] text-[13px] font-medium hover:opacity-70 transition-opacity"
+                      >
+                        {uploading ? 'Uploading...' : form.photoUrl ? 'Change Photo' : 'Add Photo'}
+                      </button>
+                      {form.photoUrl && (
+                        <>
+                          <span className="text-gray-300 text-xs">|</span>
                           <button
                             type="button"
                             onClick={() => setRepositioning(!repositioning)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                              repositioning
-                                ? 'bg-primary text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
+                            className={`text-[13px] font-medium transition-opacity hover:opacity-70 ${repositioning ? 'text-[#FF9500]' : 'text-[#007AFF]'}`}
                           >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                            </svg>
-                            {repositioning ? 'Done Repositioning' : 'Reposition'}
+                            {repositioning ? 'Done' : 'Reposition'}
                           </button>
-                        )}
-
-                        {form.photoUrl && (
+                          <span className="text-gray-300 text-xs">|</span>
                           <button
                             type="button"
                             onClick={() => { setForm(f => ({ ...f, photoUrl: '', photoPosition: '50% 50%' })); setRepositioning(false) }}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-100 transition-colors"
+                            className="text-[#FF3B30] text-[13px] font-medium hover:opacity-70 transition-opacity"
                           >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
                             Remove
                           </button>
-                        )}
-                      </div>
-
-                      {repositioning && (
-                        <p className="text-xs text-primary">Click and drag on the image to set the focal point</p>
+                        </>
                       )}
+                    </div>
 
-                      {/* URL input */}
-                      <div>
+                    {repositioning && (
+                      <p className="text-[11px] text-[#FF9500] mt-2">Drag on the photo to adjust the focal point</p>
+                    )}
+
+                    {/* URL input for external images */}
+                    {!form.photoUrl.startsWith('data:') && (
+                      <div className="w-full mt-3 px-1">
                         <input
                           type="text"
-                          value={form.photoUrl.startsWith('data:') ? '' : form.photoUrl}
+                          value={form.photoUrl}
                           onChange={e => setForm(f => ({ ...f, photoUrl: e.target.value, photoPosition: '50% 50%' }))}
-                          placeholder={form.photoUrl.startsWith('data:') ? 'Image uploaded' : 'https://example.com/photo.jpg'}
-                          disabled={form.photoUrl.startsWith('data:')}
-                          className={`${inputClass} ${form.photoUrl.startsWith('data:') ? 'bg-gray-50 text-gray-400' : ''}`}
+                          placeholder="Or paste an image URL..."
+                          className="w-full px-3 py-2 bg-[#f2f2f7] rounded-lg text-[13px] text-gray-900 placeholder:text-gray-400 outline-none"
                         />
-                        <p className="text-xs text-gray-400 mt-1">
-                          {form.photoUrl.startsWith('data:') ? 'Image uploaded from file' : 'Or paste an image URL'}
-                        </p>
                       </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Info Group */}
+                <div>
+                  <p className="text-[13px] font-medium text-gray-500 uppercase tracking-wide px-4 mb-1.5">Info</p>
+                  <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+                    {/* Name */}
+                    <div className="flex items-center px-4 py-2.5">
+                      <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">Name</label>
+                      <input type="text" required value={form.name}
+                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="Required"
+                        className={iosInput} />
+                    </div>
+                    <div className="ml-24 border-b border-gray-100" />
+                    {/* Company */}
+                    <div className="flex items-center px-4 py-2.5">
+                      <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">Company</label>
+                      <input type="text" value={form.company}
+                        onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
+                        placeholder="Optional"
+                        className={iosInput} />
+                    </div>
+                    <div className="ml-24 border-b border-gray-100" />
+                    {/* Job Title */}
+                    <div className="flex items-center px-4 py-2.5">
+                      <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">Title</label>
+                      <input type="text" value={form.jobTitle}
+                        onChange={e => setForm(f => ({ ...f, jobTitle: e.target.value }))}
+                        placeholder="Optional"
+                        className={iosInput} />
                     </div>
                   </div>
                 </div>
 
-                {/* Name */}
+                {/* Bio Group */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    className={inputClass}
-                  />
-                </div>
-
-                {/* Company + Job Title */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Company</label>
-                    <input
-                      type="text"
-                      value={form.company}
-                      onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Job Title</label>
-                    <input
-                      type="text"
-                      value={form.jobTitle}
-                      onChange={e => setForm(f => ({ ...f, jobTitle: e.target.value }))}
-                      className={inputClass}
+                  <p className="text-[13px] font-medium text-gray-500 uppercase tracking-wide px-4 mb-1.5">Bio</p>
+                  <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+                    <textarea
+                      value={form.bio}
+                      onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
+                      rows={4}
+                      placeholder="Write a short bio..."
+                      className="w-full px-4 py-3 bg-transparent text-[15px] text-gray-900 placeholder:text-gray-400 outline-none resize-none"
                     />
                   </div>
                 </div>
 
-                {/* Bio */}
+                {/* Social Group */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Bio</label>
-                  <textarea
-                    value={form.bio}
-                    onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
-                    rows={4}
-                    className={inputClass}
-                  />
-                </div>
-
-                {/* Twitter + LinkedIn */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Twitter / X Handle</label>
-                    <input
-                      type="text"
-                      value={form.twitterHandle}
-                      onChange={e => setForm(f => ({ ...f, twitterHandle: e.target.value }))}
-                      placeholder="@handle"
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">LinkedIn URL</label>
-                    <input
-                      type="url"
-                      value={form.linkedinUrl}
-                      onChange={e => setForm(f => ({ ...f, linkedinUrl: e.target.value }))}
-                      placeholder="https://linkedin.com/in/..."
-                      className={inputClass}
-                    />
+                  <p className="text-[13px] font-medium text-gray-500 uppercase tracking-wide px-4 mb-1.5">Social</p>
+                  <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center px-4 py-2.5">
+                      <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">X / Twitter</label>
+                      <input type="text" value={form.twitterHandle}
+                        onChange={e => setForm(f => ({ ...f, twitterHandle: e.target.value }))}
+                        placeholder="@handle"
+                        className={iosInput} />
+                    </div>
+                    <div className="ml-24 border-b border-gray-100" />
+                    <div className="flex items-center px-4 py-2.5">
+                      <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">LinkedIn</label>
+                      <input type="url" value={form.linkedinUrl}
+                        onChange={e => setForm(f => ({ ...f, linkedinUrl: e.target.value }))}
+                        placeholder="https://linkedin.com/in/..."
+                        className={iosInput} />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Footer */}
-              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={deleting || saving}
-                  className="btn-danger text-sm"
-                >
-                  {deleting ? 'Deleting...' : 'Delete'}
-                </button>
-                <div className="flex gap-3">
-                  <button type="button" onClick={closeEdit} className="btn-secondary text-sm" disabled={saving}>
-                    Cancel
-                  </button>
-                  <button type="submit" disabled={saving || deleting} className="btn-primary text-sm">
-                    {saving ? 'Saving...' : 'Save Changes'}
+                {/* Delete */}
+                <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting || saving}
+                    className="w-full px-4 py-3 text-[#FF3B30] text-[15px] font-normal text-center hover:bg-red-50 transition-colors disabled:opacity-40"
+                  >
+                    {deleting ? 'Deleting...' : 'Delete Speaker'}
                   </button>
                 </div>
               </div>
