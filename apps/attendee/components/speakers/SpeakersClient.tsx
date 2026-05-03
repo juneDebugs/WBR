@@ -6,9 +6,15 @@ import Image from 'next/image'
 // Resize Unsplash URLs to optimal size for context and apply sharpening
 function optimizePhoto(url: string | null, width: number): string | null {
   if (!url) return null
+  // Only optimize Unsplash URLs; leave data URIs and other URLs untouched
+  if (!url.startsWith('https://images.unsplash.com')) return url
   let optimized = url.replace(/w=\d+/, `w=${width}`).replace(/q=\d+/, `q=${width > 600 ? 85 : 70}`)
   if (!optimized.includes('sharp=')) optimized += '&sharp=15'
   return optimized
+}
+
+function isExternalUrl(url: string): boolean {
+  return url.startsWith('http://') || url.startsWith('https://')
 }
 
 const COMPANY_LOGOS: Record<string, string> = {
@@ -42,6 +48,7 @@ interface Speaker {
   jobTitle: string | null
   company: string | null
   photoUrl: string | null
+  photoPosition: string | null
   bio: string | null
   role: string | null
   lookingFor: string | null
@@ -135,13 +142,23 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
           {/* Hero photo / gradient */}
           <div className="relative w-full" style={{ height: 'clamp(200px, 38vw, 320px)' }}>
             {speaker.photoUrl ? (
-              <Image
-                src={optimizePhoto(speaker.photoUrl, 800)!}
-                alt={speaker.name}
-                fill
-                priority
-                className="absolute inset-0 w-full h-full object-cover object-top"
-              />
+              isExternalUrl(speaker.photoUrl) ? (
+                <Image
+                  src={optimizePhoto(speaker.photoUrl, 800)!}
+                  alt={speaker.name}
+                  fill
+                  priority
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ objectPosition: speaker.photoPosition ?? '50% 20%' }}
+                />
+              ) : (
+                <img
+                  src={speaker.photoUrl}
+                  alt={speaker.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ objectPosition: speaker.photoPosition ?? '50% 20%' }}
+                />
+              )
             ) : (
               <div
                 className="absolute inset-0 flex items-center justify-center"
@@ -397,12 +414,22 @@ export function SpeakersClient({ speakers }: { speakers: Speaker[] }) {
                             <div className="relative bg-white rounded-[10px] sm:rounded-[13px] overflow-hidden">
                               <div className="relative w-full" style={{ paddingBottom: '130%' }}>
                                 {speaker.photoUrl ? (
-                                  <Image
-                                    src={optimizePhoto(speaker.photoUrl, 300)!}
-                                    alt={speaker.name}
-                                    fill
-                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                  />
+                                  isExternalUrl(speaker.photoUrl) ? (
+                                    <Image
+                                      src={optimizePhoto(speaker.photoUrl, 300)!}
+                                      alt={speaker.name}
+                                      fill
+                                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                      style={{ objectPosition: speaker.photoPosition ?? '50% 50%' }}
+                                    />
+                                  ) : (
+                                    <img
+                                      src={speaker.photoUrl}
+                                      alt={speaker.name}
+                                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                      style={{ objectPosition: speaker.photoPosition ?? '50% 50%' }}
+                                    />
+                                  )
                                 ) : (
                                   <div
                                     className="absolute inset-0 flex items-center justify-center"

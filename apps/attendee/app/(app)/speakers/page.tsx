@@ -1,4 +1,4 @@
-export const revalidate = 300
+export const revalidate = 60
 import { prisma } from '@conference/db'
 import { SpeakersClient } from '@/components/speakers/SpeakersClient'
 
@@ -7,7 +7,7 @@ export default async function SpeakersPage() {
     prisma.conference.findFirst({ where: { active: true }, select: { id: true } }),
     prisma.speaker.findMany({
       select: {
-        id: true, name: true, jobTitle: true, company: true, photoUrl: true,
+        id: true, name: true, jobTitle: true, company: true, photoUrl: true, photoPosition: true,
         bio: true, role: true, lookingFor: true, twitterHandle: true, linkedinUrl: true,
         conferenceId: true,
         confSessions: { select: { track: true }, orderBy: { startsAt: 'asc' }, take: 1 },
@@ -26,6 +26,7 @@ export default async function SpeakersPage() {
     jobTitle: s.jobTitle,
     company: s.company,
     photoUrl: s.photoUrl,
+    photoPosition: s.photoPosition,
     bio: s.bio,
     role: s.role,
     lookingFor: s.lookingFor,
