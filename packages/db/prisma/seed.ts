@@ -36,6 +36,69 @@ function createPrismaClient(): PrismaClient {
 
 const prisma = createPrismaClient()
 
+// ── Professional headshot photos for attendee profiles ───────────────────────
+// Curated Unsplash portraits — business professional, face in frame, diverse
+const HEADSHOT_PHOTOS = [
+  // Women
+  'photo-1494790108377-be9c29b29330', 'photo-1438761681033-6461ffad8d80',
+  'photo-1534528741775-53994a69daeb', 'photo-1544005313-94ddf0286df2',
+  'photo-1580489944761-15a19d654956', 'photo-1573496359142-b8d87734a5a2',
+  'photo-1573497019940-1c28c88b4f3e', 'photo-1573497491207-618cc224f243',
+  'photo-1508214751196-bcfd4ca60f91', 'photo-1567532939604-b6b5b0db2604',
+  'photo-1614644147798-f8c0fc9da7f6', 'photo-1611432579699-484f7990b127',
+  'photo-1619369056679-87b6fbfac1be', 'photo-1608875848903-06eec0bd71e2',
+  'photo-1581065178047-8ee15951ede6', 'photo-1632612721400-0a337458b7ed',
+  'photo-1666983998531-622f19bca9a8', 'photo-1617554980793-009061cdbb4f',
+  'photo-1607746882042-944635dfe10e', 'photo-1531746020798-e6953c6e8e04',
+  'photo-1488426862026-3ee34a7d66df', 'photo-1529626455594-4ff0802cfb7e',
+  'photo-1594744803329-e58b31239f44', 'photo-1598550874175-4d0ef436c909',
+  'photo-1487412720507-e7ab37603c6f', 'photo-1558898479-33c0057a5d12',
+  'photo-1609371497456-3a55a205d5eb', 'photo-1762522921456-cdfe882d36c3',
+  'photo-1745434159123-5b99b94206ca', 'photo-1758518729459-235dcaadc611',
+  'photo-1765005204268-631d9e0c6fe1', 'photo-1770058443069-e384cd001e9b',
+  'photo-1758598306845-8630d064a244', 'photo-1758600587839-56ba05596c69',
+  'photo-1758691737605-69a0e78bd193', 'photo-1758600432948-5cec2a3fecb9',
+  'photo-1697083882499-f7fca7d2d713', 'photo-1668049221651-28a3fb151f19',
+  'photo-1760543998147-117ae5649c5c', 'photo-1753120879121-678c3d42542e',
+  'photo-1699899657680-421c2c2d5064', 'photo-1765005204058-10418f5123c5',
+  'photo-1765005204227-bf58bcdd4449', 'photo-1745434159123-af6142c7862f',
+  'photo-1758600588428-2cca8c96bfba', 'photo-1764971591006-b6eb67a8f0cb',
+  'photo-1762522926157-bcc04bf0b10a', 'photo-1595152772835-219674b2a8e6',
+  'photo-1552058544-f2b08422138a', 'photo-1589571894960-20bbe2828d0a',
+  // Men
+  'photo-1507003211169-0a1dd7228f2d', 'photo-1500648767791-00dcc994a43e',
+  'photo-1472099645785-5658abf4ff4e', 'photo-1506794778202-cad84cf45f1d',
+  'photo-1556157382-97eda2d62296', 'photo-1560250097-0b93528c311a',
+  'photo-1519085360753-af0119f7cbe7', 'photo-1618077360395-f3068be8e001',
+  'photo-1600878459108-617a253537e9', 'photo-1633625510483-c177f4308f33',
+  'photo-1566492031773-4f4e44671857', 'photo-1539571696357-5a69c17a67c6',
+  'photo-1633332755192-727a05c4013d', 'photo-1564564321837-a57b7070ac4f',
+  'photo-1568602471122-7832951cc4c5', 'photo-1492562080023-ab3db95bfbce',
+  'photo-1463453091185-61582044d556', 'photo-1596075780750-81249df16d19',
+  'photo-1600486913747-55e5470d6f40', 'photo-1590086783191-a0694c7d1e6e',
+  'photo-1651684215020-f7a5b6610f23', 'photo-1758600436605-7e43ac56f707',
+  'photo-1741455620227-3b1c51e01419', 'photo-1758518729286-e8d94cc231f5',
+  'photo-1738566061883-1b568c74b550', 'photo-1757744705465-ea08b0ddc38a',
+  'photo-1758598304332-94b40ce7c7b4', 'photo-1769636929261-e913ed023c83',
+  'photo-1614023342667-6f060e9d1e04', 'photo-1758600587815-b654d1405e83',
+  'photo-1758518729058-b158e71c5a9b', 'photo-1764545973653-94c40d993495',
+  'photo-1762522926262-d96de462ad54', 'photo-1770452603217-89b4f03e8271',
+  'photo-1718392372850-84ccd5d36e7a', 'photo-1758598307313-bae7b2d84255',
+  'photo-1762522928601-862bf2a04902', 'photo-1580411415491-a672219c801b',
+  'photo-1769636929231-3cd7f853d038', 'photo-1639747279286-c07eecb47a0b',
+  'photo-1646658104783-2eec2433c1d1', 'photo-1625850902501-cc6baef3e3b2',
+  'photo-1679476819592-3e233227fd83', 'photo-1713947507130-227586ab3024',
+  'photo-1653327876541-95133a48158c', 'photo-1650490323009-96fc950a959c',
+  'photo-1600896997793-b8ed3459a17f', 'photo-1733231291455-3c4de1c24e20',
+  'photo-1745434159123-4908d0b9df94', 'photo-1756699269843-eb2ea51f1adf',
+  'photo-1504257432389-52343af06ae3', 'photo-1570295999919-56ceb5ecca61',
+]
+
+function attendeeHeadshot(index: number): string {
+  const id = HEADSHOT_PHOTOS[index % HEADSHOT_PHOTOS.length]
+  return `https://images.unsplash.com/${id}?w=400&h=400&q=80&fit=crop&crop=face`
+}
+
 async function main() {
   // ── Conference ──────────────────────────────────────────────────────────────
   const conf = await prisma.conference.upsert({
@@ -418,7 +481,7 @@ async function main() {
   ]
 
   // Helper: upsert user by email, handling existing IDs gracefully
-  async function upsertUser(data: { id: string; email: string; name: string; role: string; password?: string; sponsorId?: string; company?: string; jobTitle?: string; solutionsSeeking?: string; solutionsOffering?: string }) {
+  async function upsertUser(data: { id: string; email: string; name: string; role: string; password?: string; sponsorId?: string; company?: string; jobTitle?: string; image?: string; solutionsSeeking?: string; solutionsOffering?: string }) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
     if (existing) {
       await prisma.user.update({
@@ -430,6 +493,7 @@ async function main() {
           ...(data.sponsorId !== undefined ? { sponsorId: data.sponsorId } : {}),
           ...(data.company ? { company: data.company } : {}),
           ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
+          ...(data.image ? { image: data.image } : {}),
           ...(data.solutionsSeeking ? { solutionsSeeking: data.solutionsSeeking } : {}),
           ...(data.solutionsOffering ? { solutionsOffering: data.solutionsOffering } : {}),
         },
@@ -450,6 +514,7 @@ async function main() {
           ...(data.sponsorId !== undefined ? { sponsorId: data.sponsorId } : {}),
           ...(data.company ? { company: data.company } : {}),
           ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
+          ...(data.image ? { image: data.image } : {}),
           ...(data.solutionsSeeking ? { solutionsSeeking: data.solutionsSeeking } : {}),
           ...(data.solutionsOffering ? { solutionsOffering: data.solutionsOffering } : {}),
         },
@@ -467,6 +532,7 @@ async function main() {
         sponsorId: data.sponsorId,
         company: data.company,
         jobTitle: data.jobTitle,
+        image: data.image,
         solutionsSeeking: data.solutionsSeeking,
         solutionsOffering: data.solutionsOffering,
       },
@@ -474,8 +540,8 @@ async function main() {
   }
 
   console.log(`  Creating ${demoUsers.length} demo accounts...`)
-  for (const u of demoUsers) {
-    await upsertUser(u)
+  for (let i = 0; i < demoUsers.length; i++) {
+    await upsertUser({ ...demoUsers[i], image: attendeeHeadshot(i) })
   }
 
   // ── Attendee users (for seed-meetings data) ────────────────────────────────
@@ -506,8 +572,8 @@ async function main() {
   ]
 
   console.log(`  Creating ${attendeeUsers.length} attendee users...`)
-  for (const u of attendeeUsers) {
-    await upsertUser({ ...u, role: 'ATTENDEE', password: demoHash })
+  for (let i = 0; i < attendeeUsers.length; i++) {
+    await upsertUser({ ...attendeeUsers[i], role: 'ATTENDEE', password: demoHash, image: attendeeHeadshot(i + demoUsers.length) })
   }
 
   // ── Generated attendees (fill to 1,000 total ATTENDEE users) ─────────────
@@ -618,6 +684,7 @@ async function main() {
         password: demoHash,
         company,
         jobTitle,
+        image: attendeeHeadshot(genIdx + demoUsers.length + attendeeUsers.length),
         solutionsSeeking: JSON.stringify(seeking),
         solutionsOffering: JSON.stringify(offering),
       })
