@@ -38,6 +38,7 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [repositioning, setRepositioning] = useState(false)
+  const [reposSavedPosition, setReposSavedPosition] = useState('50% 50%')
   const [visible, setVisible] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const reposContainerRef = useRef<HTMLDivElement>(null)
@@ -308,93 +309,134 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                 )}
 
                 {/* Profile Photo Card */}
-                <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
-                  <div className="flex flex-col items-center py-5 px-4">
-                    {/* Avatar */}
-                    {form.photoUrl ? (
-                      repositioning ? (
-                        <div
-                          ref={reposContainerRef}
-                          className="w-28 h-28 rounded-full overflow-hidden bg-gray-100 cursor-crosshair relative select-none ring-4 ring-[#007AFF]/20"
-                          onMouseDown={handleReposMouseDown}
-                          onMouseMove={handleReposMouseMove}
-                          onMouseUp={handleReposMouseUp}
-                          onMouseLeave={handleReposMouseUp}
-                          onTouchStart={() => { isDragging.current = true }}
-                          onTouchMove={handleReposTouchMove}
-                          onTouchEnd={handleReposMouseUp}
-                        >
-                          <img src={form.photoUrl} alt="Reposition" className="w-full h-full object-cover pointer-events-none"
-                            style={{ objectPosition: form.photoPosition }} draggable={false} />
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/10">
-                            <svg className="w-8 h-8 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
-                            </svg>
-                          </div>
-                        </div>
-                      ) : (
+                {repositioning && form.photoUrl ? (
+                  /* LinkedIn-style reposition mode */
+                  <div className="bg-[#1b1f23] rounded-2xl overflow-hidden">
+                    {/* Info banner */}
+                    <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0a66c2]">
+                      <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                      </svg>
+                      <span className="text-white text-[13px] font-medium">Drag to reposition photo</span>
+                    </div>
+
+                    {/* Reposition area with circular mask */}
+                    <div className="relative flex items-center justify-center py-6 px-6">
+                      <div
+                        ref={reposContainerRef}
+                        className="relative w-44 h-44 cursor-grab active:cursor-grabbing select-none"
+                        onMouseDown={handleReposMouseDown}
+                        onMouseMove={handleReposMouseMove}
+                        onMouseUp={handleReposMouseUp}
+                        onMouseLeave={handleReposMouseUp}
+                        onTouchStart={() => { isDragging.current = true }}
+                        onTouchMove={handleReposTouchMove}
+                        onTouchEnd={handleReposMouseUp}
+                      >
+                        {/* Full image */}
+                        <img
+                          src={form.photoUrl}
+                          alt="Reposition"
+                          className="w-full h-full object-cover rounded-full pointer-events-none"
+                          style={{ objectPosition: form.photoPosition }}
+                          draggable={false}
+                        />
+                        {/* Semi-transparent ring overlay */}
+                        <div className="absolute inset-0 rounded-full pointer-events-none"
+                          style={{ boxShadow: '0 0 0 40px rgba(27,31,35,0.65)' }} />
+                        {/* Dashed circle border */}
+                        <div className="absolute inset-0 rounded-full border-2 border-dashed border-white/40 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Reposition actions */}
+                    <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm(f => ({ ...f, photoPosition: reposSavedPosition }))
+                          setRepositioning(false)
+                        }}
+                        className="px-4 py-1.5 text-[13px] font-semibold text-white rounded-full border border-white/30 hover:bg-white/10 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRepositioning(false)}
+                        className="px-4 py-1.5 text-[13px] font-semibold text-white bg-[#0a66c2] rounded-full hover:bg-[#004182] transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Normal photo card */
+                  <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+                    <div className="flex flex-col items-center py-5 px-4">
+                      {/* Avatar */}
+                      {form.photoUrl ? (
                         <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 ring-1 ring-black/5">
                           <img src={form.photoUrl} alt="Preview" className="w-full h-full object-cover"
                             style={{ objectPosition: form.photoPosition }}
                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                         </div>
-                      )
-                    ) : (
-                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
-                        <span className="text-gray-500 font-bold text-3xl">{form.name?.[0] ?? '?'}</span>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+                          <span className="text-gray-500 font-bold text-3xl">{form.name?.[0] ?? '?'}</span>
+                        </div>
+                      )}
 
-                    {/* Action buttons row */}
-                    <div className="flex items-center gap-3 mt-4">
-                      <button
-                        type="button"
-                        onClick={() => fileRef.current?.click()}
-                        disabled={uploading}
-                        className="text-[#007AFF] text-[13px] font-medium hover:opacity-70 transition-opacity"
-                      >
-                        {uploading ? 'Uploading...' : form.photoUrl ? 'Change Photo' : 'Add Photo'}
-                      </button>
-                      {form.photoUrl && (
-                        <>
-                          <span className="text-gray-300 text-xs">|</span>
-                          <button
-                            type="button"
-                            onClick={() => setRepositioning(!repositioning)}
-                            className={`text-[13px] font-medium transition-opacity hover:opacity-70 ${repositioning ? 'text-[#FF9500]' : 'text-[#007AFF]'}`}
-                          >
-                            {repositioning ? 'Done' : 'Reposition'}
-                          </button>
-                          <span className="text-gray-300 text-xs">|</span>
-                          <button
-                            type="button"
-                            onClick={() => { setForm(f => ({ ...f, photoUrl: '', photoPosition: '50% 50%' })); setRepositioning(false) }}
-                            className="text-[#FF3B30] text-[13px] font-medium hover:opacity-70 transition-opacity"
-                          >
-                            Remove
-                          </button>
-                        </>
+                      {/* Action buttons row */}
+                      <div className="flex items-center gap-3 mt-4">
+                        <button
+                          type="button"
+                          onClick={() => fileRef.current?.click()}
+                          disabled={uploading}
+                          className="text-[#007AFF] text-[13px] font-medium hover:opacity-70 transition-opacity"
+                        >
+                          {uploading ? 'Uploading...' : form.photoUrl ? 'Change Photo' : 'Add Photo'}
+                        </button>
+                        {form.photoUrl && (
+                          <>
+                            <span className="text-gray-300 text-xs">|</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReposSavedPosition(form.photoPosition)
+                                setRepositioning(true)
+                              }}
+                              className="text-[#007AFF] text-[13px] font-medium hover:opacity-70 transition-opacity"
+                            >
+                              Reposition
+                            </button>
+                            <span className="text-gray-300 text-xs">|</span>
+                            <button
+                              type="button"
+                              onClick={() => { setForm(f => ({ ...f, photoUrl: '', photoPosition: '50% 50%' })); setRepositioning(false) }}
+                              className="text-[#FF3B30] text-[13px] font-medium hover:opacity-70 transition-opacity"
+                            >
+                              Remove
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* URL input for external images */}
+                      {!form.photoUrl.startsWith('data:') && (
+                        <div className="w-full mt-3 px-1">
+                          <input
+                            type="text"
+                            value={form.photoUrl}
+                            onChange={e => setForm(f => ({ ...f, photoUrl: e.target.value, photoPosition: '50% 50%' }))}
+                            placeholder="Or paste an image URL..."
+                            className="w-full px-3 py-2 bg-[#f2f2f7] rounded-lg text-[13px] text-gray-900 placeholder:text-gray-400 outline-none"
+                          />
+                        </div>
                       )}
                     </div>
-
-                    {repositioning && (
-                      <p className="text-[11px] text-[#FF9500] mt-2">Drag on the photo to adjust the focal point</p>
-                    )}
-
-                    {/* URL input for external images */}
-                    {!form.photoUrl.startsWith('data:') && (
-                      <div className="w-full mt-3 px-1">
-                        <input
-                          type="text"
-                          value={form.photoUrl}
-                          onChange={e => setForm(f => ({ ...f, photoUrl: e.target.value, photoPosition: '50% 50%' }))}
-                          placeholder="Or paste an image URL..."
-                          className="w-full px-3 py-2 bg-[#f2f2f7] rounded-lg text-[13px] text-gray-900 placeholder:text-gray-400 outline-none"
-                        />
-                      </div>
-                    )}
                   </div>
-                </div>
+                )}
 
                 {/* Info Group */}
                 <div>
