@@ -3,10 +3,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import Image from 'next/image'
 
-// Resize Unsplash URLs to optimal size for context
+// Resize Unsplash URLs to optimal size for context and apply sharpening
 function optimizePhoto(url: string | null, width: number): string | null {
   if (!url) return null
-  return url.replace(/w=\d+/, `w=${width}`).replace(/q=\d+/, `q=${width > 600 ? 85 : 70}`)
+  let optimized = url.replace(/w=\d+/, `w=${width}`).replace(/q=\d+/, `q=${width > 600 ? 85 : 70}`)
+  if (!optimized.includes('sharp=')) optimized += '&sharp=15'
+  return optimized
 }
 
 const COMPANY_LOGOS: Record<string, string> = {

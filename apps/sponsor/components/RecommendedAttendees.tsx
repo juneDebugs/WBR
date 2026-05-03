@@ -106,9 +106,7 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
                       <span className="text-xl font-bold text-primary">{(a.name ?? '?')[0]}</span>
                     </div>
                   )}
-                  <span className={`absolute -top-1 -right-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm ${
-                    a.matchScore >= 60 ? 'bg-indigo-500 text-white' : a.matchScore >= 40 ? 'bg-amber-400 text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>
+                  <span className="absolute -top-1 -right-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm bg-pink-500 text-white">
                     {a.matchScore}%
                   </span>
                 </div>

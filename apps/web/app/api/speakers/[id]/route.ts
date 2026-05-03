@@ -26,7 +26,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     data: {
       name: body.name.trim(),
       bio: body.bio?.trim() || null,
-      photoUrl: body.photoUrl?.trim() || null,
+      photoUrl: body.photoUrl || null,
+      photoPosition: body.photoPosition?.trim() || '50% 50%',
       company: body.company?.trim() || null,
       jobTitle: body.jobTitle?.trim() || null,
       twitterHandle: body.twitterHandle?.trim() || null,
@@ -36,6 +37,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       id: true,
       name: true,
       photoUrl: true,
+      photoPosition: true,
       jobTitle: true,
       company: true,
       bio: true,

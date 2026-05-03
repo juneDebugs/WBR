@@ -179,7 +179,7 @@ export function SponsorMeetingsView({ sponsor, upcoming, past, inboundRequests, 
                   <div className="px-4 pb-4 flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden bg-amber-100 flex items-center justify-center mt-1">
                       {req.requester.image
-                        ? <Image src={req.requester.image} alt={req.requester.name ?? ''} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                        ? <img src={req.requester.image} alt={req.requester.name ?? ''} loading="lazy" className="w-10 h-10 rounded-full object-cover" />
                         : <span className="text-amber-700 font-bold text-sm">{(req.requester.name ?? '?')[0]}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -258,7 +258,7 @@ function SponsorMeetingCard({
           <div className="flex items-center gap-2.5 mb-1">
             <div className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden bg-amber-100 flex items-center justify-center">
               {meeting.attendee.image
-                ? <Image src={meeting.attendee.image} alt={meeting.attendee.name ?? ''} width={36} height={36} className="w-9 h-9 rounded-full object-cover" />
+                ? <img src={meeting.attendee.image} alt={meeting.attendee.name ?? ''} loading="lazy" className="w-9 h-9 rounded-full object-cover" />
                 : <span className="text-amber-700 font-bold text-sm">{(meeting.attendee.name ?? '?')[0]}</span>}
             </div>
             <div className="min-w-0">

@@ -9,6 +9,7 @@ export default async function SpeakersPage() {
       id: true,
       name: true,
       photoUrl: true,
+      photoPosition: true,
       jobTitle: true,
       company: true,
       bio: true,

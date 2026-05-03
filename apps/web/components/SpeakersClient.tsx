@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -8,6 +8,7 @@ type Speaker = {
   id: string
   name: string
   photoUrl: string | null
+  photoPosition?: string | null
   jobTitle: string | null
   company: string | null
   bio?: string | null
@@ -22,6 +23,7 @@ type SpeakerForm = {
   jobTitle: string
   bio: string
   photoUrl: string
+  photoPosition: string
   twitterHandle: string
   linkedinUrl: string
 }
@@ -30,11 +32,16 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
   const [speakers, setSpeakers] = useState(initialSpeakers)
   const [editingSpeaker, setEditingSpeaker] = useState<Speaker | null>(null)
   const [form, setForm] = useState<SpeakerForm>({
-    name: '', company: '', jobTitle: '', bio: '', photoUrl: '', twitterHandle: '', linkedinUrl: '',
+    name: '', company: '', jobTitle: '', bio: '', photoUrl: '', photoPosition: '50% 50%', twitterHandle: '', linkedinUrl: '',
   })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [repositioning, setRepositioning] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const reposContainerRef = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
 
   function openEdit(speaker: Speaker) {
     setEditingSpeaker(speaker)
@@ -44,16 +51,74 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
       jobTitle: speaker.jobTitle ?? '',
       bio: speaker.bio ?? '',
       photoUrl: speaker.photoUrl ?? '',
+      photoPosition: speaker.photoPosition ?? '50% 50%',
       twitterHandle: speaker.twitterHandle ?? '',
       linkedinUrl: speaker.linkedinUrl ?? '',
     })
     setError('')
+    setRepositioning(false)
   }
 
   function closeEdit() {
     setEditingSpeaker(null)
     setError('')
+    setRepositioning(false)
   }
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be under 5MB')
+      return
+    }
+    setUploading(true)
+    setError('')
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setForm(f => ({ ...f, photoUrl: ev.target?.result as string, photoPosition: '50% 50%' }))
+      setUploading(false)
+    }
+    reader.onerror = () => {
+      setError('Failed to read file')
+      setUploading(false)
+    }
+    reader.readAsDataURL(file)
+    // Reset input so the same file can be re-selected
+    e.target.value = ''
+  }
+
+  // Drag-to-reposition handlers
+  const handleReposMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDragging.current = true
+  }, [])
+
+  const handleReposMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current || !reposContainerRef.current) return
+    const rect = reposContainerRef.current.getBoundingClientRect()
+    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100))
+    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100))
+    setForm(f => ({ ...f, photoPosition: `${Math.round(x)}% ${Math.round(y)}%` }))
+  }, [])
+
+  const handleReposMouseUp = useCallback(() => {
+    isDragging.current = false
+  }, [])
+
+  // Touch support for repositioning
+  const handleReposTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!reposContainerRef.current) return
+    const touch = e.touches[0]
+    const rect = reposContainerRef.current.getBoundingClientRect()
+    const x = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100))
+    const y = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100))
+    setForm(f => ({ ...f, photoPosition: `${Math.round(x)}% ${Math.round(y)}%` }))
+  }, [])
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -142,8 +207,9 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                   <div className="flex items-center gap-3">
                     {speaker.photoUrl ? (
                       <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                        <Image src={speaker.photoUrl} alt={speaker.name} width={40} height={40}
-                          className="w-full h-full object-cover" />
+                        <img src={speaker.photoUrl} alt={speaker.name} width={40} height={40}
+                          className="w-full h-full object-cover"
+                          style={{ objectPosition: speaker.photoPosition ?? '50% 50%' }} />
                       </div>
                     ) : (
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -169,6 +235,15 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
           <p className="text-center text-gray-400 py-12">No speakers yet.</p>
         )}
       </div>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
 
       {/* Edit Speaker Modal */}
       {editingSpeaker && (
@@ -199,29 +274,121 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                   </div>
                 )}
 
-                {/* Photo preview + URL */}
+                {/* Profile Image Section */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Profile Image</label>
-                  <div className="flex items-center gap-4 mb-2">
-                    {form.photoUrl ? (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 border border-gray-200">
-                        <img src={form.photoUrl} alt="Preview" className="w-full h-full object-cover"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Profile Image</label>
+
+                  {/* Image preview + reposition */}
+                  <div className="flex items-start gap-4 mb-3">
+                    <div className="flex flex-col items-center gap-2">
+                      {form.photoUrl ? (
+                        repositioning ? (
+                          /* Reposition mode: larger preview with drag */
+                          <div
+                            ref={reposContainerRef}
+                            className="w-32 h-32 rounded-xl overflow-hidden bg-gray-100 border-2 border-primary cursor-crosshair relative select-none"
+                            onMouseDown={handleReposMouseDown}
+                            onMouseMove={handleReposMouseMove}
+                            onMouseUp={handleReposMouseUp}
+                            onMouseLeave={handleReposMouseUp}
+                            onTouchStart={() => { isDragging.current = true }}
+                            onTouchMove={handleReposTouchMove}
+                            onTouchEnd={handleReposMouseUp}
+                          >
+                            <img
+                              src={form.photoUrl}
+                              alt="Reposition"
+                              className="w-full h-full object-cover pointer-events-none"
+                              style={{ objectPosition: form.photoPosition }}
+                              draggable={false}
+                            />
+                            {/* Crosshair overlay */}
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="w-6 h-6 rounded-full border-2 border-white/80 shadow-sm" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                            <img
+                              src={form.photoUrl}
+                              alt="Preview"
+                              className="w-full h-full object-cover"
+                              style={{ objectPosition: form.photoPosition }}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          </div>
+                        )
+                      ) : (
+                        <div className="w-20 h-20 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <span className="text-primary font-bold text-2xl">{form.name?.[0] ?? '?'}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                      {/* Upload + Reposition buttons */}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => fileRef.current?.click()}
+                          disabled={uploading}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary text-xs font-medium rounded-lg hover:bg-primary/20 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          {uploading ? 'Uploading...' : 'Upload Image'}
+                        </button>
+
+                        {form.photoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setRepositioning(!repositioning)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                              repositioning
+                                ? 'bg-primary text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                            {repositioning ? 'Done Repositioning' : 'Reposition'}
+                          </button>
+                        )}
+
+                        {form.photoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => { setForm(f => ({ ...f, photoUrl: '', photoPosition: '50% 50%' })); setRepositioning(false) }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-100 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Remove
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-primary font-bold text-xl">{form.name?.[0] ?? '?'}</span>
+
+                      {repositioning && (
+                        <p className="text-xs text-primary">Click and drag on the image to set the focal point</p>
+                      )}
+
+                      {/* URL input */}
+                      <div>
+                        <input
+                          type="text"
+                          value={form.photoUrl.startsWith('data:') ? '' : form.photoUrl}
+                          onChange={e => setForm(f => ({ ...f, photoUrl: e.target.value, photoPosition: '50% 50%' }))}
+                          placeholder={form.photoUrl.startsWith('data:') ? 'Image uploaded' : 'https://example.com/photo.jpg'}
+                          disabled={form.photoUrl.startsWith('data:')}
+                          className={`${inputClass} ${form.photoUrl.startsWith('data:') ? 'bg-gray-50 text-gray-400' : ''}`}
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          {form.photoUrl.startsWith('data:') ? 'Image uploaded from file' : 'Or paste an image URL'}
+                        </p>
                       </div>
-                    )}
-                    <div className="flex-1">
-                      <input
-                        type="url"
-                        value={form.photoUrl}
-                        onChange={e => setForm(f => ({ ...f, photoUrl: e.target.value }))}
-                        placeholder="https://example.com/photo.jpg"
-                        className={inputClass}
-                      />
-                      <p className="text-xs text-gray-400 mt-1">Enter an image URL for the speaker photo</p>
                     </div>
                   </div>
                 </div>

@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(/usr/local/lib/node_modules/corepack/shims/pnpm add:*)"
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash",
+      "NotebookEdit"
     ]
   }
 }

@@ -3,7 +3,7 @@ import { prisma } from '@conference/db'
 import { getSession } from '@/lib/session'
 import { format } from 'date-fns'
 import Link from 'next/link'
-import Image from 'next/image'
+
 import { notFound, redirect } from 'next/navigation'
 import { MeetingActions } from '@/components/meetings/MeetingActions'
 
@@ -92,7 +92,7 @@ export default async function MeetingDetailPage({ params }: { params: { id: stri
         <div className="flex items-start gap-4">
           <div className="w-14 h-14 rounded-full flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
             {other.image
-              ? <Image src={other.image} alt={other.name ?? ''} width={56} height={56} className="w-14 h-14 rounded-full object-cover" />
+              ? <img src={other.image} alt={other.name ?? ''} loading="lazy" className="w-14 h-14 rounded-full object-cover" />
               : <span className="text-primary font-bold text-xl">{(other.name ?? '?')[0]}</span>}
           </div>
           <div>

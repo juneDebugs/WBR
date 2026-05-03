@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns'
 import Link from 'next/link'
-import Image from 'next/image'
+
 
 const statusColors: Record<string, string> = {
   CONFIRMED: 'bg-green-100 text-green-700',
@@ -94,7 +94,7 @@ export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, d
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
                           {meeting.other.image
-                            ? <Image src={meeting.other.image} alt={meeting.other.name ?? ''} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                            ? <img src={meeting.other.image} alt={meeting.other.name ?? ''} loading="lazy" className="w-10 h-10 rounded-full object-cover" />
                             : <span className="text-primary font-bold">{(meeting.other.name ?? '?')[0]}</span>}
                         </div>
                         <div>
@@ -160,7 +160,7 @@ export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, d
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
                       {req.requester.image
-                        ? <Image src={req.requester.image} alt={req.requester.name ?? ''} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                        ? <img src={req.requester.image} alt={req.requester.name ?? ''} loading="lazy" className="w-10 h-10 rounded-full object-cover" />
                         : <span className="text-primary font-bold">{(req.requester.name ?? '?')[0]}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
