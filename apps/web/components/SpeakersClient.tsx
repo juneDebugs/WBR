@@ -3,6 +3,14 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 
+function parsePhotoPos(pos: string | null | undefined) {
+  const parts = (pos ?? '50% 50%').trim().split(/\s+/)
+  return {
+    position: `${parts[0] ?? '50%'} ${parts[1] ?? '50%'}`,
+    scale: parts.length >= 3 ? parseFloat(parts[2]) || 1 : 1,
+  }
+}
+
 type Speaker = {
   id: string
   name: string
@@ -23,6 +31,7 @@ type SpeakerForm = {
   bio: string
   photoUrl: string
   photoPosition: string
+  photoScale: number
   twitterHandle: string
   linkedinUrl: string
 }
@@ -31,7 +40,7 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
   const [speakers, setSpeakers] = useState(initialSpeakers)
   const [editingSpeaker, setEditingSpeaker] = useState<Speaker | null>(null)
   const [form, setForm] = useState<SpeakerForm>({
-    name: '', company: '', jobTitle: '', bio: '', photoUrl: '', photoPosition: '50% 50%', twitterHandle: '', linkedinUrl: '',
+    name: '', company: '', jobTitle: '', bio: '', photoUrl: '', photoPosition: '50% 50%', photoScale: 1, twitterHandle: '', linkedinUrl: '',
   })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -39,20 +48,24 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
   const [uploading, setUploading] = useState(false)
   const [repositioning, setRepositioning] = useState(false)
   const [reposSavedPosition, setReposSavedPosition] = useState('50% 50%')
+  const [reposSavedScale, setReposSavedScale] = useState(1)
   const [visible, setVisible] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState<'profile' | 'card' | 'detail'>('profile')
   const fileRef = useRef<HTMLInputElement>(null)
   const reposContainerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
 
   function openEdit(speaker: Speaker) {
     setEditingSpeaker(speaker)
+    const { position, scale } = parsePhotoPos(speaker.photoPosition)
     setForm({
       name: speaker.name,
       company: speaker.company ?? '',
       jobTitle: speaker.jobTitle ?? '',
       bio: speaker.bio ?? '',
       photoUrl: speaker.photoUrl ?? '',
-      photoPosition: speaker.photoPosition ?? '50% 50%',
+      photoPosition: position,
+      photoScale: scale,
       twitterHandle: speaker.twitterHandle ?? '',
       linkedinUrl: speaker.linkedinUrl ?? '',
     })
@@ -95,7 +108,7 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
     setError('')
     const reader = new FileReader()
     reader.onload = (ev) => {
-      setForm(f => ({ ...f, photoUrl: ev.target?.result as string, photoPosition: '50% 50%' }))
+      setForm(f => ({ ...f, photoUrl: ev.target?.result as string, photoPosition: '50% 50%', photoScale: 1 }))
       setUploading(false)
     }
     reader.onerror = () => {
@@ -132,6 +145,22 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
     setForm(f => ({ ...f, photoPosition: `${Math.round(x)}% ${Math.round(y)}%` }))
   }, [])
 
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault()
+    setForm(f => ({
+      ...f,
+      photoScale: Math.round(Math.max(1, Math.min(3, f.photoScale - e.deltaY * 0.003)) * 100) / 100,
+    }))
+  }, [])
+
+  // Attach wheel listener to reposition container (needs { passive: false } to preventDefault)
+  useEffect(() => {
+    const el = reposContainerRef.current
+    if (!repositioning || !el) return
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [repositioning, handleWheel])
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     if (!editingSpeaker) return
@@ -145,7 +174,7 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
         company: form.company,
         jobTitle: form.jobTitle,
         bio: form.bio,
-        photoPosition: form.photoPosition,
+        photoPosition: form.photoScale !== 1 ? `${form.photoPosition} ${form.photoScale}` : form.photoPosition,
         twitterHandle: form.twitterHandle,
         linkedinUrl: form.linkedinUrl,
       }
@@ -231,9 +260,11 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                   <div className="flex items-center gap-3">
                     {speaker.photoUrl ? (
                       <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
-                        <img src={speaker.photoUrl} alt={speaker.name} width={40} height={40}
-                          className="w-full h-full object-cover"
-                          style={{ objectPosition: speaker.photoPosition ?? '50% 50%' }} />
+                        {(() => { const pp = parsePhotoPos(speaker.photoPosition); return (
+                          <img src={speaker.photoUrl} alt={speaker.name} width={40} height={40}
+                            className="w-full h-full object-cover"
+                            style={{ objectPosition: pp.position, ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }) }} />
+                        )})()}
                       </div>
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">
@@ -308,135 +339,250 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
                   </div>
                 )}
 
-                {/* Profile Photo Card */}
-                {repositioning && form.photoUrl ? (
-                  /* LinkedIn-style reposition mode */
-                  <div className="bg-[#1b1f23] rounded-2xl overflow-hidden">
-                    {/* Info banner */}
-                    <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0a66c2]">
-                      <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                      </svg>
-                      <span className="text-white text-[13px] font-medium">Drag to reposition photo</span>
-                    </div>
-
-                    {/* Reposition area with circular mask */}
-                    <div className="relative flex items-center justify-center py-12 px-12 overflow-hidden">
-                      <div
-                        ref={reposContainerRef}
-                        className="relative w-48 h-48 cursor-grab active:cursor-grabbing select-none"
-                        onMouseDown={handleReposMouseDown}
-                        onMouseMove={handleReposMouseMove}
-                        onMouseUp={handleReposMouseUp}
-                        onMouseLeave={handleReposMouseUp}
-                        onTouchStart={() => { isDragging.current = true }}
-                        onTouchMove={handleReposTouchMove}
-                        onTouchEnd={handleReposMouseUp}
-                      >
-                        {/* Full image */}
-                        <img
-                          src={form.photoUrl}
-                          alt="Reposition"
-                          className="w-full h-full object-cover rounded-full pointer-events-none"
-                          style={{ objectPosition: form.photoPosition }}
-                          draggable={false}
-                        />
-                        {/* Semi-transparent ring overlay */}
-                        <div className="absolute inset-0 rounded-full pointer-events-none"
-                          style={{ boxShadow: '0 0 0 80px rgba(27,31,35,0.65)' }} />
-                        {/* Dashed circle border */}
-                        <div className="absolute inset-0 rounded-full border-2 border-dashed border-white/40 pointer-events-none" />
+                {/* Mobile App Photo Section */}
+                <div>
+                  <p className="text-[13px] font-medium text-gray-500 uppercase tracking-wide px-4 mb-1.5">Mobile App Photo</p>
+                  {repositioning && form.photoUrl ? (
+                    /* LinkedIn-style reposition mode */
+                    <div className="bg-[#1b1f23] rounded-2xl overflow-hidden">
+                      {/* Segmented control + info banner */}
+                      <div className="px-4 pt-3 pb-2">
+                        <div className="flex bg-white/10 rounded-lg p-0.5 max-w-[220px] mx-auto">
+                          {(['profile', 'card', 'detail'] as const).map(mode => (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() => setPhotoPreview(mode)}
+                              className={`flex-1 py-1 text-[11px] font-medium rounded-md transition-all ${
+                                photoPreview === mode
+                                  ? 'bg-white/20 text-white'
+                                  : 'text-white/50 hover:text-white/70'
+                              }`}
+                            >
+                              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                      <div className="flex items-center justify-center gap-2 px-4 py-1.5">
+                        <svg className="w-3.5 h-3.5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                        <span className="text-white/60 text-[12px]">Drag to reposition</span>
+                      </div>
 
-                    {/* Reposition actions */}
-                    <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-white/10">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setForm(f => ({ ...f, photoPosition: reposSavedPosition }))
-                          setRepositioning(false)
-                        }}
-                        className="px-4 py-1.5 text-[13px] font-semibold text-white rounded-full border border-white/30 hover:bg-white/10 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRepositioning(false)}
-                        className="px-4 py-1.5 text-[13px] font-semibold text-white bg-[#0a66c2] rounded-full hover:bg-[#004182] transition-colors"
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* Normal photo card */
-                  <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
-                    <div className="flex flex-col items-center py-5 px-4">
-                      {/* Avatar */}
-                      {form.photoUrl ? (
-                        <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 ring-1 ring-black/5">
-                          <img src={form.photoUrl} alt="Preview" className="w-full h-full object-cover"
-                            style={{ objectPosition: form.photoPosition }}
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      {/* Reposition area — shape matches selected preview */}
+                      <div className="relative flex items-center justify-center py-5 px-5 overflow-hidden">
+                        <div
+                          ref={reposContainerRef}
+                          className={`relative cursor-grab active:cursor-grabbing select-none ${
+                            photoPreview === 'profile' ? 'w-48 h-48' :
+                            photoPreview === 'card' ? 'w-40 h-52' :
+                            'w-[280px] h-[144px]'
+                          }`}
+                          onMouseDown={handleReposMouseDown}
+                          onMouseMove={handleReposMouseMove}
+                          onMouseUp={handleReposMouseUp}
+                          onMouseLeave={handleReposMouseUp}
+                          onTouchStart={() => { isDragging.current = true }}
+                          onTouchMove={handleReposTouchMove}
+                          onTouchEnd={handleReposMouseUp}
+                        >
+                          {/* Full image */}
+                          <img
+                            src={form.photoUrl}
+                            alt="Reposition"
+                            className={`w-full h-full object-cover pointer-events-none ${
+                              photoPreview === 'profile' ? 'rounded-full' :
+                              photoPreview === 'card' ? 'rounded-xl' :
+                              'rounded-xl'
+                            }`}
+                            style={{ objectPosition: form.photoPosition, transform: `scale(${form.photoScale})`, transformOrigin: form.photoPosition }}
+                            draggable={false}
+                          />
+                          {/* Semi-transparent overlay */}
+                          <div className={`absolute inset-0 pointer-events-none ${
+                            photoPreview === 'profile' ? 'rounded-full' :
+                            'rounded-xl'
+                          }`}
+                            style={{ boxShadow: `0 0 0 80px rgba(27,31,35,0.65)` }} />
+                          {/* Dashed border */}
+                          <div className={`absolute inset-0 border-2 border-dashed border-white/40 pointer-events-none ${
+                            photoPreview === 'profile' ? 'rounded-full' :
+                            'rounded-xl'
+                          }`} />
+                          {/* Gradient scrim for detail mode */}
+                          {photoPreview === 'detail' && (
+                            <div className="absolute inset-0 rounded-xl pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 50%)' }} />
+                          )}
                         </div>
-                      ) : (
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
-                          <span className="text-gray-500 font-bold text-3xl">{form.name?.[0] ?? '?'}</span>
-                        </div>
-                      )}
+                      </div>
 
-                      {/* Action buttons row */}
-                      <div className="flex items-center gap-3 mt-4">
+
+                      {/* Zoom slider */}
+                      <div className="flex items-center gap-3 px-5 py-2">
+                        <svg className="w-4 h-4 text-white/50 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+                        </svg>
+                        <input
+                          type="range"
+                          min="1"
+                          max="3"
+                          step="0.01"
+                          value={form.photoScale}
+                          onChange={e => setForm(f => ({ ...f, photoScale: parseFloat(e.target.value) }))}
+                          className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
+                        />
+                        <svg className="w-5 h-5 text-white/50 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                        </svg>
+                      </div>
+
+                      {/* Reposition actions */}
+                      <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-white/10">
                         <button
                           type="button"
-                          onClick={() => fileRef.current?.click()}
-                          disabled={uploading}
-                          className="text-[#007AFF] text-[13px] font-medium hover:opacity-70 transition-opacity"
+                          onClick={() => {
+                            setForm(f => ({ ...f, photoPosition: reposSavedPosition, photoScale: reposSavedScale }))
+                            setRepositioning(false)
+                          }}
+                          className="px-4 py-1.5 text-[13px] font-semibold text-white rounded-full border border-white/30 hover:bg-white/10 transition-colors"
                         >
-                          {uploading ? 'Uploading...' : form.photoUrl ? 'Change Photo' : 'Add Photo'}
+                          Cancel
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setRepositioning(false)}
+                          className="px-4 py-1.5 text-[13px] font-semibold text-white bg-[#0a66c2] rounded-full hover:bg-[#004182] transition-colors"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Normal photo card with mobile previews */
+                    <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+                      <div className="flex flex-col items-center py-5 px-4">
+                        {/* Segmented control */}
                         {form.photoUrl && (
-                          <>
-                            <span className="text-gray-300 text-xs">|</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setReposSavedPosition(form.photoPosition)
-                                setRepositioning(true)
-                              }}
-                              className="text-[#007AFF] text-[13px] font-medium hover:opacity-70 transition-opacity"
-                            >
-                              Reposition
-                            </button>
-                            <span className="text-gray-300 text-xs">|</span>
-                            <button
-                              type="button"
-                              onClick={() => { setForm(f => ({ ...f, photoUrl: '', photoPosition: '50% 50%' })); setRepositioning(false) }}
-                              className="text-[#FF3B30] text-[13px] font-medium hover:opacity-70 transition-opacity"
-                            >
-                              Remove
-                            </button>
-                          </>
+                          <div className="flex bg-[#f2f2f7] rounded-lg p-0.5 mb-4 w-full max-w-[260px]">
+                            {(['profile', 'card', 'detail'] as const).map(mode => (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setPhotoPreview(mode)}
+                                className={`flex-1 py-1 text-[12px] font-medium rounded-md transition-all ${
+                                  photoPreview === mode
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                              >
+                                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Preview area */}
+                        {form.photoUrl ? (
+                          <div className="flex items-center justify-center mb-4">
+                            {/* Profile preview — circular avatar */}
+                            {photoPreview === 'profile' && (
+                              <div className="w-28 h-28 rounded-full overflow-hidden bg-gray-100 ring-1 ring-black/5">
+                                <img src={form.photoUrl} alt="Preview" className="w-full h-full object-cover"
+                                  style={{ objectPosition: form.photoPosition, transform: `scale(${form.photoScale})`, transformOrigin: form.photoPosition }}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                              </div>
+                            )}
+                            {/* Card preview — portrait card like mobile grid */}
+                            {photoPreview === 'card' && (
+                              <div className="w-28 rounded-xl overflow-hidden bg-white ring-1 ring-black/5" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
+                                <div className="relative w-full overflow-hidden" style={{ paddingBottom: '130%' }}>
+                                  <img src={form.photoUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
+                                    style={{ objectPosition: form.photoPosition, transform: `scale(${form.photoScale})`, transformOrigin: form.photoPosition }}
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                                </div>
+                                <div className="py-2 px-1.5">
+                                  <p className="text-[9px] font-bold text-gray-900 leading-tight text-center truncate">{form.name}</p>
+                                  {form.jobTitle && <p className="text-[7px] text-gray-400 mt-0.5 text-center truncate">{form.jobTitle}</p>}
+                                  {form.company && <p className="text-[7px] font-semibold text-blue-600 mt-0.5 text-center truncate">{form.company}</p>}
+                                </div>
+                              </div>
+                            )}
+                            {/* Detail preview — hero banner like mobile detail modal (~1.95:1 on 390px phone) */}
+                            {photoPreview === 'detail' && (
+                              <div className="w-[280px] rounded-xl overflow-hidden ring-1 ring-black/5" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
+                                <div className="relative w-full overflow-hidden" style={{ paddingBottom: '51.3%' }}>
+                                  <img src={form.photoUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
+                                    style={{ objectPosition: form.photoPosition, transform: `scale(${form.photoScale})`, transformOrigin: form.photoPosition }}
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                                  <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 55%)' }} />
+                                  <div className="absolute bottom-0 left-0 right-0 px-3 pb-2.5">
+                                    <p className="text-sm font-bold text-white leading-tight truncate">{form.name}</p>
+                                    {form.jobTitle && <p className="text-[10px] text-white/80 mt-0.5 truncate">{form.jobTitle}</p>}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mb-4">
+                            <span className="text-gray-500 font-bold text-3xl">{form.name?.[0] ?? '?'}</span>
+                          </div>
+                        )}
+
+                        {/* Action buttons row */}
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => fileRef.current?.click()}
+                            disabled={uploading}
+                            className="text-[#007AFF] text-[13px] font-medium hover:opacity-70 transition-opacity"
+                          >
+                            {uploading ? 'Uploading...' : form.photoUrl ? 'Change Photo' : 'Add Photo'}
+                          </button>
+                          {form.photoUrl && (
+                            <>
+                              <span className="text-gray-300 text-xs">|</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReposSavedPosition(form.photoPosition)
+                                  setReposSavedScale(form.photoScale)
+                                  setRepositioning(true)
+                                }}
+                                className="text-[#007AFF] text-[13px] font-medium hover:opacity-70 transition-opacity"
+                              >
+                                Reposition
+                              </button>
+                              <span className="text-gray-300 text-xs">|</span>
+                              <button
+                                type="button"
+                                onClick={() => { setForm(f => ({ ...f, photoUrl: '', photoPosition: '50% 50%', photoScale: 1 })); setRepositioning(false) }}
+                                className="text-[#FF3B30] text-[13px] font-medium hover:opacity-70 transition-opacity"
+                              >
+                                Remove
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {/* URL input for external images */}
+                        {!form.photoUrl.startsWith('data:') && (
+                          <div className="w-full mt-3 px-1">
+                            <input
+                              type="text"
+                              value={form.photoUrl}
+                              onChange={e => setForm(f => ({ ...f, photoUrl: e.target.value, photoPosition: '50% 50%', photoScale: 1 }))}
+                              placeholder="Or paste an image URL..."
+                              className="w-full px-3 py-2 bg-[#f2f2f7] rounded-lg text-[13px] text-gray-900 placeholder:text-gray-400 outline-none"
+                            />
+                          </div>
                         )}
                       </div>
-
-                      {/* URL input for external images */}
-                      {!form.photoUrl.startsWith('data:') && (
-                        <div className="w-full mt-3 px-1">
-                          <input
-                            type="text"
-                            value={form.photoUrl}
-                            onChange={e => setForm(f => ({ ...f, photoUrl: e.target.value, photoPosition: '50% 50%' }))}
-                            placeholder="Or paste an image URL..."
-                            className="w-full px-3 py-2 bg-[#f2f2f7] rounded-lg text-[13px] text-gray-900 placeholder:text-gray-400 outline-none"
-                          />
-                        </div>
-                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Info Group */}
                 <div>

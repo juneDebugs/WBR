@@ -3,6 +3,22 @@
 import { useState, useMemo, useEffect } from 'react'
 import Image from 'next/image'
 
+function parsePhotoPos(pos: string | null | undefined) {
+  const parts = (pos ?? '50% 50%').trim().split(/\s+/)
+  return {
+    position: `${parts[0] ?? '50%'} ${parts[1] ?? '50%'}`,
+    scale: parts.length >= 3 ? parseFloat(parts[2]) || 1 : 1,
+  }
+}
+
+function photoStyle(pos: string | null | undefined, fallback?: string) {
+  const { position, scale } = parsePhotoPos(pos ?? fallback)
+  return {
+    objectPosition: position,
+    ...(scale !== 1 && { transform: `scale(${scale})`, transformOrigin: position }),
+  }
+}
+
 // Resize Unsplash URLs to optimal size for context and apply sharpening
 function optimizePhoto(url: string | null, width: number): string | null {
   if (!url) return null
@@ -149,14 +165,14 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                   fill
                   priority
                   className="absolute inset-0 w-full h-full object-cover"
-                  style={{ objectPosition: speaker.photoPosition ?? '50% 20%' }}
+                  style={photoStyle(speaker.photoPosition, '50% 20%')}
                 />
               ) : (
                 <img
                   src={speaker.photoUrl}
                   alt={speaker.name}
                   className="absolute inset-0 w-full h-full object-cover"
-                  style={{ objectPosition: speaker.photoPosition ?? '50% 20%' }}
+                  style={photoStyle(speaker.photoPosition, '50% 20%')}
                 />
               )
             ) : (
@@ -420,14 +436,14 @@ export function SpeakersClient({ speakers }: { speakers: Speaker[] }) {
                                       alt={speaker.name}
                                       fill
                                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                      style={{ objectPosition: speaker.photoPosition ?? '50% 50%' }}
+                                      style={photoStyle(speaker.photoPosition)}
                                     />
                                   ) : (
                                     <img
                                       src={speaker.photoUrl}
                                       alt={speaker.name}
                                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                      style={{ objectPosition: speaker.photoPosition ?? '50% 50%' }}
+                                      style={photoStyle(speaker.photoPosition)}
                                     />
                                   )
                                 ) : (

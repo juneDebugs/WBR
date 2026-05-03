@@ -32,3 +32,9 @@ Thumbs.db
 # Next.js build output
 .next/
 .vercel
+
+# PWA service worker (regenerated on build by next-pwa)
+apps/attendee/public/sw.js
+apps/attendee/public/sw.js.map
+apps/attendee/public/workbox-*.js
+apps/attendee/public/workbox-*.js.map
