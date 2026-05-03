@@ -137,23 +137,50 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
     setSaving(true)
     setError('')
     try {
+      // Only send photoUrl if it actually changed (avoids re-sending large base64 strings)
+      const photoChanged = form.photoUrl !== (editingSpeaker.photoUrl ?? '')
+      const payload: Record<string, string> = {
+        name: form.name,
+        company: form.company,
+        jobTitle: form.jobTitle,
+        bio: form.bio,
+        photoPosition: form.photoPosition,
+        twitterHandle: form.twitterHandle,
+        linkedinUrl: form.linkedinUrl,
+      }
+      if (photoChanged) {
+        payload.photoUrl = form.photoUrl
+      }
+
       const res = await fetch(`/api/speakers/${editingSpeaker.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to save')
+
+      let data: any
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error(res.ok ? 'Unexpected server response' : `Server error (${res.status})`)
       }
-      const updated = await res.json()
-      setSpeakers(prev => prev.map(s => s.id === editingSpeaker.id ? { ...s, ...updated } : s))
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save')
+      }
+
+      setSpeakers(prev => prev.map(s => s.id === editingSpeaker.id ? { ...s, ...updated(data, photoChanged) } : s))
       closeEdit()
     } catch (err: any) {
       setError(err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  function updated(data: any, photoChanged: boolean) {
+    // If photo wasn't sent, preserve the current form value in local state
+    return photoChanged ? data : { ...data, photoUrl: form.photoUrl }
   }
 
   async function handleDelete() {

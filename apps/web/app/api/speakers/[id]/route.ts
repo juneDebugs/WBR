@@ -26,7 +26,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     data: {
       name: body.name.trim(),
       bio: body.bio?.trim() || null,
-      photoUrl: body.photoUrl || null,
+      // Only update photoUrl if explicitly included in the payload (avoids re-sending large base64)
+      ...('photoUrl' in body && { photoUrl: body.photoUrl || null }),
       photoPosition: body.photoPosition?.trim() || '50% 50%',
       company: body.company?.trim() || null,
       jobTitle: body.jobTitle?.trim() || null,
