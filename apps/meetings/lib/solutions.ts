@@ -80,6 +80,15 @@ export function getBorderColorForSeeking(seekingJson: string | null | undefined)
   return cat ? (CATEGORY_BORDER_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
 }
 
+export function getBorderColorForOffering(offeringJson: string | null | undefined): string {
+  if (!offeringJson) return '#d1d5db'
+  let offering: string[]
+  try { offering = JSON.parse(offeringJson) } catch { return '#d1d5db' }
+  if (offering.length === 0) return '#d1d5db'
+  const cat = getSolutionCategory(offering[0])
+  return cat ? (CATEGORY_BORDER_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
+}
+
 export const COMPANY_SIZES = ['STARTUP', 'SMB', 'MIDMARKET', 'ENTERPRISE'] as const
 export const REVENUE_RANGES = ['<1M', '1M-10M', '10M-50M', '50M-250M', '250M+'] as const
 

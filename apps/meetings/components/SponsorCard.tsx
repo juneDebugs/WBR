@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { SolutionBadge } from './SolutionBadge'
+import { getBorderColorForOffering } from '../lib/solutions'
 
 interface SponsorRep {
   id: string
@@ -53,6 +54,7 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
 
   const offerTags = sponsor.solutionsOffering ? JSON.parse(sponsor.solutionsOffering) as string[] : []
   const seekTags = sponsor.solutionsSeeking ? JSON.parse(sponsor.solutionsSeeking) as string[] : []
+  const borderColor = getBorderColorForOffering(sponsor.solutionsOffering)
   const reps = (sponsor.users ?? []).filter(u => u.role !== 'SPONSOR') // show real attendees/speakers only, not demo accounts
 
   async function sendRequest() {
@@ -71,7 +73,7 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
 
   return (
     <>
-      <div className="card hover:shadow-md transition-shadow flex flex-col justify-between">
+      <div className="card border-t-4 hover:shadow-md transition-shadow flex flex-col justify-between" style={{ borderTopColor: borderColor }}>
         {/* Header */}
         <div className="flex items-start gap-3 mb-3">
           <div className="w-12 h-12 rounded-xl border border-gray-200 bg-white flex-shrink-0 overflow-hidden flex items-center justify-center p-1">
