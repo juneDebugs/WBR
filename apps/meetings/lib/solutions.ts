@@ -80,13 +80,22 @@ export function getBorderColorForSeeking(seekingJson: string | null | undefined)
   return cat ? (CATEGORY_BORDER_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
 }
 
+// Lighter pastel versions of CATEGORY_BORDER_COLORS for full-card borders
+const CATEGORY_BORDER_COLORS_LIGHT: Record<string, string> = {
+  'Marketing': '#fecdd3',       // rose-200
+  'Commerce & Payments': '#bfdbfe', // blue-200
+  'Operations': '#fed7aa',      // orange-200
+  'Data & AI': '#ddd6fe',       // violet-200
+  'Customer': '#fbcfe8',        // pink-200
+}
+
 export function getBorderColorForOffering(offeringJson: string | null | undefined): string {
-  if (!offeringJson) return '#d1d5db'
+  if (!offeringJson) return '#e5e7eb'
   let offering: string[]
-  try { offering = JSON.parse(offeringJson) } catch { return '#d1d5db' }
-  if (offering.length === 0) return '#d1d5db'
+  try { offering = JSON.parse(offeringJson) } catch { return '#e5e7eb' }
+  if (offering.length === 0) return '#e5e7eb'
   const cat = getSolutionCategory(offering[0])
-  return cat ? (CATEGORY_BORDER_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
+  return cat ? (CATEGORY_BORDER_COLORS_LIGHT[cat] ?? '#e5e7eb') : '#e5e7eb'
 }
 
 export const COMPANY_SIZES = ['STARTUP', 'SMB', 'MIDMARKET', 'ENTERPRISE'] as const
