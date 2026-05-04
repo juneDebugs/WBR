@@ -73,7 +73,7 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
 
   return (
     <>
-      <div className="card border-2 hover:shadow-md transition-shadow flex flex-col justify-between" style={{ borderColor }}>
+      <div className="card border-t-4 hover:shadow-md transition-shadow flex flex-col justify-between" style={{ borderColor }}>
         {/* Header */}
         <div className="flex items-start gap-3 mb-3">
           <div className="w-12 h-12 rounded-xl border border-gray-200 bg-white flex-shrink-0 overflow-hidden flex items-center justify-center p-1">

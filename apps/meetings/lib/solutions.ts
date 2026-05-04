@@ -71,22 +71,22 @@ export function getSolutionCategory(solution: string): string | null {
   return null
 }
 
-export function getBorderColorForSeeking(seekingJson: string | null | undefined): string {
-  if (!seekingJson) return '#d1d5db'
-  let seeking: string[]
-  try { seeking = JSON.parse(seekingJson) } catch { return '#d1d5db' }
-  if (seeking.length === 0) return '#d1d5db'
-  const cat = getSolutionCategory(seeking[0])
-  return cat ? (CATEGORY_BORDER_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
-}
-
-// Lighter pastel versions of CATEGORY_BORDER_COLORS for full-card borders
+// Lighter pastel versions for card borders (border-t-4 top + 1px tinted sides)
 const CATEGORY_BORDER_COLORS_LIGHT: Record<string, string> = {
   'Marketing': '#fecdd3',       // rose-200
   'Commerce & Payments': '#bfdbfe', // blue-200
   'Operations': '#fed7aa',      // orange-200
   'Data & AI': '#ddd6fe',       // violet-200
   'Customer': '#fbcfe8',        // pink-200
+}
+
+export function getBorderColorForSeeking(seekingJson: string | null | undefined): string {
+  if (!seekingJson) return '#e5e7eb'
+  let seeking: string[]
+  try { seeking = JSON.parse(seekingJson) } catch { return '#e5e7eb' }
+  if (seeking.length === 0) return '#e5e7eb'
+  const cat = getSolutionCategory(seeking[0])
+  return cat ? (CATEGORY_BORDER_COLORS_LIGHT[cat] ?? '#e5e7eb') : '#e5e7eb'
 }
 
 export function getBorderColorForOffering(offeringJson: string | null | undefined): string {

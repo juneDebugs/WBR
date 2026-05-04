@@ -63,7 +63,7 @@ export function PersonCard({ person, requested: initialRequested }: Props) {
 
   return (
     <>
-      <div className="card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4" style={{ borderTopColor: borderColor }}>
+      <div className="card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4" style={{ borderColor }}>
         <div className="flex items-start gap-3 mb-3">
           <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
             {person.image ? (
