@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
@@ -77,6 +78,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
     }
   }
+
+  const sponsorId = request.targetSponsorId ?? user.sponsorId
+  if (sponsorId) revalidateTag(`meetings-${sponsorId}`)
 
   return NextResponse.json(updated)
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { SessionProvider } from './session-provider'
+import { QueryProvider } from '@/lib/query-client'
 import { getSession } from '@/lib/session'
 
 export const metadata: Metadata = {
@@ -17,8 +18,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const session = await getSession()
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preload" href="/api/attendees" as="fetch" crossOrigin="anonymous" />
+      </head>
       <body>
-        <SessionProvider session={session}>{children}</SessionProvider>
+        <SessionProvider session={session}>
+          <QueryProvider>{children}</QueryProvider>
+        </SessionProvider>
       </body>
     </html>
   )

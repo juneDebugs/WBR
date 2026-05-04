@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
@@ -28,6 +29,10 @@ export async function POST(req: Request) {
       status: 'PENDING',
     },
   })
+
+  // Bust meetings cache for the target user's sponsor (if any)
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { sponsorId: true } })
+  if (target?.sponsorId) revalidateTag(`meetings-${target.sponsorId}`)
 
   return NextResponse.json(created, { status: 201 })
 }

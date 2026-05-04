@@ -1,5 +1,7 @@
 'use client'
-import { useState, useMemo, useCallback, useDeferredValue } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect, memo, useDeferredValue } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useAttendees } from '@/lib/hooks'
 
 import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
@@ -66,22 +68,20 @@ const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
   ]},
 ]
 
-const ALL_SOLUTIONS = SOLUTION_CATEGORIES.flatMap(c => c.items)
-
 const PAGE_SIZE = 48
 
 const CATEGORY_COLORS: Record<string, string> = {
-  'Marketing Solutions': '#f43f5e',                        // rose
-  'Data, Analytics & AI': '#8b5cf6',                       // violet
-  'Commerce Platforms': '#3b82f6',                         // blue
-  'Web & Mobile': '#06b6d4',                               // cyan
-  'In-Store Solutions': '#f59e0b',                         // amber
-  'Payments, Banking & Embedded Products': '#10b981',      // emerald
-  'CRM & Customer Service': '#ec4899',                     // pink
-  'Infrastructure & IT': '#6366f1',                        // indigo
-  'Supply Chain, Merchandising, Pricing & Planning': '#f97316', // orange
-  'Professional Services': '#14b8a6',                      // teal
-  'Back Office & HR': '#a855f7',                           // purple
+  'Marketing Solutions': '#f43f5e',
+  'Data, Analytics & AI': '#8b5cf6',
+  'Commerce Platforms': '#3b82f6',
+  'Web & Mobile': '#06b6d4',
+  'In-Store Solutions': '#f59e0b',
+  'Payments, Banking & Embedded Products': '#10b981',
+  'CRM & Customer Service': '#ec4899',
+  'Infrastructure & IT': '#6366f1',
+  'Supply Chain, Merchandising, Pricing & Planning': '#f97316',
+  'Professional Services': '#14b8a6',
+  'Back Office & HR': '#a855f7',
 }
 
 function getCategoryForSolution(solution: string): string | null {
@@ -93,7 +93,7 @@ function getCategoryForSolution(solution: string): string | null {
 
 function getBorderColor(seekingJson: string | null | undefined): string {
   const seeking = parseArr(seekingJson)
-  if (seeking.length === 0) return '#d1d5db' // gray-300
+  if (seeking.length === 0) return '#d1d5db'
   const cat = getCategoryForSolution(seeking[0])
   return cat ? (CATEGORY_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
 }
@@ -113,48 +113,6 @@ const JOB_FUNCTIONS = [
   'Strategy/Innovation', 'Information Technology', 'Operations', 'C-Suite/GM',
   'Supply Chain/Logistics', 'Merchandising',
 ]
-
-function getJobFunction(jobTitle: string | null | undefined): string {
-  if (!jobTitle) return 'C-Suite/GM'
-  const t = jobTitle.toLowerCase()
-  if (t.includes('ceo') || t.includes('coo') || t.includes('cfo') || t.includes('cto') || t.includes('cmo') || t.includes('founder') || t.includes('president') || t.includes('owner') || t.includes('general manager')) return 'C-Suite/GM'
-  if (t.includes('marketing') || t.includes('brand') || t.includes('acquisition') || t.includes('retention') || t.includes('performance') || t.includes('content') || t.includes('creative')) return 'Marketing'
-  if (t.includes('ecommerce') || t.includes('e-commerce') || t.includes('dtc') || t.includes('commerce') || t.includes('marketplace')) return 'Ecommerce'
-  if (t.includes('store') || t.includes('retail') || t.includes('wholesale') || t.includes('omnichannel')) return 'Stores/Retail'
-  if (t.includes('customer') || t.includes('cx') || t.includes('experience') || t.includes('support') || t.includes('success')) return 'Customer Experience'
-  if (t.includes('digital') || t.includes('growth') || t.includes('web') || t.includes('social media')) return 'Digital'
-  if (t.includes('strategy') || t.includes('innovation') || t.includes('transformation')) return 'Strategy/Innovation'
-  if (t.includes('tech') || t.includes('engineering') || t.includes('developer') || t.includes('software') || t.includes('platform') || t.includes('data') || t.includes('it ')) return 'Information Technology'
-  if (t.includes('operations') || t.includes('ops') || t.includes('fulfillment') || t.includes('warehouse')) return 'Operations'
-  if (t.includes('supply') || t.includes('logistics') || t.includes('shipping') || t.includes('distribution')) return 'Supply Chain/Logistics'
-  if (t.includes('merchandis') || t.includes('buyer') || t.includes('product') || t.includes('assortment')) return 'Merchandising'
-  if (t.includes('sales') || t.includes('partnerships') || t.includes('account') || t.includes('revenue')) return 'Stores/Retail'
-  return 'C-Suite/GM'
-}
-
-const FASHION_SET = new Set(['ASOS DTC','Aerie','Alex Mill','Allbirds','Boohoo DTC','Browns Fashion','Buck Mason','Chubbies','Cotopaxi','Cuyana','Danner','Depop','Eloquii','Entireworld','Everlane','Faherty Brand','Farfetch','Fossil DTC','Grailed','Helm Boots','Koio','M.Gemi','Margaux','Michael Kors DTC','Ministry of Supply','Natori','Nisolo','Noihsaf Bazaar','Outdoor Voices','Outerknown','PrettyLittleThing','Public Rec','Quince','Reformation','Rent the Runway',"Rothy's",'SSENSE','Saks Fifth Avenue DTC','Selfridges Digital','Shein DTC','Shopbop','Stitch Fix','Tecovas','Temu Brand','ThredUp','Thursday Boot','Torrid','True Classic','Universal Standard','Vuori','Warby Parker','Wolf & Badger'])
-const JEWELRY_SET = new Set(['Alex and Ani','Ana Luisa','Aurate','Baublebar','Catbird','Clocks and Colours','EyeBuyDirect','Gorjana','JINS Eyewear','MVMT','Mejuri','Missoma','Monica Vinader','Olive & Piper','Pandora DTC','Studs','Vrai'])
-const BEAUTY_SET = new Set(['Charlotte Tilbury DTC','ColourPop','Fenty Beauty DTC','Florence by Mills','Glossier','Gwyneth Paltrow Beauty','Haus Labs','Huda Beauty DTC','IL MAKIAGE','Ilia Beauty','Jones Road','Kosas','Kylie Cosmetics','Milk Makeup','Morphe','NARS DTC','Saie Beauty','Summer Fridays','Tarte Cosmetics','Too Faced DTC','Tower 28','Urban Decay DTC','Victoria Beckham Beauty','Westman Atelier'])
-const SKINCARE_SET = new Set(['Beautycounter','Biossance','COSRX','Care/of','CeraVe DTC','Credo Beauty','Dermalogica DTC','Dermstore','Drunk Elephant','Follain','Glow Recipe','Herbivore Botanicals','Innisfree DTC','La Roche-Posay DTC','Murad DTC','Ordinary DTC',"Paula's Choice",'Peter Thomas Roth DTC','Rescue Spa','SK-II DTC','SkinCeuticals DTC','Sulwhasoo DTC','Sunday Riley DTC','Tatcha','The Detox Market','Tula Skincare','Versed'])
-const HEALTH_SET = new Set(['AG1 (Athletic Greens)','Calm','Headspace DTC','Hims & Hers','Hyperice','Mirror DTC','NordicTrack DTC','Oura','Peloton DTC','Roman Health','Therabody','Tonal','Wahoo Fitness','Whoop'])
-const FOOD_SET = new Set(['Baked by Melissa DTC','Brightland','Burlap & Barrel','Compartés','Diaspora Co','Goldbelly','Jacobsen Salt',"Jeni's Ice Cream",'Levain Bakery DTC','Magic Spoon','Milk Bar DTC','Poppi','Salt & Straw DTC','Sugarfina','Vosges'])
-const HOME_SET = new Set(['Albany Park','Apt2B','Arhaus DTC','Article','Bear Mattress','Boll & Branch','Brooklinen','Brooklyn Bedding','Buffy','Burrow','Cedar & Moss','Coyuchi','Design Within Reach DTC','Eight Sleep','Floyd','Hawkins NY','Helix Sleep','Interior Define','Interior Icons','Joybird','Parachute Home','Purple Innovation','Rejuvenation','Room & Board DTC','Schoolhouse','Snowe','Tuft & Needle','Visual Comfort DTC','Year & Day'])
-const PET_SET = new Set(['A Pup Above','BarkBox DTC','Ollie','Open Farm','Spot & Tango','Sundays for Dogs',"The Farmer's Dog",'Wild One'])
-const KIDS_SET = new Set(['4moms DTC','BIBS','Ergobaby DTC','Kyte Baby','Little Sleepies'])
-
-function getIndustry(company: string | null | undefined): string {
-  if (!company) return 'Technology'
-  if (FASHION_SET.has(company)) return 'Fashion & Apparel'
-  if (JEWELRY_SET.has(company)) return 'Jewelry & Accessories'
-  if (BEAUTY_SET.has(company)) return 'Beauty & Cosmetics'
-  if (SKINCARE_SET.has(company)) return 'Skincare'
-  if (HEALTH_SET.has(company)) return 'Health & Wellness'
-  if (FOOD_SET.has(company)) return 'Food & Beverage'
-  if (HOME_SET.has(company)) return 'Home & Lifestyle'
-  if (PET_SET.has(company)) return 'Pet'
-  if (KIDS_SET.has(company)) return 'Kids & Baby'
-  return 'Technology'
-}
 
 function parseArr(val: string | null | undefined): string[] {
   if (!val) return []
@@ -255,12 +213,238 @@ function SolutionOfferingsFilter({ seeking, toggle }: { seeking: string[]; toggl
   )
 }
 
+// ── Memoized card component — prevents re-rendering every card on filter/state changes ──
+const PersonCard = memo(function PersonCard({
+  p, isRequested, onRequestMeeting, sponsorId,
+}: {
+  p: any; isRequested: boolean; onRequestMeeting: (id: string) => void; sponsorId: string | null;
+}) {
+  const theirSeeking = useMemo(() => parseArr(p.solutionsSeeking), [p.solutionsSeeking])
+  const theirOffering = useMemo(() => parseArr(p.solutionsOffering), [p.solutionsOffering])
+  const industry = useMemo(() => getIndustryFromLib(p.company), [p.company])
+  const jobFn = useMemo(() => getJobFnFromLib(p.jobTitle), [p.jobTitle])
+  const titleLevel = useMemo(() => getTitleLevel(p.jobTitle), [p.jobTitle])
+  const companyDesc = useMemo(() => getCompanyDescription(p.company), [p.company])
+  const borderColor = useMemo(() => getBorderColor(p.solutionsSeeking), [p.solutionsSeeking])
+
+  return (
+    <div className="card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4" style={{ borderTopColor: borderColor }}>
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
+          {p.image ? (
+            <img src={p.image} alt={p.name ?? ''} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-lg">
+              {(p.name ?? '?')[0].toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-gray-900 text-sm">{p.name ?? '—'}</h3>
+            <span className={`badge ${
+              p.role === 'SPEAKER' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+            }`}>
+              {p.role.charAt(0) + p.role.slice(1).toLowerCase()}
+            </span>
+          </div>
+          {p.jobTitle && (
+            <p className="text-xs text-gray-700 font-medium mt-0.5">{p.jobTitle}</p>
+          )}
+          {p.company && (
+            <p className="text-xs text-gray-400">{p.company}</p>
+          )}
+        </div>
+      </div>
+
+      {companyDesc && (
+        <div className="mb-3 rounded-2xl bg-gray-50 px-3.5 py-2.5">
+          <p className="text-[11px] leading-relaxed text-gray-500">{companyDesc}</p>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        <span className="badge bg-violet-50 text-violet-700">{industry}</span>
+        <span className="badge bg-sky-50 text-sky-700">{jobFn}</span>
+        <span className="badge bg-gray-100 text-gray-600">{titleLevel}</span>
+        {p.annualRevenue && (
+          <span className="badge bg-emerald-50 text-emerald-700">{p.annualRevenue} ARR</span>
+        )}
+      </div>
+
+      {p.bio && <p className="text-xs text-gray-500 mb-3 line-clamp-2">{p.bio}</p>}
+      <div className="flex-1" />
+
+      {theirOffering.length > 0 && (
+        <div className="mb-2">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Offers</p>
+          <div className="flex flex-wrap gap-1">
+            {theirOffering.slice(0, 4).map(t => <SolutionBadge key={t} label={t} />)}
+            {theirOffering.length > 4 && <span className="badge bg-gray-100 text-gray-500">+{theirOffering.length - 4}</span>}
+          </div>
+        </div>
+      )}
+
+      {theirSeeking.length > 0 && (
+        <div className="mb-3 bg-primary/5 rounded-xl p-2.5">
+          <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-1.5">Looking For</p>
+          <div className="flex flex-wrap gap-1">
+            {theirSeeking.slice(0, 5).map(t => <SolutionBadge key={t} label={t} />)}
+            {theirSeeking.length > 5 && <span className="badge bg-gray-100 text-gray-500">+{theirSeeking.length - 5}</span>}
+          </div>
+        </div>
+      )}
+
+      {sponsorId && (
+        <button
+          onClick={() => isRequested ? null : onRequestMeeting(p.id)}
+          disabled={isRequested}
+          className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
+            isRequested
+              ? 'bg-green-50 text-green-600 cursor-default'
+              : 'bg-primary text-white hover:bg-primary-dark active:scale-95'
+          }`}
+        >
+          {isRequested ? '✓ Requested' : 'Request Meeting'}
+        </button>
+      )}
+    </div>
+  )
+})
+
+// ── Virtualized grid that only renders visible rows ──
+function VirtualizedGrid({
+  items, requested, onRequestMeeting, sponsorId, onLoadMore, hasMore, loading,
+}: {
+  items: any[]; requested: Set<string>; onRequestMeeting: (id: string) => void;
+  sponsorId: string | null; onLoadMore: () => void; hasMore: boolean; loading: boolean;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [columns, setColumns] = useState(3)
+
+  // Dynamically compute columns based on container width
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const observer = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width ?? 900
+      const minCol = 280
+      setColumns(Math.max(1, Math.floor(width / minCol)))
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const rowCount = Math.ceil(items.length / columns)
+
+  const virtualizer = useVirtualizer({
+    count: rowCount + (hasMore ? 1 : 0), // +1 for the "load more" row
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 420, // estimated card height
+    overscan: 3,
+  })
+
+  // Trigger load more when scrolling near the bottom
+  useEffect(() => {
+    const lastItem = virtualizer.getVirtualItems().at(-1)
+    if (!lastItem || loading || !hasMore) return
+    if (lastItem.index >= rowCount) {
+      onLoadMore()
+    }
+  }, [virtualizer.getVirtualItems(), loading, hasMore, rowCount, onLoadMore])
+
+  return (
+    <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div className="p-4 lg:p-6">
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative',
+          }}
+        >
+          {virtualizer.getVirtualItems().map(virtualRow => {
+            // Load more row
+            if (virtualRow.index === rowCount) {
+              return (
+                <div
+                  key="load-more"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className="flex items-center justify-center py-8"
+                >
+                  {loading ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" />
+                      </svg>
+                      Loading...
+                    </div>
+                  ) : (
+                    <button
+                      onClick={onLoadMore}
+                      className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
+                    >
+                      Load more
+                    </button>
+                  )}
+                </div>
+              )
+            }
+
+            const startIdx = virtualRow.index * columns
+            const rowItems = items.slice(startIdx, startIdx + columns)
+
+            return (
+              <div
+                key={virtualRow.index}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <div
+                  className="grid gap-4 pb-4"
+                  style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+                >
+                  {rowItems.map(p => (
+                    <PersonCard
+                      key={p.id}
+                      p={p}
+                      isRequested={requested.has(p.id)}
+                      onRequestMeeting={onRequestMeeting}
+                      sponsorId={sponsorId}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function SponsorBrowseView({
-  people, sponsorId, isStaff, initialRequestedIds = [],
+  people: initialPeople, sponsorId, isStaff, initialRequestedIds = [],
 }: {
   people: any[]; sponsorId: string | null; isStaff: boolean;
   initialRequestedIds?: string[];
 }) {
+  // TanStack Query: fetch full attendee list once, cache for 5 min
+  const { data: allPeople, isLoading: queryLoading } = useAttendees()
+  const people = allPeople ?? initialPeople // SSR data as fallback until query resolves
+
   const [search, setSearch] = useState('')
   const [roles, setRoles] = useState<string[]>([])
   const [jobFunctions, setJobFunctions] = useState<string[]>([])
@@ -274,6 +458,7 @@ export function SponsorBrowseView({
   const [filterOpen, setFilterOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
+  // Defer search so typing stays smooth while the list catches up
   const deferredSearch = useDeferredValue(search)
   const deferredRoles = useDeferredValue(roles)
   const deferredJobFunctions = useDeferredValue(jobFunctions)
@@ -282,13 +467,7 @@ export function SponsorBrowseView({
   const deferredRevenues = useDeferredValue(revenues)
   const deferredSeeking = useDeferredValue(seeking)
 
-  const toggle = (val: string, arr: string[], set: (v: string[]) => void) => {
-    set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
-    setVisibleCount(PAGE_SIZE)
-  }
-
-  const clearAll = () => { setRoles([]); setJobFunctions([]); setIndustries([]); setSizes([]); setRevenues([]); setSeeking([]); setSearch(''); setVisibleCount(PAGE_SIZE) }
-
+  // All filtering happens client-side — instant, no server round-trip
   const filtered = useMemo(() => {
     return people.filter(p => {
       if (deferredSearch) {
@@ -296,8 +475,8 @@ export function SponsorBrowseView({
         if (!`${p.name} ${p.company} ${p.jobTitle} ${p.bio}`.toLowerCase().includes(q)) return false
       }
       if (deferredRoles.length && !deferredRoles.includes(p.role)) return false
-      if (deferredJobFunctions.length && !deferredJobFunctions.includes(getJobFunction(p.jobTitle))) return false
-      if (deferredIndustries.length && !deferredIndustries.includes(getIndustry(p.company))) return false
+      if (deferredJobFunctions.length && !deferredJobFunctions.includes(getJobFnFromLib(p.jobTitle))) return false
+      if (deferredIndustries.length && !deferredIndustries.includes(getIndustryFromLib(p.company))) return false
       if (deferredSizes.length && !deferredSizes.includes(p.companySize)) return false
       if (deferredRevenues.length && !deferredRevenues.includes(p.annualRevenue)) return false
       if (deferredSeeking.length) {
@@ -307,6 +486,31 @@ export function SponsorBrowseView({
       return true
     })
   }, [people, deferredSearch, deferredRoles, deferredJobFunctions, deferredIndustries, deferredSizes, deferredRevenues, deferredSeeking])
+
+  const loading = queryLoading && people.length === 0
+  const hasMore = visibleCount < filtered.length
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const loadMore = useCallback(() => {
+    setVisibleCount(c => c + PAGE_SIZE)
+  }, [])
+
+  const toggle = (val: string, arr: string[], set: (v: string[]) => void) => {
+    set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
+  }
+
+  const clearAll = useCallback(() => {
+    setRoles([]); setJobFunctions([]); setIndustries([]); setSizes([]); setRevenues([]); setSeeking([]); setSearch('')
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const onRequestMeeting = useCallback((id: string) => {
+    setRequesting(id)
+  }, [])
 
   async function requestMeeting(personId: string) {
     if (!sponsorId) return
@@ -332,13 +536,13 @@ export function SponsorBrowseView({
           </svg>
           <input
             type="text"
-            placeholder="Search by name, company, or topic…"
+            placeholder="Search by name, company, or topic..."
             value={search}
-            onChange={e => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE) }}
+            onChange={e => handleSearchChange(e.target.value)}
             className="flex-1 text-sm focus:outline-none bg-transparent"
           />
           {search && (
-            <button onClick={() => { setSearch(''); setVisibleCount(PAGE_SIZE) }} className="text-gray-300 hover:text-gray-500">
+            <button onClick={() => handleSearchChange('')} className="text-gray-300 hover:text-gray-500">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
               </svg>
@@ -357,10 +561,10 @@ export function SponsorBrowseView({
         {INDUSTRIES.map(i => <Chip key={i} label={i} active={industries.includes(i)} onClick={() => toggle(i, industries, setIndustries)} />)}
       </FilterSection>
       <FilterSection title="Company Size">
-        {COMPANY_SIZES.map(s => <Chip key={s} label={{ STARTUP: 'Startup (1–50)', SMB: 'SMB (51–500)', MIDMARKET: 'Mid-Market (501–2K)', ENTERPRISE: 'Enterprise (2K+)' }[s] ?? s} active={sizes.includes(s)} onClick={() => toggle(s, sizes, setSizes)} />)}
+        {COMPANY_SIZES.map(s => <Chip key={s} label={{ STARTUP: 'Startup (1-50)', SMB: 'SMB (51-500)', MIDMARKET: 'Mid-Market (501-2K)', ENTERPRISE: 'Enterprise (2K+)' }[s] ?? s} active={sizes.includes(s)} onClick={() => toggle(s, sizes, setSizes)} />)}
       </FilterSection>
       <FilterSection title="Annual Revenue">
-        {REVENUE_RANGES.map(r => <Chip key={r} label={{ '<1M': 'Under $1M', '1M-10M': '$1M–$10M', '10M-50M': '$10M–$50M', '50M-250M': '$50M–$250M', '250M+': '$250M+' }[r] ?? r} active={revenues.includes(r)} onClick={() => toggle(r, revenues, setRevenues)} />)}
+        {REVENUE_RANGES.map(r => <Chip key={r} label={{ '<1M': 'Under $1M', '1M-10M': '$1M-$10M', '10M-50M': '$10M-$50M', '50M-250M': '$50M-$250M', '250M+': '$250M+' }[r] ?? r} active={revenues.includes(r)} onClick={() => toggle(r, revenues, setRevenues)} />)}
       </FilterSection>
       <SolutionOfferingsFilter seeking={seeking} toggle={(s: string) => toggle(s, seeking, setSeeking)} />
       {activeFilterCount > 0 && (
@@ -403,14 +607,15 @@ export function SponsorBrowseView({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4 lg:p-6">
-
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="p-4 lg:px-6 lg:pt-6 lg:pb-0">
           {/* Header row */}
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="font-bold text-gray-900">Browse Attendees & Speakers</h1>
-              <p className="text-xs text-gray-400 mt-0.5">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {loading ? 'Loading...' : `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`}
+              </p>
             </div>
             <button
               onClick={() => setFilterOpen(true)}
@@ -439,10 +644,10 @@ export function SponsorBrowseView({
                 <ActiveChip key={v} label={v} onRemove={() => setIndustries(i => i.filter(x => x !== v))} />
               ))}
               {sizes.map(v => (
-                <ActiveChip key={v} label={{ STARTUP: 'Startup (1–50)', SMB: 'SMB (51–500)', MIDMARKET: 'Mid-Market (501–2K)', ENTERPRISE: 'Enterprise (2K+)' }[v] ?? v} onRemove={() => setSizes(s => s.filter(x => x !== v))} />
+                <ActiveChip key={v} label={{ STARTUP: 'Startup (1-50)', SMB: 'SMB (51-500)', MIDMARKET: 'Mid-Market (501-2K)', ENTERPRISE: 'Enterprise (2K+)' }[v] ?? v} onRemove={() => setSizes(s => s.filter(x => x !== v))} />
               ))}
               {revenues.map(v => (
-                <ActiveChip key={v} label={{ '<1M': 'Under $1M', '1M-10M': '$1M–$10M', '10M-50M': '$10M–$50M', '50M-250M': '$50M–$250M', '250M+': '$250M+' }[v] ?? v} onRemove={() => setRevenues(r => r.filter(x => x !== v))} />
+                <ActiveChip key={v} label={{ '<1M': 'Under $1M', '1M-10M': '$1M-$10M', '10M-50M': '$10M-$50M', '50M-250M': '$50M-$250M', '250M+': '$250M+' }[v] ?? v} onRemove={() => setRevenues(r => r.filter(x => x !== v))} />
               ))}
               {seeking.map(v => (
                 <ActiveChip key={`seek-${v}`} label={`Seeks: ${v}`} onRemove={() => setSeeking(s => s.filter(x => x !== v))} />
@@ -452,129 +657,27 @@ export function SponsorBrowseView({
               </button>
             </div>
           )}
+        </div>
 
-          {/* Grid */}
-          {filtered.length === 0 ? (
+        {/* Virtualized Grid */}
+        {filtered.length === 0 && !loading ? (
+          <div className="flex-1 flex items-center justify-center">
             <div className="text-center py-16">
               <p className="text-gray-400 text-sm">No results match your filters.</p>
               <button onClick={clearAll} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
             </div>
-          ) : (
-            <>
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
-              {filtered.slice(0, visibleCount).map(p => {
-                const theirSeeking = parseArr(p.solutionsSeeking)
-                const theirOffering = parseArr(p.solutionsOffering)
-                const isRequested = requested.has(p.id)
-                const industry = getIndustryFromLib(p.company)
-                const jobFn = getJobFnFromLib(p.jobTitle)
-                const titleLevel = getTitleLevel(p.jobTitle)
-                const companyDesc = getCompanyDescription(p.company)
-                const borderColor = getBorderColor(p.solutionsSeeking)
-
-                return (
-                  <div key={p.id} className="card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4" style={{ borderTopColor: borderColor }}>
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
-                        {p.image ? (
-                          <img src={p.image} alt={p.name ?? ''} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-lg">
-                            {(p.name ?? '?')[0].toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-gray-900 text-sm">{p.name ?? '—'}</h3>
-                          <span className={`badge ${
-                            p.role === 'SPEAKER' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {p.role.charAt(0) + p.role.slice(1).toLowerCase()}
-                          </span>
-                        </div>
-                        {p.jobTitle && (
-                          <p className="text-xs text-gray-700 font-medium mt-0.5">{p.jobTitle}</p>
-                        )}
-                        {p.company && (
-                          <p className="text-xs text-gray-400">{p.company}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Company description — iOS style */}
-                    {companyDesc && (
-                      <div className="mb-3 rounded-2xl bg-gray-50 px-3.5 py-2.5">
-                        <p className="text-[11px] leading-relaxed text-gray-500">{companyDesc}</p>
-                      </div>
-                    )}
-
-                    {/* Industry / Function / Title metadata */}
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      <span className="badge bg-violet-50 text-violet-700">{industry}</span>
-                      <span className="badge bg-sky-50 text-sky-700">{jobFn}</span>
-                      <span className="badge bg-gray-100 text-gray-600">{titleLevel}</span>
-                      {p.annualRevenue && (
-                        <span className="badge bg-emerald-50 text-emerald-700">{p.annualRevenue} ARR</span>
-                      )}
-                    </div>
-
-                    {p.bio && <p className="text-xs text-gray-500 mb-3 line-clamp-2">{p.bio}</p>}
-                    <div className="flex-1" />
-
-                    {theirOffering.length > 0 && (
-                      <div className="mb-2">
-                        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Offers</p>
-                        <div className="flex flex-wrap gap-1">
-                          {theirOffering.slice(0, 4).map(t => <SolutionBadge key={t} label={t} />)}
-                          {theirOffering.length > 4 && <span className="badge bg-gray-100 text-gray-500">+{theirOffering.length - 4}</span>}
-                        </div>
-                      </div>
-                    )}
-
-                    {theirSeeking.length > 0 && (
-                      <div className="mb-3 bg-primary/5 rounded-xl p-2.5">
-                        <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-1.5">Looking For</p>
-                        <div className="flex flex-wrap gap-1">
-                          {theirSeeking.slice(0, 5).map(t => <SolutionBadge key={t} label={t} />)}
-                          {theirSeeking.length > 5 && <span className="badge bg-gray-100 text-gray-500">+{theirSeeking.length - 5}</span>}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Request meeting */}
-                    {sponsorId && (
-                      <button
-                        onClick={() => isRequested ? null : setRequesting(p.id)}
-                        disabled={isRequested}
-                        className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
-                          isRequested
-                            ? 'bg-green-50 text-green-600 cursor-default'
-                            : 'bg-primary text-white hover:bg-primary-dark active:scale-95'
-                        }`}
-                      >
-                        {isRequested ? '✓ Requested' : 'Request Meeting'}
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Load more */}
-            {visibleCount < filtered.length && (
-              <div className="flex justify-center mt-6">
-                <button
-                  onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-                  className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
-                >
-                  Show more ({filtered.length - visibleCount} remaining)
-                </button>
-              </div>
-            )}
-            </>
-          )}
-        </div>
+          </div>
+        ) : (
+          <VirtualizedGrid
+            items={filtered.slice(0, visibleCount)}
+            requested={requested}
+            onRequestMeeting={onRequestMeeting}
+            sponsorId={sponsorId}
+            onLoadMore={loadMore}
+            hasMore={hasMore}
+            loading={loading}
+          />
+        )}
       </div>
 
       {/* Meeting request modal */}

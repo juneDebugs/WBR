@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
@@ -38,6 +39,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     where: { id: params.id, sponsorId: user.sponsorId },
     data,
   })
+  revalidateTag(`submissions-${user.sponsorId}`)
   return NextResponse.json({ ok: true, count: form.count })
 }
 
@@ -48,5 +50,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor' }, { status: 403 })
 
   await prisma.submissionForm.deleteMany({ where: { id: params.id, sponsorId: user.sponsorId } })
+  revalidateTag(`submissions-${user.sponsorId}`)
   return NextResponse.json({ ok: true })
 }

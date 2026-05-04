@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
@@ -18,6 +19,9 @@ export async function POST(req: Request) {
     data: { sponsorId: user.sponsorId },
     select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
   })
+
+  revalidateTag(`sponsor-${user.sponsorId}`)
+  revalidateTag('attendee-pool')
 
   return NextResponse.json(updated)
 }
@@ -42,6 +46,9 @@ export async function DELETE(req: Request) {
     where: { id: userId },
     data: { sponsorId: null },
   })
+
+  revalidateTag(`sponsor-${user.sponsorId}`)
+  revalidateTag('attendee-pool')
 
   return NextResponse.json({ ok: true })
 }

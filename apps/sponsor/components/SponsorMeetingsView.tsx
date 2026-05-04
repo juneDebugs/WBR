@@ -1,6 +1,6 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { memo, useCallback, useMemo, useState } from 'react'
+import { useMeetingsData, useInvalidate } from '@/lib/hooks'
 
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -22,7 +22,7 @@ function formatTime(iso: string) {
   })
 }
 
-function PersonRow({ person, status, timeBlock, message, direction, onApprove, onDecline, actionLoading, requestId }: {
+const PersonRow = memo(function PersonRow({ person, status, timeBlock, message, direction, onApprove, onDecline, actionLoading, requestId }: {
   person: any; status: string; timeBlock?: any; message?: string;
   direction: 'inbound' | 'outbound';
   onApprove?: () => void; onDecline?: () => void;
@@ -82,25 +82,23 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
       </div>
     </div>
   )
-}
+})
 
 export function SponsorMeetingsView({
-  inbound, outbound, sponsorMeetings, sponsorId, isStaff,
+  inbound: initialInbound, outbound: initialOutbound, sponsorMeetings: initialSponsorMeetings, sponsorId, isStaff,
 }: {
   inbound: any[]; outbound: any[]; sponsorMeetings: any[];
   sponsorId: string | null; isStaff: boolean;
 }) {
-  const router = useRouter()
-  const refresh = useCallback(() => router.refresh(), [router])
+  // TanStack Query: auto-refreshes every 60s, shared cache with schedule/dashboard
+  const { data: meetingsData } = useMeetingsData()
+  const inbound = meetingsData?.inbound ?? initialInbound
+  const outbound = meetingsData?.outbound ?? initialOutbound
+  const sponsorMeetings = meetingsData?.sponsorMeetings ?? initialSponsorMeetings
+
+  const invalidate = useInvalidate()
   const [tab, setTab] = useState<Tab>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-
-  useEffect(() => {
-    const i = setInterval(refresh, 30_000)
-    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(i); document.removeEventListener('visibilitychange', onVisible) }
-  }, [refresh])
 
   async function updateStatus(requestId: string, status: string) {
     setActionLoading(requestId)
@@ -110,7 +108,8 @@ export function SponsorMeetingsView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
-      refresh()
+      invalidate.meetings()
+      invalidate.sponsor()
     } finally {
       setActionLoading(null)
     }

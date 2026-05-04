@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
@@ -33,6 +34,8 @@ export async function PATCH(req: Request) {
     where: { id: user.sponsorId },
     data,
   })
+
+  revalidateTag(`sponsor-${user.sponsorId}`)
 
   return NextResponse.json(sponsor)
 }
