@@ -1,4 +1,4 @@
-export const revalidate = 60
+import { unstable_cache } from 'next/cache'
 import { prisma, getActiveConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { format } from 'date-fns'
@@ -12,10 +12,22 @@ const typeColors: Record<string, string> = {
   BREAK: 'bg-gray-100 text-gray-500',
 }
 
+const getCachedSessions = unstable_cache(
+  async () => prisma.confSession.findMany({ include: { speaker: true }, orderBy: { startsAt: 'asc' } }),
+  ['web-sessions'],
+  { revalidate: 60, tags: ['sessions'] },
+)
+
+const getCachedConflicts = unstable_cache(
+  async () => getActiveConflicts(prisma),
+  ['web-conflicts'],
+  { revalidate: 120, tags: ['conflicts'] },
+)
+
 export default async function SessionsPage() {
   const [sessions, conflicts] = await Promise.all([
-    prisma.confSession.findMany({ include: { speaker: true }, orderBy: { startsAt: 'asc' } }),
-    getActiveConflicts(prisma),
+    getCachedSessions(),
+    getCachedConflicts(),
   ])
 
   // Build a set of session IDs involved in any conflict

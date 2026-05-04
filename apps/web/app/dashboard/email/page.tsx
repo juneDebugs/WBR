@@ -1,4 +1,4 @@
-export const revalidate = 60
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { EmailClient } from '@/components/EmailClient'
@@ -25,28 +25,37 @@ const SPONSOR_CHECKLIST: { key: string; label: string; check: (s: any) => boolea
   { key: 'social',      label: 'Social media link',      check: s => !!s.socialLinkedIn || !!s.socialTwitter },
 ]
 
+const getCachedEmailData = unstable_cache(
+  async () => {
+    const [users, emails, sponsorsRaw] = await Promise.all([
+      prisma.user.findMany({
+        orderBy: { name: 'asc' },
+        select: {
+          id: true, name: true, email: true, role: true, image: true,
+          company: true, jobTitle: true, bio: true,
+          solutionsSeeking: true, sponsorId: true,
+        },
+      }),
+      prisma.emailLog.findMany({ orderBy: { sentAt: 'desc' } }),
+      prisma.sponsor.findMany({
+        select: {
+          id: true, name: true, tier: true,
+          logoUrl: true, tagline: true, description: true,
+          contactName: true, contactEmail: true, boothNumber: true,
+          solutionsOffering: true, website: true,
+          socialLinkedIn: true, socialTwitter: true,
+          _count: { select: { users: true, meetings: true } },
+        },
+      }),
+    ])
+    return { users, emails, sponsorsRaw }
+  },
+  ['web-email-data'],
+  { revalidate: 60, tags: ['attendees', 'sponsors'] },
+)
+
 export default async function EmailPage() {
-  const [users, emails, sponsorsRaw] = await Promise.all([
-    prisma.user.findMany({
-      orderBy: { name: 'asc' },
-      select: {
-        id: true, name: true, email: true, role: true, image: true,
-        company: true, jobTitle: true, bio: true,
-        solutionsSeeking: true, sponsorId: true,
-      },
-    }),
-    prisma.emailLog.findMany({ orderBy: { sentAt: 'desc' } }),
-    prisma.sponsor.findMany({
-      select: {
-        id: true, name: true, tier: true,
-        logoUrl: true, tagline: true, description: true,
-        contactName: true, contactEmail: true, boothNumber: true,
-        solutionsOffering: true, website: true,
-        socialLinkedIn: true, socialTwitter: true,
-        _count: { select: { users: true, meetings: true } },
-      },
-    }),
-  ])
+  const { users, emails, sponsorsRaw } = await getCachedEmailData()
 
   const sponsorMap = new Map(sponsorsRaw.map(s => [s.id, s]))
 

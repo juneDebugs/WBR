@@ -1,4 +1,4 @@
-export const revalidate = 15
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AutoScheduleButton } from '@/components/AutoScheduleButton'
@@ -20,6 +20,37 @@ const TIER_COLORS: Record<string, string> = {
   BRONZE:   'bg-orange-100 text-orange-700',
 }
 
+const getCachedMeetingsData = unstable_cache(
+  async () => {
+    const [allMeetingRequests, sponsorMeetings, bookmarkCounts] = await Promise.all([
+      prisma.meetingRequest.findMany({
+        include: {
+          requester: { select: { id: true, name: true, email: true, company: true, role: true } },
+          targetUser: { select: { id: true, name: true, email: true, company: true, role: true } },
+          targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
+          timeBlock: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.sponsorMeeting.findMany({
+        include: {
+          sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
+          user:    { select: { id: true, name: true, email: true, company: true, role: true } },
+          timeBlock: true,
+        },
+        orderBy: { timeBlock: { startsAt: 'asc' } },
+      }),
+      prisma.sessionBookmark.groupBy({
+        by: ['userId'],
+        _count: { _all: true },
+      }),
+    ])
+    return [allMeetingRequests, sponsorMeetings, bookmarkCounts] as const
+  },
+  ['web-meetings-data'],
+  { revalidate: 15, tags: ['meetings'] },
+)
+
 export default async function MeetingsPage({
   searchParams,
 }: {
@@ -29,30 +60,7 @@ export default async function MeetingsPage({
   const statusFilter = searchParams.status?.toUpperCase()
   const typeFilter = searchParams.type === 'attendee' ? 'attendee' : searchParams.type === 'sponsor' ? 'sponsor' : undefined
 
-  const [allMeetingRequests, sponsorMeetings, bookmarkCounts] = await Promise.all([
-    prisma.meetingRequest.findMany({
-      include: {
-        requester: { select: { id: true, name: true, email: true, company: true, role: true } },
-        targetUser: { select: { id: true, name: true, email: true, company: true, role: true } },
-        targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
-        timeBlock: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.sponsorMeeting.findMany({
-      include: {
-        sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
-        user:    { select: { id: true, name: true, email: true, company: true, role: true } },
-        timeBlock: true,
-      },
-      orderBy: { timeBlock: { startsAt: 'asc' } },
-    }),
-    // Session bookmarks (events) per user — different table, keep as groupBy
-    prisma.sessionBookmark.groupBy({
-      by: ['userId'],
-      _count: { _all: true },
-    }),
-  ])
+  const [allMeetingRequests, sponsorMeetings, bookmarkCounts] = await getCachedMeetingsData()
 
   // Compute status counts in-memory from all requests
   const counts: Record<string, number> = {}

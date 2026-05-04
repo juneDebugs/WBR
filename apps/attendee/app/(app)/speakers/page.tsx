@@ -1,10 +1,15 @@
-export const revalidate = 60
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { SpeakersClient } from '@/components/speakers/SpeakersClient'
 
-export default async function SpeakersPage() {
-  const [conference, allSpeakers] = await Promise.all([
-    prisma.conference.findFirst({ where: { active: true }, select: { id: true } }),
+const getCachedConference = unstable_cache(
+  async () => prisma.conference.findFirst({ where: { active: true }, select: { id: true } }),
+  ['attendee-conference'],
+  { revalidate: 300, tags: ['conference'] },
+)
+
+const getCachedAllSpeakers = unstable_cache(
+  async () =>
     prisma.speaker.findMany({
       select: {
         id: true, name: true, jobTitle: true, company: true, photoUrl: true, photoPosition: true,
@@ -14,6 +19,14 @@ export default async function SpeakersPage() {
       },
       orderBy: { name: 'asc' },
     }),
+  ['attendee-all-speakers'],
+  { revalidate: 60, tags: ['speakers'] },
+)
+
+export default async function SpeakersPage() {
+  const [conference, allSpeakers] = await Promise.all([
+    getCachedConference(),
+    getCachedAllSpeakers(),
   ])
 
   const speakers = conference

@@ -1,5 +1,5 @@
-export const revalidate = 15
 import { Suspense } from 'react'
+import { unstable_cache } from 'next/cache'
 import { getSession } from '@/lib/session'
 import { prisma } from '@conference/db'
 import Link from 'next/link'
@@ -109,26 +109,176 @@ function buildAttendeeRecs(
     .slice(0, 12)
 }
 
+// ── Cached data fetchers ──────────────────────────────────────────────────────
+
+function getCachedStaffDashboard() {
+  return unstable_cache(
+    async () => {
+      const [
+        totalRequests, pendingRequests, approvedRequests, confirmedRequests, rejectedRequests,
+        totalAttendees, totalSponsors, totalTimeBlocks, usedTimeBlocks, recentRequests,
+      ] = await Promise.all([
+        prisma.meetingRequest.count(),
+        prisma.meetingRequest.count({ where: { status: 'PENDING' } }),
+        prisma.meetingRequest.count({ where: { status: 'APPROVED' } }),
+        prisma.meetingRequest.count({ where: { status: 'CONFIRMED' } }),
+        prisma.meetingRequest.count({ where: { status: 'REJECTED' } }),
+        prisma.user.count({ where: { role: { in: ['ATTENDEE', 'SPEAKER'] } } }),
+        prisma.sponsor.count(),
+        prisma.timeBlock.count(),
+        prisma.meetingRequest.count({ where: { timeBlockId: { not: null } } }),
+        prisma.meetingRequest.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          include: {
+            requester: { select: { name: true, company: true, image: true } },
+            targetUser: { select: { name: true, company: true } },
+            targetSponsor: { select: { name: true } },
+          },
+        }),
+      ])
+      return {
+        totalRequests, pendingRequests, approvedRequests, confirmedRequests, rejectedRequests,
+        totalAttendees, totalSponsors, totalTimeBlocks, usedTimeBlocks, recentRequests,
+      }
+    },
+    ['meetings-staff-dashboard'],
+    { revalidate: 15, tags: ['meeting-requests'] },
+  )()
+}
+
+function getCachedUserDashboard(userId: string, sponsorId: string | null) {
+  return unstable_cache(
+    async () => {
+      const now = new Date()
+      const [
+        totalRequests, pendingRequests, approvedRequests, confirmedRequests, rejectedRequests,
+        myRequests, inboundRequests, profileUser, myMeetings, sponsorWithTeam,
+      ] = await Promise.all([
+        prisma.meetingRequest.count({
+          where: { OR: [{ requesterId: userId }, { targetUserId: userId }] },
+        }),
+        prisma.meetingRequest.count({
+          where: { status: 'PENDING', OR: [{ requesterId: userId }, { targetUserId: userId }] },
+        }),
+        prisma.meetingRequest.count({
+          where: { status: 'APPROVED', OR: [{ requesterId: userId }, { targetUserId: userId }] },
+        }),
+        prisma.meetingRequest.count({
+          where: { status: 'CONFIRMED', OR: [{ requesterId: userId }, { targetUserId: userId }] },
+        }),
+        prisma.meetingRequest.count({
+          where: { status: 'REJECTED', OR: [{ requesterId: userId }, { targetUserId: userId }] },
+        }),
+        prisma.meetingRequest.findMany({
+          where: { requesterId: userId },
+          orderBy: { createdAt: 'desc' },
+          take: 4,
+          include: {
+            targetUser: { select: { name: true, company: true, image: true } },
+            targetSponsor: { select: { name: true, logoUrl: true } },
+          },
+        }),
+        prisma.meetingRequest.findMany({
+          where: { OR: [{ targetUserId: userId }, ...(sponsorId ? [{ targetSponsorId: sponsorId }] : [])] },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          include: {
+            requester: { select: { name: true, image: true, jobTitle: true, company: true } },
+          },
+        }),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, image: true, bio: true, company: true, jobTitle: true, website: true, solutionsSeeking: true, solutionsOffering: true, companySize: true, annualRevenue: true, sponsorId: true },
+        }),
+        prisma.meetingRequest.findMany({
+          where: {
+            status: 'CONFIRMED',
+            timeBlockId: { not: null },
+            timeBlock: { startsAt: { gte: now } },
+            OR: [{ requesterId: userId }, { targetUserId: userId }],
+          },
+          orderBy: { timeBlock: { startsAt: 'asc' } },
+          take: 5,
+          include: {
+            requester: { select: { name: true, image: true, jobTitle: true, company: true } },
+            targetUser: { select: { name: true, image: true, jobTitle: true, company: true } },
+            targetSponsor: { select: { name: true } },
+            timeBlock: true,
+          },
+        }),
+        sponsorId
+          ? prisma.sponsor.findUnique({
+              where: { id: sponsorId },
+              include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
+            })
+          : Promise.resolve(null),
+      ])
+      return {
+        totalRequests, pendingRequests, approvedRequests, confirmedRequests, rejectedRequests,
+        myRequests, inboundRequests, profileUser, myMeetings, sponsorWithTeam,
+      }
+    },
+    ['meetings-user-dashboard', userId],
+    { revalidate: 15, tags: [`meetings-user-${userId}`] },
+  )()
+}
+
+function getCachedRecAttendees() {
+  return unstable_cache(
+    async () => prisma.user.findMany({
+      where: { role: { in: ['ATTENDEE', 'SPEAKER'] } },
+      select: {
+        id: true, name: true, image: true, company: true, jobTitle: true,
+        solutionsOffering: true, solutionsSeeking: true, companySize: true,
+      },
+      take: 100,
+    }),
+    ['meetings-rec-attendees'],
+    { revalidate: 120, tags: ['attendees'] },
+  )()
+}
+
+function getCachedRecSponsors() {
+  return unstable_cache(
+    async () => prisma.sponsor.findMany({
+      select: {
+        id: true, name: true, logoUrl: true, tier: true,
+        solutionsOffering: true, solutionsSeeking: true,
+        companySize: true, tagline: true,
+      },
+      take: 100,
+    }),
+    ['meetings-rec-sponsors'],
+    { revalidate: 120, tags: ['sponsors'] },
+  )()
+}
+
+function getCachedRecRequests(userId: string, field: 'targetUserId' | 'targetSponsorId') {
+  return unstable_cache(
+    async () => prisma.meetingRequest.findMany({
+      where: { requesterId: userId, [field]: { not: null } },
+      select: { [field]: true } as any,
+    }),
+    ['meetings-rec-requests', userId, field],
+    { revalidate: 15, tags: [`meetings-user-${userId}`] },
+  )()
+}
+
 /** Async server component streamed via Suspense — keeps main dashboard render fast */
 async function RecommendationsAsync({ userId, sponsorId, isSponsor }: { userId: string; sponsorId: string | null; isSponsor: boolean }) {
   if (isSponsor && sponsorId) {
     const [sponsor, allAttendees, alreadyRequestedIds] = await Promise.all([
-      prisma.sponsor.findUnique({
-        where: { id: sponsorId },
-        select: { solutionsSeeking: true, solutionsOffering: true, name: true },
-      }),
-      prisma.user.findMany({
-        where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, id: { not: userId } },
-        select: {
-          id: true, name: true, image: true, company: true, jobTitle: true,
-          solutionsOffering: true, solutionsSeeking: true, companySize: true,
-        },
-        take: 100,
-      }),
-      prisma.meetingRequest.findMany({
-        where: { requesterId: userId, targetUserId: { not: null } },
-        select: { targetUserId: true },
-      }),
+      unstable_cache(
+        async () => prisma.sponsor.findUnique({
+          where: { id: sponsorId },
+          select: { solutionsSeeking: true, solutionsOffering: true, name: true },
+        }),
+        ['meetings-rec-sponsor-profile', sponsorId],
+        { revalidate: 120, tags: ['sponsors'] },
+      )(),
+      getCachedRecAttendees(),
+      getCachedRecRequests(userId, 'targetUserId'),
     ])
 
     const recs = buildSponsorRecs(allAttendees, alreadyRequestedIds, sponsor, sponsor?.name ?? null)
@@ -142,22 +292,16 @@ async function RecommendationsAsync({ userId, sponsorId, isSponsor }: { userId: 
     )
   } else {
     const [profileUser, allSponsors, alreadyRequestedIds] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { solutionsSeeking: true, solutionsOffering: true, companySize: true },
-      }),
-      prisma.sponsor.findMany({
-        select: {
-          id: true, name: true, logoUrl: true, tier: true,
-          solutionsOffering: true, solutionsSeeking: true,
-          companySize: true, tagline: true,
-        },
-        take: 100,
-      }),
-      prisma.meetingRequest.findMany({
-        where: { requesterId: userId, targetSponsorId: { not: null } },
-        select: { targetSponsorId: true },
-      }),
+      unstable_cache(
+        async () => prisma.user.findUnique({
+          where: { id: userId },
+          select: { solutionsSeeking: true, solutionsOffering: true, companySize: true },
+        }),
+        ['meetings-rec-user-profile', userId],
+        { revalidate: 120, tags: [`meetings-user-${userId}`] },
+      )(),
+      getCachedRecSponsors(),
+      getCachedRecRequests(userId, 'targetSponsorId'),
     ])
 
     const recs = buildAttendeeRecs(allSponsors, alreadyRequestedIds, profileUser)
@@ -180,118 +324,41 @@ export default async function DashboardPage() {
   const isStaff = user.role === 'STAFF'
   const isSponsor = !!user.sponsorId
 
-  // ── ALL queries in a single parallel batch ──
-  const now = new Date()
+  // ── Cached data fetch ──
+  let totalRequests: number, pendingRequests: number, approvedRequests: number,
+      confirmedRequests: number, rejectedRequests: number,
+      totalAttendees: number | null = null, totalSponsors: number | null = null,
+      totalTimeBlocks: number | null = null, usedTimeBlocks: number | null = null,
+      recentRequests: any[] | null = null,
+      myRequests: any[] | null = null, inboundRequests: any[] | null = null,
+      profileUser: any | null = null, myMeetings: any[] | null = null,
+      sponsorWithTeam: any | null = null
 
-  const [
-    totalRequests,
-    pendingRequests,
-    approvedRequests,
-    confirmedRequests,
-    rejectedRequests,
-    totalAttendees,
-    totalSponsors,
-    totalTimeBlocks,
-    usedTimeBlocks,
-    recentRequests,
-    myRequests,
-    inboundRequests,
-    profileUser,
-    myMeetings,
-    sponsorWithTeam,
-  ] = await Promise.all([
-    isStaff
-      ? prisma.meetingRequest.count()
-      : prisma.meetingRequest.count({
-          where: { OR: [{ requesterId: user.id }, { targetUserId: user.id }] },
-        }),
-    isStaff
-      ? prisma.meetingRequest.count({ where: { status: 'PENDING' } })
-      : prisma.meetingRequest.count({
-          where: { status: 'PENDING', OR: [{ requesterId: user.id }, { targetUserId: user.id }] },
-        }),
-    isStaff
-      ? prisma.meetingRequest.count({ where: { status: 'APPROVED' } })
-      : prisma.meetingRequest.count({
-          where: { status: 'APPROVED', OR: [{ requesterId: user.id }, { targetUserId: user.id }] },
-        }),
-    isStaff
-      ? prisma.meetingRequest.count({ where: { status: 'CONFIRMED' } })
-      : prisma.meetingRequest.count({
-          where: { status: 'CONFIRMED', OR: [{ requesterId: user.id }, { targetUserId: user.id }] },
-        }),
-    isStaff
-      ? prisma.meetingRequest.count({ where: { status: 'REJECTED' } })
-      : prisma.meetingRequest.count({
-          where: { status: 'REJECTED', OR: [{ requesterId: user.id }, { targetUserId: user.id }] },
-        }),
-    isStaff ? prisma.user.count({ where: { role: { in: ['ATTENDEE', 'SPEAKER'] } } }) : Promise.resolve(null),
-    isStaff ? prisma.sponsor.count() : Promise.resolve(null),
-    isStaff ? prisma.timeBlock.count() : Promise.resolve(null),
-    isStaff ? prisma.meetingRequest.count({ where: { timeBlockId: { not: null } } }) : Promise.resolve(null),
-    isStaff
-      ? prisma.meetingRequest.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-          include: {
-            requester: { select: { name: true, company: true, image: true } },
-            targetUser: { select: { name: true, company: true } },
-            targetSponsor: { select: { name: true } },
-          },
-        })
-      : Promise.resolve(null),
-    !isStaff
-      ? prisma.meetingRequest.findMany({
-          where: { requesterId: user.id },
-          orderBy: { createdAt: 'desc' },
-          take: 4,
-          include: {
-            targetUser: { select: { name: true, company: true, image: true } },
-            targetSponsor: { select: { name: true, logoUrl: true } },
-          },
-        })
-      : Promise.resolve(null),
-    !isStaff
-      ? prisma.meetingRequest.findMany({
-          where: { OR: [{ targetUserId: user.id }, { targetSponsorId: user.sponsorId ?? undefined }] },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-          include: {
-            requester: { select: { name: true, image: true, jobTitle: true, company: true } },
-          },
-        })
-      : Promise.resolve(null),
-    !isStaff
-      ? prisma.user.findUnique({
-          where: { id: user.id },
-          select: { name: true, image: true, bio: true, company: true, jobTitle: true, website: true, solutionsSeeking: true, solutionsOffering: true, companySize: true, annualRevenue: true, sponsorId: true },
-        })
-      : Promise.resolve(null),
-    !isStaff
-      ? prisma.meetingRequest.findMany({
-          where: {
-            status: 'CONFIRMED',
-            timeBlockId: { not: null },
-            timeBlock: { startsAt: { gte: now } },
-            OR: [{ requesterId: user.id }, { targetUserId: user.id }],
-          },
-          orderBy: { timeBlock: { startsAt: 'asc' } },
-          take: 5,
-          include: {
-            requester: { select: { name: true, image: true, jobTitle: true, company: true } },
-            targetUser: { select: { name: true, image: true, jobTitle: true, company: true } },
-            targetSponsor: { select: { name: true } },
-            timeBlock: true,
-          },
-        })
-      : Promise.resolve(null),
-    isSponsor && user.sponsorId
-      ? prisma.sponsor.findUnique({
-          where: { id: user.sponsorId },
-          include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
-        })
-      : Promise.resolve(null),
-  ])
+  if (isStaff) {
+    const data = await getCachedStaffDashboard()
+    totalRequests = data.totalRequests
+    pendingRequests = data.pendingRequests
+    approvedRequests = data.approvedRequests
+    confirmedRequests = data.confirmedRequests
+    rejectedRequests = data.rejectedRequests
+    totalAttendees = data.totalAttendees
+    totalSponsors = data.totalSponsors
+    totalTimeBlocks = data.totalTimeBlocks
+    usedTimeBlocks = data.usedTimeBlocks
+    recentRequests = data.recentRequests
+  } else {
+    const data = await getCachedUserDashboard(user.id, user.sponsorId ?? null)
+    totalRequests = data.totalRequests
+    pendingRequests = data.pendingRequests
+    approvedRequests = data.approvedRequests
+    confirmedRequests = data.confirmedRequests
+    rejectedRequests = data.rejectedRequests
+    myRequests = data.myRequests
+    inboundRequests = data.inboundRequests
+    profileUser = data.profileUser
+    myMeetings = data.myMeetings
+    sponsorWithTeam = data.sponsorWithTeam
+  }
 
   const confirmRate = totalRequests > 0 ? Math.round((confirmedRequests / totalRequests) * 100) : 0
 

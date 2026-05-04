@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
@@ -42,5 +43,6 @@ export async function PATCH(req: Request) {
       ...(image !== undefined && { image }),
     },
   })
+  revalidateTag(`meetings-user-${userId}`)
   return NextResponse.json(updated)
 }

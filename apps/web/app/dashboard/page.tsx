@@ -1,16 +1,26 @@
-export const revalidate = 30
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { SponsorReadinessWidget } from '@/components/SponsorReadinessWidget'
 import { ConferenceBanner } from '@/components/ConferenceBanner'
+
+const getCachedDashboardStats = unstable_cache(
+  async () => {
+    const [sessionCount, speakerCount, pendingMeetings, attendeeCount, conference] = await Promise.all([
+      prisma.confSession.count(),
+      prisma.speaker.count(),
+      prisma.meeting.count({ where: { status: 'PENDING' } }),
+      prisma.user.count({ where: { role: 'ATTENDEE' } }),
+      prisma.conference.findFirst({ where: { active: true } }),
+    ])
+    return { sessionCount, speakerCount, pendingMeetings, attendeeCount, conference }
+  },
+  ['web-dashboard-stats'],
+  { revalidate: 30, tags: ['sessions', 'speakers', 'meetings', 'attendees'] },
+)
+
 export default async function DashboardPage() {
-  const [sessionCount, speakerCount, pendingMeetings, attendeeCount, conference] = await Promise.all([
-    prisma.confSession.count(),
-    prisma.speaker.count(),
-    prisma.meeting.count({ where: { status: 'PENDING' } }),
-    prisma.user.count({ where: { role: 'ATTENDEE' } }),
-    prisma.conference.findFirst({ where: { active: true } }),
-  ])
+  const { sessionCount, speakerCount, pendingMeetings, attendeeCount, conference } = await getCachedDashboardStats()
 
   const stats = [
     { label: 'Sessions', value: sessionCount, color: 'text-blue-600', bg: 'bg-blue-50', href: '/dashboard/sessions' },

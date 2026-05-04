@@ -1,10 +1,10 @@
-export const revalidate = 300
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AttendeesTable } from '@/components/AttendeesTable'
 
-export default async function AttendeesPage() {
-  const users = await prisma.user.findMany({
+const getCachedAttendees = unstable_cache(
+  async () => prisma.user.findMany({
     where: { role: { in: ['ATTENDEE', 'SPEAKER'] } },
     orderBy: { name: 'asc' },
     select: {
@@ -16,7 +16,13 @@ export default async function AttendeesPage() {
       company: true,
       jobTitle: true,
     },
-  })
+  }),
+  ['web-attendees'],
+  { revalidate: 300, tags: ['attendees'] },
+)
+
+export default async function AttendeesPage() {
+  const users = await getCachedAttendees()
 
   return (
     <>

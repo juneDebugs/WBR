@@ -1,10 +1,10 @@
-export const revalidate = 60
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AccessClient } from '@/components/AccessClient'
 
-export default async function AccessPage() {
-  const users = await prisma.user.findMany({
+const getCachedAccessUsers = unstable_cache(
+  async () => prisma.user.findMany({
     orderBy: [{ role: 'asc' }, { name: 'asc' }],
     select: {
       id: true,
@@ -15,7 +15,13 @@ export default async function AccessPage() {
       password: true,
       createdAt: true,
     },
-  })
+  }),
+  ['web-access-users'],
+  { revalidate: 60, tags: ['access'] },
+)
+
+export default async function AccessPage() {
+  const users = await getCachedAccessUsers()
 
   return (
     <>

@@ -1,10 +1,10 @@
-export const revalidate = 60
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import SpeakersClient from '@/components/SpeakersClient'
 
-export default async function SpeakersPage() {
-  const speakers = await prisma.speaker.findMany({
+const getCachedSpeakers = unstable_cache(
+  async () => prisma.speaker.findMany({
     select: {
       id: true,
       name: true,
@@ -18,7 +18,13 @@ export default async function SpeakersPage() {
       _count: { select: { confSessions: true } },
     },
     orderBy: { name: 'asc' },
-  })
+  }),
+  ['web-speakers'],
+  { revalidate: 60, tags: ['speakers'] },
+)
+
+export default async function SpeakersPage() {
+  const speakers = await getCachedSpeakers()
 
   return (
     <>

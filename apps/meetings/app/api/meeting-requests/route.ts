@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
@@ -39,6 +40,9 @@ export async function POST(req: Request) {
   const request = await prisma.meetingRequest.create({
     data: { requesterId: userId, targetUserId, targetSponsorId, message },
   })
+  revalidateTag('meeting-requests')
+  revalidateTag(`meetings-user-${userId}`)
+  if (targetUserId) revalidateTag(`meetings-user-${targetUserId}`)
   return NextResponse.json(request)
 }
 

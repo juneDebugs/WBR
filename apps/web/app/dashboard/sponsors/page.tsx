@@ -1,4 +1,4 @@
-export const revalidate = 60
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { SponsorLogo } from '@/components/SponsorLogo'
@@ -82,18 +82,27 @@ function TierHeader({ tier, count }: { tier: string; count: number }) {
   )
 }
 
+const getCachedSponsorsData = unstable_cache(
+  async () => {
+    const [sponsors, committedRows] = await Promise.all([
+      prisma.sponsor.findMany({
+        include: { _count: { select: { meetings: true, users: true } } },
+        orderBy: [{ tier: 'asc' }, { name: 'asc' }],
+      }),
+      prisma.sponsorMeeting.groupBy({
+        by: ['sponsorId'],
+        where: { status: 'CONFIRMED' },
+        _count: { _all: true },
+      }),
+    ])
+    return { sponsors, committedRows }
+  },
+  ['web-sponsors'],
+  { revalidate: 60, tags: ['sponsors'] },
+)
+
 export default async function SponsorsPage() {
-  const [sponsors, committedRows] = await Promise.all([
-    prisma.sponsor.findMany({
-      include: { _count: { select: { meetings: true, users: true } } },
-      orderBy: [{ tier: 'asc' }, { name: 'asc' }],
-    }),
-    prisma.sponsorMeeting.groupBy({
-      by: ['sponsorId'],
-      where: { status: 'CONFIRMED' },
-      _count: { _all: true },
-    }),
-  ])
+  const { sponsors, committedRows } = await getCachedSponsorsData()
 
   const committedMap = new Map(committedRows.map(r => [r.sponsorId, r._count._all]))
 

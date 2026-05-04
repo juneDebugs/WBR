@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -17,13 +17,22 @@ function getGradient(name: string) {
   return GRADIENTS[name.charCodeAt(0) % GRADIENTS.length]
 }
 
+function getCachedSpeakerDetail(id: string) {
+  return unstable_cache(
+    async () =>
+      prisma.speaker.findUnique({
+        where: { id },
+        include: {
+          confSessions: { select: { id: true, title: true, startsAt: true, endsAt: true, room: true, track: true, type: true }, orderBy: { startsAt: 'asc' } },
+        },
+      }),
+    ['attendee-speaker-detail', id],
+    { revalidate: 60, tags: [`speaker-${id}`] },
+  )()
+}
+
 export default async function SpeakerDetailPage({ params }: { params: { id: string } }) {
-  const speaker = await prisma.speaker.findUnique({
-    where: { id: params.id },
-    include: {
-      confSessions: { select: { id: true, title: true, startsAt: true, endsAt: true, room: true, track: true, type: true }, orderBy: { startsAt: 'asc' } },
-    },
-  })
+  const speaker = await getCachedSpeakerDetail(params.id)
 
   if (!speaker) notFound()
 

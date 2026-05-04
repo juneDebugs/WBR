@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
@@ -43,5 +44,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  revalidateTag('meeting-requests')
+  revalidateTag(`meetings-user-${updated.requesterId}`)
+  if (updated.targetUserId) revalidateTag(`meetings-user-${updated.targetUserId}`)
   return NextResponse.json(updated)
 }

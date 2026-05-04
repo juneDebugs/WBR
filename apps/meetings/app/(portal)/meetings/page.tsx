@@ -1,46 +1,57 @@
-export const revalidate = 15
+import { unstable_cache } from 'next/cache'
 import { getSession } from '@/lib/session'
 import { prisma, getActiveConflicts } from '@conference/db'
 import { MeetingsView } from '@/components/MeetingsView'
+
+function getCachedUserMeetings(userId: string, sponsorId: string | null) {
+  return unstable_cache(
+    async () => {
+      const [requests, sponsorMeetings, conflicts] = await Promise.all([
+        prisma.meetingRequest.findMany({
+          where: {
+            OR: [
+              { requesterId: userId },
+              { targetUserId: userId },
+              ...(sponsorId ? [{ targetSponsorId: sponsorId }] : []),
+            ],
+          },
+          include: {
+            requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
+            targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
+            targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true, website: true } },
+            timeBlock: true,
+          },
+          orderBy: [
+            { status: 'asc' },
+            { createdAt: 'desc' },
+          ],
+        }),
+        sponsorId
+          ? prisma.sponsorMeeting.findMany({
+              where: { sponsorId, status: 'CONFIRMED' },
+              include: {
+                user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+                timeBlock: true,
+                sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
+              },
+              orderBy: { timeBlock: { startsAt: 'asc' } },
+            })
+          : Promise.resolve([]),
+        getActiveConflicts(prisma),
+      ])
+      return { requests, sponsorMeetings, conflicts }
+    },
+    ['meetings-user-meetings', userId],
+    { revalidate: 15, tags: [`meetings-user-${userId}`] },
+  )()
+}
 
 export default async function MeetingsPage() {
   const session = await getSession()
   const userId = (session!.user as any).id as string
   const sponsorId = (session!.user as any).sponsorId as string | null
 
-  const [requests, sponsorMeetings, conflicts] = await Promise.all([
-    prisma.meetingRequest.findMany({
-      where: {
-        OR: [
-          { requesterId: userId },
-          { targetUserId: userId },
-          ...(sponsorId ? [{ targetSponsorId: sponsorId }] : []),
-        ],
-      },
-      include: {
-        requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
-        targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
-        targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true, website: true } },
-        timeBlock: true,
-      },
-      orderBy: [
-        { status: 'asc' },
-        { createdAt: 'desc' },
-      ],
-    }),
-    sponsorId
-      ? prisma.sponsorMeeting.findMany({
-          where: { sponsorId, status: 'CONFIRMED' },
-          include: {
-            user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-            timeBlock: true,
-            sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
-          },
-          orderBy: { timeBlock: { startsAt: 'asc' } },
-        })
-      : Promise.resolve([]),
-    getActiveConflicts(prisma),
-  ])
+  const { requests, sponsorMeetings, conflicts } = await getCachedUserMeetings(userId, sponsorId)
 
   return (
     <>
