@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import Image from 'next/image'
+import { useSpeakersData } from '@/lib/hooks'
 
 function parsePhotoPos(pos: string | null | undefined) {
   const parts = (pos ?? '50% 50%').trim().split(/\s+/)
@@ -317,7 +318,11 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function SpeakersClient({ speakers }: { speakers: Speaker[] }) {
+export function SpeakersClient({ speakers: propSpeakers }: { speakers: Speaker[] }) {
+  const { data: hookData, isLoading } = useSpeakersData()
+  const speakers: Speaker[] = hookData?.speakers ?? (propSpeakers.length > 0 ? propSpeakers : [])
+  const speakerCount = hookData?.count ?? speakers.length
+
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Speaker | null>(null)
 
@@ -355,8 +360,34 @@ export function SpeakersClient({ speakers }: { speakers: Speaker[] }) {
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [filtered])
 
+  if (isLoading && speakers.length === 0) {
+    return (
+      <>
+        <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-3 sticky top-0 z-10 backdrop-blur-md border-b border-gray-100/60" style={{ background: 'rgba(238, 242, 255, 0.85)' }}>
+          <h1 className="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Speakers</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Loading...</p>
+        </div>
+        <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-28 animate-pulse">
+          <div className="flex items-center gap-2 bg-white rounded-2xl px-4 py-3 mb-6 shadow-sm border border-gray-100">
+            <div className="h-4 w-4 bg-gray-200 rounded" />
+            <div className="h-4 flex-1 bg-gray-200 rounded" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="aspect-[3/4] bg-gray-200 rounded-2xl" />
+            ))}
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
+      <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-3 sticky top-0 z-10 backdrop-blur-md border-b border-gray-100/60" style={{ background: 'rgba(238, 242, 255, 0.85)' }}>
+        <h1 className="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Speakers</h1>
+        <p className="text-sm text-gray-400 mt-0.5">{speakerCount} speakers</p>
+      </div>
       <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-28">
         {/* Search */}
         <div className="flex items-center gap-2 bg-white rounded-2xl px-4 py-3 mb-6 shadow-sm border border-gray-100">

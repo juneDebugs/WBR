@@ -1,3 +1,4 @@
+export const revalidate = 60
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
@@ -96,7 +97,7 @@ export default async function EmailPage() {
               body: e.body,
               status: e.status,
               direction: 'OUTBOUND',
-              sentAt: e.sentAt.toISOString(),
+              sentAt: typeof e.sentAt === 'string' ? e.sentAt : e.sentAt.toISOString(),
               sponsorName: sponsor?.name ?? null,
               sponsorTier: sponsor?.tier ?? null,
             }

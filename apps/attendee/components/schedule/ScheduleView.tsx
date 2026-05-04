@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import type { DaySchedule } from '@conference/db'
 import { SessionCard } from './SessionCard'
+import { useScheduleData } from '@/lib/hooks'
 
 interface Props {
   days: DaySchedule[]
@@ -12,11 +13,31 @@ interface Props {
   conflictedIds?: Set<string>
 }
 
-export function ScheduleView({ days, savedIds: initialSavedIds, conflictedIds = new Set() }: Props) {
+export function ScheduleView({ days: propDays, savedIds: propSavedIds, conflictedIds: propConflictedIds = new Set() }: Props) {
+  const { data: hookData, isLoading } = useScheduleData()
   const router = useRouter()
   const [selectedDay, setSelectedDay] = useState(0)
   const [trackFilter, setTrackFilter] = useState<string | null>(null)
+
+  const days: DaySchedule[] = hookData?.days ?? propDays
+  const initialSavedIds = useMemo(
+    () => hookData?.savedIds ? new Set<string>(hookData.savedIds) : propSavedIds,
+    [hookData?.savedIds, propSavedIds]
+  )
+  const conflictedIds = useMemo(
+    () => hookData?.conflictedIds ? new Set<string>(hookData.conflictedIds) : propConflictedIds,
+    [hookData?.conflictedIds, propConflictedIds]
+  )
+  const conference = hookData?.conference ?? null
+
   const [savedIds, setSavedIds] = useState<Set<string>>(initialSavedIds)
+
+  // Update savedIds when hook data arrives
+  const [lastHookSavedIds, setLastHookSavedIds] = useState<string[] | null>(null)
+  if (hookData?.savedIds && hookData.savedIds !== lastHookSavedIds) {
+    setLastHookSavedIds(hookData.savedIds)
+    setSavedIds(new Set<string>(hookData.savedIds))
+  }
 
   const currentDay = days[selectedDay]
   const tracks = Array.from(new Set(days.flatMap(d => d.sessions.map(s => s.track).filter(Boolean)))) as string[]
@@ -34,8 +55,38 @@ export function ScheduleView({ days, savedIds: initialSavedIds, conflictedIds = 
     })
   }
 
+  if (isLoading && days.length === 0) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-7 w-48 bg-gray-200 rounded mb-2" />
+        <div className="h-4 w-32 bg-gray-200 rounded mb-6" />
+        <div className="flex gap-2 mb-4">
+          <div className="h-9 w-20 bg-gray-200 rounded-full" />
+          <div className="h-9 w-20 bg-gray-200 rounded-full" />
+        </div>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="h-24 bg-gray-200 rounded-2xl mb-3" />
+        ))}
+      </div>
+    )
+  }
+
+  if (days.length === 0 && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <p className="text-gray-500">No active conference found.</p>
+      </div>
+    )
+  }
+
   return (
     <div>
+      {conference && (
+        <>
+          <h1 className="text-2xl font-bold mb-1">{conference.name}</h1>
+          {conference.venue && <p className="text-sm text-gray-500 mb-6">{conference.venue}</p>}
+        </>
+      )}
       {/* iOS-style segmented control for days + My Schedule */}
       <div className="flex items-center gap-2.5 mb-4">
         {days.length > 1 && (

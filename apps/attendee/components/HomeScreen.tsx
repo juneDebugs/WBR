@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
 import { format } from 'date-fns'
+import { useHomeData } from '@/lib/hooks'
 
 
 interface ScheduleItem {
@@ -35,7 +36,7 @@ interface Speaker {
 }
 
 interface Props {
-  conference: {
+  conference?: {
     name: string
     venue: string | null
     venueLat: number | null
@@ -47,14 +48,14 @@ interface Props {
     wifiName: string | null
     wifiPassword: string | null
   } | null
-  user: { name: string | null; image: string | null; company: string | null; jobTitle: string | null }
-  meetingCount: number
-  sessionCount: number
-  profilePct: number
-  missingFields: string[]
-  scheduleItems: ScheduleItem[]
-  speakers: Speaker[]
-  sponsors: Sponsor[]
+  user?: { name: string | null; image: string | null; company: string | null; jobTitle: string | null }
+  meetingCount?: number
+  sessionCount?: number
+  profilePct?: number
+  missingFields?: string[]
+  scheduleItems?: ScheduleItem[]
+  speakers?: Speaker[]
+  sponsors?: Sponsor[]
 }
 
 // ─── Weather tile (fetches Open-Meteo, free, no key) ─────────────────────────
@@ -654,9 +655,42 @@ const QUICK_LINKS = [
   { label: 'Schedule', href: '/my-schedule' },
 ]
 
-export function HomeScreen({ conference, user, meetingCount, sessionCount, profilePct, missingFields, scheduleItems, speakers, sponsors }: Props) {
+export function HomeScreen(props: Props) {
+  const { data: hookData, isLoading } = useHomeData()
+
+  const conference = hookData?.conference ?? props.conference ?? null
+  const user = hookData?.user ?? props.user ?? { name: null, image: null, company: null, jobTitle: null }
+  const meetingCount = hookData?.meetingCount ?? props.meetingCount ?? 0
+  const sessionCount = hookData?.sessionCount ?? props.sessionCount ?? 0
+  const profilePct = hookData?.profilePct ?? props.profilePct ?? 0
+  const missingFields = hookData?.missingFields ?? props.missingFields ?? []
+  const scheduleItems = hookData?.scheduleItems ?? props.scheduleItems ?? []
+  const speakers = hookData?.speakers ?? props.speakers ?? []
+  const sponsors = hookData?.sponsors ?? props.sponsors ?? []
+
   const now = new Date()
   const firstName = user.name?.split(' ')[0] ?? ''
+
+  if (isLoading && !hookData) {
+    return (
+      <div className="min-h-screen animate-pulse" style={{ background: '#f0ece4' }}>
+        <div className="w-full md:max-w-2xl mx-auto">
+          <div className="bg-gray-300 h-64" style={{ borderRadius: '0 0 28px 28px' }} />
+          <div className="px-5 py-4 flex items-center justify-between border-b border-[#ede9e0]" style={{ background: '#f5f2ec' }}>
+            <div className="h-4 w-24 bg-gray-300 rounded" />
+            <div className="h-3 w-40 bg-gray-200 rounded" />
+          </div>
+          <div className="px-4 pt-5 grid grid-cols-2 gap-3">
+            <div className="col-span-2 h-32 bg-gray-200 rounded-2xl" />
+            <div className="aspect-square bg-gray-200 rounded-2xl" />
+            <div className="aspect-square bg-gray-200 rounded-2xl" />
+            <div className="aspect-square bg-gray-200 rounded-2xl" />
+            <div className="aspect-square bg-gray-200 rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen" style={{ background: '#f0ece4' }}>

@@ -1,3 +1,4 @@
+export const revalidate = 30
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
@@ -38,8 +39,8 @@ export default async function DashboardPage() {
             id={conference.id}
             name={conference.name}
             venue={conference.venue}
-            startDate={conference.startDate.toISOString()}
-            endDate={conference.endDate.toISOString()}
+            startDate={typeof conference.startDate === 'string' ? conference.startDate : conference.startDate.toISOString()}
+            endDate={typeof conference.endDate === 'string' ? conference.endDate : conference.endDate.toISOString()}
           />
         )}
 

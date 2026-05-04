@@ -1,3 +1,4 @@
+export const revalidate = 60
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
@@ -35,7 +36,7 @@ export default async function AccessPage() {
             image: u.image,
             role: u.role,
             hasPassword: !!u.password,
-            createdAt: u.createdAt.toISOString(),
+            createdAt: typeof u.createdAt === 'string' ? u.createdAt : u.createdAt.toISOString(),
           }))}
         />
       </main>

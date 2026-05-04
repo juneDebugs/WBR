@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 
 import Link from 'next/link'
+import { useAttendees } from '@/lib/hooks'
 
 interface User {
   id: string
@@ -23,8 +24,17 @@ const ROLE_COLORS: Record<string, string> = {
   STAFF: 'bg-emerald-50 text-emerald-700',
 }
 
-export function AttendeesTable({ users: initialUsers }: { users: User[] }) {
+export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] }) {
+  const { data, isLoading } = useAttendees()
   const [users, setUsers] = useState(initialUsers)
+
+  // Update users when hook data arrives
+  useEffect(() => {
+    if (data && Array.isArray(data)) {
+      setUsers(data)
+    }
+  }, [data])
+
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('')
   const [page, setPage] = useState(0)
@@ -78,6 +88,30 @@ export function AttendeesTable({ users: initialUsers }: { users: User[] }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (isLoading && users.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-72 bg-gray-200 rounded-xl animate-pulse" />
+            <div className="h-9 w-28 bg-gray-200 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          {[...Array(10)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gray-100">
+              <div className="w-9 h-9 bg-gray-100 rounded-lg animate-pulse" />
+              <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

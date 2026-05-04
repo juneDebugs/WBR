@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
+import { useSpeakers } from '@/lib/hooks'
 
 function parsePhotoPos(pos: string | null | undefined) {
   const parts = (pos ?? '50% 50%').trim().split(/\s+/)
@@ -36,8 +37,17 @@ type SpeakerForm = {
   linkedinUrl: string
 }
 
-export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: Speaker[] }) {
+export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeakers?: Speaker[] }) {
+  const { data, isLoading } = useSpeakers()
   const [speakers, setSpeakers] = useState(initialSpeakers)
+
+  // Update speakers when hook data arrives
+  useEffect(() => {
+    if (data && Array.isArray(data)) {
+      setSpeakers(data)
+    }
+  }, [data])
+
   const [editingSpeaker, setEditingSpeaker] = useState<Speaker | null>(null)
   const [form, setForm] = useState<SpeakerForm>({
     name: '', company: '', jobTitle: '', bio: '', photoUrl: '', photoPosition: '50% 50%', photoScale: 1, twitterHandle: '', linkedinUrl: '',
@@ -235,6 +245,26 @@ export default function SpeakersClient({ initialSpeakers }: { initialSpeakers: S
 
   // iOS-style grouped input
   const iosInput = 'w-full bg-transparent text-[15px] text-gray-900 placeholder:text-gray-400 outline-none'
+
+  if (isLoading && speakers.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between mb-6">
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+          <div className="h-8 w-28 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gray-100">
+              <div className="w-10 h-10 bg-gray-100 rounded-full animate-pulse" />
+              <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
