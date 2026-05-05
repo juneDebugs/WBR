@@ -42,7 +42,7 @@ function getCachedUserMeetings(userId: string, sponsorId: string | null) {
       return { requests, sponsorMeetings, conflicts }
     },
     ['meetings-user-meetings', userId],
-    { revalidate: 15, tags: [`meetings-user-${userId}`] },
+    { revalidate: 30, tags: [`meetings-user-${userId}`] },
   )()
 }
 

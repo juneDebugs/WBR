@@ -143,7 +143,7 @@ function getCachedStaffDashboard() {
       }
     },
     ['meetings-staff-dashboard'],
-    { revalidate: 15, tags: ['meeting-requests'] },
+    { revalidate: 60, tags: ['meeting-requests'] },
   )()
 }
 
@@ -220,7 +220,7 @@ function getCachedUserDashboard(userId: string, sponsorId: string | null) {
       }
     },
     ['meetings-user-dashboard', userId],
-    { revalidate: 15, tags: [`meetings-user-${userId}`] },
+    { revalidate: 60, tags: [`meetings-user-${userId}`] },
   )()
 }
 

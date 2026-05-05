@@ -1,4 +1,5 @@
 'use client'
+import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
@@ -15,7 +16,7 @@ const NAV = [
 
 const STAFF_NAV = { href: '/staff', label: 'Finalize', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }
 
-export function NavBar({ role }: Props) {
+export const NavBar = memo(function NavBar({ role }: Props) {
   const pathname = usePathname()
   const active = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(href + '/')
@@ -65,4 +66,4 @@ export function NavBar({ role }: Props) {
       </div>
     </header>
   )
-}
+})

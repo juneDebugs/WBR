@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { SOLUTION_COLORS } from '@/lib/solutions'
 
@@ -43,8 +42,6 @@ export function RecommendedMatchesClient({ matches, heading, subheading }: Props
   const [requested, setRequested] = useState<Set<string>>(
     new Set(matches.filter(m => m.alreadyRequested).map(m => m.id))
   )
-  const router = useRouter()
-
   async function requestMeeting(match: RecommendedMatch) {
     if (requested.has(match.id) || requesting) return
     setRequesting(match.id)
@@ -59,7 +56,6 @@ export function RecommendedMatchesClient({ matches, heading, subheading }: Props
     })
     if (res.ok) {
       setRequested(prev => new Set([...prev, match.id]))
-      router.refresh()
     }
     setRequesting(null)
   }

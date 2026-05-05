@@ -22,7 +22,7 @@ function getCachedUserRequests(userId: string, sponsorId: string | null) {
       orderBy: { createdAt: 'desc' },
     }),
     ['meetings-user-requests', userId],
-    { revalidate: 15, tags: [`meetings-user-${userId}`] },
+    { revalidate: 30, tags: [`meetings-user-${userId}`] },
   )()
 }
 

@@ -16,7 +16,24 @@ interface Props {
   requestedSponsorIds: string[]
 }
 
-export function BrowseView({ mode, people, sponsors, requestedUserIds, requestedSponsorIds }: Props) {
+function safeParse(raw: string | null): string[] {
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
+export function BrowseView({ mode, people: rawPeople, sponsors: rawSponsors, requestedUserIds, requestedSponsorIds }: Props) {
+  // Pre-parse JSON solutions once instead of on every filter evaluation
+  const people = useMemo(() => rawPeople.map(p => ({
+    ...p,
+    _parsedOffering: safeParse(p.solutionsOffering),
+    _parsedSeeking: safeParse(p.solutionsSeeking),
+  })), [rawPeople])
+
+  const sponsors = useMemo(() => rawSponsors.map(s => ({
+    ...s,
+    _parsedOffering: safeParse(s.solutionsOffering),
+    _parsedSeeking: safeParse(s.solutionsSeeking),
+  })), [rawSponsors])
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [filterOpen, setFilterOpen] = useState(false)
   const [browseTab, setBrowseTab] = useState<'sponsors' | 'people'>('sponsors')
@@ -58,12 +75,10 @@ export function BrowseView({ mode, people, sponsors, requestedUserIds, requested
       if (deferredFilters.companySizes.length > 0 && !deferredFilters.companySizes.includes(p.companySize)) return false
       if (deferredFilters.revenues.length > 0 && !deferredFilters.revenues.includes(p.annualRevenue)) return false
       if (deferredFilters.solutionsOffering.length > 0) {
-        const pOffers: string[] = p.solutionsOffering ? JSON.parse(p.solutionsOffering) : []
-        if (!deferredFilters.solutionsOffering.some(s => pOffers.includes(s))) return false
+        if (!deferredFilters.solutionsOffering.some(s => p._parsedOffering.includes(s))) return false
       }
       if (deferredFilters.solutionsSeeking.length > 0) {
-        const pSeeks: string[] = p.solutionsSeeking ? JSON.parse(p.solutionsSeeking) : []
-        if (!deferredFilters.solutionsSeeking.some(s => pSeeks.includes(s))) return false
+        if (!deferredFilters.solutionsSeeking.some(s => p._parsedSeeking.includes(s))) return false
       }
       if (deferredFilters.search) {
         const q = deferredFilters.search.toLowerCase()
@@ -79,12 +94,10 @@ export function BrowseView({ mode, people, sponsors, requestedUserIds, requested
       if (deferredFilters.companySizes.length > 0 && !deferredFilters.companySizes.includes(s.companySize)) return false
       if (deferredFilters.revenues.length > 0 && !deferredFilters.revenues.includes(s.annualRevenue)) return false
       if (deferredFilters.solutionsOffering.length > 0) {
-        const sOffers: string[] = s.solutionsOffering ? JSON.parse(s.solutionsOffering) : []
-        if (!deferredFilters.solutionsOffering.some(x => sOffers.includes(x))) return false
+        if (!deferredFilters.solutionsOffering.some(x => s._parsedOffering.includes(x))) return false
       }
       if (deferredFilters.solutionsSeeking.length > 0) {
-        const sSeeks: string[] = s.solutionsSeeking ? JSON.parse(s.solutionsSeeking) : []
-        if (!deferredFilters.solutionsSeeking.some(x => sSeeks.includes(x))) return false
+        if (!deferredFilters.solutionsSeeking.some(x => s._parsedSeeking.includes(x))) return false
       }
       if (deferredFilters.search) {
         const q = deferredFilters.search.toLowerCase()
