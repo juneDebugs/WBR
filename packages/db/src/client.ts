@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSQL } from '@prisma/adapter-libsql'
+import { createClient as createLibsqlWeb } from '@libsql/client/web'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -13,6 +14,7 @@ function createClient(): PrismaClient {
   const tursoUrl = process.env.TURSO_DATABASE_URL
   const tursoToken = process.env.TURSO_AUTH_TOKEN
   const isBuilding = process.env.NEXT_PHASE === 'phase-production-build'
+  const isVercel = !!process.env.VERCEL
 
   // During build: always use local SQLite (no Turso)
   if (isBuilding) {
@@ -20,22 +22,29 @@ function createClient(): PrismaClient {
     return new PrismaClient()
   }
 
-  // At runtime: use Turso with embedded replica — reads hit local SQLite, writes go to Turso
+  // At runtime: connect to Turso if env vars are set
   if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
     try {
       if (!globalForPrisma.libsqlAdapter) {
-        // Opaque require so webpack cannot statically resolve the native libsql bindings
-        const mod = '@libsql/client'
-        const { createClient: createLibsql } = require(mod)
-        const libsql = createLibsql({
-          url: 'file:/tmp/turso-replica.db',
-          syncUrl: tursoUrl,
-          authToken: tursoToken,
-          syncInterval: 60,
-        })
-        globalForPrisma.libsqlAdapter = new PrismaLibSQL(libsql)
+        if (isVercel) {
+          // Vercel serverless: use HTTP client (no native deps needed)
+          const libsql = createLibsqlWeb({ url: tursoUrl, authToken: tursoToken })
+          globalForPrisma.libsqlAdapter = new PrismaLibSQL(libsql)
+          dbConnectionMode = 'turso-http'
+        } else {
+          // Local / long-lived: embedded replica for local-speed reads
+          const mod = '@libsql/client'
+          const { createClient: createLibsql } = require(mod)
+          const libsql = createLibsql({
+            url: 'file:/tmp/turso-replica.db',
+            syncUrl: tursoUrl,
+            authToken: tursoToken,
+            syncInterval: 60,
+          })
+          globalForPrisma.libsqlAdapter = new PrismaLibSQL(libsql)
+          dbConnectionMode = 'turso-embedded-replica'
+        }
       }
-      dbConnectionMode = 'turso-embedded-replica'
       return new PrismaClient({ adapter: globalForPrisma.libsqlAdapter } as any)
     } catch (e: any) {
       dbConnectionMode = 'turso-failed: ' + (e?.message ?? 'unknown error')
