@@ -21,8 +21,16 @@ const tursoToken = process.env.TURSO_AUTH_TOKEN
 
 if (localDbUrl?.startsWith('file:')) {
   // Local/embedded SQLite via Node.js built-in (sync, ~0.01ms per query)
+  // Resolve relative paths the same way Prisma does — relative to packages/db/prisma/
+  const path = require('path')
+  const fs = require('fs')
   const { DatabaseSync } = require('node:sqlite')
-  const dbPath = localDbUrl.replace('file:', '')
+  const rawPath = localDbUrl.replace('file:', '')
+  // Find monorepo root (where pnpm-workspace.yaml lives)
+  let root = process.cwd()
+  while (root !== path.dirname(root) && !fs.existsSync(path.join(root, 'pnpm-workspace.yaml'))) root = path.dirname(root)
+  const schemaDir = path.join(root, 'packages', 'db', 'prisma')
+  const dbPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(schemaDir, rawPath)
   const sqlite = new DatabaseSync(dbPath)
   const stmt = sqlite.prepare(USER_SQL)
   queryUser = async (email) => (stmt.get(email) as UserRow) ?? null

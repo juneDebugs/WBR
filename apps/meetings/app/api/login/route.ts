@@ -18,8 +18,15 @@ const tursoUrl = process.env.TURSO_DATABASE_URL
 const tursoToken = process.env.TURSO_AUTH_TOKEN
 
 if (localDbUrl?.startsWith('file:')) {
+  // Resolve relative paths the same way Prisma does — relative to packages/db/prisma/
+  const path = require('path')
+  const fs = require('fs')
   const { DatabaseSync } = require('node:sqlite')
-  const dbPath = localDbUrl.replace('file:', '')
+  const rawPath = localDbUrl.replace('file:', '')
+  let root = process.cwd()
+  while (root !== path.dirname(root) && !fs.existsSync(path.join(root, 'pnpm-workspace.yaml'))) root = path.dirname(root)
+  const schemaDir = path.join(root, 'packages', 'db', 'prisma')
+  const dbPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(schemaDir, rawPath)
   const sqlite = new DatabaseSync(dbPath)
   const stmt = sqlite.prepare(USER_SQL)
   queryUser = async (email) => (stmt.get(email) as UserRow) ?? null
