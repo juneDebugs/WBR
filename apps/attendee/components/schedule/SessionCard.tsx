@@ -5,6 +5,55 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import type { SessionWithSpeaker } from '@conference/db'
 
+// ─── Photo helpers (shared logic with SpeakersClient) ─────────────────────────
+
+function parsePhotoPos(pos: string | null | undefined) {
+  const parts = (pos ?? '50% 50%').trim().split(/\s+/)
+  return {
+    position: `${parts[0] ?? '50%'} ${parts[1] ?? '50%'}`,
+    scale: parts.length >= 3 ? parseFloat(parts[2]) || 1 : 1,
+  }
+}
+
+function photoStyle(pos: string | null | undefined) {
+  const { position, scale } = parsePhotoPos(pos)
+  return {
+    objectPosition: position,
+    ...(scale !== 1 && { transform: `scale(${scale})`, transformOrigin: position }),
+  }
+}
+
+function optimizePhoto(url: string | null, width: number): string | null {
+  if (!url) return null
+  if (!url.startsWith('https://images.unsplash.com')) return url
+  let optimized = url.replace(/w=\d+/, `w=${width}`).replace(/q=\d+/, `q=${width > 600 ? 85 : 70}`)
+  if (!optimized.includes('sharp=')) optimized += '&sharp=15'
+  return optimized
+}
+
+const AVATAR_GRADIENTS: [string, string][] = [
+  ['#7c3aed', '#6366f1'],
+  ['#6366f1', '#3b82f6'],
+  ['#ec4899', '#f43f5e'],
+  ['#f59e0b', '#f97316'],
+  ['#14b8a6', '#06b6d4'],
+  ['#10b981', '#14b8a6'],
+  ['#d946ef', '#ec4899'],
+  ['#38bdf8', '#818cf8'],
+]
+
+function hash(s: string) {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return h
+}
+
+function avatarGradient(name: string) {
+  return AVATAR_GRADIENTS[hash(name) % AVATAR_GRADIENTS.length]
+}
+
+// ─── Session type config ──────────────────────────────────────────────────────
+
 const typeConfig: Record<string, { color: string; tint: string; label: string; icon: string }> = {
   KEYNOTE:  { color: '#f59e0b', tint: 'rgba(245,158,11,0.08)',  label: 'Keynote',         icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z' },
   TALK:     { color: '#007aff', tint: 'rgba(0,122,255,0.06)',   label: 'Session',         icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z' },
@@ -81,12 +130,24 @@ export function SessionCard({ session, saved = false, hasConflict = false, onBoo
         <div className="flex-shrink-0 pt-0.5">
           {session.speaker?.photoUrl ? (
             <img
-              src={session.speaker.photoUrl.replace(/w=\d+/, 'w=100').replace(/q=\d+/, 'q=70')}
+              src={optimizePhoto(session.speaker.photoUrl, 100)!}
               alt={session.speaker.name}
               loading="lazy"
               className="w-11 h-11 rounded-2xl object-cover"
-              style={{ border: `2.5px solid ${config.color}` }}
+              style={{ border: `2.5px solid ${config.color}`, ...photoStyle(session.speaker.photoPosition) }}
             />
+          ) : session.speaker ? (
+            (() => {
+              const [ag1, ag2] = avatarGradient(session.speaker.name)
+              return (
+                <div
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center"
+                  style={{ background: `linear-gradient(135deg, ${ag1}, ${ag2})`, border: `2.5px solid ${config.color}` }}
+                >
+                  <span className="text-white font-bold text-base">{session.speaker.name[0]}</span>
+                </div>
+              )
+            })()
           ) : (
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: config.color }}>
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="#fff" strokeWidth={1.8}>
