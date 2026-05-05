@@ -2,7 +2,7 @@
 import { useState, useMemo, useCallback, memo, useDeferredValue } from 'react'
 import { useAttendees } from '@/lib/hooks'
 
-import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
+import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription, getBorderColorForSeeking } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
 
 const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
@@ -83,19 +83,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Back Office & HR': '#a855f7',
 }
 
-function getCategoryForSolution(solution: string): string | null {
-  for (const cat of SOLUTION_CATEGORIES) {
-    if (cat.items.includes(solution)) return cat.label
-  }
-  return null
-}
-
-function getBorderColor(seekingJson: string | null | undefined): string {
-  const seeking = parseArr(seekingJson)
-  if (seeking.length === 0) return '#d1d5db'
-  const cat = getCategoryForSolution(seeking[0])
-  return cat ? (CATEGORY_COLORS[cat] ?? '#d1d5db') : '#d1d5db'
-}
 
 const INDUSTRIES = [
   'Fashion & Apparel', 'Beauty & Cosmetics', 'Skincare', 'Health & Wellness',
@@ -224,10 +211,10 @@ const PersonCard = memo(function PersonCard({
   const jobFn = useMemo(() => getJobFnFromLib(p.jobTitle), [p.jobTitle])
   const titleLevel = useMemo(() => getTitleLevel(p.jobTitle), [p.jobTitle])
   const companyDesc = useMemo(() => getCompanyDescription(p.company), [p.company])
-  const borderColor = useMemo(() => getBorderColor(p.solutionsSeeking), [p.solutionsSeeking])
+  const borderColor = useMemo(() => getBorderColorForSeeking(p.solutionsSeeking), [p.solutionsSeeking])
 
   return (
-    <div className="card hover:shadow-md transition-shadow flex flex-col justify-between border-t-4" style={{ borderTopColor: borderColor }}>
+    <div className="card border-t-4 hover:shadow-md transition-shadow flex flex-col justify-between" style={{ borderColor }}>
       <div className="flex items-start gap-3 mb-3">
         <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
           {p.image ? (

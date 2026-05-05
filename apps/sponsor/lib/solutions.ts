@@ -64,6 +64,40 @@ export const REVENUE_LABELS: Record<string, string> = {
   '250M+': '$250M+',
 }
 
+// ── Border colors (pastel, matching meeting portal) ─────────────────────────
+
+const SOLUTION_CATEGORY_GROUPS: { label: string; items: string[] }[] = [
+  { label: 'Marketing', items: ['Email Marketing', 'SMS Marketing', 'Reviews & UGC', 'Personalization'] },
+  { label: 'Commerce & Payments', items: ['Payment Processing', 'Subscription Management', 'B2B Commerce', 'Headless Commerce', 'Marketplace Integration'] },
+  { label: 'Operations', items: ['Shipping & Fulfillment', 'Inventory Management', 'Returns Management', 'ERP / Operations'] },
+  { label: 'Data & AI', items: ['Analytics & Reporting', 'AI & Automation', 'Search & Discovery'] },
+  { label: 'Customer', items: ['Customer Support', 'Loyalty & Rewards'] },
+]
+
+function getSolutionCategory(solution: string): string | null {
+  for (const cat of SOLUTION_CATEGORY_GROUPS) {
+    if (cat.items.includes(solution)) return cat.label
+  }
+  return null
+}
+
+const CATEGORY_BORDER_COLORS_LIGHT: Record<string, string> = {
+  'Marketing': '#fecdd3',
+  'Commerce & Payments': '#bfdbfe',
+  'Operations': '#fed7aa',
+  'Data & AI': '#ddd6fe',
+  'Customer': '#fbcfe8',
+}
+
+export function getBorderColorForSeeking(seekingJson: string | null | undefined): string {
+  if (!seekingJson) return '#e5e7eb'
+  let seeking: string[]
+  try { seeking = JSON.parse(seekingJson) } catch { return '#e5e7eb' }
+  if (seeking.length === 0) return '#e5e7eb'
+  const cat = getSolutionCategory(seeking[0])
+  return cat ? (CATEGORY_BORDER_COLORS_LIGHT[cat] ?? '#e5e7eb') : '#e5e7eb'
+}
+
 // ── Industry ─────────────────────────────────────────────────────────────────
 
 export const INDUSTRIES = [
