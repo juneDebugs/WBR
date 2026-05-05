@@ -1,6 +1,6 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  previewFeatures = ["driverAdapters", "relationJoins"]
 }
 
 datasource db {
@@ -234,6 +234,8 @@ model Meeting {
 
   @@index([attendeeAId])
   @@index([attendeeBId])
+  @@index([attendeeAId, status])
+  @@index([attendeeBId, status])
   @@index([timeBlockId])
   @@index([conferenceId])
   @@index([organizerId])
@@ -374,6 +376,8 @@ model MeetingRequest {
   @@index([status, timeBlockId])
   @@index([timeBlockId])
   @@index([requesterId, status])
+  @@index([targetUserId, status])
+  @@index([targetSponsorId, status])
   @@index([createdAt])
 }
 
