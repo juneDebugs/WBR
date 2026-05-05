@@ -10,3 +10,6 @@ export function useSpeakersData() {
 export function useScheduleData() {
   return useQuery({ queryKey: ['schedule-data'], queryFn: () => fetch('/api/data/schedule').then(r => r.json()), staleTime: 300_000 })
 }
+export function useMeetingsData() {
+  return useQuery({ queryKey: ['meetings-data'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 30_000 })
+}

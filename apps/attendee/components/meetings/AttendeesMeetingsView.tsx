@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { format } from 'date-fns'
 import Link from 'next/link'
 
@@ -25,10 +26,11 @@ interface Props {
   past: UpcomingMeeting[]
   incomingRequests: IncomingRequest[]
   tab: string
-  declineRequest: (formData: FormData) => Promise<void>
+  onDecline: (id: string) => Promise<void>
 }
 
-export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, declineRequest }: Props) {
+export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, onDecline }: Props) {
+  const [decliningId, setDecliningId] = useState<string | null>(null)
   const now = new Date()
   const activeList = tab === 'past' ? past : upcoming
 
@@ -177,13 +179,13 @@ export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, d
                     </div>
                     <span className="badge bg-yellow-100 text-yellow-700 flex-shrink-0">Pending</span>
                   </div>
-                  <form action={declineRequest}>
-                    <input type="hidden" name="id" value={req.id} />
-                    <button type="submit"
-                      className="w-full py-2 text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl border border-red-100 transition-colors">
-                      Decline Request
-                    </button>
-                  </form>
+                  <button
+                    type="button"
+                    disabled={decliningId === req.id}
+                    onClick={async () => { setDecliningId(req.id); await onDecline(req.id); setDecliningId(null) }}
+                    className="w-full py-2 text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl border border-red-100 transition-colors disabled:opacity-50">
+                    {decliningId === req.id ? 'Declining…' : 'Decline Request'}
+                  </button>
                 </div>
               ))}
             </div>

@@ -1,35 +1,32 @@
-export const revalidate = 60
-import { prisma } from '@conference/db'
-import { getSession } from '@/lib/session'
-import { revalidatePath } from 'next/cache'
+'use client'
+
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { useMeetingsData } from '@/lib/hooks'
 import { AttendeesMeetingsView } from '@/components/meetings/AttendeesMeetingsView'
 import { SponsorMeetingsView } from '@/components/meetings/SponsorMeetingsView'
+import MeetingsLoading from './loading'
 
-async function declineRequest(formData: FormData) {
-  'use server'
-  const session = await getSession()
-  if (!session?.user?.id) return
-  const id = formData.get('id') as string
-  const mr = await prisma.meetingRequest.findUnique({ where: { id }, select: { targetUserId: true } })
-  if (!mr || mr.targetUserId !== session.user.id) return
-  await prisma.meetingRequest.update({ where: { id }, data: { status: 'REJECTED' } })
-  revalidatePath('/meetings')
-}
+function MeetingsContent() {
+  const searchParams = useSearchParams()
+  const tab = searchParams.get('tab') ?? 'upcoming'
+  const { data, isLoading } = useMeetingsData()
+  const queryClient = useQueryClient()
 
-export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const authSession = (await getSession())!
+  if (isLoading || !data) return <MeetingsLoading />
 
-  const userId = authSession.user.id
-  const role = (authSession.user as any).role as string
-  const { tab: rawTab } = await searchParams
-  const tab = rawTab ?? 'upcoming'
-  const now = new Date()
+  async function handleDecline(id: string) {
+    await fetch('/api/meeting-requests/decline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    queryClient.invalidateQueries({ queryKey: ['meetings-data'] })
+  }
 
-  // ── Sponsor view ──────────────────────────────────────────────────────────
-  if (role === 'SPONSOR') {
-    const sponsorId = (authSession.user as any).sponsorId as string | null
-
-    if (!sponsorId) {
+  if (data.role === 'SPONSOR') {
+    if (data.noSponsor) {
       return (
         <div className="page-container">
           <h1 className="text-2xl font-bold mb-2">Meetings</h1>
@@ -38,127 +35,32 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
       )
     }
 
-    const [sponsor, sponsorMeetings, meetingRequests] = await Promise.all([
-      prisma.sponsor.findUnique({
-        where: { id: sponsorId },
-        select: { id: true, name: true, logoUrl: true, tier: true },
-      }),
-      prisma.sponsorMeeting.findMany({
-        where: { sponsorId, status: 'CONFIRMED' },
-        include: {
-          user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-          timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
-        },
-        orderBy: { timeBlock: { startsAt: 'asc' } },
-      }),
-      prisma.meetingRequest.findMany({
-        where: { targetSponsorId: sponsorId, status: { in: ['PENDING', 'APPROVED'] } },
-        include: {
-          requester: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-          timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-    ])
-
-    const upcoming = sponsorMeetings.filter(m => m.timeBlock.startsAt >= now)
-    const past = sponsorMeetings.filter(m => m.timeBlock.startsAt < now)
-
     return (
       <SponsorMeetingsView
-        sponsor={sponsor!}
-        upcoming={upcoming.map(m => ({
-          id: m.id,
-          startsAt: m.timeBlock.startsAt.toISOString(),
-          endsAt: m.timeBlock.endsAt.toISOString(),
-          location: m.timeBlock.location,
-          notes: m.notes,
-          attendee: m.user,
-        }))}
-        past={past.map(m => ({
-          id: m.id,
-          startsAt: m.timeBlock.startsAt.toISOString(),
-          endsAt: m.timeBlock.endsAt.toISOString(),
-          location: m.timeBlock.location,
-          notes: m.notes,
-          attendee: m.user,
-        }))}
-        inboundRequests={meetingRequests.map(r => ({
-          id: r.id,
-          status: r.status,
-          message: r.message,
-          requester: r.requester,
-          timeBlock: r.timeBlock ? {
-            startsAt: r.timeBlock.startsAt.toISOString(),
-            endsAt: r.timeBlock.endsAt.toISOString(),
-            location: r.timeBlock.location,
-          } : null,
-        }))}
+        sponsor={data.sponsor}
+        upcoming={data.upcoming}
+        past={data.past}
+        inboundRequests={data.inboundRequests}
         tab={tab}
       />
     )
   }
 
-  // ── Attendee / Speaker view ───────────────────────────────────────────────
-  const meetingInclude = {
-    timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
-    attendeeA: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-    attendeeB: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-  } as const
-  // Split OR into parallel index-targeted queries for SQLite performance
-  const [meetingsAsA, meetingsAsB, incomingRequests] = await Promise.all([
-    prisma.meeting.findMany({
-      where: { attendeeAId: userId, status: { not: 'CANCELLED' } },
-      include: meetingInclude,
-      orderBy: { timeBlock: { startsAt: 'asc' } },
-    }),
-    prisma.meeting.findMany({
-      where: { attendeeBId: userId, status: { not: 'CANCELLED' } },
-      include: meetingInclude,
-      orderBy: { timeBlock: { startsAt: 'asc' } },
-    }),
-    prisma.meetingRequest.findMany({
-      where: { targetUserId: userId, status: 'PENDING' },
-      include: {
-        requester: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-  ])
-  // Deduplicate and sort by time
-  const seenIds = new Set<string>()
-  const meetings = [...meetingsAsA, ...meetingsAsB]
-    .filter(m => { if (seenIds.has(m.id)) return false; seenIds.add(m.id); return true })
-    .sort((a, b) => new Date(a.timeBlock.startsAt).getTime() - new Date(b.timeBlock.startsAt).getTime())
-
-  const upcoming = meetings.filter(m => m.timeBlock.startsAt >= now)
-  const past = meetings.filter(m => m.timeBlock.startsAt < now)
-
   return (
     <AttendeesMeetingsView
-      upcoming={upcoming.map(m => ({
-        id: m.id,
-        status: m.status,
-        startsAt: m.timeBlock.startsAt.toISOString(),
-        endsAt: m.timeBlock.endsAt.toISOString(),
-        location: m.timeBlock.location,
-        other: m.attendeeAId === userId ? m.attendeeB : m.attendeeA,
-      }))}
-      past={past.map(m => ({
-        id: m.id,
-        status: m.status,
-        startsAt: m.timeBlock.startsAt.toISOString(),
-        endsAt: m.timeBlock.endsAt.toISOString(),
-        location: m.timeBlock.location,
-        other: m.attendeeAId === userId ? m.attendeeB : m.attendeeA,
-      }))}
-      incomingRequests={incomingRequests.map(r => ({
-        id: r.id,
-        message: r.message,
-        requester: r.requester,
-      }))}
+      upcoming={data.upcoming}
+      past={data.past}
+      incomingRequests={data.incomingRequests}
       tab={tab}
-      declineRequest={declineRequest}
+      onDecline={handleDecline}
     />
+  )
+}
+
+export default function MeetingsPage() {
+  return (
+    <Suspense fallback={<MeetingsLoading />}>
+      <MeetingsContent />
+    </Suspense>
   )
 }
