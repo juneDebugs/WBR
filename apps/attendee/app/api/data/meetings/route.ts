@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { unstable_cache } from 'next/cache'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 
 function getCachedAttendeeMeetings(userId: string) {
@@ -139,12 +139,10 @@ function getCachedSponsorMeetings(sponsorId: string) {
 }
 
 export async function GET() {
-  const session = await getSession()
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = await getUserFromHeaders()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const userId = session.user.id as string
-  const role = (session.user as any).role as string
-  const sponsorId = (session.user as any).sponsorId as string | null
+  const { id: userId, role, sponsorId } = user
 
   if (role === 'SPONSOR' && sponsorId) {
     const data = await getCachedSponsorMeetings(sponsorId)

@@ -1,10 +1,10 @@
-export const dynamic = 'force-dynamic'
-import { prisma } from '@conference/db'
-import { getSession } from '@/lib/session'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { format } from 'date-fns'
 import Link from 'next/link'
-
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { MeetingActions } from '@/components/meetings/MeetingActions'
 
 const statusColors: Record<string, string> = {
@@ -13,24 +13,61 @@ const statusColors: Record<string, string> = {
   CANCELLED: 'bg-red-100 text-red-500',
 }
 
-export default async function MeetingDetailPage({ params }: { params: { id: string } }) {
-  const authSession = (await getSession())!
+type MeetingDetail = {
+  id: string
+  status: string
+  notes: string | null
+  startsAt: string
+  endsAt: string
+  location: string | null
+  other: { id: string; name: string | null; image: string | null; company: string | null; jobTitle: string | null; bio: string | null }
+}
 
-  const userId = authSession.user.id
+function DetailSkeleton() {
+  return (
+    <div className="page-container space-y-4 animate-pulse">
+      <div className="h-4 w-20 bg-gray-200 rounded" />
+      <div className="card">
+        <div className="h-6 w-32 bg-gray-200 rounded mb-4" />
+        <div className="space-y-3">
+          <div className="h-12 bg-gray-200 rounded" />
+          <div className="h-12 bg-gray-200 rounded" />
+        </div>
+      </div>
+      <div className="card">
+        <div className="h-4 w-24 bg-gray-200 rounded mb-3" />
+        <div className="flex gap-4">
+          <div className="w-14 h-14 bg-gray-200 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <div className="h-5 w-32 bg-gray-200 rounded" />
+            <div className="h-4 w-24 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  const meeting = await prisma.meeting.findUnique({
-    where: { id: params.id },
-    include: {
-      timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
-      attendeeA: { select: { id: true, name: true, image: true, company: true, jobTitle: true, bio: true } },
-      attendeeB: { select: { id: true, name: true, image: true, company: true, jobTitle: true, bio: true } },
-    },
-  })
+export default function MeetingDetailPage() {
+  const params = useParams<{ id: string }>()
+  const [meeting, setMeeting] = useState<MeetingDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFoundState, setNotFoundState] = useState(false)
 
-  if (!meeting) notFound()
-  if (meeting.attendeeAId !== userId && meeting.attendeeBId !== userId) notFound()
+  useEffect(() => {
+    fetch(`/api/meetings/${params.id}`)
+      .then(r => {
+        if (!r.ok) { setNotFoundState(true); return null }
+        return r.json()
+      })
+      .then(data => { if (data) setMeeting(data) })
+      .finally(() => setLoading(false))
+  }, [params.id])
 
-  const other = meeting.attendeeAId === userId ? meeting.attendeeB : meeting.attendeeA
+  if (loading) return <DetailSkeleton />
+  if (notFoundState || !meeting) return notFound()
+
+  const other = meeting.other
 
   return (
     <div className="page-container space-y-4">
@@ -61,15 +98,15 @@ export default async function MeetingDetailPage({ params }: { params: { id: stri
             <div>
               <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Date & Time</p>
               <p className="text-sm text-gray-900 font-semibold mt-0.5">
-                {format(meeting.timeBlock.startsAt, 'EEEE, MMMM d, yyyy')}
+                {format(new Date(meeting.startsAt), 'EEEE, MMMM d, yyyy')}
               </p>
               <p className="text-sm text-gray-600">
-                {format(meeting.timeBlock.startsAt, 'h:mm a')} – {format(meeting.timeBlock.endsAt, 'h:mm a')}
+                {format(new Date(meeting.startsAt), 'h:mm a')} – {format(new Date(meeting.endsAt), 'h:mm a')}
               </p>
             </div>
           </div>
 
-          {meeting.timeBlock.location && (
+          {meeting.location && (
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -79,7 +116,7 @@ export default async function MeetingDetailPage({ params }: { params: { id: stri
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Location</p>
-                <p className="text-sm text-gray-900 font-semibold mt-0.5">{meeting.timeBlock.location}</p>
+                <p className="text-sm text-gray-900 font-semibold mt-0.5">{meeting.location}</p>
               </div>
             </div>
           )}
@@ -111,9 +148,9 @@ export default async function MeetingDetailPage({ params }: { params: { id: stri
         otherName={other.name ?? 'Attendee'}
         status={meeting.status}
         notes={meeting.notes}
-        startsAt={meeting.timeBlock.startsAt.toISOString()}
-        endsAt={meeting.timeBlock.endsAt.toISOString()}
-        location={meeting.timeBlock.location}
+        startsAt={meeting.startsAt}
+        endsAt={meeting.endsAt}
+        location={meeting.location}
       />
     </div>
   )

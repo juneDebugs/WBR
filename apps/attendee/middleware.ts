@@ -22,7 +22,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(homeUrl)
   }
 
-  return NextResponse.next()
+  // Forward decoded user info as headers so API routes skip a second JWT decode
+  const response = NextResponse.next()
+  if (token) {
+    response.headers.set('x-user-id', (token.id as string) ?? '')
+    response.headers.set('x-user-role', (token.role as string) ?? '')
+    response.headers.set('x-user-sponsor-id', (token.sponsorId as string) ?? '')
+  }
+  return response
 }
 
 export const config = {

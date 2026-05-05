@@ -3,6 +3,36 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const userId = session.user.id
+  const meeting = await prisma.meeting.findUnique({
+    where: { id: params.id },
+    include: {
+      timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
+      attendeeA: { select: { id: true, name: true, image: true, company: true, jobTitle: true, bio: true } },
+      attendeeB: { select: { id: true, name: true, image: true, company: true, jobTitle: true, bio: true } },
+    },
+  })
+  if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (meeting.attendeeAId !== userId && meeting.attendeeBId !== userId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const other = meeting.attendeeAId === userId ? meeting.attendeeB : meeting.attendeeA
+  return NextResponse.json({
+    id: meeting.id,
+    status: meeting.status,
+    notes: meeting.notes,
+    startsAt: meeting.timeBlock.startsAt.toISOString(),
+    endsAt: meeting.timeBlock.endsAt.toISOString(),
+    location: meeting.timeBlock.location,
+    other,
+  })
+}
+
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
