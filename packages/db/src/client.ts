@@ -21,12 +21,12 @@ function createClient(): PrismaClient {
     return new PrismaClient()
   }
 
-  // At runtime: use Turso with embedded replica for local-speed reads
+  // At runtime: use Turso with embedded replica — reads hit local SQLite, writes go to Turso
   if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
     try {
       if (!globalForPrisma.libsqlAdapter) {
         const libsql = createLibsql({
-          url: 'file:local-replica.db',
+          url: 'file:/tmp/turso-replica.db',
           syncUrl: tursoUrl,
           authToken: tursoToken,
           syncInterval: 60,

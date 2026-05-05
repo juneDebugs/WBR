@@ -18,7 +18,8 @@
     "@libsql/client": "^0.8.0",
     "@prisma/adapter-libsql": "^5.22.0",
     "@prisma/client": "^5.19.0",
-    "date-fns": "^3.6.0"
+    "date-fns": "^3.6.0",
+    "libsql": "^0.5.29"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
