@@ -13,7 +13,7 @@ const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   transpilePackages: ['@conference/db'],
-  serverExternalPackages: ['@prisma/adapter-libsql'],
+  serverExternalPackages: ['@prisma/adapter-libsql', '@libsql/client', 'libsql'],
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }]
   },

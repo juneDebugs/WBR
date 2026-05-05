@@ -5,7 +5,8 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request })
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/api/auth') ||
-    request.nextUrl.pathname === '/api/health'
+    request.nextUrl.pathname === '/api/health' ||
+    request.nextUrl.pathname === '/api/login'
 
   if (!token && !isAuthRoute) {
     // API routes get 401 JSON, page routes get redirect to login

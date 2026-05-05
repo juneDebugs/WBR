@@ -20,18 +20,24 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
     setLoading(true)
     setError(null)
     const form = e.currentTarget
-    const result = await signIn('credentials', {
-      email: (form.elements.namedItem('email') as HTMLInputElement).value,
-      password: (form.elements.namedItem('password') as HTMLInputElement).value,
-      callbackUrl: '/home',
-      redirect: false,
-    })
-    if (result?.error) {
-      console.error('[login] signIn error:', result.error, result.status, result.ok, result.url)
-      setError(result.error === 'CredentialsSignin' ? 'Invalid email or password.' : 'Login failed: ' + result.error)
-      setLoading(false)
-    } else {
+    const email = (form.elements.namedItem('email') as HTMLInputElement).value
+    const password = (form.elements.namedItem('password') as HTMLInputElement).value
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      if (!res.ok) {
+        setError('Invalid email or password.')
+        setLoading(false)
+        return
+      }
       router.push('/home')
+    } catch {
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
     }
   }
 

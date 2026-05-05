@@ -15,17 +15,25 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     const form = e.currentTarget
-    const result = await signIn('credentials', {
-      email: (form.elements.namedItem('email') as HTMLInputElement).value,
-      password: (form.elements.namedItem('password') as HTMLInputElement).value,
-      callbackUrl: '/dashboard',
-      redirect: false,
-    })
-    if (result?.error) {
-      setError('Invalid email or password.')
-      setLoading(false)
-    } else {
+    const email = (form.elements.namedItem('email') as HTMLInputElement).value
+    const password = (form.elements.namedItem('password') as HTMLInputElement).value
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setError(data?.error === 'Unauthorized role' ? 'Access restricted to organizers.' : 'Invalid email or password.')
+        setLoading(false)
+        return
+      }
       router.push('/dashboard')
+    } catch {
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
     }
   }
 

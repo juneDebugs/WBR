@@ -91,7 +91,7 @@ module.exports = withPWA({
   poweredByHeader: false,
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
-  serverExternalPackages: ['@prisma/adapter-libsql'],
+  serverExternalPackages: ['@prisma/adapter-libsql', '@libsql/client', 'libsql'],
   async headers() {
     return [
       { source: '/(.*)', headers: securityHeaders },
