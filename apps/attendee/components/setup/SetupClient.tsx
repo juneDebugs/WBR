@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { signOut } from 'next-auth/react'
 import Image from 'next/image'
@@ -34,8 +33,6 @@ interface Props {
 }
 
 export function SetupClient({ userId, userName, userImage, userBio, userJobTitle, userCompany, userWebsite, userCompanySize, userAnnualRevenue, userSolutionsOffering, userSolutionsSeeking, blackouts: initialBlackouts }: Props) {
-  const router = useRouter()
-
   // Photo state
   const [photoUrl, setPhotoUrl] = useState(userImage ?? '')
   const [photoSaving, setPhotoSaving] = useState(false)
@@ -83,7 +80,6 @@ export function SetupClient({ userId, userName, userImage, userBio, userJobTitle
       })
       setPhotoSaved(true)
       setTimeout(() => setPhotoSaved(false), 2500)
-      router.refresh()
     } finally {
       setPhotoSaving(false)
     }
@@ -103,7 +99,6 @@ export function SetupClient({ userId, userName, userImage, userBio, userJobTitle
       })
       setProfileSaved(true)
       setTimeout(() => setProfileSaved(false), 2500)
-      router.refresh()
     } finally {
       setProfileSaving(false)
     }

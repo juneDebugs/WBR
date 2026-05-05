@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react'
 import { format } from 'date-fns'
-import { useRouter } from 'next/navigation'
 
 interface RecentMessage {
   id: string
@@ -110,7 +109,7 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
   const [localMessages, setLocalMessages] = useState<RecentMessage[]>(recentMessages)
   const [clearing, setClearing] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
-  const router = useRouter()
+
 
   async function syncMembers() {
     setSyncing(true)
@@ -120,7 +119,6 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
       const data = await res.json()
       if (res.ok) {
         setSyncResult(data)
-        router.refresh()
       }
     } finally {
       setSyncing(false)
@@ -145,7 +143,6 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
           ...prev,
         ].slice(0, 20))
         setTimeout(() => setSent(false), 3000)
-        router.refresh()
       }
     } finally {
       setSending(false)
@@ -158,12 +155,10 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
     setLocalMessages([])
     setConfirmClear(false)
     setClearing(false)
-    router.refresh()
   }
 
   function deleteOne(id: string) {
     setLocalMessages(prev => prev.filter(m => m.id !== id))
-    router.refresh()
   }
 
   const synced = memberCount >= totalUsers

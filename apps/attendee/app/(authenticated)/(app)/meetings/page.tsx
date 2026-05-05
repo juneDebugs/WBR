@@ -1,4 +1,4 @@
-export const revalidate = 15
+export const revalidate = 60
 import { prisma } from '@conference/db'
 import { getSession } from '@/lib/session'
 import { revalidatePath } from 'next/cache'

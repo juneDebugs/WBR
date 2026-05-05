@@ -52,7 +52,7 @@ function getCachedUserSocial(userId: string) {
       return { following, dmRooms }
     },
     ['attendee-user-social', userId],
-    { revalidate: 30, tags: [`user-social-${userId}`] },
+    { revalidate: 60, tags: [`user-social-${userId}`] },
   )()
 }
 

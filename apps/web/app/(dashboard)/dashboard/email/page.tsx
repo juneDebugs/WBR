@@ -37,7 +37,7 @@ const getCachedEmailData = unstable_cache(
           solutionsSeeking: true, sponsorId: true,
         },
       }),
-      prisma.emailLog.findMany({ orderBy: { sentAt: 'desc' } }),
+      prisma.emailLog.findMany({ orderBy: { sentAt: 'desc' }, take: 500 }),
       prisma.sponsor.findMany({
         select: {
           id: true, name: true, tier: true,

@@ -13,6 +13,7 @@ export default async function NewMessagePage() {
     where: { id: { not: userId } },
     orderBy: { name: 'asc' },
     select: { id: true, name: true, image: true, company: true },
+    take: 500,
   })
 
   return (

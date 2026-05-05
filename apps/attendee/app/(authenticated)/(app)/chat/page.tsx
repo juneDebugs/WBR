@@ -1,4 +1,4 @@
-export const revalidate = 0
+export const revalidate = 30
 import { prisma } from '@conference/db'
 import { getSession } from '@/lib/session'
 import Link from 'next/link'

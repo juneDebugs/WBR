@@ -16,6 +16,7 @@ const getCachedAccessUsers = unstable_cache(
       password: true,
       createdAt: true,
     },
+    take: 500,
   }),
   ['web-access-users'],
   { revalidate: 60, tags: ['access'] },

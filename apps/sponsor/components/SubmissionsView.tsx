@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 
 const FORM_TYPES = [
@@ -120,6 +120,19 @@ const DEFAULT_FIELDS: Record<string, FormField[]> = {
 
 export function SubmissionsView({ initialForms }: Props) {
   const [forms, setForms] = useState<SubmissionFormData[]>(initialForms)
+
+  // Pre-parse JSON fields once instead of on every render
+  const parsedFieldsMap = useMemo(() => {
+    const map = new Map<string, FormField[]>()
+    for (const f of initialForms) {
+      try { map.set(f.id, JSON.parse(f.fields)) } catch { map.set(f.id, []) }
+    }
+    return map
+  }, [initialForms])
+
+  function getFields(form: SubmissionFormData): FormField[] {
+    return parsedFieldsMap.get(form.id) ?? (() => { try { return JSON.parse(form.fields) } catch { return [] } })()
+  }
   const [showCreate, setShowCreate] = useState(false)
   const [selectedForm, setSelectedForm] = useState<SubmissionFormData | null>(null)
   const [submissions, setSubmissions] = useState<Submission[]>([])
@@ -312,7 +325,7 @@ export function SubmissionsView({ initialForms }: Props) {
           <div className="divide-y divide-gray-50">
             {forms.map(form => {
               const info = typeInfo(form.type)
-              const fields = JSON.parse(form.fields) as FormField[]
+              const fields = getFields(form)
               return (
                 <div key={form.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors group">
                   {/* Type icon */}
@@ -608,7 +621,7 @@ export function SubmissionsView({ initialForms }: Props) {
                       const sc = STATUS_COLORS[sub.status] ?? STATUS_COLORS.PENDING
                       const isSelected = selectedSub?.id === sub.id
                       const data = JSON.parse(sub.data) as Record<string, string>
-                      const fields = JSON.parse(selectedForm.fields) as FormField[]
+                      const fields = getFields(selectedForm)
                       const firstField = fields[0]
                       const preview = firstField ? (data[firstField.id] ?? data[firstField.label] ?? '') : ''
                       return (
@@ -646,7 +659,7 @@ export function SubmissionsView({ initialForms }: Props) {
             {/* Submission detail */}
             {selectedSub && (() => {
               const sc = STATUS_COLORS[selectedSub.status] ?? STATUS_COLORS.PENDING
-              const fields = JSON.parse(selectedForm.fields) as FormField[]
+              const fields = getFields(selectedForm)
               const data = JSON.parse(selectedSub.data) as Record<string, string>
               return (
                 <div className="flex flex-col flex-1 min-w-0">

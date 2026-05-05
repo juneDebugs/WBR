@@ -34,7 +34,7 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
-  // Poll for new messages every 5 seconds
+  // Poll for new messages every 15 seconds (reduced from 5s)
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -47,7 +47,7 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
           setMessages(data)
         }
       } catch {}
-    }, 5000)
+    }, 15000)
     return () => clearInterval(interval)
   }, [roomId])
 

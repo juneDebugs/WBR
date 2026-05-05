@@ -32,7 +32,6 @@ export function MeetingActions({ meetingId, otherUserId, otherName, status, note
     setNotesSaving(false)
     setNotesSaved(true)
     setTimeout(() => setNotesSaved(false), 2000)
-    router.refresh()
   }
 
   async function cancelMeeting() {
