@@ -24,8 +24,9 @@ function createClient(): PrismaClient {
   if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
     try {
       if (!globalForPrisma.libsqlAdapter) {
-        // Dynamic require to avoid bundling native libsql bindings at build time
-        const { createClient: createLibsql } = require('@libsql/client')
+        // Opaque require so webpack cannot statically resolve the native libsql bindings
+        const mod = '@libsql/client'
+        const { createClient: createLibsql } = require(mod)
         const libsql = createLibsql({
           url: 'file:/tmp/turso-replica.db',
           syncUrl: tursoUrl,
