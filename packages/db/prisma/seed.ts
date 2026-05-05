@@ -473,7 +473,7 @@ async function main() {
   const stephHash = await hashPassword('stephcurry')
 
   const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string }[] = [
-    { id: 'demo-admin-june', email: 'june@tailor.tech', name: 'June Cho', role: 'ORGANIZER', password: adminHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor', jobTitle: 'CEO' },
+    { id: 'demo-admin-june', email: 'june@tailor.tech', name: 'June Cho', role: 'ORGANIZER', password: adminHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor', jobTitle: 'VP of Sales' },
     { id: 'demo-attendee-steph', email: 'steph@curry.com', name: 'Steph Curry', role: 'ATTENDEE', password: stephHash, company: 'Golden State', jobTitle: 'Point Guard' },
     { id: 'demo-staff', email: 'staff@wbr.com', name: 'WBR Staff', role: 'STAFF', password: staffHash, company: 'WBR', jobTitle: 'Event Coordinator' },
     { id: 'demo-sponsor-shopify', email: 'sponsor@shopify.com', name: 'Shopify Rep', role: 'ATTENDEE', password: sponsorHash, sponsorId: 'cmngb2h4h0000vm28ssjt1m0z', company: 'Shopify', jobTitle: 'Partner Manager' },
