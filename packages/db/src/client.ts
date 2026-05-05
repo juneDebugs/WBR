@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSQL } from '@prisma/adapter-libsql'
-import { createClient as createLibsql } from '@libsql/client/web'
+import { createClient as createLibsql } from '@libsql/client'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -21,14 +21,19 @@ function createClient(): PrismaClient {
     return new PrismaClient()
   }
 
-  // At runtime: use Turso if env vars are set — cache the adapter globally
+  // At runtime: use Turso with embedded replica for local-speed reads
   if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
     try {
       if (!globalForPrisma.libsqlAdapter) {
-        const libsql = createLibsql({ url: tursoUrl, authToken: tursoToken })
+        const libsql = createLibsql({
+          url: 'file:local-replica.db',
+          syncUrl: tursoUrl,
+          authToken: tursoToken,
+          syncInterval: 60,
+        })
         globalForPrisma.libsqlAdapter = new PrismaLibSQL(libsql)
       }
-      dbConnectionMode = 'turso'
+      dbConnectionMode = 'turso-embedded-replica'
       return new PrismaClient({ adapter: globalForPrisma.libsqlAdapter } as any)
     } catch (e: any) {
       dbConnectionMode = 'turso-failed: ' + (e?.message ?? 'unknown error')
