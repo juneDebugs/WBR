@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 
@@ -84,28 +84,26 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
   )
 }
 
-export function RequestsList({ requests, currentUserId }: { requests: any[], currentUserId: string }) {
+export function RequestsList({ requests: initialRequests, currentUserId }: { requests: any[], currentUserId: string }) {
   const router = useRouter()
-  const refresh = useCallback(() => router.refresh(), [router])
+  const [requests, setRequests] = useState(initialRequests)
   const [tab, setTab] = useState<Tab>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  useEffect(() => {
-    const i = setInterval(refresh, 30_000)
-    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(i); document.removeEventListener('visibilitychange', onVisible) }
-  }, [refresh])
-
   async function updateStatus(requestId: string, status: string) {
     setActionLoading(requestId)
+    // Optimistic update
+    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r))
     try {
-      await fetch(`/api/meeting-requests/${requestId}`, {
+      const res = await fetch(`/api/meeting-requests/${requestId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
-      refresh()
+      if (!res.ok) {
+        // Revert on failure
+        setRequests(initialRequests)
+      }
     } finally {
       setActionLoading(null)
     }
@@ -202,10 +200,10 @@ export function RequestsList({ requests, currentUserId }: { requests: any[], cur
           <h1 className="text-2xl font-bold text-gray-900">My Requests</h1>
           <p className="text-sm text-gray-500 mt-1">All meeting requests — inbound from attendees and sent by your team</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-          <span className="text-xs text-gray-400">Live</span>
-        </div>
+        <button onClick={() => router.refresh()}
+          className="text-xs text-gray-400 hover:text-primary px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
+          ↻ Refresh
+        </button>
       </div>
 
       <div className="flex gap-1 border-b border-gray-100">

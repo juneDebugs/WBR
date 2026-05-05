@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 
@@ -91,28 +91,26 @@ interface Props {
   currentSponsorId: string | null
 }
 
-export function MeetingsView({ requests, sponsorMeetings, currentUserId, currentSponsorId }: Props) {
+export function MeetingsView({ requests: initialRequests, sponsorMeetings, currentUserId, currentSponsorId }: Props) {
   const router = useRouter()
-  const refresh = useCallback(() => router.refresh(), [router])
+  const [requests, setRequests] = useState(initialRequests)
   const [tab, setTab] = useState<Tab>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  useEffect(() => {
-    const i = setInterval(refresh, 30_000)
-    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(i); document.removeEventListener('visibilitychange', onVisible) }
-  }, [refresh])
-
   async function updateStatus(requestId: string, status: string) {
     setActionLoading(requestId)
+    // Optimistic update
+    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r))
     try {
-      await fetch(`/api/meeting-requests/${requestId}`, {
+      const res = await fetch(`/api/meeting-requests/${requestId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
-      refresh()
+      if (!res.ok) {
+        // Revert on failure
+        setRequests(initialRequests)
+      }
     } finally {
       setActionLoading(null)
     }

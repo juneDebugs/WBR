@@ -20,9 +20,10 @@ function getCachedUserRequests(userId: string, sponsorId: string | null) {
         timeBlock: true,
       },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     }),
     ['meetings-user-requests', userId],
-    { revalidate: 30, tags: [`meetings-user-${userId}`] },
+    { revalidate: 60, tags: [`meetings-user-${userId}`] },
   )()
 }
 
