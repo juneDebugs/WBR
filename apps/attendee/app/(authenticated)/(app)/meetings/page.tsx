@@ -100,14 +100,21 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
   }
 
   // ── Attendee / Speaker view ───────────────────────────────────────────────
-  const [meetings, incomingRequests] = await Promise.all([
+  const meetingInclude = {
+    timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
+    attendeeA: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+    attendeeB: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+  } as const
+  // Split OR into parallel index-targeted queries for SQLite performance
+  const [meetingsAsA, meetingsAsB, incomingRequests] = await Promise.all([
     prisma.meeting.findMany({
-      where: { OR: [{ attendeeAId: userId }, { attendeeBId: userId }], status: { not: 'CANCELLED' } },
-      include: {
-        timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
-        attendeeA: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-        attendeeB: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-      },
+      where: { attendeeAId: userId, status: { not: 'CANCELLED' } },
+      include: meetingInclude,
+      orderBy: { timeBlock: { startsAt: 'asc' } },
+    }),
+    prisma.meeting.findMany({
+      where: { attendeeBId: userId, status: { not: 'CANCELLED' } },
+      include: meetingInclude,
       orderBy: { timeBlock: { startsAt: 'asc' } },
     }),
     prisma.meetingRequest.findMany({
@@ -118,6 +125,11 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
       orderBy: { createdAt: 'desc' },
     }),
   ])
+  // Deduplicate and sort by time
+  const seenIds = new Set<string>()
+  const meetings = [...meetingsAsA, ...meetingsAsB]
+    .filter(m => { if (seenIds.has(m.id)) return false; seenIds.add(m.id); return true })
+    .sort((a, b) => new Date(a.timeBlock.startsAt).getTime() - new Date(b.timeBlock.startsAt).getTime())
 
   const upcoming = meetings.filter(m => m.timeBlock.startsAt >= now)
   const past = meetings.filter(m => m.timeBlock.startsAt < now)

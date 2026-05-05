@@ -4,36 +4,44 @@ import { getSession } from '@/lib/session'
 import { prisma, getActiveConflicts } from '@conference/db'
 import { MeetingsView } from '@/components/MeetingsView'
 
+const meetingRequestInclude = {
+  requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
+  targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
+  targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true, website: true } },
+  timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
+} as const
+
 function getCachedUserMeetings(userId: string, sponsorId: string | null) {
   return unstable_cache(
     async () => {
-      const [requests, sponsorMeetings] = await Promise.all([
+      // Split OR into parallel index-targeted queries for SQLite performance
+      const [byRequester, byTarget, bySponsor, sponsorMeetings] = await Promise.all([
         prisma.meetingRequest.findMany({
-          where: {
-            OR: [
-              { requesterId: userId },
-              { targetUserId: userId },
-              ...(sponsorId ? [{ targetSponsorId: sponsorId }] : []),
-            ],
-          },
-          include: {
-            requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
-            targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
-            targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true, website: true } },
-            timeBlock: true,
-          },
-          orderBy: [
-            { status: 'asc' },
-            { createdAt: 'desc' },
-          ],
+          where: { requesterId: userId },
+          include: meetingRequestInclude,
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
           take: 200,
         }),
+        prisma.meetingRequest.findMany({
+          where: { targetUserId: userId },
+          include: meetingRequestInclude,
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+          take: 200,
+        }),
+        sponsorId
+          ? prisma.meetingRequest.findMany({
+              where: { targetSponsorId: sponsorId },
+              include: meetingRequestInclude,
+              orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+              take: 200,
+            })
+          : Promise.resolve([]),
         sponsorId
           ? prisma.sponsorMeeting.findMany({
               where: { sponsorId, status: 'CONFIRMED' },
               include: {
                 user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-                timeBlock: true,
+                timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
                 sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
               },
               orderBy: { timeBlock: { startsAt: 'asc' } },
@@ -41,7 +49,18 @@ function getCachedUserMeetings(userId: string, sponsorId: string | null) {
             })
           : Promise.resolve([]),
       ])
-      return { requests, sponsorMeetings }
+      // Deduplicate and sort requests
+      const seen = new Set<string>()
+      const requests = [...byRequester, ...byTarget, ...bySponsor].filter(r => {
+        if (seen.has(r.id)) return false
+        seen.add(r.id)
+        return true
+      })
+      requests.sort((a, b) => {
+        if (a.status !== b.status) return a.status.localeCompare(b.status)
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      })
+      return { requests: requests.slice(0, 200), sponsorMeetings }
     },
     ['meetings-user-meetings', userId],
     { revalidate: 60, tags: [`meetings-user-${userId}`] },
