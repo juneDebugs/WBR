@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
+import { invalidate } from '@/lib/mem-cache'
 
 export async function POST(req: Request) {
   if (!rateLimit(`mtg-req:${getClientIp(req)}`, 10, 60_000)) {
@@ -40,6 +41,10 @@ export async function POST(req: Request) {
   const request = await prisma.meetingRequest.create({
     data: { requesterId: userId, targetUserId, targetSponsorId, message },
   })
+  // Invalidate in-memory cache for affected users
+  invalidate(userId)
+  if (targetUserId) invalidate(targetUserId)
+
   revalidateTag('meeting-requests')
   revalidateTag(`meetings-user-${userId}`)
   if (targetUserId) revalidateTag(`meetings-user-${targetUserId}`)

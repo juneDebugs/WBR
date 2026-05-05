@@ -23,7 +23,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(homeUrl)
   }
 
-  return NextResponse.next()
+  // Forward decoded JWT payload as request headers so downstream
+  // server components can read user info without re-decoding the JWT.
+  // This eliminates the ~10-20ms getServerSession() call in layouts/pages.
+  const requestHeaders = new Headers(request.headers)
+  if (token) {
+    requestHeaders.set('x-user-id', String(token.id ?? ''))
+    requestHeaders.set('x-user-role', String(token.role ?? ''))
+    requestHeaders.set('x-user-sponsor-id', String(token.sponsorId ?? ''))
+  }
+
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {

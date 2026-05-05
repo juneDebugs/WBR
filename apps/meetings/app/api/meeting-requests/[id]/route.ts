@@ -3,6 +3,7 @@ import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
+import { invalidate } from '@/lib/mem-cache'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -43,6 +44,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
     }
   }
+
+  // Invalidate in-memory cache for affected users
+  invalidate(updated.requesterId)
+  if (updated.targetUserId) invalidate(updated.targetUserId)
 
   revalidateTag('meeting-requests')
   revalidateTag(`meetings-user-${updated.requesterId}`)

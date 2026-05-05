@@ -1,80 +1,72 @@
 import { Suspense } from 'react'
-import { unstable_cache } from 'next/cache'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
+import { cached } from '@/lib/mem-cache'
 import { prisma, getActiveConflicts } from '@conference/db'
 import { MeetingsView } from '@/components/MeetingsView'
 
-const meetingRequestInclude = {
+const INCLUDE = {
   requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
   targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true } },
   targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true, website: true } },
   timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
 } as const
 
-function getCachedUserMeetings(userId: string, sponsorId: string | null) {
-  return unstable_cache(
-    async () => {
-      // Split OR into parallel index-targeted queries for SQLite performance
-      const [byRequester, byTarget, bySponsor, sponsorMeetings] = await Promise.all([
-        prisma.meetingRequest.findMany({
-          where: { requesterId: userId },
-          include: meetingRequestInclude,
-          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-          take: 200,
-        }),
-        prisma.meetingRequest.findMany({
-          where: { targetUserId: userId },
-          include: meetingRequestInclude,
-          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-          take: 200,
-        }),
-        sponsorId
-          ? prisma.meetingRequest.findMany({
-              where: { targetSponsorId: sponsorId },
-              include: meetingRequestInclude,
-              orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-              take: 200,
-            })
-          : Promise.resolve([]),
-        sponsorId
-          ? prisma.sponsorMeeting.findMany({
-              where: { sponsorId, status: 'CONFIRMED' },
-              include: {
-                user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
-                timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
-                sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
-              },
-              orderBy: { timeBlock: { startsAt: 'asc' } },
-              take: 100,
-            })
-          : Promise.resolve([]),
-      ])
-      // Deduplicate and sort requests
-      const seen = new Set<string>()
-      const requests = [...byRequester, ...byTarget, ...bySponsor].filter(r => {
-        if (seen.has(r.id)) return false
-        seen.add(r.id)
-        return true
-      })
-      requests.sort((a, b) => {
-        if (a.status !== b.status) return a.status.localeCompare(b.status)
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      })
-      return { requests: requests.slice(0, 200), sponsorMeetings }
-    },
-    ['meetings-user-meetings', userId],
-    { revalidate: 60, tags: [`meetings-user-${userId}`] },
-  )()
+function fetchUserMeetings(userId: string, sponsorId: string | null) {
+  return cached(`meetings:${userId}`, 60_000, async () => {
+    const [byRequester, byTarget, bySponsor, sponsorMeetings] = await Promise.all([
+      prisma.meetingRequest.findMany({
+        where: { requesterId: userId },
+        include: INCLUDE,
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        take: 200,
+      }),
+      prisma.meetingRequest.findMany({
+        where: { targetUserId: userId },
+        include: INCLUDE,
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        take: 200,
+      }),
+      sponsorId
+        ? prisma.meetingRequest.findMany({
+            where: { targetSponsorId: sponsorId },
+            include: INCLUDE,
+            orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+            take: 200,
+          })
+        : Promise.resolve([]),
+      sponsorId
+        ? prisma.sponsorMeeting.findMany({
+            where: { sponsorId, status: 'CONFIRMED' },
+            include: {
+              user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
+              timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
+              sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
+            },
+            orderBy: { timeBlock: { startsAt: 'asc' } },
+            take: 100,
+          })
+        : Promise.resolve([]),
+    ])
+    const seen = new Set<string>()
+    const requests = [...byRequester, ...byTarget, ...bySponsor].filter(r => {
+      if (seen.has(r.id)) return false
+      seen.add(r.id)
+      return true
+    })
+    requests.sort((a, b) => {
+      if (a.status !== b.status) return a.status.localeCompare(b.status)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+    return { requests: requests.slice(0, 200), sponsorMeetings }
+  })
 }
 
-const getCachedConflicts = unstable_cache(
-  async () => getActiveConflicts(prisma),
-  ['meetings-active-conflicts'],
-  { revalidate: 120 },
-)
+function fetchConflicts() {
+  return cached('conflicts:active', 120_000, () => getActiveConflicts(prisma))
+}
 
 async function ConflictsBanner() {
-  const conflicts = await getCachedConflicts()
+  const conflicts = await fetchConflicts()
   if (conflicts.length === 0) return null
   return (
     <div className="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
@@ -94,11 +86,8 @@ async function ConflictsBanner() {
 }
 
 export default async function MeetingsPage() {
-  const session = await getSession()
-  const userId = (session!.user as any).id as string
-  const sponsorId = (session!.user as any).sponsorId as string | null
-
-  const { requests, sponsorMeetings } = await getCachedUserMeetings(userId, sponsorId)
+  const user = await getUserFromHeaders()
+  const { requests, sponsorMeetings } = await fetchUserMeetings(user.id, user.sponsorId)
 
   return (
     <>
@@ -108,8 +97,8 @@ export default async function MeetingsPage() {
       <MeetingsView
         requests={requests}
         sponsorMeetings={sponsorMeetings}
-        currentUserId={userId}
-        currentSponsorId={sponsorId}
+        currentUserId={user.id}
+        currentSponsorId={user.sponsorId}
       />
     </>
   )
