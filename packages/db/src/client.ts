@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSQL } from '@prisma/adapter-libsql'
-import { createClient as createLibsql } from '@libsql/client'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -25,6 +24,8 @@ function createClient(): PrismaClient {
   if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
     try {
       if (!globalForPrisma.libsqlAdapter) {
+        // Dynamic require to avoid bundling native libsql bindings at build time
+        const { createClient: createLibsql } = require('@libsql/client')
         const libsql = createLibsql({
           url: 'file:/tmp/turso-replica.db',
           syncUrl: tursoUrl,
