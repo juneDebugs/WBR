@@ -24,7 +24,7 @@ export const authOptions: NextAuthOptions = {
             where: { email },
             select: {
               id: true, email: true, name: true, password: true, role: true, sponsorId: true,
-              sponsor: { select: { name: true } },
+              sponsor: { select: { name: true, logoUrl: true } },
             },
           })
           if (!user) {
@@ -49,6 +49,7 @@ export const authOptions: NextAuthOptions = {
             role: user.role,
             sponsorId: user.sponsorId ?? null,
             sponsorName: user.sponsor?.name ?? null,
+            sponsorLogoUrl: user.sponsor?.logoUrl ?? null,
           }
         } catch (e: any) {
           console.error('[auth] authorize() error:', e?.message)
@@ -77,6 +78,7 @@ export const authOptions: NextAuthOptions = {
         ;(user as any).role = dbUser.role
         ;(user as any).sponsorId = dbUser.sponsorId ?? null
         ;(user as any).sponsorName = dbUser.sponsor?.name ?? null
+        ;(user as any).sponsorLogoUrl = dbUser.sponsor?.logoUrl ?? null
       }
       return true
     },
@@ -86,6 +88,7 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role
         token.sponsorId = (user as any).sponsorId ?? null
         token.sponsorName = (user as any).sponsorName ?? null
+        token.sponsorLogoUrl = (user as any).sponsorLogoUrl ?? null
       }
       return token
     },
@@ -95,6 +98,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).role = token.role
         ;(session.user as any).sponsorId = token.sponsorId ?? null
         ;(session.user as any).sponsorName = token.sponsorName ?? null
+        ;(session.user as any).sponsorLogoUrl = token.sponsorLogoUrl ?? null
       }
       return session
     },
