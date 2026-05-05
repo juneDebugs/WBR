@@ -1,5 +1,6 @@
 'use client'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 export function useHomeData() {
   return useQuery({ queryKey: ['home-data'], queryFn: () => fetch('/api/data/home').then(r => r.json()), staleTime: 30_000 })
@@ -12,4 +13,11 @@ export function useScheduleData() {
 }
 export function useMeetingsData() {
   return useQuery({ queryKey: ['meetings-data'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 30_000 })
+}
+
+export function usePrefetchMeetings() {
+  const qc = useQueryClient()
+  useEffect(() => {
+    qc.prefetchQuery({ queryKey: ['meetings-data'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 30_000 })
+  }, [qc])
 }
