@@ -1,6 +1,5 @@
 'use client'
-import { useState, useMemo, useCallback, useRef, useEffect, memo, useDeferredValue } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useState, useMemo, useCallback, memo, useDeferredValue } from 'react'
 import { useAttendees } from '@/lib/hooks'
 
 import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription } from '@/lib/solutions'
@@ -312,128 +311,6 @@ const PersonCard = memo(function PersonCard({
   )
 })
 
-// ── Virtualized grid that only renders visible rows ──
-function VirtualizedGrid({
-  items, requested, onRequestMeeting, sponsorId, onLoadMore, hasMore, loading,
-}: {
-  items: any[]; requested: Set<string>; onRequestMeeting: (id: string) => void;
-  sponsorId: string | null; onLoadMore: () => void; hasMore: boolean; loading: boolean;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [columns, setColumns] = useState(3)
-
-  // Dynamically compute columns based on container width
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const observer = new ResizeObserver(entries => {
-      const width = entries[0]?.contentRect.width ?? 900
-      const minCol = 280
-      setColumns(Math.max(1, Math.floor(width / minCol)))
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-
-  const rowCount = Math.ceil(items.length / columns)
-
-  const virtualizer = useVirtualizer({
-    count: rowCount + (hasMore ? 1 : 0), // +1 for the "load more" row
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 420, // estimated card height
-    overscan: 3,
-  })
-
-  // Trigger load more when scrolling near the bottom
-  useEffect(() => {
-    const lastItem = virtualizer.getVirtualItems().at(-1)
-    if (!lastItem || loading || !hasMore) return
-    if (lastItem.index >= rowCount) {
-      onLoadMore()
-    }
-  }, [virtualizer.getVirtualItems(), loading, hasMore, rowCount, onLoadMore])
-
-  return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto">
-      <div className="p-4 lg:p-6">
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {virtualizer.getVirtualItems().map(virtualRow => {
-            // Load more row
-            if (virtualRow.index === rowCount) {
-              return (
-                <div
-                  key="load-more"
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                  className="flex items-center justify-center py-8"
-                >
-                  {loading ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" />
-                      </svg>
-                      Loading...
-                    </div>
-                  ) : (
-                    <button
-                      onClick={onLoadMore}
-                      className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
-                    >
-                      Load more
-                    </button>
-                  )}
-                </div>
-              )
-            }
-
-            const startIdx = virtualRow.index * columns
-            const rowItems = items.slice(startIdx, startIdx + columns)
-
-            return (
-              <div
-                key={virtualRow.index}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <div
-                  className="grid gap-4 pb-4"
-                  style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
-                >
-                  {rowItems.map(p => (
-                    <PersonCard
-                      key={p.id}
-                      p={p}
-                      isRequested={requested.has(p.id)}
-                      onRequestMeeting={onRequestMeeting}
-                      sponsorId={sponsorId}
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export function SponsorBrowseView({
   people: initialPeople, sponsorId, isStaff, initialRequestedIds = [],
@@ -607,8 +484,8 @@ export function SponsorBrowseView({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 lg:px-6 lg:pt-6 lg:pb-0">
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 lg:p-6">
           {/* Header row */}
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -657,27 +534,41 @@ export function SponsorBrowseView({
               </button>
             </div>
           )}
-        </div>
 
-        {/* Virtualized Grid */}
-        {filtered.length === 0 && !loading ? (
-          <div className="flex-1 flex items-center justify-center">
+          {/* Grid */}
+          {filtered.length === 0 && !loading ? (
             <div className="text-center py-16">
               <p className="text-gray-400 text-sm">No results match your filters.</p>
               <button onClick={clearAll} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
             </div>
-          </div>
-        ) : (
-          <VirtualizedGrid
-            items={filtered.slice(0, visibleCount)}
-            requested={requested}
-            onRequestMeeting={onRequestMeeting}
-            sponsorId={sponsorId}
-            onLoadMore={loadMore}
-            hasMore={hasMore}
-            loading={loading}
-          />
-        )}
+          ) : (
+            <>
+              <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
+                {filtered.slice(0, visibleCount).map(p => (
+                  <PersonCard
+                    key={p.id}
+                    p={p}
+                    isRequested={requested.has(p.id)}
+                    onRequestMeeting={onRequestMeeting}
+                    sponsorId={sponsorId}
+                  />
+                ))}
+              </div>
+
+              {/* Load more */}
+              {hasMore && (
+                <div className="flex justify-center mt-6">
+                  <button
+                    onClick={loadMore}
+                    className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
+                  >
+                    Show more ({filtered.length - visibleCount} remaining)
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Meeting request modal */}
