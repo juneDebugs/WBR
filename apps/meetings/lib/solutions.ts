@@ -71,31 +71,31 @@ export function getSolutionCategory(solution: string): string | null {
   return null
 }
 
-// Vivid colors for card borders (border-t-4 top accent)
-const CATEGORY_BORDER_COLORS_VIVID: Record<string, string> = {
-  'Marketing': '#f43f5e',           // rose-500
-  'Commerce & Payments': '#3b82f6', // blue-500
-  'Operations': '#f97316',          // orange-500
-  'Data & AI': '#8b5cf6',           // violet-500
-  'Customer': '#ec4899',            // pink-500
+// Lighter pastel versions for card borders (border-t-4 top + 1px tinted sides)
+const CATEGORY_BORDER_COLORS_LIGHT: Record<string, string> = {
+  'Marketing': '#fecdd3',       // rose-200
+  'Commerce & Payments': '#bfdbfe', // blue-200
+  'Operations': '#fed7aa',      // orange-200
+  'Data & AI': '#ddd6fe',       // violet-200
+  'Customer': '#fbcfe8',        // pink-200
 }
 
 export function getBorderColorForSeeking(seekingJson: string | null | undefined): string {
-  if (!seekingJson) return '#d1d5db'
+  if (!seekingJson) return '#e5e7eb'
   let seeking: string[]
-  try { seeking = JSON.parse(seekingJson) } catch { return '#d1d5db' }
-  if (seeking.length === 0) return '#d1d5db'
+  try { seeking = JSON.parse(seekingJson) } catch { return '#e5e7eb' }
+  if (seeking.length === 0) return '#e5e7eb'
   const cat = getSolutionCategory(seeking[0])
-  return cat ? (CATEGORY_BORDER_COLORS_VIVID[cat] ?? '#d1d5db') : '#d1d5db'
+  return cat ? (CATEGORY_BORDER_COLORS_LIGHT[cat] ?? '#e5e7eb') : '#e5e7eb'
 }
 
 export function getBorderColorForOffering(offeringJson: string | null | undefined): string {
-  if (!offeringJson) return '#d1d5db'
+  if (!offeringJson) return '#e5e7eb'
   let offering: string[]
-  try { offering = JSON.parse(offeringJson) } catch { return '#d1d5db' }
-  if (offering.length === 0) return '#d1d5db'
+  try { offering = JSON.parse(offeringJson) } catch { return '#e5e7eb' }
+  if (offering.length === 0) return '#e5e7eb'
   const cat = getSolutionCategory(offering[0])
-  return cat ? (CATEGORY_BORDER_COLORS_VIVID[cat] ?? '#d1d5db') : '#d1d5db'
+  return cat ? (CATEGORY_BORDER_COLORS_LIGHT[cat] ?? '#e5e7eb') : '#e5e7eb'
 }
 
 export const COMPANY_SIZES = ['STARTUP', 'SMB', 'MIDMARKET', 'ENTERPRISE'] as const
