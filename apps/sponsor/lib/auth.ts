@@ -72,7 +72,7 @@ export const authOptions: NextAuthOptions = {
             ...(user.image && { image: user.image }),
           },
           create: { email, name: user.name ?? email.split('@')[0], role: 'ATTENDEE', image: user.image },
-          include: { sponsor: { select: { name: true } } },
+          include: { sponsor: { select: { name: true, logoUrl: true } } },
         })
         ;(user as any).id = dbUser.id
         ;(user as any).role = dbUser.role

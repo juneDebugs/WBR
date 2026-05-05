@@ -420,34 +420,34 @@ async function main() {
   })
 
   // ── Sponsors ───────────────────────────────────────────────────────────────
-  const sponsorDefs: { id: string; name: string; tier: string; website?: string; tagline?: string; description?: string; boothNumber?: string }[] = [
-    { id: 'cmngb2h4h0000vm28ssjt1m0z', name: 'Shopify', tier: 'PLATINUM', website: 'https://shopify.com', tagline: 'Making commerce better for everyone', description: 'Shopify is a leading global commerce company providing trusted tools to start, grow, market, and manage a retail business of any size.', boothNumber: 'P1' },
-    { id: 'cmngb2h4h0001vm2889slafvy', name: 'BigCommerce', tier: 'PLATINUM', website: 'https://bigcommerce.com', tagline: 'The open SaaS ecommerce platform', description: 'BigCommerce is the open SaaS ecommerce platform that empowers merchants and manufacturers to innovate and grow.', boothNumber: 'P2' },
-    { id: 'cmngb2h4h0007vm28mbcpxjg5', name: 'Tailor ERP', tier: 'PLATINUM', website: 'https://tailor.tech', tagline: 'Modern ERP for DTC brands', description: 'Tailor is a modern ERP platform purpose-built for high-growth DTC and commerce brands.', boothNumber: 'P3' },
-    { id: 'cmngb2h4h0002vm28jsro8se9', name: 'ShipStation', tier: 'GOLD', website: 'https://shipstation.com', tagline: 'Shipping made easy', description: 'ShipStation helps ecommerce retailers import, organize, and ship orders efficiently from any channel.', boothNumber: 'G1' },
-    { id: 'cmngb2h4h0003vm281j76qc4e', name: 'Loop Returns', tier: 'GOLD', website: 'https://loopreturns.com', tagline: 'Returns that drive growth', description: 'Loop Returns helps Shopify brands retain more revenue by turning returns into exchanges.', boothNumber: 'G2' },
-    { id: 'cmngb2h4h0004vm28nn3rme1o', name: 'Klaviyo', tier: 'GOLD', website: 'https://klaviyo.com', tagline: 'The smart marketing automation platform', description: 'Klaviyo powers smarter digital relationships with intelligent marketing automation for email, SMS, and more.', boothNumber: 'G3' },
-    { id: 'cmngb2h4h0005vm28mg7g52fh', name: 'Gorgias', tier: 'GOLD', website: 'https://gorgias.com', tagline: 'Customer service for ecommerce', description: 'Gorgias is the helpdesk built for ecommerce merchants, centralizing all support conversations.', boothNumber: 'G4' },
-    { id: 'cmngb2h4h0006vm28enbuld34', name: 'Recharge', tier: 'GOLD', website: 'https://rechargepayments.com', tagline: 'Powering subscriptions for DTC', description: 'Recharge is the leading subscription payments platform helping ecommerce brands turn transactions into relationships.', boothNumber: 'G5' },
-    { id: 'cmngb2h4h0008vm28i6338gp9', name: 'Yotpo', tier: 'SILVER', website: 'https://yotpo.com', tagline: 'eCommerce retention marketing', description: 'Yotpo is an eCommerce retention marketing platform with solutions for reviews, loyalty, SMS, email, and subscriptions.' },
-    { id: 'cmngb2h4h0009vm28no2j8b6p', name: 'Attentive', tier: 'SILVER', website: 'https://attentive.com', tagline: 'Personalized mobile messaging', description: 'Attentive is the most comprehensive personalized text messaging solution for innovative brands and organizations.' },
-    { id: 'cmngb2h4h000avm28j2vs0j0k', name: 'Postscript', tier: 'SILVER', website: 'https://postscript.io', tagline: 'SMS marketing for Shopify', description: 'Postscript makes SMS marketing easy for Shopify merchants with powerful automation and segmentation.' },
-    { id: 'cmngb2h4h000cvm28dh6mc5bh', name: 'Narvar', tier: 'SILVER', website: 'https://narvar.com', tagline: 'Post-purchase experience platform', description: 'Narvar drives customer loyalty with a post-purchase platform that covers shipping, tracking, and returns.' },
-    { id: 'cmngb2h4h000dvm289vmdaki3', name: 'Extensiv', tier: 'SILVER', website: 'https://extensiv.com', tagline: 'Omnichannel fulfillment platform', description: 'Extensiv is an omnichannel fulfillment platform connecting brands with a network of 3PLs and warehouses.' },
-    { id: 'cmngbix6w0001fwpj6dwlwyri', name: 'Google Cloud', tier: 'SILVER', website: 'https://cloud.google.com', tagline: 'Cloud computing services', description: 'Google Cloud provides a suite of cloud computing services for data analytics, machine learning, and infrastructure.' },
-    { id: 'cmngb2h4h000evm286epvlnxs', name: 'Okendo', tier: 'BRONZE', website: 'https://okendo.io', tagline: 'Customer review platform', description: 'Okendo is a customer review platform that helps brands capture and display high-impact social proof.' },
-    { id: 'cmngb2h4h000fvm28fzk7rs4l', name: 'Ordergroove', tier: 'BRONZE', website: 'https://ordergroove.com', tagline: 'Relationship commerce', description: 'Ordergroove powers recurring revenue through its relationship commerce platform for subscriptions.' },
-    { id: 'cmngb2h4h000gvm28202yjuux', name: 'Skio', tier: 'BRONZE', website: 'https://skio.com', tagline: 'Subscriptions for Shopify', description: 'Skio is a modern subscription management platform designed for Shopify brands.' },
-    { id: 'cmngb2h4h000hvm28vn41ytgc', name: 'AfterShip', tier: 'BRONZE', website: 'https://aftership.com', tagline: 'Shipment tracking platform', description: 'AfterShip provides shipment tracking and delivery updates for ecommerce businesses worldwide.' },
-    { id: 'cmngb2h4h000ivm281ido85fq', name: 'Searchspring', tier: 'BRONZE', website: 'https://searchspring.com', tagline: 'Site search & merchandising', description: 'Searchspring powers site search, merchandising, and personalization for ecommerce retailers.' },
-    { id: 'cmngb2h4h000jvm28zwqqu86h', name: 'Rebuy Engine', tier: 'BRONZE', website: 'https://rebuyengine.com', tagline: 'Personalization for Shopify', description: 'Rebuy Engine provides AI-powered personalization for Shopify stores to increase AOV and conversion.' },
+  const sponsorDefs: { id: string; name: string; tier: string; website?: string; tagline?: string; description?: string; boothNumber?: string; logoUrl?: string }[] = [
+    { id: 'cmngb2h4h0000vm28ssjt1m0z', name: 'Shopify', tier: 'PLATINUM', website: 'https://shopify.com', tagline: 'Making commerce better for everyone', description: 'Shopify is a leading global commerce company providing trusted tools to start, grow, market, and manage a retail business of any size.', boothNumber: 'P1', logoUrl: '/sponsors/shopify.png' },
+    { id: 'cmngb2h4h0001vm2889slafvy', name: 'BigCommerce', tier: 'PLATINUM', website: 'https://bigcommerce.com', tagline: 'The open SaaS ecommerce platform', description: 'BigCommerce is the open SaaS ecommerce platform that empowers merchants and manufacturers to innovate and grow.', boothNumber: 'P2', logoUrl: '/sponsors/bigcommerce.png' },
+    { id: 'cmngb2h4h0007vm28mbcpxjg5', name: 'Tailor ERP', tier: 'PLATINUM', website: 'https://tailor.tech', tagline: 'Modern ERP for DTC brands', description: 'Tailor is a modern ERP platform purpose-built for high-growth DTC and commerce brands.', boothNumber: 'P3', logoUrl: '/sponsors/tailor-erp.png' },
+    { id: 'cmngb2h4h0002vm28jsro8se9', name: 'ShipStation', tier: 'GOLD', website: 'https://shipstation.com', tagline: 'Shipping made easy', description: 'ShipStation helps ecommerce retailers import, organize, and ship orders efficiently from any channel.', boothNumber: 'G1', logoUrl: '/sponsors/shipstation.png' },
+    { id: 'cmngb2h4h0003vm281j76qc4e', name: 'Loop Returns', tier: 'GOLD', website: 'https://loopreturns.com', tagline: 'Returns that drive growth', description: 'Loop Returns helps Shopify brands retain more revenue by turning returns into exchanges.', boothNumber: 'G2', logoUrl: '/sponsors/loop-returns.png' },
+    { id: 'cmngb2h4h0004vm28nn3rme1o', name: 'Klaviyo', tier: 'GOLD', website: 'https://klaviyo.com', tagline: 'The smart marketing automation platform', description: 'Klaviyo powers smarter digital relationships with intelligent marketing automation for email, SMS, and more.', boothNumber: 'G3', logoUrl: '/sponsors/klaviyo.png' },
+    { id: 'cmngb2h4h0005vm28mg7g52fh', name: 'Gorgias', tier: 'GOLD', website: 'https://gorgias.com', tagline: 'Customer service for ecommerce', description: 'Gorgias is the helpdesk built for ecommerce merchants, centralizing all support conversations.', boothNumber: 'G4', logoUrl: '/sponsors/gorgias.png' },
+    { id: 'cmngb2h4h0006vm28enbuld34', name: 'Recharge', tier: 'GOLD', website: 'https://rechargepayments.com', tagline: 'Powering subscriptions for DTC', description: 'Recharge is the leading subscription payments platform helping ecommerce brands turn transactions into relationships.', boothNumber: 'G5', logoUrl: '/sponsors/recharge.png' },
+    { id: 'cmngb2h4h0008vm28i6338gp9', name: 'Yotpo', tier: 'SILVER', website: 'https://yotpo.com', tagline: 'eCommerce retention marketing', description: 'Yotpo is an eCommerce retention marketing platform with solutions for reviews, loyalty, SMS, email, and subscriptions.', logoUrl: '/sponsors/yotpo.png' },
+    { id: 'cmngb2h4h0009vm28no2j8b6p', name: 'Attentive', tier: 'SILVER', website: 'https://attentive.com', tagline: 'Personalized mobile messaging', description: 'Attentive is the most comprehensive personalized text messaging solution for innovative brands and organizations.', logoUrl: '/sponsors/attentive.png' },
+    { id: 'cmngb2h4h000avm28j2vs0j0k', name: 'Postscript', tier: 'SILVER', website: 'https://postscript.io', tagline: 'SMS marketing for Shopify', description: 'Postscript makes SMS marketing easy for Shopify merchants with powerful automation and segmentation.', logoUrl: '/sponsors/postscript.png' },
+    { id: 'cmngb2h4h000cvm28dh6mc5bh', name: 'Narvar', tier: 'SILVER', website: 'https://narvar.com', tagline: 'Post-purchase experience platform', description: 'Narvar drives customer loyalty with a post-purchase platform that covers shipping, tracking, and returns.', logoUrl: '/sponsors/narvar.png' },
+    { id: 'cmngb2h4h000dvm289vmdaki3', name: 'Extensiv', tier: 'SILVER', website: 'https://extensiv.com', tagline: 'Omnichannel fulfillment platform', description: 'Extensiv is an omnichannel fulfillment platform connecting brands with a network of 3PLs and warehouses.', logoUrl: '/sponsors/extensiv.png' },
+    { id: 'cmngbix6w0001fwpj6dwlwyri', name: 'Google Cloud', tier: 'SILVER', website: 'https://cloud.google.com', tagline: 'Cloud computing services', description: 'Google Cloud provides a suite of cloud computing services for data analytics, machine learning, and infrastructure.', logoUrl: '/sponsors/google-cloud.png' },
+    { id: 'cmngb2h4h000evm286epvlnxs', name: 'Okendo', tier: 'BRONZE', website: 'https://okendo.io', tagline: 'Customer review platform', description: 'Okendo is a customer review platform that helps brands capture and display high-impact social proof.', logoUrl: '/sponsors/okendo.png' },
+    { id: 'cmngb2h4h000fvm28fzk7rs4l', name: 'Ordergroove', tier: 'BRONZE', website: 'https://ordergroove.com', tagline: 'Relationship commerce', description: 'Ordergroove powers recurring revenue through its relationship commerce platform for subscriptions.', logoUrl: '/sponsors/ordergroove.png' },
+    { id: 'cmngb2h4h000gvm28202yjuux', name: 'Skio', tier: 'BRONZE', website: 'https://skio.com', tagline: 'Subscriptions for Shopify', description: 'Skio is a modern subscription management platform designed for Shopify brands.', logoUrl: '/sponsors/skio.png' },
+    { id: 'cmngb2h4h000hvm28vn41ytgc', name: 'AfterShip', tier: 'BRONZE', website: 'https://aftership.com', tagline: 'Shipment tracking platform', description: 'AfterShip provides shipment tracking and delivery updates for ecommerce businesses worldwide.', logoUrl: '/sponsors/aftership.png' },
+    { id: 'cmngb2h4h000ivm281ido85fq', name: 'Searchspring', tier: 'BRONZE', website: 'https://searchspring.com', tagline: 'Site search & merchandising', description: 'Searchspring powers site search, merchandising, and personalization for ecommerce retailers.', logoUrl: '/sponsors/searchspring.png' },
+    { id: 'cmngb2h4h000jvm28zwqqu86h', name: 'Rebuy Engine', tier: 'BRONZE', website: 'https://rebuyengine.com', tagline: 'Personalization for Shopify', description: 'Rebuy Engine provides AI-powered personalization for Shopify stores to increase AOV and conversion.', logoUrl: '/sponsors/rebuy-engine.png' },
   ]
 
   console.log(`  Creating ${sponsorDefs.length} sponsors...`)
   for (const s of sponsorDefs) {
     await prisma.sponsor.upsert({
       where: { id: s.id },
-      update: { name: s.name, tier: s.tier },
+      update: { name: s.name, tier: s.tier, logoUrl: s.logoUrl },
       create: {
         id: s.id,
         conferenceId: conf.id,
@@ -457,6 +457,7 @@ async function main() {
         tagline: s.tagline,
         description: s.description,
         boothNumber: s.boothNumber,
+        logoUrl: s.logoUrl,
       },
     })
   }

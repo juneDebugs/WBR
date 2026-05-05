@@ -8,7 +8,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const user = session.user as any
   return (
     <div className="min-h-screen flex flex-col">
-      <NavBar sponsorName={user.sponsorName} sponsorLogoUrl={user.sponsorLogoUrl} role={user.role} />
+      <NavBar sponsorName={user.sponsorName} role={user.role} />
       <main className="flex-1">{children}</main>
     </div>
   )

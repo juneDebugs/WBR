@@ -1,11 +1,11 @@
 'use client'
 import { memo } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { useSponsorData } from '@/lib/hooks'
 
-interface Props { sponsorName: string | null; sponsorLogoUrl?: string | null; role: string }
+interface Props { sponsorName: string | null; role: string }
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -16,17 +16,19 @@ const NAV = [
   { href: '/profile', label: 'Profile', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
 ]
 
-export const NavBar = memo(function NavBar({ sponsorName, sponsorLogoUrl, role }: Props) {
+export const NavBar = memo(function NavBar({ sponsorName, role }: Props) {
   const pathname = usePathname()
   const active = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  const { data: sponsorData } = useSponsorData()
+  const logoUrl = sponsorData?.sponsor?.logoUrl
 
   return (
     <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
         {/* Logo */}
         <div className="flex items-center gap-3">
-          {sponsorLogoUrl ? (
-            <Image src={sponsorLogoUrl} alt={sponsorName ?? 'Sponsor'} width={28} height={28} className="w-7 h-7 rounded-lg object-contain bg-white border border-gray-100" />
+          {logoUrl ? (
+            <img src={logoUrl} alt={sponsorName ?? 'Sponsor'} width={28} height={28} className="w-7 h-7 rounded-lg object-contain bg-white border border-gray-100" />
           ) : (
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
