@@ -28,7 +28,8 @@ if (localDbUrl?.startsWith('file:')) {
   queryUser = async (email) => (stmt.get(email) as UserRow) ?? null
 } else if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) {
   // Production: Turso remote DB via libsql
-  const { createClient } = require('@libsql/client') as typeof import('@libsql/client')
+  // Dynamic require hidden from webpack static analysis
+  const { createClient } = (0, eval)('require')('@libsql/client') as typeof import('@libsql/client')
   const client = createClient({ url: tursoUrl, authToken: tursoToken })
   queryUser = async (email) => {
     const r = await client.execute({ sql: USER_SQL, args: [email] })
