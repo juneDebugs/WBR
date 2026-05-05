@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -129,7 +128,10 @@ export default function LoginPage() {
           </div>
 
           <button
-            onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+            onClick={async () => {
+              const { signIn } = await import('next-auth/react')
+              signIn('google', { callbackUrl: '/dashboard' })
+            }}
             className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-white/60 backdrop-blur border border-gray-200/80 rounded-xl text-[14px] font-medium text-gray-600 hover:bg-white/90 hover:border-gray-300/80 active:bg-gray-50/80 transition-all"
           >
             <svg className="w-[16px] h-[16px]" viewBox="0 0 24 24">

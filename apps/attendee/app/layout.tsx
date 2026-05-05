@@ -1,6 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { SessionProvider } from './session-provider'
-import { QueryProvider } from '@/lib/query-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -32,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
       </head>
       <body className="bg-gray-50 text-gray-900 antialiased">
-        <QueryProvider><SessionProvider>{children}</SessionProvider></QueryProvider>
+        {children}
       </body>
     </html>
   )

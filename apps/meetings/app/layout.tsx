@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { SessionProvider } from './session-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -26,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body className="bg-gray-50 text-gray-900 antialiased">
-        <SessionProvider>{children}</SessionProvider>
+        {children}
       </body>
     </html>
   )

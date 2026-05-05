@@ -1,8 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { SessionProvider } from './session-provider'
-import { QueryProvider } from '@/lib/query-client'
-import { getSession } from '@/lib/session'
 
 export const metadata: Metadata = {
   title: 'Sponsor Portal',
@@ -14,17 +11,14 @@ export const viewport = {
   themeColor: '#6366f1',
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession()
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preload" href="/api/attendees" as="fetch" crossOrigin="anonymous" />
       </head>
       <body>
-        <SessionProvider session={session}>
-          <QueryProvider>{children}</QueryProvider>
-        </SessionProvider>
+        {children}
       </body>
     </html>
   )

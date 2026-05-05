@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
 
 interface Props {
   loginTitle: string
@@ -92,7 +91,10 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
           </div>
 
           <button
-            onClick={() => signIn('google', { callbackUrl: '/home' })}
+            onClick={async () => {
+              const { signIn } = await import('next-auth/react')
+              signIn('google', { callbackUrl: '/home' })
+            }}
             className="w-full flex items-center justify-center gap-3 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
