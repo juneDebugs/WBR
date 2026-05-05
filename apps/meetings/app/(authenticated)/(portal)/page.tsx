@@ -9,9 +9,6 @@ import { RecommendedMatchesClient, type RecommendedMatch } from '@/components/Re
 import { getIndustry } from '@/lib/solutions'
 import { TeamMembers } from '@/components/TeamMembers'
 
-// Collapses Prisma includes into a single SQL query with JOINs (1 HTTP call to Turso instead of N+1).
-const JOIN = { relationLoadStrategy: 'join' } as {}
-
 // ── Scoring ────────────────────────────────────────────────────────────────────
 
 function parseSolutions(raw: string | null): string[] {
@@ -131,7 +128,6 @@ function getCachedStaffDashboard() {
         prisma.timeBlock.count(),
         prisma.meetingRequest.count({ where: { timeBlockId: { not: null } } }),
         prisma.meetingRequest.findMany({
-          ...JOIN,
           orderBy: { createdAt: 'desc' },
           take: 5,
           include: {
@@ -156,29 +152,31 @@ function getCachedUserDashboard(userId: string, sponsorId: string | null) {
     async () => {
       const now = new Date()
 
-      // ── 1. Status counts: single raw SQL with UNION replaces 5 OR-based counts ──
-      // Each half of the UNION uses its own index; no full table scan.
-      const statusCountsP = prisma.$queryRawUnsafe<{ status: string; cnt: number | bigint }[]>(
-        `SELECT status, COUNT(*) as cnt FROM (
-          SELECT id, status FROM MeetingRequest WHERE requesterId = ?
-          UNION
-          SELECT id, status FROM MeetingRequest WHERE targetUserId = ?
-        ) GROUP BY status`,
-        userId, userId,
-      )
+      // ── 1. Status counts: 2 parallel groupBy queries replace 5 OR-based counts ──
+      // Each uses its own index (requesterId, targetUserId); no full table scan.
+      const reqCountsP = prisma.meetingRequest.groupBy({
+        by: ['status'],
+        where: { requesterId: userId },
+        _count: true,
+      })
+      const targetCountsP = prisma.meetingRequest.groupBy({
+        by: ['status'],
+        where: { targetUserId: userId },
+        _count: true,
+      })
 
       // ── 2. All other queries: split OR into parallel index-targeted queries ──
       const [
-        statusCounts,
+        reqCounts, targetCounts,
         myRequests,
         inboundByUser, inboundBySponsor,
         profileUser,
         meetingsAsRequester, meetingsAsTarget,
         sponsorWithTeam,
       ] = await Promise.all([
-        statusCountsP,
+        reqCountsP,
+        targetCountsP,
         prisma.meetingRequest.findMany({
-          ...JOIN,
           where: { requesterId: userId },
           orderBy: { createdAt: 'desc' },
           take: 4,
@@ -189,7 +187,6 @@ function getCachedUserDashboard(userId: string, sponsorId: string | null) {
         }),
         // Split the OR on inbound requests into two parallel queries
         prisma.meetingRequest.findMany({
-          ...JOIN,
           where: { targetUserId: userId },
           orderBy: { createdAt: 'desc' },
           take: 5,
@@ -199,8 +196,7 @@ function getCachedUserDashboard(userId: string, sponsorId: string | null) {
         }),
         sponsorId
           ? prisma.meetingRequest.findMany({
-              ...JOIN,
-              where: { targetSponsorId: sponsorId },
+                  where: { targetSponsorId: sponsorId },
               orderBy: { createdAt: 'desc' },
               take: 5,
               include: {
@@ -214,7 +210,6 @@ function getCachedUserDashboard(userId: string, sponsorId: string | null) {
         }),
         // Split the OR on upcoming meetings into two parallel queries
         prisma.meetingRequest.findMany({
-          ...JOIN,
           where: { requesterId: userId, status: 'CONFIRMED', timeBlockId: { not: null }, timeBlock: { startsAt: { gte: now } } },
           orderBy: { timeBlock: { startsAt: 'asc' } },
           take: 5,
@@ -226,7 +221,6 @@ function getCachedUserDashboard(userId: string, sponsorId: string | null) {
           },
         }),
         prisma.meetingRequest.findMany({
-          ...JOIN,
           where: { targetUserId: userId, status: 'CONFIRMED', timeBlockId: { not: null }, timeBlock: { startsAt: { gte: now } } },
           orderBy: { timeBlock: { startsAt: 'asc' } },
           take: 5,
@@ -239,16 +233,16 @@ function getCachedUserDashboard(userId: string, sponsorId: string | null) {
         }),
         sponsorId
           ? prisma.sponsor.findUnique({
-              ...JOIN,
-              where: { id: sponsorId },
+                  where: { id: sponsorId },
               include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
             })
           : Promise.resolve(null),
       ])
 
-      // ── 3. Derive counts from the single raw SQL result ──
+      // ── 3. Derive counts from the two groupBy results ──
       const countMap: Record<string, number> = {}
-      for (const row of statusCounts) countMap[row.status] = Number(row.cnt)
+      for (const row of reqCounts) countMap[row.status] = (countMap[row.status] ?? 0) + row._count
+      for (const row of targetCounts) countMap[row.status] = (countMap[row.status] ?? 0) + row._count
       const totalRequests = Object.values(countMap).reduce((a, b) => a + b, 0)
 
       // ── 4. Merge split results with dedup ──

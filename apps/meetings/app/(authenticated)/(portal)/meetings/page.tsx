@@ -11,20 +11,16 @@ const INCLUDE = {
   timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
 } as const
 
-const JOIN = { relationLoadStrategy: 'join' } as {}
-
 function fetchUserMeetings(userId: string, sponsorId: string | null) {
   return cached(`meetings:${userId}`, 60_000, async () => {
     const [byRequester, byTarget, bySponsor, sponsorMeetings] = await Promise.all([
       prisma.meetingRequest.findMany({
-        ...JOIN,
         where: { requesterId: userId },
         include: INCLUDE,
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         take: 200,
       }),
       prisma.meetingRequest.findMany({
-        ...JOIN,
         where: { targetUserId: userId },
         include: INCLUDE,
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
@@ -32,7 +28,6 @@ function fetchUserMeetings(userId: string, sponsorId: string | null) {
       }),
       sponsorId
         ? prisma.meetingRequest.findMany({
-            ...JOIN,
             where: { targetSponsorId: sponsorId },
             include: INCLUDE,
             orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
@@ -41,7 +36,6 @@ function fetchUserMeetings(userId: string, sponsorId: string | null) {
         : Promise.resolve([]),
       sponsorId
         ? prisma.sponsorMeeting.findMany({
-            ...JOIN,
             where: { sponsorId, status: 'CONFIRMED' },
             include: {
               user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },

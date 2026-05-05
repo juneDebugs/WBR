@@ -44,7 +44,6 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         select: { id: true, name: true, logoUrl: true, tier: true },
       }),
       prisma.sponsorMeeting.findMany({
-        ...JOIN,
         where: { sponsorId, status: 'CONFIRMED' },
         include: {
           user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
@@ -53,7 +52,6 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         orderBy: { timeBlock: { startsAt: 'asc' } },
       }),
       prisma.meetingRequest.findMany({
-        ...JOIN,
         where: { targetSponsorId: sponsorId, status: { in: ['PENDING', 'APPROVED'] } },
         include: {
           requester: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
@@ -107,25 +105,19 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     attendeeA: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
     attendeeB: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
   } as const
-  // Collapses Prisma includes into a single SQL query with JOINs (1 HTTP call to Turso instead of N+1).
-  const JOIN = { relationLoadStrategy: 'join' } as {}
   // Split OR into parallel index-targeted queries for SQLite performance
-  // relationLoadStrategy: 'join' collapses includes into a single SQL query (1 HTTP call to Turso instead of N+1)
   const [meetingsAsA, meetingsAsB, incomingRequests] = await Promise.all([
     prisma.meeting.findMany({
-      ...JOIN,
       where: { attendeeAId: userId, status: { not: 'CANCELLED' } },
       include: meetingInclude,
       orderBy: { timeBlock: { startsAt: 'asc' } },
     }),
     prisma.meeting.findMany({
-      ...JOIN,
       where: { attendeeBId: userId, status: { not: 'CANCELLED' } },
       include: meetingInclude,
       orderBy: { timeBlock: { startsAt: 'asc' } },
     }),
     prisma.meetingRequest.findMany({
-      ...JOIN,
       where: { targetUserId: userId, status: 'PENDING' },
       include: {
         requester: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },

@@ -10,22 +10,16 @@ const INCLUDE = {
   timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
 } as const
 
-// Collapses Prisma includes into a single SQL query with JOINs (1 HTTP call to Turso instead of N+1).
-// Types aren't generated for driverAdapters in Prisma 5.x, but the query engine supports it.
-const JOIN = { relationLoadStrategy: 'join' } as {}
-
 function fetchUserRequests(userId: string, sponsorId: string | null) {
   return cached(`requests:${userId}`, 60_000, async () => {
     const [byRequester, byTarget, bySponsor] = await Promise.all([
       prisma.meetingRequest.findMany({
-        ...JOIN,
         where: { requesterId: userId },
         include: INCLUDE,
         orderBy: { createdAt: 'desc' },
         take: 200,
       }),
       prisma.meetingRequest.findMany({
-        ...JOIN,
         where: { targetUserId: userId },
         include: INCLUDE,
         orderBy: { createdAt: 'desc' },
@@ -33,7 +27,6 @@ function fetchUserRequests(userId: string, sponsorId: string | null) {
       }),
       sponsorId
         ? prisma.meetingRequest.findMany({
-            ...JOIN,
             where: { targetSponsorId: sponsorId },
             include: INCLUDE,
             orderBy: { createdAt: 'desc' },
