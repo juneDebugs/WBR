@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import Image from 'next/image'
 import { useSpeakersData } from '@/lib/hooks'
+import { CompanyLogo, COMPANY_LOGO_NAMES } from './CompanyLogos'
 
 function parsePhotoPos(pos: string | null | undefined) {
   const parts = (pos ?? '50% 50%').trim().split(/\s+/)
@@ -34,30 +35,6 @@ function isExternalUrl(url: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://')
 }
 
-const COMPANY_LOGOS: Record<string, string> = {
-  'Google Cloud':       'https://logo.clearbit.com/cloud.google.com',
-  'Robinhood':          'https://logo.clearbit.com/robinhood.com',
-  'OpenAI':             'https://logo.clearbit.com/openai.com',
-  'Palo Alto Networks': 'https://logo.clearbit.com/paloaltonetworks.com',
-  'DeepMind':           'https://logo.clearbit.com/deepmind.com',
-  'Meta AI':            'https://logo.clearbit.com/meta.com',
-  'Stripe':             'https://logo.clearbit.com/stripe.com',
-  'Anthropic':          'https://logo.clearbit.com/anthropic.com',
-  'Notion':             'https://logo.clearbit.com/notion.so',
-  'Cloudflare':         'https://logo.clearbit.com/cloudflare.com',
-  'Shopify':            'https://logo.clearbit.com/shopify.com',
-  'Vercel':             'https://logo.clearbit.com/vercel.com',
-  'Spotify':            'https://logo.clearbit.com/spotify.com',
-  'GitHub':             'https://logo.clearbit.com/github.com',
-  'Crowdstrike':        'https://logo.clearbit.com/crowdstrike.com',
-  'Plaid':              'https://logo.clearbit.com/plaid.com',
-  'Palantir':           'https://logo.clearbit.com/palantir.com',
-  'Figma':              'https://logo.clearbit.com/figma.com',
-  'Linear':             'https://logo.clearbit.com/linear.app',
-  'Loom':               'https://logo.clearbit.com/loom.com',
-  'Raycast':            'https://logo.clearbit.com/raycast.com',
-  'Supabase':           'https://logo.clearbit.com/supabase.com',
-}
 
 interface Speaker {
   id: string
@@ -116,7 +93,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
   const [visible, setVisible] = useState(false)
   const [ag1, ag2] = avatarGradient(speaker.name)
   const palette = speaker.track ? trackPalette(speaker.track) : TRACK_PALETTES[0]
-  const logoUrl = speaker.company ? COMPANY_LOGOS[speaker.company] : null
+  const hasLogo = speaker.company ? COMPANY_LOGO_NAMES.has(speaker.company) : false
 
   useEffect(() => {
     // Trigger slide-up animation
@@ -210,8 +187,10 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
           {/* Company row */}
           {speaker.company && (
             <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100">
-              {logoUrl ? (
-                <Image src={logoUrl} alt={speaker.company} width={28} height={28} className="w-7 h-7 rounded-lg object-contain flex-shrink-0" />
+              {hasLogo ? (
+                <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0">
+                  <CompanyLogo company={speaker.company!} size={28} />
+                </div>
               ) : (
                 <div
                   className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
