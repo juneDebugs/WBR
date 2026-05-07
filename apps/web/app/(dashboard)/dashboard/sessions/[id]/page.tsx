@@ -8,6 +8,13 @@ import Link from 'next/link'
 
 async function updateSession(id: string, formData: FormData) {
   'use server'
+  const startsAt = new Date(formData.get('startsAt') as string)
+  const endsAt = new Date(formData.get('endsAt') as string)
+
+  if (endsAt <= startsAt) {
+    redirect(`/dashboard/sessions/${id}?error=end-before-start`)
+  }
+
   await prisma.confSession.update({
     where: { id },
     data: {
@@ -15,8 +22,8 @@ async function updateSession(id: string, formData: FormData) {
       description: (formData.get('description') as string) || null,
       speakerId: (formData.get('speakerId') as string) || null,
       room: (formData.get('room') as string) || null,
-      startsAt: new Date(formData.get('startsAt') as string),
-      endsAt: new Date(formData.get('endsAt') as string),
+      startsAt,
+      endsAt,
       track: (formData.get('track') as string) || null,
       type: formData.get('type') as string,
     },
@@ -41,8 +48,9 @@ function toLocalDatetimeString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-export default async function EditSessionPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditSessionPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params
+  const { error } = await searchParams
   const [session, speakers] = await Promise.all([
     prisma.confSession.findUnique({ where: { id }, include: { speaker: true } }),
     prisma.speaker.findMany({ orderBy: { name: 'asc' } }),
@@ -60,6 +68,12 @@ export default async function EditSessionPage({ params }: { params: Promise<{ id
         <Link href="/dashboard/sessions" className="text-sm text-primary hover:underline mb-6 block">
           ← Back to Sessions
         </Link>
+
+        {error === 'end-before-start' && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            End time must be after start time.
+          </div>
+        )}
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <form action={update} className="space-y-4">

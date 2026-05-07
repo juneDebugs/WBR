@@ -8,6 +8,12 @@ import Link from 'next/link'
 async function createSession(formData: FormData) {
   'use server'
   const speakerId = formData.get('speakerId') as string | null
+  const startsAt = new Date(formData.get('startsAt') as string)
+  const endsAt = new Date(formData.get('endsAt') as string)
+
+  if (endsAt <= startsAt) {
+    redirect('/dashboard/sessions/new?error=end-before-start')
+  }
 
   await prisma.confSession.create({
     data: {
@@ -16,8 +22,8 @@ async function createSession(formData: FormData) {
       description: (formData.get('description') as string) || null,
       speakerId: speakerId || null,
       room: (formData.get('room') as string) || null,
-      startsAt: new Date(formData.get('startsAt') as string),
-      endsAt: new Date(formData.get('endsAt') as string),
+      startsAt,
+      endsAt,
       track: (formData.get('track') as string) || null,
       type: formData.get('type') as string,
     },
@@ -28,7 +34,8 @@ async function createSession(formData: FormData) {
   redirect('/dashboard/sessions')
 }
 
-export default async function NewSessionPage() {
+export default async function NewSessionPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams
   const [conferences, speakers] = await Promise.all([
     prisma.conference.findMany({ orderBy: { startDate: 'desc' } }),
     prisma.speaker.findMany({ orderBy: { name: 'asc' } }),
@@ -42,6 +49,12 @@ export default async function NewSessionPage() {
         <Link href="/dashboard/sessions" className="text-sm text-primary hover:underline mb-6 block">
           ← Back to Sessions
         </Link>
+
+        {error === 'end-before-start' && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            End time must be after start time.
+          </div>
+        )}
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <form action={createSession} className="space-y-4">
