@@ -1,6 +1,7 @@
 export const revalidate = 15
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { format } from 'date-fns'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -96,11 +97,9 @@ export default async function EditMeetingPage({ params }: { params: Promise<{ id
             <div className="flex items-center justify-between pt-2">
               {meeting.status !== 'CANCELLED' && (
                 <form action={cancel}>
-                  <button type="submit"
-                    onClick={(e) => { if (!confirm('Cancel this meeting?')) e.preventDefault() }}
-                    className="btn-danger text-sm">
+                  <ConfirmButton message="Cancel this meeting?" className="btn-danger text-sm">
                     Cancel Meeting
-                  </button>
+                  </ConfirmButton>
                 </form>
               )}
               <div className="flex gap-3 ml-auto">

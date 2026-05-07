@@ -1,7 +1,7 @@
 export const revalidate = 30
 import { prisma, detectSpeakerConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
-import { format } from 'date-fns'
+import { ConfirmButton } from '@/components/ConfirmButton'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 
@@ -114,11 +114,9 @@ export default async function EditSessionPage({ params }: { params: Promise<{ id
 
             <div className="flex items-center justify-between pt-2">
               <form action={del}>
-                <button type="submit"
-                  onClick={(e) => { if (!confirm('Delete this session?')) e.preventDefault() }}
-                  className="btn-danger text-sm">
+                <ConfirmButton message="Delete this session?" className="btn-danger text-sm">
                   Delete
-                </button>
+                </ConfirmButton>
               </form>
               <div className="flex gap-3">
                 <Link href="/dashboard/sessions" className="btn-secondary text-sm">Cancel</Link>
