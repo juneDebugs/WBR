@@ -36,16 +36,17 @@ function toLocalDatetimeString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-export default async function EditSessionPage({ params }: { params: { id: string } }) {
+export default async function EditSessionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const [session, speakers] = await Promise.all([
-    prisma.confSession.findUnique({ where: { id: params.id }, include: { speaker: true } }),
+    prisma.confSession.findUnique({ where: { id }, include: { speaker: true } }),
     prisma.speaker.findMany({ orderBy: { name: 'asc' } }),
   ])
 
   if (!session) notFound()
 
-  const update = updateSession.bind(null, params.id)
-  const del = deleteSession.bind(null, params.id)
+  const update = updateSession.bind(null, id)
+  const del = deleteSession.bind(null, id)
 
   return (
     <>

@@ -4,7 +4,8 @@ import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -18,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
-  const request = await prisma.meetingRequest.findUnique({ where: { id: params.id } })
+  const request = await prisma.meetingRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Ensure the request belongs to this sponsor (unless staff)
@@ -58,7 +59,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const updated = await prisma.meetingRequest.update({
-    where: { id: params.id },
+    where: { id },
     data: { status, ...(timeBlockId ? { timeBlockId } : {}) },
   })
 

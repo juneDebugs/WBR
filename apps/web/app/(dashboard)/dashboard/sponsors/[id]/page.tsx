@@ -57,10 +57,11 @@ async function cancelMeeting(meetingId: string, sponsorId: string) {
   revalidatePath(`/dashboard/sponsors/${sponsorId}`)
 }
 
-export default async function SponsorDetailPage({ params }: { params: { id: string } }) {
+export default async function SponsorDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const [sponsor, users, timeBlocks] = await Promise.all([
     prisma.sponsor.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         meetings: {
           include: { user: true, timeBlock: true },
@@ -77,9 +78,9 @@ export default async function SponsorDetailPage({ params }: { params: { id: stri
   const bookedUserIds = new Set(sponsor.meetings.map(m => m.userId))
   const bookedTimeBlockIds = new Set(sponsor.meetings.map(m => m.timeBlockId))
 
-  const doUpdate = updateSponsor.bind(null, params.id)
-  const doDelete = deleteSponsor.bind(null, params.id)
-  const doSchedule = scheduleMeeting.bind(null, params.id)
+  const doUpdate = updateSponsor.bind(null, id)
+  const doDelete = deleteSponsor.bind(null, id)
+  const doSchedule = scheduleMeeting.bind(null, id)
 
   return (
     <>
@@ -224,7 +225,7 @@ export default async function SponsorDetailPage({ params }: { params: { id: stri
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {sponsor.meetings.map(meeting => {
-                      const doCancel = cancelMeeting.bind(null, meeting.id, params.id)
+                      const doCancel = cancelMeeting.bind(null, meeting.id, id)
                       return (
                         <tr key={meeting.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3">

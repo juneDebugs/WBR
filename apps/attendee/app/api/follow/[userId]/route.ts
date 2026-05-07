@@ -6,13 +6,14 @@ import { prisma } from '@conference/db'
 // POST — follow or unfollow
 export async function POST(
   _req: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
+  const { userId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const followerId = session.user.id
-  const followingId = params.userId
+  const followingId = userId
 
   if (followerId === followingId) return NextResponse.json({ error: 'Cannot follow yourself' }, { status: 400 })
 
@@ -48,13 +49,14 @@ export async function POST(
 // GET — check follow status
 export async function GET(
   _req: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
+  const { userId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const existing = await prisma.follow.findUnique({
-    where: { followerId_followingId: { followerId: session.user.id, followingId: params.userId } },
+    where: { followerId_followingId: { followerId: session.user.id, followingId: userId } },
   })
 
   return NextResponse.json({ following: !!existing })

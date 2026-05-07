@@ -31,8 +31,9 @@ function getCachedSpeakerDetail(id: string) {
   )()
 }
 
-export default async function SpeakerDetailPage({ params }: { params: { id: string } }) {
-  const speaker = await getCachedSpeakerDetail(params.id)
+export default async function SpeakerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const speaker = await getCachedSpeakerDetail(id)
 
   if (!speaker) notFound()
 

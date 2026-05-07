@@ -4,13 +4,14 @@ import { getSession } from '@/lib/session'
 import { notFound } from 'next/navigation'
 import { ChatView } from '@/components/chat/ChatView'
 
-export default async function ChatRoomPage({ params }: { params: { roomId: string } }) {
+export default async function ChatRoomPage({ params }: { params: Promise<{ roomId: string }> }) {
+  const { roomId } = await params
   const session = (await getSession())!
 
   const userId = session.user!.id
 
   const room = await prisma.chatRoom.findUnique({
-    where: { id: params.roomId },
+    where: { id: roomId },
     include: { members: { include: { user: { select: { id: true, name: true, image: true } } } } },
   })
 
@@ -20,7 +21,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
   if (!isMember) notFound()
 
   const initialMessages = await prisma.message.findMany({
-    where: { roomId: params.roomId },
+    where: { roomId },
     include: { sender: { select: { id: true, name: true, image: true } } },
     orderBy: { createdAt: 'asc' },
     take: 100,
@@ -34,7 +35,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
   return (
     <ChatView
-      roomId={params.roomId}
+      roomId={roomId}
       displayName={displayName}
       initialMessages={initialMessages.map(m => ({
         id: m.id,

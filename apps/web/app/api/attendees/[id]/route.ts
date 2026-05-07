@@ -3,15 +3,14 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, hashPassword } from '@conference/db'
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const me = session.user as any
   if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(me.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-
-  const { id } = params
   const body = await req.json()
 
   const existing = await prisma.user.findUnique({ where: { id } })

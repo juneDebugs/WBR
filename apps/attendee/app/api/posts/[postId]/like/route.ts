@@ -5,13 +5,13 @@ import { prisma } from '@conference/db'
 
 export async function POST(
   _req: Request,
-  { params }: { params: { postId: string } }
+  { params }: { params: Promise<{ postId: string }> }
 ) {
+  const { postId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = session.user.id
-  const postId = params.postId
 
   const existing = await prisma.postLike.findUnique({
     where: { postId_userId: { postId, userId } },

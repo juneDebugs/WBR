@@ -27,12 +27,13 @@ async function deleteSpeaker(id: string) {
   redirect('/dashboard/speakers')
 }
 
-export default async function EditSpeakerPage({ params }: { params: { id: string } }) {
-  const speaker = await prisma.speaker.findUnique({ where: { id: params.id } })
+export default async function EditSpeakerPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const speaker = await prisma.speaker.findUnique({ where: { id } })
   if (!speaker) notFound()
 
-  const update = updateSpeaker.bind(null, params.id)
-  const del = deleteSpeaker.bind(null, params.id)
+  const update = updateSpeaker.bind(null, id)
+  const del = deleteSpeaker.bind(null, id)
 
   return (
     <>

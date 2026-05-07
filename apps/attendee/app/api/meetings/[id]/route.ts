@@ -3,13 +3,14 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = session.user.id
   const meeting = await prisma.meeting.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       timeBlock: { select: { startsAt: true, endsAt: true, location: true } },
       attendeeA: { select: { id: true, name: true, image: true, company: true, jobTitle: true, bio: true } },
@@ -33,13 +34,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   })
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = session.user.id
   const meeting = await prisma.meeting.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { attendeeAId: true, attendeeBId: true },
   })
   if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -59,6 +61,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data.notes = body.notes
   }
 
-  const updated = await prisma.meeting.update({ where: { id: params.id }, data, select: { status: true, notes: true } })
+  const updated = await prisma.meeting.update({ where: { id }, data, select: { status: true, notes: true } })
   return NextResponse.json({ ok: true, ...updated })
 }

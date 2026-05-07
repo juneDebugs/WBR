@@ -6,19 +6,20 @@ import { prisma } from '@conference/db'
 // GET /api/chat/rooms/[roomId]/messages
 export async function GET(
   _request: Request,
-  { params }: { params: { roomId: string } }
+  { params }: { params: Promise<{ roomId: string }> }
 ) {
+  const { roomId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Verify user is a member
   const member = await prisma.chatMember.findUnique({
-    where: { roomId_userId: { roomId: params.roomId, userId: session.user.id } },
+    where: { roomId_userId: { roomId, userId: session.user.id } },
   })
   if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const messages = await prisma.message.findMany({
-    where: { roomId: params.roomId },
+    where: { roomId },
     include: { sender: true },
     orderBy: { createdAt: 'asc' },
     take: 100,
@@ -26,7 +27,7 @@ export async function GET(
 
   // Mark as read
   await prisma.chatMember.update({
-    where: { roomId_userId: { roomId: params.roomId, userId: session.user.id } },
+    where: { roomId_userId: { roomId, userId: session.user.id } },
     data: { lastReadAt: new Date() },
   })
 
@@ -36,13 +37,14 @@ export async function GET(
 // POST /api/chat/rooms/[roomId]/messages
 export async function POST(
   request: Request,
-  { params }: { params: { roomId: string } }
+  { params }: { params: Promise<{ roomId: string }> }
 ) {
+  const { roomId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const member = await prisma.chatMember.findUnique({
-    where: { roomId_userId: { roomId: params.roomId, userId: session.user.id } },
+    where: { roomId_userId: { roomId, userId: session.user.id } },
   })
   if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -52,7 +54,7 @@ export async function POST(
 
   const message = await prisma.message.create({
     data: {
-      roomId: params.roomId,
+      roomId,
       senderId: session.user.id,
       content: content.trim(),
     },

@@ -7,10 +7,11 @@ import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { BookmarkButton } from '@/components/schedule/BookmarkButton'
 
-export default async function SessionDetailPage({ params }: { params: { id: string } }) {
+export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const [session, authSession] = await Promise.all([
     prisma.confSession.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { speaker: { select: { id: true, name: true, jobTitle: true, company: true, photoUrl: true } } },
     }),
     getSession(),
@@ -20,7 +21,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
 
   const bookmark = authSession?.user?.id
     ? await prisma.sessionBookmark.findUnique({
-        where: { userId_sessionId: { userId: authSession.user.id, sessionId: params.id } },
+        where: { userId_sessionId: { userId: authSession.user.id, sessionId: id } },
       })
     : null
 
@@ -35,7 +36,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           </svg>
           Agenda
         </Link>
-        <BookmarkButton sessionId={params.id} initialSaved={!!bookmark} />
+        <BookmarkButton sessionId={id} initialSaved={!!bookmark} />
       </div>
 
       <div className="card">

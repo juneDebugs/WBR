@@ -26,15 +26,16 @@ async function cancelMeeting(id: string) {
   redirect('/dashboard/meetings')
 }
 
-export default async function EditMeetingPage({ params }: { params: { id: string } }) {
+export default async function EditMeetingPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const meeting = await prisma.meeting.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { timeBlock: true, attendeeA: true, attendeeB: true },
   })
   if (!meeting) notFound()
 
-  const update = updateMeeting.bind(null, params.id)
-  const cancel = cancelMeeting.bind(null, params.id)
+  const update = updateMeeting.bind(null, id)
+  const cancel = cancelMeeting.bind(null, id)
 
   return (
     <>

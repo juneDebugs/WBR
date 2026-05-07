@@ -4,21 +4,23 @@ import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const user = session.user as any
   if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor' }, { status: 403 })
 
   const form = await prisma.submissionForm.findFirst({
-    where: { id: params.id, sponsorId: user.sponsorId },
+    where: { id, sponsorId: user.sponsorId },
     include: { submissions: { orderBy: { createdAt: 'desc' } } },
   })
   if (!form) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(form)
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const user = session.user as any
@@ -36,20 +38,21 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const form = await prisma.submissionForm.updateMany({
-    where: { id: params.id, sponsorId: user.sponsorId },
+    where: { id, sponsorId: user.sponsorId },
     data,
   })
   revalidateTag(`submissions-${user.sponsorId}`)
   return NextResponse.json({ ok: true, count: form.count })
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const user = session.user as any
   if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor' }, { status: 403 })
 
-  await prisma.submissionForm.deleteMany({ where: { id: params.id, sponsorId: user.sponsorId } })
+  await prisma.submissionForm.deleteMany({ where: { id, sponsorId: user.sponsorId } })
   revalidateTag(`submissions-${user.sponsorId}`)
   return NextResponse.json({ ok: true })
 }

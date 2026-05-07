@@ -3,11 +3,12 @@ import { prisma } from '@conference/db'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 
-export default async function StartDmPage({ params }: { params: { userId: string } }) {
+export default async function StartDmPage({ params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params
   const session = (await getSession())!
 
   const myId = session.user!.id
-  const targetId = params.userId
+  const targetId = userId
 
   if (myId === targetId) redirect('/chat')
 

@@ -77,8 +77,8 @@ async function deleteMeeting(meetingId: string, userId: string) {
   revalidatePath(`/dashboard/attendees/${userId}`)
 }
 
-export default async function AttendeeProfilePage({ params }: { params: { userId: string } }) {
-  const { userId } = params
+export default async function AttendeeProfilePage({ params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params
 
   const [user, blackouts, meetings, allUsers, timeBlocks] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
