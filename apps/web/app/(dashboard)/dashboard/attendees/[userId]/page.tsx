@@ -1,5 +1,6 @@
 export const revalidate = 30
 import { prisma } from '@conference/db'
+import { unstable_cache } from 'next/cache'
 import { AdminHeader } from '@/components/AdminHeader'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -7,6 +8,25 @@ import { revalidatePath } from 'next/cache'
 import { notFound } from 'next/navigation'
 
 import { AttendeeProfileEditor } from '@/components/AttendeeProfileEditor'
+
+const getCachedAllUsers = unstable_cache(
+  async (excludeUserId: string) => prisma.user.findMany({
+    where: { id: { not: excludeUserId }, role: { in: ['ATTENDEE', 'SPEAKER', 'SPONSOR'] } },
+    select: { id: true, name: true, email: true, company: true },
+    orderBy: { name: 'asc' },
+  }),
+  ['attendee-page-all-users'],
+  { revalidate: 300, tags: ['attendees'] },
+)
+
+const getCachedTimeBlocks = unstable_cache(
+  async () => prisma.timeBlock.findMany({
+    select: { id: true, startsAt: true, endsAt: true, location: true },
+    orderBy: { startsAt: 'asc' },
+  }),
+  ['attendee-page-time-blocks'],
+  { revalidate: 300, tags: ['time-blocks'] },
+)
 
 function parseArr(val: string | null | undefined): string[] {
   if (!val) return []
@@ -95,15 +115,8 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
       },
       orderBy: { timeBlock: { startsAt: 'asc' } },
     }),
-    prisma.user.findMany({
-      where: { id: { not: userId }, role: { in: ['ATTENDEE', 'SPEAKER', 'SPONSOR'] } },
-      select: { id: true, name: true, email: true, company: true },
-      orderBy: { name: 'asc' },
-    }),
-    prisma.timeBlock.findMany({
-      select: { id: true, startsAt: true, endsAt: true, location: true },
-      orderBy: { startsAt: 'asc' },
-    }),
+    getCachedAllUsers(userId),
+    getCachedTimeBlocks(),
   ])
 
   if (!user) notFound()
