@@ -2,6 +2,7 @@ export const revalidate = 30
 import { prisma, detectSpeakerConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { ConfirmButton } from '@/components/ConfirmButton'
+import { revalidateTag } from 'next/cache'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 
@@ -21,6 +22,8 @@ async function updateSession(id: string, formData: FormData) {
     },
   })
   await detectSpeakerConflicts(prisma)
+  revalidateTag('sessions')
+  revalidateTag('conflicts')
   redirect('/dashboard/sessions')
 }
 
@@ -28,6 +31,8 @@ async function deleteSession(id: string) {
   'use server'
   await prisma.confSession.delete({ where: { id } })
   await detectSpeakerConflicts(prisma)
+  revalidateTag('sessions')
+  revalidateTag('conflicts')
   redirect('/dashboard/sessions')
 }
 

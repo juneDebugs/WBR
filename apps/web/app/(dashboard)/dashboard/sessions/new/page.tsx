@@ -1,6 +1,7 @@
 export const revalidate = 0
 import { prisma, detectSpeakerConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
+import { revalidateTag } from 'next/cache'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
@@ -22,6 +23,8 @@ async function createSession(formData: FormData) {
     },
   })
   await detectSpeakerConflicts(prisma)
+  revalidateTag('sessions')
+  revalidateTag('conflicts')
   redirect('/dashboard/sessions')
 }
 
