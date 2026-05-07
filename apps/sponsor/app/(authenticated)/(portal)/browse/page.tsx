@@ -1,17 +1,23 @@
 import { getSession } from '@/lib/session'
 import { SponsorBrowseView } from '@/components/SponsorBrowseView'
+import { getCachedAttendees, fetchSponsorData } from '@/lib/server-data'
 
 export default async function BrowsePage() {
   const session = await getSession()
   const user = session!.user as any
+  const sponsorId = user.sponsorId ?? null
 
-  // No SSR data fetch — client useAttendees() hook loads from TanStack Query cache instantly
+  const [people, sponsorData] = await Promise.all([
+    getCachedAttendees(),
+    fetchSponsorData(user.id, sponsorId),
+  ])
+
   return (
     <SponsorBrowseView
-      people={[]}
-      sponsorId={user.sponsorId ?? null}
+      people={people}
+      sponsorId={sponsorId}
       isStaff={user.role === 'STAFF'}
-      initialRequestedIds={[]}
+      initialRequestedIds={sponsorData.requestedIds as string[]}
     />
   )
 }

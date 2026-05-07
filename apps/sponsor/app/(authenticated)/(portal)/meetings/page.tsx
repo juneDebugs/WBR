@@ -1,17 +1,20 @@
 import { getSession } from '@/lib/session'
 import { SponsorMeetingsView } from '@/components/SponsorMeetingsView'
+import { fetchMeetingsData } from '@/lib/server-data'
 
 export default async function MeetingsPage() {
   const session = await getSession()
   const user = session!.user as any
+  const sponsorId = user.sponsorId ?? null
 
-  // No SSR data fetch — client useMeetingsData() hook loads from TanStack Query cache instantly
+  const data = await fetchMeetingsData(sponsorId)
+
   return (
     <SponsorMeetingsView
-      inbound={[]}
-      outbound={[]}
-      sponsorMeetings={[]}
-      sponsorId={user.sponsorId ?? null}
+      inbound={data.inbound}
+      outbound={data.outbound}
+      sponsorMeetings={data.sponsorMeetings}
+      sponsorId={sponsorId}
       isStaff={user.role === 'STAFF'}
     />
   )
