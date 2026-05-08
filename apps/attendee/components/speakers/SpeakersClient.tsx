@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { useSpeakersData } from '@/lib/hooks'
 import { CompanyLogo, COMPANY_LOGO_NAMES } from './CompanyLogos'
@@ -91,6 +91,7 @@ function trackPalette(track: string) {
 
 function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => void }) {
   const [visible, setVisible] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [ag1, ag2] = avatarGradient(speaker.name)
   const palette = speaker.track ? trackPalette(speaker.track) : TRACK_PALETTES[0]
   const hasLogo = speaker.company ? COMPANY_LOGO_NAMES.has(speaker.company) : false
@@ -99,6 +100,8 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
     // Trigger slide-up animation
     const t = setTimeout(() => setVisible(true), 10)
     document.body.style.overflow = 'hidden'
+    // Reset scroll position to top
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
     return () => {
       clearTimeout(t)
       document.body.style.overflow = ''
@@ -132,7 +135,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto overscroll-contain pb-10">
+        <div ref={scrollRef} className="overflow-y-auto overscroll-contain pb-10">
           {/* Hero photo / gradient */}
           <div className="relative w-full" style={{ height: 'clamp(200px, 38vw, 320px)' }}>
             {speaker.photoUrl ? (

@@ -109,8 +109,18 @@ export default async function MySchedulePage() {
 
   return (
     <div className="page-container">
-      <h1 className="text-2xl font-bold mb-1">My Schedule</h1>
-      <p className="text-sm text-gray-500 mb-6">Your saved sessions and confirmed meetings</p>
+      <div className="flex items-center gap-3 mb-1">
+        <a
+          href="/schedule"
+          className="w-8 h-8 rounded-full bg-white/80 backdrop-blur flex items-center justify-center flex-shrink-0 shadow-sm"
+        >
+          <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+          </svg>
+        </a>
+        <h1 className="text-2xl font-bold">My Schedule</h1>
+      </div>
+      <p className="text-sm text-gray-500 mb-6 ml-11">Your saved sessions and confirmed meetings</p>
       <MyScheduleView items={[...sessions, ...sponsorItems, ...peerItems]} />
     </div>
   )

@@ -677,7 +677,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
             className="relative w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col"
-            style={{ height: '70vh' }}
+            style={{ height: '70dvh', maxHeight: 'calc(100dvh - 60px)' }}
             onClick={e => e.stopPropagation()}
           >
             {/* Chat header */}
@@ -761,7 +761,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
             </div>
 
             {/* Input */}
-            <div className="flex items-center gap-2 px-3 py-3 border-t border-gray-100 flex-shrink-0">
+            <div className="flex items-center gap-2 px-3 py-3 border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
               <input
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
