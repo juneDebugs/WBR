@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTeammates } from '@/lib/hooks'
 
 
 interface Teammate {
@@ -12,12 +13,16 @@ interface Teammate {
   role: string | null
 }
 
-interface Props {
-  teammates: Teammate[]
-}
+export function RegisterTeammate() {
+  // TanStack Query: cached for 5 min — no server round-trip on navigation
+  const { data: initialTeammates = [], isLoading } = useTeammates()
 
-export function RegisterTeammate({ teammates: initial }: Props) {
-  const [teammates, setTeammates] = useState<Teammate[]>(initial)
+  const [teammates, setTeammates] = useState<Teammate[]>([])
+  const [synced, setSynced] = useState(false)
+  if (initialTeammates.length > 0 && !synced) {
+    setTeammates(initialTeammates)
+    setSynced(true)
+  }
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')

@@ -52,6 +52,32 @@ export function useSponsorData() {
   })
 }
 
+// ── Submission forms (submissions page) ───────────────────────────────
+export function useSubmissionForms() {
+  return useQuery<any[]>({
+    queryKey: ['submission-forms'],
+    queryFn: async () => {
+      const res = await fetch('/api/submissions')
+      if (!res.ok) throw new Error('Failed to fetch forms')
+      return res.json()
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+// ── Teammates (submissions page) ──────────────────────────────────────
+export function useTeammates() {
+  return useQuery<any[]>({
+    queryKey: ['teammates'],
+    queryFn: async () => {
+      const res = await fetch('/api/profile/teammates')
+      if (!res.ok) throw new Error('Failed to fetch teammates')
+      return res.json()
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // ── Invalidation helpers ───────────────────────────────────────────────
 export function useInvalidate() {
   const qc = useQueryClient()

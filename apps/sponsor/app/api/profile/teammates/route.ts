@@ -4,6 +4,21 @@ import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
+export async function GET() {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json([], { status: 401 })
+  const user = session.user as any
+  if (!user.sponsorId) return NextResponse.json([], { status: 403 })
+
+  const teammates = await prisma.user.findMany({
+    where: { sponsorId: user.sponsorId, id: { not: user.id } },
+    select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
+    orderBy: { name: 'asc' },
+  })
+
+  return NextResponse.json(teammates)
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

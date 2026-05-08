@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { format } from 'date-fns'
+import { useSubmissionForms } from '@/lib/hooks'
 
 const FORM_TYPES = [
   { value: 'ABSTRACT',         label: 'Abstract',           color: '#6366f1', bg: '#eef2ff', desc: 'Short summaries of proposed presentations or research' },
@@ -56,10 +57,6 @@ interface Submission {
   data: string
   status: string
   createdAt: string
-}
-
-interface Props {
-  initialForms: SubmissionFormData[]
 }
 
 function typeInfo(type: string) {
@@ -118,17 +115,41 @@ const DEFAULT_FIELDS: Record<string, FormField[]> = {
   ],
 }
 
-export function SubmissionsView({ initialForms }: Props) {
-  const [forms, setForms] = useState<SubmissionFormData[]>(initialForms)
+export function SubmissionsView() {
+  // TanStack Query: cached for 5 min — no server round-trip on navigation
+  const { data: rawForms, isLoading } = useSubmissionForms()
+
+  // Normalize API response (_count.submissions) to component format (submissionCount)
+  const initialForms = useMemo(() =>
+    (rawForms ?? []).map((f: any) => ({
+      id: f.id,
+      title: f.title,
+      type: f.type,
+      description: f.description,
+      fields: typeof f.fields === 'string' ? f.fields : JSON.stringify(f.fields ?? []),
+      isOpen: f.isOpen,
+      deadline: f.deadline ? (typeof f.deadline === 'string' ? f.deadline : new Date(f.deadline).toISOString()) : null,
+      createdAt: typeof f.createdAt === 'string' ? f.createdAt : new Date(f.createdAt).toISOString(),
+      submissionCount: f.submissionCount ?? f._count?.submissions ?? 0,
+    })),
+    [rawForms],
+  )
+
+  const [forms, setForms] = useState<SubmissionFormData[]>([])
+  const [synced, setSynced] = useState(false)
+  if (initialForms.length > 0 && !synced) {
+    setForms(initialForms)
+    setSynced(true)
+  }
 
   // Pre-parse JSON fields once instead of on every render
   const parsedFieldsMap = useMemo(() => {
     const map = new Map<string, FormField[]>()
-    for (const f of initialForms) {
+    for (const f of forms) {
       try { map.set(f.id, JSON.parse(f.fields)) } catch { map.set(f.id, []) }
     }
     return map
-  }, [initialForms])
+  }, [forms])
 
   function getFields(form: SubmissionFormData): FormField[] {
     return parsedFieldsMap.get(form.id) ?? (() => { try { return JSON.parse(form.fields) } catch { return [] } })()
