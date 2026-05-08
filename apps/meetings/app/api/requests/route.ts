@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 
 const INCLUDE = {
@@ -10,11 +10,11 @@ const INCLUDE = {
 } as const
 
 export async function GET() {
-  const session = await getSession()
-  if (!session) return NextResponse.json([], { status: 401 })
+  const user = await getUserFromHeaders()
+  if (!user.id) return NextResponse.json([], { status: 401 })
 
-  const userId = (session.user as any).id as string
-  const sponsorId = (session.user as any).sponsorId as string | null
+  const userId = user.id
+  const sponsorId = user.sponsorId
 
   const [byRequester, byTarget, bySponsor] = await Promise.all([
     prisma.meetingRequest.findMany({

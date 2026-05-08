@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 import { getIndustry } from '@/lib/solutions'
 
@@ -47,12 +47,11 @@ function scoreSponsorVsAttendee(
 }
 
 export async function GET() {
-  const session = await getSession()
-  if (!session) return NextResponse.json([], { status: 401 })
+  const user = await getUserFromHeaders()
+  if (!user.id) return NextResponse.json([], { status: 401 })
 
-  const user = session.user as any
-  const userId = user.id as string
-  const sponsorId = (user.sponsorId ?? null) as string | null
+  const userId = user.id
+  const sponsorId = user.sponsorId
   const isSponsor = !!sponsorId
 
   if (isSponsor && sponsorId) {

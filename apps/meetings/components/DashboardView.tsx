@@ -64,12 +64,11 @@ function RecommendationsSection() {
 }
 
 interface DashboardProps {
-  userName: string
   isSponsor: boolean
   userId: string
 }
 
-export function DashboardView({ userName, isSponsor, userId }: DashboardProps) {
+export function DashboardView({ isSponsor, userId }: DashboardProps) {
   const { data, isLoading } = useDashboard()
 
   if (isLoading && !data) return <LoadingSkeleton />
@@ -85,7 +84,7 @@ export function DashboardView({ userName, isSponsor, userId }: DashboardProps) {
     return <StaffDashboard data={data} confirmRate={confirmRate} />
   }
 
-  return <UserDashboard data={data} userName={userName} isSponsor={isSponsor} />
+  return <UserDashboard data={data} isSponsor={isSponsor} />
 }
 
 function StaffDashboard({ data, confirmRate }: { data: any; confirmRate: number }) {
@@ -228,9 +227,9 @@ function StaffDashboard({ data, confirmRate }: { data: any; confirmRate: number 
   )
 }
 
-function UserDashboard({ data, userName, isSponsor }: { data: any; userName: string; isSponsor: boolean }) {
+function UserDashboard({ data, isSponsor }: { data: any; isSponsor: boolean }) {
   const {
-    totalRequests, pendingRequests, confirmedRequests,
+    totalRequests, pendingRequests, confirmedRequests, userName,
     myRequests, inboundRequests, profileUser, myMeetings, sponsorWithTeam,
   } = data
 

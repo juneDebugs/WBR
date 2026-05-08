@@ -1,13 +1,12 @@
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { MeetingsView } from '@/components/MeetingsView'
 
 export default async function MeetingsPage() {
-  const session = await getSession()
-  const user = session!.user as any
+  const user = await getUserFromHeaders()
   return (
     <MeetingsView
       currentUserId={user.id}
-      currentSponsorId={user.sponsorId ?? null}
+      currentSponsorId={user.sponsorId}
     />
   )
 }

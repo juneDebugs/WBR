@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 import { format } from 'date-fns'
 
 export async function GET() {
-  const session = await getSession()
-  if (!session) return NextResponse.json({}, { status: 401 })
+  const user = await getUserFromHeaders()
+  if (!user.id) return NextResponse.json({}, { status: 401 })
 
-  const user = session.user as any
-  const userId = user.id as string
-  const sponsorId = (user.sponsorId ?? null) as string | null
+  const userId = user.id
+  const sponsorId = user.sponsorId
   const isStaff = user.role === 'STAFF'
 
   if (isStaff) {
@@ -148,7 +147,7 @@ export async function GET() {
   return NextResponse.json({
     isStaff: false,
     isSponsor: !!sponsorId,
-    userName: user.name,
+    userName: profileUser?.name ?? 'there',
     totalRequests,
     pendingRequests: countMap['PENDING'] ?? 0,
     approvedRequests: countMap['APPROVED'] ?? 0,

@@ -1,8 +1,7 @@
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { RequestsList } from '@/components/RequestsList'
 
 export default async function RequestsPage() {
-  const session = await getSession()
-  const user = session!.user as any
+  const user = await getUserFromHeaders()
   return <RequestsList currentUserId={user.id} />
 }
