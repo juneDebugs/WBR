@@ -1,7 +1,7 @@
 'use client'
 import { memo } from 'react'
 import { signOut } from 'next-auth/react'
-import { usePortalNav } from '@/components/PortalShell'
+import { usePortalNav } from '@/lib/portal-nav'
 
 interface Props { role: string }
 

@@ -1,7 +1,9 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { PortalNavContext } from '@/lib/portal-nav'
 import { NavBar } from '@/components/NavBar'
 import { DashboardView } from '@/components/DashboardView'
 import { RequestsList } from '@/components/RequestsList'
@@ -15,28 +17,42 @@ const SHELL_ROUTES: Record<string, React.ComponentType> = {
   '/meetings': MeetingsView,
 }
 
-// Browse needs a prop, handle separately
 const BROWSE_PATH = '/browse'
 
-interface PortalNavContextValue {
-  currentPath: string
-  navigate: (path: string) => void
-}
+// Prefetch helpers — fire-and-forget fetches to warm React Query cache
+const PREFETCH_QUERIES = [
+  { queryKey: ['dashboard'], url: '/api/dashboard', staleTime: 60_000 },
+  { queryKey: ['dashboard-recommendations'], url: '/api/dashboard/recommendations', staleTime: 5 * 60_000 },
+  { queryKey: ['requests'], url: '/api/requests', staleTime: 5 * 60_000 },
+  { queryKey: ['meetings'], url: '/api/meetings', staleTime: 5 * 60_000 },
+]
 
-const PortalNavContext = createContext<PortalNavContextValue>({
-  currentPath: '/',
-  navigate: () => {},
-})
-
-export function usePortalNav() {
-  return useContext(PortalNavContext)
-}
-
-export function PortalShell({ role, children }: { role: string; children: React.ReactNode }) {
+export function PortalShell({ role, userId, sponsorId, children }: {
+  role: string
+  userId: string
+  sponsorId: string | null
+  children: React.ReactNode
+}) {
   const nextPathname = usePathname()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [currentPath, setCurrentPath] = useState(nextPathname)
   const prevNextPathname = useRef(nextPathname)
+
+  // Eagerly prefetch ALL section data on mount so navigation is always instant
+  useEffect(() => {
+    for (const { queryKey, url, staleTime } of PREFETCH_QUERIES) {
+      queryClient.prefetchQuery({
+        queryKey,
+        queryFn: async () => {
+          const res = await fetch(url)
+          if (!res.ok) throw new Error(`Failed to fetch ${url}`)
+          return res.json()
+        },
+        staleTime,
+      })
+    }
+  }, [queryClient])
 
   // Sync when Next.js does a real navigation (e.g., to /profile or /staff)
   useEffect(() => {
@@ -77,7 +93,7 @@ export function PortalShell({ role, children }: { role: string; children: React.
   }
 
   return (
-    <PortalNavContext.Provider value={{ currentPath, navigate }}>
+    <PortalNavContext.Provider value={{ currentPath, navigate, userId, sponsorId }}>
       <div className="min-h-screen flex flex-col">
         <NavBar role={role} />
         <main className="flex-1">

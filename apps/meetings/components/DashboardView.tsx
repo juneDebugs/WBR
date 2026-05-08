@@ -3,7 +3,7 @@
 import { useDashboard, useRecommendations } from '@/lib/hooks'
 import { RecommendedMatchesClient } from '@/components/RecommendedMatchesClient'
 import { TeamMembers } from '@/components/TeamMembers'
-import { usePortalNav } from '@/components/PortalShell'
+import { usePortalNav } from '@/lib/portal-nav'
 import { format } from 'date-fns'
 
 function LoadingSkeleton() {

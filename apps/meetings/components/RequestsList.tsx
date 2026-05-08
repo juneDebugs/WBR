@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { useSession } from 'next-auth/react'
 import { useRequests } from '@/lib/hooks'
 import { useQueryClient } from '@tanstack/react-query'
+import { usePortalNav } from '@/lib/portal-nav'
 
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -87,8 +87,7 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
 }
 
 export function RequestsList() {
-  const { data: session } = useSession()
-  const currentUserId = (session?.user as any)?.id ?? ''
+  const { userId: currentUserId } = usePortalNav()
   const { data: fetchedRequests, isLoading } = useRequests()
   const queryClient = useQueryClient()
   const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})

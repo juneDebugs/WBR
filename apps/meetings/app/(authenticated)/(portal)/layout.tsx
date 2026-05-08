@@ -5,5 +5,9 @@ import { PortalShell } from '@/components/PortalShell'
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const user = await getUserFromHeaders()
   if (!user.id) redirect('/login')
-  return <PortalShell role={user.role}>{children}</PortalShell>
+  return (
+    <PortalShell role={user.role} userId={user.id} sponsorId={user.sponsorId}>
+      {children}
+    </PortalShell>
+  )
 }

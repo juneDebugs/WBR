@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { useSession } from 'next-auth/react'
 import { useMeetings } from '@/lib/hooks'
 import { useQueryClient } from '@tanstack/react-query'
+import { usePortalNav } from '@/lib/portal-nav'
 
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -87,9 +87,7 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
 }
 
 export function MeetingsView() {
-  const { data: session } = useSession()
-  const currentUserId = (session?.user as any)?.id ?? ''
-  const currentSponsorId = (session?.user as any)?.sponsorId ?? null
+  const { userId: currentUserId, sponsorId: currentSponsorId } = usePortalNav()
   const { data: meetingsData, isLoading } = useMeetings()
   const queryClient = useQueryClient()
   const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
