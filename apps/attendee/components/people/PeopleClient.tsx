@@ -563,11 +563,11 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
 
       {/* WBR modal */}
       {globalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-5" onClick={() => setGlobalOpen(false)}>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:px-5" onClick={() => setGlobalOpen(false)}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
             className="relative w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
-            style={{ height: '75vh' }}
+            style={{ height: '75dvh', maxHeight: 'calc(100dvh - 60px)' }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -645,7 +645,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
             </div>
 
             {/* Input */}
-            <div className="flex items-center gap-2 px-3 py-3 border-t border-gray-100 flex-shrink-0">
+            <div className="flex items-center gap-2 px-3 py-3 border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
               <input
                 value={globalInput}
                 onChange={e => setGlobalInput(e.target.value)}
@@ -671,7 +671,7 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
       {/* DM Chat modal */}
       {selected && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-5"
+          className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:px-5"
           onClick={() => setSelected(null)}
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />

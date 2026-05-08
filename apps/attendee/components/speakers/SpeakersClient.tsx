@@ -115,7 +115,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4"
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-0 sm:px-4"
       style={{ background: visible ? 'rgba(0,0,0,0.50)' : 'rgba(0,0,0,0)', transition: 'background 0.25s ease' }}
       onClick={e => { if (e.target === e.currentTarget) dismiss() }}
     >
