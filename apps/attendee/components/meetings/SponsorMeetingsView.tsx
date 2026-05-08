@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import Image from 'next/image'
 
 const tierColors: Record<string, string> = {
@@ -38,9 +37,10 @@ interface Props {
   past: SponsorMeetingItem[]
   inboundRequests: InboundRequest[]
   tab: string
+  onTabChange: (tab: string) => void
 }
 
-export function SponsorMeetingsView({ sponsor, upcoming, past, inboundRequests, tab }: Props) {
+export function SponsorMeetingsView({ sponsor, upcoming, past, inboundRequests, tab, onTabChange }: Props) {
   const now = new Date()
   const router = useRouter()
   const activeList = tab === 'past' ? past : upcoming
@@ -97,7 +97,7 @@ export function SponsorMeetingsView({ sponsor, upcoming, past, inboundRequests, 
       {/* Tabs */}
       <div className="flex gap-2 mb-5">
         {tabs.map(t => (
-          <Link key={t.key} href={`?tab=${t.key}`}
+          <button key={t.key} type="button" onClick={() => onTabChange(t.key)}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors ${
               tab === t.key ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
@@ -108,7 +108,7 @@ export function SponsorMeetingsView({ sponsor, upcoming, past, inboundRequests, 
                   : t.highlight ? 'bg-rose-100 text-rose-600' : 'bg-gray-200 text-gray-500'
               }`}>{t.count}</span>
             )}
-          </Link>
+          </button>
         ))}
       </div>
 

@@ -26,10 +26,11 @@ interface Props {
   past: UpcomingMeeting[]
   incomingRequests: IncomingRequest[]
   tab: string
+  onTabChange: (tab: string) => void
   onDecline: (id: string) => Promise<void>
 }
 
-export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, onDecline }: Props) {
+export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, onTabChange, onDecline }: Props) {
   const [decliningId, setDecliningId] = useState<string | null>(null)
   const now = new Date()
   const activeList = tab === 'past' ? past : upcoming
@@ -47,7 +48,7 @@ export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, o
       {/* Tabs */}
       <div className="flex gap-2 mb-5">
         {tabs.map(t => (
-          <Link key={t.key} href={`?tab=${t.key}`}
+          <button key={t.key} type="button" onClick={() => onTabChange(t.key)}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors ${
               tab === t.key ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
@@ -58,7 +59,7 @@ export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, o
                   : t.highlight ? 'bg-rose-100 text-rose-600' : 'bg-gray-200 text-gray-500'
               }`}>{t.count}</span>
             )}
-          </Link>
+          </button>
         ))}
       </div>
 

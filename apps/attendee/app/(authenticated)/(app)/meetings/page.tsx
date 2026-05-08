@@ -1,7 +1,9 @@
+import { Suspense } from 'react'
 import { QueryClient, dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { getUserFromHeaders } from '@/lib/user'
 import { getAttendeeMeetings, getSponsorMeetings } from '@/lib/meetings-data'
 import MeetingsClient from './MeetingsClient'
+import MeetingsLoading from './loading'
 
 async function fetchMeetingsData(user: { id: string; role: string; sponsorId: string | null }) {
   if (user.role === 'SPONSOR' && user.sponsorId) return getSponsorMeetings(user.sponsorId)
@@ -20,7 +22,9 @@ export default async function MeetingsPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <MeetingsClient />
+      <Suspense fallback={<MeetingsLoading />}>
+        <MeetingsClient />
+      </Suspense>
     </HydrationBoundary>
   )
 }

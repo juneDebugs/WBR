@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
+import { useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMeetingsData } from '@/lib/hooks'
@@ -8,11 +8,18 @@ import { AttendeesMeetingsView } from '@/components/meetings/AttendeesMeetingsVi
 import { SponsorMeetingsView } from '@/components/meetings/SponsorMeetingsView'
 import MeetingsLoading from './loading'
 
-function MeetingsContent() {
+export default function MeetingsClient() {
   const searchParams = useSearchParams()
-  const tab = searchParams.get('tab') ?? 'upcoming'
+  const [tab, setTab] = useState(() => searchParams.get('tab') ?? 'upcoming')
   const { data, isLoading } = useMeetingsData()
   const queryClient = useQueryClient()
+
+  const onTabChange = useCallback((newTab: string) => {
+    setTab(newTab)
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', newTab)
+    window.history.replaceState(null, '', url.toString())
+  }, [])
 
   if (isLoading || !data) return <MeetingsLoading />
 
@@ -42,6 +49,7 @@ function MeetingsContent() {
         past={data.past}
         inboundRequests={data.inboundRequests}
         tab={tab}
+        onTabChange={onTabChange}
       />
     )
   }
@@ -52,15 +60,8 @@ function MeetingsContent() {
       past={data.past}
       incomingRequests={data.incomingRequests}
       tab={tab}
+      onTabChange={onTabChange}
       onDecline={handleDecline}
     />
-  )
-}
-
-export default function MeetingsClient() {
-  return (
-    <Suspense fallback={<MeetingsLoading />}>
-      <MeetingsContent />
-    </Suspense>
   )
 }
