@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { useRequests } from '@/lib/hooks'
+import { useQueryClient } from '@tanstack/react-query'
 
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -84,16 +86,23 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
   )
 }
 
-export function RequestsList({ requests: initialRequests, currentUserId }: { requests: any[], currentUserId: string }) {
-  const router = useRouter()
-  const [requests, setRequests] = useState(initialRequests)
+export function RequestsList() {
+  const { data: session } = useSession()
+  const currentUserId = (session?.user as any)?.id ?? ''
+  const { data: fetchedRequests, isLoading } = useRequests()
+  const queryClient = useQueryClient()
+  const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<Tab>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  const requests = (fetchedRequests ?? []).map(r =>
+    localUpdates[r.id] ? { ...r, status: localUpdates[r.id] } : r
+  )
 
   async function updateStatus(requestId: string, status: string) {
     setActionLoading(requestId)
     // Optimistic update
-    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r))
+    setLocalUpdates(prev => ({ ...prev, [requestId]: status }))
     try {
       const res = await fetch(`/api/meeting-requests/${requestId}`, {
         method: 'PATCH',
@@ -102,11 +111,33 @@ export function RequestsList({ requests: initialRequests, currentUserId }: { req
       })
       if (!res.ok) {
         // Revert on failure
-        setRequests(initialRequests)
+        setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['requests'] })
       }
     } finally {
       setActionLoading(null)
     }
+  }
+
+  if (isLoading && !fetchedRequests) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <div className="h-7 w-44 bg-gray-200 rounded animate-pulse" />
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+              <div className="w-10 h-10 bg-gray-100 rounded-full animate-pulse flex-shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 w-36 bg-gray-100 rounded animate-pulse" />
+                <div className="h-3 w-24 bg-gray-50 rounded animate-pulse" />
+              </div>
+              <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   const inbound = requests.filter(r => r.requesterId !== currentUserId)
@@ -200,7 +231,7 @@ export function RequestsList({ requests: initialRequests, currentUserId }: { req
           <h1 className="text-2xl font-bold text-gray-900">My Requests</h1>
           <p className="text-sm text-gray-500 mt-1">All meeting requests — inbound from attendees and sent by your team</p>
         </div>
-        <button onClick={() => router.refresh()}
+        <button onClick={() => queryClient.invalidateQueries({ queryKey: ['requests'] })}
           className="text-xs text-gray-400 hover:text-primary px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
           ↻ Refresh
         </button>

@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { useMeetings } from '@/lib/hooks'
+import { useQueryClient } from '@tanstack/react-query'
 
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -84,23 +86,26 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
   )
 }
 
-interface Props {
-  requests: any[]
-  sponsorMeetings: any[]
-  currentUserId: string
-  currentSponsorId: string | null
-}
-
-export function MeetingsView({ requests: initialRequests, sponsorMeetings, currentUserId, currentSponsorId }: Props) {
-  const router = useRouter()
-  const [requests, setRequests] = useState(initialRequests)
+export function MeetingsView() {
+  const { data: session } = useSession()
+  const currentUserId = (session?.user as any)?.id ?? ''
+  const currentSponsorId = (session?.user as any)?.sponsorId ?? null
+  const { data: meetingsData, isLoading } = useMeetings()
+  const queryClient = useQueryClient()
+  const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<Tab>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  const requests = (meetingsData?.requests ?? []).map(r =>
+    localUpdates[r.id] ? { ...r, status: localUpdates[r.id] } : r
+  )
+  const sponsorMeetings = meetingsData?.sponsorMeetings ?? []
+  const conflicts = meetingsData?.conflicts ?? []
 
   async function updateStatus(requestId: string, status: string) {
     setActionLoading(requestId)
     // Optimistic update
-    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r))
+    setLocalUpdates(prev => ({ ...prev, [requestId]: status }))
     try {
       const res = await fetch(`/api/meeting-requests/${requestId}`, {
         method: 'PATCH',
@@ -109,11 +114,32 @@ export function MeetingsView({ requests: initialRequests, sponsorMeetings, curre
       })
       if (!res.ok) {
         // Revert on failure
-        setRequests(initialRequests)
+        setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['meetings'] })
       }
     } finally {
       setActionLoading(null)
     }
+  }
+
+  if (isLoading && !meetingsData) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <div className="h-7 w-36 bg-gray-200 rounded animate-pulse" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+              <div className="w-10 h-10 bg-gray-100 rounded-full animate-pulse flex-shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 w-36 bg-gray-100 rounded animate-pulse" />
+                <div className="h-3 w-48 bg-gray-50 rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   // Categorize requests by direction
@@ -230,6 +256,22 @@ export function MeetingsView({ requests: initialRequests, sponsorMeetings, curre
   }
 
   return (
+    <>
+      {conflicts.length > 0 && (
+        <div className="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-red-800">
+              {conflicts.length} presenter conflict{conflicts.length !== 1 ? 's' : ''} detected
+            </p>
+            <p className="text-xs text-red-600 mt-0.5">
+              {conflicts.map((c: any) => c.speakerName).join(', ')} {conflicts.length === 1 ? 'is' : 'are'} double-booked. Session schedule may change — check back for updates.
+            </p>
+          </div>
+        </div>
+      )}
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -256,5 +298,6 @@ export function MeetingsView({ requests: initialRequests, sponsorMeetings, curre
 
       {renderRequests()}
     </div>
+    </>
   )
 }

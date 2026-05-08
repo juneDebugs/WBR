@@ -28,6 +28,57 @@ export function useBrowsePeople() {
   })
 }
 
+// ── Dashboard ────────────────────────────────────────────────────────
+export function useDashboard() {
+  return useQuery<any>({
+    queryKey: ['dashboard'],
+    queryFn: async () => {
+      const res = await fetch('/api/dashboard')
+      if (!res.ok) throw new Error('Failed to fetch dashboard')
+      return res.json()
+    },
+    staleTime: 60 * 1000,
+  })
+}
+
+export function useRecommendations() {
+  return useQuery<{ heading: string; subheading: string; matches: any[] }>({
+    queryKey: ['dashboard-recommendations'],
+    queryFn: async () => {
+      const res = await fetch('/api/dashboard/recommendations')
+      if (!res.ok) throw new Error('Failed to fetch recommendations')
+      return res.json()
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+// ── My Requests page ─────────────────────────────────────────────────
+export function useRequests() {
+  return useQuery<any[]>({
+    queryKey: ['requests'],
+    queryFn: async () => {
+      const res = await fetch('/api/requests')
+      if (!res.ok) throw new Error('Failed to fetch requests')
+      return res.json()
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+// ── Meetings page ────────────────────────────────────────────────────
+export function useMeetings() {
+  return useQuery<{ requests: any[]; sponsorMeetings: any[]; conflicts: any[] }>({
+    queryKey: ['meetings'],
+    queryFn: async () => {
+      const res = await fetch('/api/meetings')
+      if (!res.ok) throw new Error('Failed to fetch meetings')
+      return res.json()
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // ── Browse: user's existing meeting requests ──────────────────────────
 export function useBrowseRequests() {
   return useQuery<{ sponsorIds: string[]; userIds: string[] }>({
