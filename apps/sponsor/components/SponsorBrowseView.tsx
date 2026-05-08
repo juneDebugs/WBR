@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo, useCallback, memo, useDeferredValue } from 'react'
-import { useAttendees } from '@/lib/hooks'
+import { useAttendees, useSponsorData } from '@/lib/hooks'
 
 import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription, getBorderColorForSeeking } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
@@ -300,14 +300,13 @@ const PersonCard = memo(function PersonCard({
 
 
 export function SponsorBrowseView({
-  people: initialPeople, sponsorId, isStaff, initialRequestedIds = [],
+  sponsorId, isStaff,
 }: {
-  people: any[]; sponsorId: string | null; isStaff: boolean;
-  initialRequestedIds?: string[];
+  sponsorId: string | null; isStaff: boolean;
 }) {
-  // TanStack Query: fetch full attendee list once, cache for 5 min
-  const { data: allPeople, isLoading: queryLoading } = useAttendees()
-  const people = allPeople ?? initialPeople // SSR data as fallback until query resolves
+  // TanStack Query: fetch attendee list once, cache for 5 min — no server round-trip on navigation
+  const { data: people = [], isLoading: queryLoading } = useAttendees()
+  const { data: sponsorData } = useSponsorData()
 
   const [search, setSearch] = useState('')
   const [roles, setRoles] = useState<string[]>([])
@@ -317,7 +316,15 @@ export function SponsorBrowseView({
   const [revenues, setRevenues] = useState<string[]>([])
   const [seeking, setSeeking] = useState<string[]>([])
   const [requesting, setRequesting] = useState<string | null>(null)
-  const [requested, setRequested] = useState<Set<string>>(() => new Set(initialRequestedIds))
+  const [requested, setRequested] = useState<Set<string>>(() => new Set<string>())
+
+  // Sync requested IDs from sponsor data query
+  const requestedIds = sponsorData?.requestedIds
+  const [syncedIds, setSyncedIds] = useState(false)
+  if (requestedIds && !syncedIds) {
+    setRequested(new Set(requestedIds as string[]))
+    setSyncedIds(true)
+  }
   const [message, setMessage] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)

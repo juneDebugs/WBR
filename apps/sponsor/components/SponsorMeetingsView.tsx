@@ -85,16 +85,15 @@ const PersonRow = memo(function PersonRow({ person, status, timeBlock, message, 
 })
 
 export function SponsorMeetingsView({
-  inbound: initialInbound, outbound: initialOutbound, sponsorMeetings: initialSponsorMeetings, sponsorId, isStaff,
+  sponsorId, isStaff,
 }: {
-  inbound: any[]; outbound: any[]; sponsorMeetings: any[];
   sponsorId: string | null; isStaff: boolean;
 }) {
-  // TanStack Query: auto-refreshes every 60s, shared cache with schedule/dashboard
-  const { data: meetingsData } = useMeetingsData()
-  const inbound = meetingsData?.inbound ?? initialInbound
-  const outbound = meetingsData?.outbound ?? initialOutbound
-  const sponsorMeetings = meetingsData?.sponsorMeetings ?? initialSponsorMeetings
+  // TanStack Query: auto-refreshes every 60s, shared cache with schedule/dashboard — no server round-trip on navigation
+  const { data: meetingsData, isLoading } = useMeetingsData()
+  const inbound = meetingsData?.inbound ?? []
+  const outbound = meetingsData?.outbound ?? []
+  const sponsorMeetings = meetingsData?.sponsorMeetings ?? []
 
   const invalidate = useInvalidate()
   const [tab, setTab] = useState<Tab>('all')
@@ -226,7 +225,11 @@ export function SponsorMeetingsView({
         ))}
       </div>
 
-      {renderRequests()}
+      {isLoading && !meetingsData ? (
+        <div className="text-center py-16 text-gray-400">
+          <p className="text-sm">Loading meetings...</p>
+        </div>
+      ) : renderRequests()}
     </div>
   )
 }
