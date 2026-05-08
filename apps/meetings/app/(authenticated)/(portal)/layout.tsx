@@ -1,13 +1,14 @@
 import { redirect } from 'next/navigation'
 import { getUserFromHeaders } from '@/lib/user'
-import { PortalShell } from '@/components/PortalShell'
+import { NavBar } from '@/components/NavBar'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const user = await getUserFromHeaders()
   if (!user.id) redirect('/login')
   return (
-    <PortalShell role={user.role} userId={user.id} sponsorId={user.sponsorId}>
-      {children}
-    </PortalShell>
+    <div className="min-h-screen flex flex-col">
+      <NavBar role={user.role} />
+      <main className="flex-1">{children}</main>
+    </div>
   )
 }

@@ -3,8 +3,8 @@
 import { useDashboard, useRecommendations } from '@/lib/hooks'
 import { RecommendedMatchesClient } from '@/components/RecommendedMatchesClient'
 import { TeamMembers } from '@/components/TeamMembers'
-import { usePortalNav } from '@/lib/portal-nav'
 import { format } from 'date-fns'
+import Link from 'next/link'
 
 function LoadingSkeleton() {
   return (
@@ -63,9 +63,14 @@ function RecommendationsSection() {
   )
 }
 
-export function DashboardView() {
+interface DashboardProps {
+  userName: string
+  isSponsor: boolean
+  userId: string
+}
+
+export function DashboardView({ userName, isSponsor, userId }: DashboardProps) {
   const { data, isLoading } = useDashboard()
-  const { navigate } = usePortalNav()
 
   if (isLoading && !data) return <LoadingSkeleton />
   if (!data) return null
@@ -77,13 +82,13 @@ export function DashboardView() {
   const confirmRate = totalRequests > 0 ? Math.round((confirmedRequests / totalRequests) * 100) : 0
 
   if (data.isStaff) {
-    return <StaffDashboard data={data} navigate={navigate} confirmRate={confirmRate} />
+    return <StaffDashboard data={data} confirmRate={confirmRate} />
   }
 
-  return <UserDashboard data={data} navigate={navigate} />
+  return <UserDashboard data={data} userName={userName} isSponsor={isSponsor} />
 }
 
-function StaffDashboard({ data, navigate, confirmRate }: { data: any; navigate: (p: string) => void; confirmRate: number }) {
+function StaffDashboard({ data, confirmRate }: { data: any; confirmRate: number }) {
   const {
     totalRequests, pendingRequests, approvedRequests, confirmedRequests, rejectedRequests,
     totalAttendees, totalSponsors, totalTimeBlocks, usedTimeBlocks, recentRequests,
@@ -172,7 +177,7 @@ function StaffDashboard({ data, navigate, confirmRate }: { data: any; navigate: 
         <div className="card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Recent Requests</h2>
-            <button onClick={() => navigate('/staff')} className="text-xs text-primary hover:underline">Review all →</button>
+            <Link href="/staff" className="text-xs text-primary hover:underline">Review all →</Link>
           </div>
           <div className="space-y-3">
             {recentRequests.map((r: any) => (
@@ -210,23 +215,22 @@ function StaffDashboard({ data, navigate, confirmRate }: { data: any; navigate: 
           { href: '/browse',   label: 'Browse Attendees', sub: `${data.totalAttendees ?? 0} registered` },
           { href: '/meetings', label: 'View Meetings',    sub: `${confirmedRequests} confirmed` },
         ].map(a => (
-          <button key={a.href} onClick={() => navigate(a.href)} className="card p-4 hover:shadow-md transition-shadow flex items-center gap-3 text-left">
+          <Link key={a.href} href={a.href} className="card p-4 hover:shadow-md transition-shadow flex items-center gap-3">
             <div className="w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-gray-800">{a.label}</p>
               <p className="text-xs text-gray-400">{a.sub}</p>
             </div>
-          </button>
+          </Link>
         ))}
       </div>
     </div>
   )
 }
 
-function UserDashboard({ data, navigate }: { data: any; navigate: (p: string) => void }) {
+function UserDashboard({ data, userName, isSponsor }: { data: any; userName: string; isSponsor: boolean }) {
   const {
     totalRequests, pendingRequests, confirmedRequests,
-    isSponsor, userName,
     myRequests, inboundRequests, profileUser, myMeetings, sponsorWithTeam,
   } = data
 
@@ -256,7 +260,7 @@ function UserDashboard({ data, navigate }: { data: any; navigate: (p: string) =>
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {userName?.split(' ')[0] ?? 'there'}
+          Welcome back, {userName.split(' ')[0]}
         </h1>
         <p className="text-gray-500 text-sm mt-1">
           {isSponsor ? 'Your sponsor dashboard' : 'Your meeting activity'}
@@ -285,7 +289,7 @@ function UserDashboard({ data, navigate }: { data: any; navigate: (p: string) =>
         <div className="card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Profile Completeness</h2>
-            <button onClick={() => navigate('/profile')} className="text-xs text-primary hover:underline">Edit profile →</button>
+            <Link href="/profile" className="text-xs text-primary hover:underline">Edit profile →</Link>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2.5">
             <div
@@ -320,7 +324,7 @@ function UserDashboard({ data, navigate }: { data: any; navigate: (p: string) =>
         <div className="card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Recent Meeting Requests</h2>
-            <button onClick={() => navigate('/requests')} className="text-xs text-primary hover:underline">View all →</button>
+            <Link href="/requests" className="text-xs text-primary hover:underline">View all →</Link>
           </div>
           {!inboundRequests || inboundRequests.length === 0 ? (
             <p className="text-sm text-gray-400">No meeting requests yet.</p>
@@ -356,7 +360,7 @@ function UserDashboard({ data, navigate }: { data: any; navigate: (p: string) =>
         <div className="card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Upcoming Meetings</h2>
-            <button onClick={() => navigate('/meetings')} className="text-sm text-primary hover:underline">View all →</button>
+            <Link href="/meetings" className="text-sm text-primary hover:underline">View all →</Link>
           </div>
           <div className="space-y-3">
             {myMeetings.map((r: any) => {
@@ -404,9 +408,9 @@ function UserDashboard({ data, navigate }: { data: any; navigate: (p: string) =>
           <div>
             <p className="text-sm font-semibold text-gray-800">Set up your profile to unlock recommendations</p>
             <p className="text-xs text-gray-500 mt-1">Tell us what solutions you&apos;re seeking and offering so we can match you with the right {isSponsor ? 'attendees' : 'sponsors'}.</p>
-            <button onClick={() => navigate('/profile')} className="inline-block mt-3 btn-primary text-xs px-4 py-1.5">
+            <Link href="/profile" className="inline-block mt-3 btn-primary text-xs px-4 py-1.5">
               Complete Profile →
-            </button>
+            </Link>
           </div>
         </div>
       )}

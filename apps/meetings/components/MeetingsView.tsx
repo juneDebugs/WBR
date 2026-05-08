@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { useMeetings } from '@/lib/hooks'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePortalNav } from '@/lib/portal-nav'
 
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -86,8 +85,7 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
   )
 }
 
-export function MeetingsView() {
-  const { userId: currentUserId, sponsorId: currentSponsorId } = usePortalNav()
+export function MeetingsView({ currentUserId, currentSponsorId }: { currentUserId: string; currentSponsorId: string | null }) {
   const { data: meetingsData, isLoading } = useMeetings()
   const queryClient = useQueryClient()
   const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})

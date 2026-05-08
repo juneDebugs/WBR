@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { useRequests } from '@/lib/hooks'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePortalNav } from '@/lib/portal-nav'
 
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -86,8 +85,7 @@ function PersonRow({ person, status, timeBlock, message, direction, onApprove, o
   )
 }
 
-export function RequestsList() {
-  const { userId: currentUserId } = usePortalNav()
+export function RequestsList({ currentUserId }: { currentUserId: string }) {
   const { data: fetchedRequests, isLoading } = useRequests()
   const queryClient = useQueryClient()
   const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})

@@ -1,7 +1,8 @@
 'use client'
 import { memo } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { usePortalNav } from '@/lib/portal-nav'
 
 interface Props { role: string }
 
@@ -16,9 +17,9 @@ const NAV = [
 const STAFF_NAV = { href: '/staff', label: 'Finalize', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }
 
 export const NavBar = memo(function NavBar({ role }: Props) {
-  const { currentPath, navigate } = usePortalNav()
+  const pathname = usePathname()
   const active = (href: string, exact?: boolean) =>
-    exact ? currentPath === href : currentPath === href || currentPath.startsWith(href + '/')
+    exact ? pathname === href : pathname === href || pathname.startsWith(href + '/')
 
   const items = role === 'STAFF' ? [...NAV.slice(0, -1), STAFF_NAV, NAV[NAV.length - 1]] : NAV
 
@@ -36,7 +37,7 @@ export const NavBar = memo(function NavBar({ role }: Props) {
         {/* Nav links */}
         <nav className="flex items-center gap-0.5">
           {items.map(({ href, label, icon, exact }: any) => (
-            <button key={href} onClick={() => navigate(href)}
+            <Link key={href} href={href}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 active(href, exact) ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
               }`}>
@@ -44,7 +45,7 @@ export const NavBar = memo(function NavBar({ role }: Props) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
               </svg>
               <span className="hidden md:block">{label}</span>
-            </button>
+            </Link>
           ))}
         </nav>
 
