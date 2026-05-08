@@ -28,8 +28,8 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       queries: {
         staleTime: 5 * 60 * 1000,      // 5 minutes — data considered fresh
         gcTime: 30 * 60 * 1000,         // 30 minutes — keep in cache
-        refetchOnWindowFocus: true,      // Refresh when user returns to tab
-        refetchOnReconnect: true,        // Refresh when network returns
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
         retry: 1,
       },
     },
