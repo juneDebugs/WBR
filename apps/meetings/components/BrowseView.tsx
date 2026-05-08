@@ -5,15 +5,12 @@ import { PersonCard } from './PersonCard'
 import { SponsorCard } from './SponsorCard'
 import { SponsorRepCard } from './SponsorRepCard'
 import { getIndustry, getJobFunction, getTitleLevel, getPeopleCategory, PEOPLE_CATEGORIES } from '@/lib/solutions'
+import { useBrowseSponsors, useBrowsePeople, useBrowseRequests } from '@/lib/hooks'
 
 const PAGE_SIZE = 48
 
 interface Props {
   mode: 'sponsor-browsing-people' | 'attendee-browsing-sponsors'
-  people: any[]
-  sponsors: any[]
-  requestedUserIds: string[]
-  requestedSponsorIds: string[]
 }
 
 function safeParse(raw: string | null): string[] {
@@ -21,7 +18,12 @@ function safeParse(raw: string | null): string[] {
   try { return JSON.parse(raw) } catch { return [] }
 }
 
-export function BrowseView({ mode, people: rawPeople, sponsors: rawSponsors, requestedUserIds, requestedSponsorIds }: Props) {
+export function BrowseView({ mode }: Props) {
+  // TanStack Query: fetch once, cache for 5 min — no server round-trip on navigation
+  const { data: rawSponsors = [], isLoading: sponsorsLoading } = useBrowseSponsors()
+  const { data: rawPeople = [], isLoading: peopleLoading } = useBrowsePeople()
+  const { data: requests } = useBrowseRequests()
+
   // Pre-parse JSON solutions once instead of on every filter evaluation
   const people = useMemo(() => rawPeople.map(p => ({
     ...p,
@@ -43,8 +45,10 @@ export function BrowseView({ mode, people: rawPeople, sponsors: rawSponsors, req
   const deferredFilters = useDeferredValue(filters)
   const deferredCategory = useDeferredValue(category)
 
-  const requestedUserSet = new Set(requestedUserIds)
-  const requestedSponsorSet = new Set(requestedSponsorIds)
+  const requestedUserSet = useMemo(() => new Set(requests?.userIds ?? []), [requests?.userIds])
+  const requestedSponsorSet = useMemo(() => new Set(requests?.sponsorIds ?? []), [requests?.sponsorIds])
+
+  const loading = (sponsorsLoading || peopleLoading) && rawSponsors.length === 0 && rawPeople.length === 0
 
   // Reset pagination when filters or category change
   const handleCategoryChange = useCallback((cat: string | null) => {
@@ -173,7 +177,7 @@ export function BrowseView({ mode, people: rawPeople, sponsors: rawSponsors, req
                   ? 'Browse Attendees & Speakers'
                   : browseTab === 'sponsors' ? 'Solution Providers' : 'People'}
               </h1>
-              <p className="text-xs text-gray-400 mt-0.5">{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{loading ? 'Loading...' : `${totalFiltered} result${totalFiltered !== 1 ? 's' : ''}`}</p>
             </div>
             <button
               onClick={() => setFilterOpen(true)}
