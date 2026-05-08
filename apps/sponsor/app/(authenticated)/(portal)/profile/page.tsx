@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 import { ProfileEditor } from '@/components/ProfileEditor'
 
@@ -29,8 +29,7 @@ const getCachedAvailableUsers = unstable_cache(
 )
 
 export default async function ProfilePage() {
-  const session = await getSession()
-  const user = session!.user as any
+  const user = await getUserFromHeaders()
 
   if (!user.sponsorId) {
     return (

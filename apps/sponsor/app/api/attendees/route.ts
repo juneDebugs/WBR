@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { getCachedAttendees } from '@/lib/server-data'
 
 export async function GET() {
-  const session = await getSession()
-  if (!session?.user) {
+  const user = await getUserFromHeaders()
+  if (!user.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

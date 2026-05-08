@@ -23,7 +23,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(dashUrl)
   }
 
-  return NextResponse.next()
+  // Forward decoded JWT payload as request headers so downstream
+  // server components can read user info without re-decoding the JWT.
+  const requestHeaders = new Headers(request.headers)
+  if (token) {
+    requestHeaders.set('x-user-id', String(token.id ?? ''))
+    requestHeaders.set('x-user-role', String(token.role ?? ''))
+    requestHeaders.set('x-user-sponsor-id', String(token.sponsorId ?? ''))
+    requestHeaders.set('x-user-sponsor-name', String(token.sponsorName ?? ''))
+    requestHeaders.set('x-user-sponsor-logo-url', String(token.sponsorLogoUrl ?? ''))
+    requestHeaders.set('x-user-name', String(token.name ?? ''))
+  }
+
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {

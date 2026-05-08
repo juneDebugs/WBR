@@ -1,11 +1,10 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { SubmissionsView } from '@/components/SubmissionsView'
 import { RegisterTeammate } from '@/components/RegisterTeammate'
 
 export default async function SubmissionsPage() {
-  const session = await getSession()
-  const user = session!.user as any
+  const user = await getUserFromHeaders()
   if (!user.sponsorId) redirect('/dashboard')
 
   return (

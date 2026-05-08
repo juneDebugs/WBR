@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { fetchSponsorData } from '@/lib/server-data'
 
 export async function GET() {
-  const session = await getSession()
-  if (!session?.user) {
+  const user = await getUserFromHeaders()
+  if (!user.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const user = session.user as any
-  const data = await fetchSponsorData(user.id, user.sponsorId ?? null)
+  const data = await fetchSponsorData(user.id, user.sponsorId)
   return NextResponse.json(data)
 }

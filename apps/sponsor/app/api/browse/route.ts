@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@conference/db'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { getIndustry, getJobFunction } from '@/lib/solutions'
 
 const PAGE_SIZE = 48
@@ -11,8 +11,8 @@ function parseArr(val: string | null | undefined): string[] {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getSession()
-  if (!session?.user) {
+  const user = await getUserFromHeaders()
+  if (!user.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

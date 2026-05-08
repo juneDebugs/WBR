@@ -1,13 +1,11 @@
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { SponsorBrowseView } from '@/components/SponsorBrowseView'
 
 export default async function BrowsePage() {
-  const session = await getSession()
-  const user = session!.user as any
-
+  const user = await getUserFromHeaders()
   return (
     <SponsorBrowseView
-      sponsorId={user.sponsorId ?? null}
+      sponsorId={user.sponsorId}
       isStaff={user.role === 'STAFF'}
     />
   )

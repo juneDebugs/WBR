@@ -1,15 +1,13 @@
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { DashboardView } from '@/components/DashboardView'
 
 export default async function DashboardPage() {
-  const session = await getSession()
-  const user = session!.user as any
-
+  const user = await getUserFromHeaders()
   return (
     <DashboardView
-      userName={user.name ?? 'Sponsor'}
+      userName={user.name || 'Sponsor'}
       userRole={user.role}
-      sponsorId={user.sponsorId ?? null}
+      sponsorId={user.sponsorId}
     />
   )
 }
