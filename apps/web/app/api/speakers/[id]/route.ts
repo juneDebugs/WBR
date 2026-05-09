@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { NextResponse, type NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 import { revalidateTag } from 'next/cache'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
 async function revalidateAttendeeSpeakers(speakerId?: string) {
@@ -18,12 +17,11 @@ async function revalidateAttendeeSpeakers(speakerId?: string) {
   }
 }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const me = session.user as any
-  if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(me.role)) {
+  const token = await getToken({ req })
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(token.role as string)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const body = await req.json()
@@ -70,19 +68,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   return NextResponse.json(updated)
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const me = session.user as any
-  if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(me.role)) {
+  const token = await getToken({ req })
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(token.role as string)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const existing = await prisma.speaker.findUnique({ where: { id } })
-  if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
-  await prisma.speaker.delete({ where: { id } })
+  try {
+    await prisma.speaker.delete({ where: { id } })
+  } catch (e: any) {
+    if (e.code === 'P2025') return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+    throw e
+  }
   revalidateTag('speakers')
-  await revalidateAttendeeSpeakers(id)
+  revalidateAttendeeSpeakers(id)
   return NextResponse.json({ success: true })
 }
