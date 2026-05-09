@@ -2,7 +2,6 @@
 import { useState, useCallback } from 'react'
 import { useMeetings } from '@/lib/hooks'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRouter, usePathname } from 'next/navigation'
 
 type Section = 'meetings' | 'requests'
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -93,23 +92,16 @@ export function MeetingsPortal({ currentUserId, currentSponsorId, defaultSection
 }) {
   const { data: meetingsData, isLoading } = useMeetings()
   const queryClient = useQueryClient()
-  const router = useRouter()
-  const pathname = usePathname()
+  const [section, setSection] = useState<Section>(defaultSection)
   const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<Tab>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  // Derive section from current URL path
-  const section: Section = pathname === '/requests' ? 'requests' : 'meetings'
-
+  // Pure client-side switch — no server roundtrip, no Next.js navigation
   const switchSection = useCallback((s: Section) => {
-    const target = s === 'requests' ? '/requests' : '/meetings'
-    if (pathname !== target) {
-      window.history.replaceState(null, '', target)
-    }
-    // Force re-render without navigation — React picks up the new pathname
-    router.replace(target, { scroll: false })
-  }, [pathname, router])
+    setSection(s)
+    window.history.replaceState(null, '', s === 'requests' ? '/requests' : '/meetings')
+  }, [])
 
   const requests = (meetingsData?.requests ?? []).map(r =>
     localUpdates[r.id] ? { ...r, status: localUpdates[r.id] } : r
