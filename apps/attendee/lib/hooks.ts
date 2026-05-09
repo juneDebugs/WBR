@@ -10,6 +10,7 @@ export function useSpeakersData(initialData?: { speakers: any[]; count: number }
     queryKey: ['speakers-data'],
     queryFn: () => fetch('/api/data/speakers').then(r => r.json()),
     staleTime: 5_000,
+    refetchOnWindowFocus: true,
     ...(initialData && { initialData, initialDataUpdatedAt: Date.now() }),
   })
 }
