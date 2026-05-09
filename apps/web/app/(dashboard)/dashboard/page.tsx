@@ -1,6 +1,7 @@
 export const revalidate = 120
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
+import Link from 'next/link'
 import { AdminHeader } from '@/components/AdminHeader'
 import { SponsorReadinessWidget } from '@/components/SponsorReadinessWidget'
 import { ConferenceBanner } from '@/components/ConferenceBanner'
@@ -46,13 +47,13 @@ export default async function DashboardPage() {
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {stats.map((stat) => (
-            <a key={stat.label} href={stat.href}
+            <Link key={stat.label} href={stat.href}
               className="bg-white border border-gray-200 rounded-xl p-5 hover:border-primary/40 transition-colors">
               <div className={`w-10 h-10 ${stat.bg} rounded-lg flex items-center justify-center mb-3`}>
                 <span className={`text-lg font-bold ${stat.color}`}>{stat.value}</span>
               </div>
               <p className="text-sm text-gray-600">{stat.label}</p>
-            </a>
+            </Link>
           ))}
         </div>
 

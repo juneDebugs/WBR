@@ -7,8 +7,6 @@ import { TimeBlockGroup } from '@/components/TimeBlockGroup'
 import { format } from 'date-fns'
 
 import Link from 'next/link'
-import { Suspense } from 'react'
-
 const ROLE_STYLES: Record<string, string> = {
   ATTENDEE: 'bg-blue-100 text-blue-700',
   SPEAKER:  'bg-purple-100 text-purple-700',
@@ -93,9 +91,7 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: {
       <AdminHeader title="Time Blocks" />
       <main className="flex-1 p-6 max-w-5xl">
         <div className="flex items-center gap-3 mb-6">
-          <Suspense>
-            <TimeBlockSearch />
-          </Suspense>
+          <TimeBlockSearch defaultQuery={q} />
           <Link href="/dashboard/time-blocks/new" className="btn-primary text-sm whitespace-nowrap">
             + New Time Block
           </Link>

@@ -6,7 +6,6 @@ import { AutoScheduleButton } from '@/components/AutoScheduleButton'
 import { MeetingsTableWithPanel } from '@/components/MeetingsTableWithPanel'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { fmtTime, TZ } from '@/lib/format'
 
 const TIER_COLORS: Record<string, string> = {
@@ -16,13 +15,12 @@ const TIER_COLORS: Record<string, string> = {
   BRONZE:   'bg-orange-100 text-orange-700',
 }
 
-export default function MeetingsPageClient() {
-  const searchParams = useSearchParams()
+export default function MeetingsPageClient({ tab: tabParam, status, type }: { tab?: string; status?: string; type?: string }) {
   const { data, isLoading } = useMeetingsData()
 
-  const tab = searchParams.get('tab') === 'schedule' ? 'schedule' : 'requests'
-  const statusFilter = searchParams.get('status')?.toUpperCase()
-  const typeFilter = searchParams.get('type') === 'attendee' ? 'attendee' : searchParams.get('type') === 'sponsor' ? 'sponsor' : undefined
+  const tab = tabParam === 'schedule' ? 'schedule' : 'requests'
+  const statusFilter = status?.toUpperCase()
+  const typeFilter = type === 'attendee' ? 'attendee' : type === 'sponsor' ? 'sponsor' : undefined
 
   const allMeetingRequests = data?.allMeetingRequests ?? []
   const sponsorMeetings = data?.sponsorMeetings ?? []

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 interface SavedIntegration {
   provider: string
@@ -13,6 +13,8 @@ interface SavedIntegration {
 
 interface Props {
   saved: SavedIntegration[]
+  connected?: string | null
+  error?: string | null
 }
 
 type Field = { key: string; label: string; type: 'text' | 'password' | 'url'; placeholder: string; help?: string }
@@ -89,7 +91,7 @@ const INTEGRATIONS: Integration[] = [
 
 const CATEGORIES = ['All', 'Email']
 
-export function IntegrationsClient({ saved }: Props) {
+export function IntegrationsClient({ saved, connected, error }: Props) {
   const [activeCategory, setActiveCategory] = useState('All')
   const [disconnecting, setDisconnecting] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
@@ -98,7 +100,6 @@ export function IntegrationsClient({ saved }: Props) {
   const [saving, setSaving] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   const [statuses, setStatuses] = useState<Record<string, { status: string; accountLabel: string | null; connectedAt: string | null }>>(
     Object.fromEntries(saved.map(s => [s.provider, { status: s.status, accountLabel: s.accountLabel, connectedAt: s.connectedAt }]))
@@ -106,8 +107,6 @@ export function IntegrationsClient({ saved }: Props) {
 
   // Handle OAuth callback
   useEffect(() => {
-    const connected = searchParams.get('connected')
-    const error = searchParams.get('error')
     if (connected) {
       showToast(`${connected.replace(/_/g, ' ')} connected`, 'success')
       router.replace('/dashboard/integrations')
@@ -116,7 +115,7 @@ export function IntegrationsClient({ saved }: Props) {
       showToast(`Connection failed: ${error.replace(/_/g, ' ')}`, 'error')
       router.replace('/dashboard/integrations')
     }
-  }, [searchParams, router])
+  }, [connected, error, router])
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type })

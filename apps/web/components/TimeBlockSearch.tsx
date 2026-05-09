@@ -1,11 +1,10 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
 
-export function TimeBlockSearch() {
+export function TimeBlockSearch({ defaultQuery }: { defaultQuery?: string }) {
   const router = useRouter()
-  const params = useSearchParams()
   const [, startTransition] = useTransition()
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -21,7 +20,7 @@ export function TimeBlockSearch() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
       <input
-        defaultValue={params.get('q') ?? ''}
+        defaultValue={defaultQuery ?? ''}
         onChange={handleChange}
         placeholder="Search by name, company, sponsor…"
         className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
