@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 
@@ -34,7 +35,8 @@ const getCachedMeetingsData = unstable_cache(
 )
 
 export async function GET(request: NextRequest) {
-  if (!request.headers.get('x-user-id')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const token = await getToken({ req: request })
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const data = await getCachedMeetingsData()
   return NextResponse.json(JSON.parse(JSON.stringify(data)))
 }

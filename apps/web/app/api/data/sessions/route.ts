@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 import { unstable_cache } from 'next/cache'
 import { prisma, getActiveConflicts } from '@conference/db'
 
@@ -12,7 +13,8 @@ const getCachedConflicts = unstable_cache(
 )
 
 export async function GET(request: NextRequest) {
-  if (!request.headers.get('x-user-id')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const token = await getToken({ req: request })
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const [sessions, conflicts] = await Promise.all([getCachedSessions(), getCachedConflicts()])
   return NextResponse.json({ sessions: JSON.parse(JSON.stringify(sessions)), conflicts })
 }
