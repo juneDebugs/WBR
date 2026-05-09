@@ -132,16 +132,17 @@ export default async function EditSessionPage({ params, searchParams }: { params
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <form action={del}>
-                <ConfirmButton message="Delete this session?" className="btn-danger text-sm">
-                  Delete
-                </ConfirmButton>
-              </form>
+              <div />
               <div className="flex gap-3">
                 <Link href="/dashboard/sessions" className="btn-secondary text-sm">Cancel</Link>
                 <button type="submit" className="btn-primary text-sm">Save Changes</button>
               </div>
             </div>
+          </form>
+          <form action={del} className="mt-4">
+            <ConfirmButton message="Delete this session?" className="btn-danger text-sm">
+              Delete
+            </ConfirmButton>
           </form>
         </div>
       </main>
