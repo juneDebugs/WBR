@@ -14,7 +14,10 @@ const getCachedAllSpeakers = unstable_cache(
         id: true, name: true, jobTitle: true, company: true, photoUrl: true, photoPosition: true,
         bio: true, role: true, lookingFor: true, twitterHandle: true, linkedinUrl: true,
         conferenceId: true,
-        confSessions: { select: { track: true }, orderBy: { startsAt: 'asc' }, take: 1 },
+        confSessions: {
+        select: { id: true, title: true, description: true, startsAt: true, endsAt: true, room: true, track: true, type: true },
+        orderBy: { startsAt: 'asc' },
+      },
       },
       orderBy: { name: 'asc' },
     }),
@@ -45,6 +48,16 @@ export async function fetchSpeakersData() {
     twitterHandle: s.twitterHandle,
     linkedinUrl: s.linkedinUrl,
     track: s.role ?? s.confSessions[0]?.track ?? null,
+    sessions: s.confSessions.map(cs => ({
+      id: cs.id,
+      title: cs.title,
+      description: cs.description,
+      startsAt: cs.startsAt.toISOString(),
+      endsAt: cs.endsAt.toISOString(),
+      room: cs.room,
+      track: cs.track,
+      type: cs.type,
+    })),
   }))
 
   return { speakers: data, count: data.length }

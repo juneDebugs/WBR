@@ -45,6 +45,17 @@ function isExternalUrl(url: string): boolean {
 }
 
 
+interface Session {
+  id: string
+  title: string
+  description: string | null
+  startsAt: string
+  endsAt: string
+  room: string | null
+  track: string | null
+  type: string
+}
+
 interface Speaker {
   id: string
   name: string
@@ -58,6 +69,7 @@ interface Speaker {
   twitterHandle: string | null
   linkedinUrl: string | null
   track: string | null
+  sessions?: Session[]
 }
 
 const AVATAR_GRADIENTS: [string, string][] = [
@@ -98,9 +110,19 @@ function trackPalette(track: string) {
 
 // ─── Speaker Detail Modal (iOS bottom sheet) ──────────────────────────────────
 
+function formatSessionTime(start: string, end: string) {
+  const s = new Date(start)
+  const e = new Date(end)
+  const day = s.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const startTime = s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  const endTime = e.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return { day, time: `${startTime} – ${endTime}` }
+}
+
 function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => void }) {
   const [visible, setVisible] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [expandedSession, setExpandedSession] = useState<string | null>(null)
   const [ag1, ag2] = avatarGradient(speaker.name)
   const palette = speaker.track ? trackPalette(speaker.track) : TRACK_PALETTES[0]
   const hasLogo = speaker.company ? COMPANY_LOGO_NAMES.has(speaker.company) : false
@@ -255,6 +277,111 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">About</span>
                 </div>
                 <p className="px-4 pb-3.5 text-sm text-gray-600 leading-relaxed">{speaker.bio}</p>
+              </div>
+            )}
+
+            {/* Sessions */}
+            {speaker.sessions && speaker.sessions.length > 0 && (
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#f9f9fb' }}>
+                <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: `linear-gradient(135deg, ${palette.from}, ${palette.to})` }}
+                  >
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    {speaker.sessions.length === 1 ? 'Session' : 'Sessions'}
+                  </span>
+                  <span
+                    className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: palette.chip, color: palette.chipText }}
+                  >
+                    {speaker.sessions.length}
+                  </span>
+                </div>
+                <div className="px-3 pb-3 space-y-2">
+                  {speaker.sessions.map(session => {
+                    const isExpanded = expandedSession === session.id
+                    const { day, time } = formatSessionTime(session.startsAt, session.endsAt)
+                    return (
+                      <button
+                        key={session.id}
+                        onClick={() => setExpandedSession(isExpanded ? null : session.id)}
+                        className="w-full text-left rounded-xl bg-white transition-all duration-200 active:scale-[0.98]"
+                        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+                      >
+                        <div className="px-3.5 py-3 flex items-start gap-3">
+                          <div
+                            className="w-1 rounded-full flex-shrink-0 mt-0.5"
+                            style={{
+                              background: `linear-gradient(to bottom, ${palette.from}, ${palette.to})`,
+                              height: isExpanded ? '100%' : '36px',
+                              minHeight: '36px',
+                              transition: 'height 0.2s ease',
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 leading-snug">{session.title}</p>
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="text-xs text-gray-500">{day} · {time}</span>
+                            </div>
+                            {session.room && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span className="text-xs text-gray-500">{session.room}</span>
+                              </div>
+                            )}
+                            {/* Expandable description */}
+                            <div
+                              style={{
+                                maxHeight: isExpanded ? '500px' : '0px',
+                                opacity: isExpanded ? 1 : 0,
+                                overflow: 'hidden',
+                                transition: 'max-height 0.3s ease, opacity 0.2s ease',
+                              }}
+                            >
+                              {session.description && (
+                                <p className="text-xs text-gray-500 leading-relaxed mt-2.5 pt-2.5 border-t border-gray-100">
+                                  {session.description}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {session.track && (
+                                  <span
+                                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                    style={{ background: palette.chip, color: palette.chipText }}
+                                  >
+                                    {session.track}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                                  {session.type}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Chevron */}
+                          <svg
+                            className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1 transition-transform duration-200"
+                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
