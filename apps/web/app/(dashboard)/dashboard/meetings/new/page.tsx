@@ -31,7 +31,8 @@ async function createMeeting(formData: FormData) {
   redirect('/dashboard/meetings')
 }
 
-export default async function NewMeetingPage({ searchParams }: { searchParams: { timeBlockId?: string; attendeeAId?: string; attendeeBId?: string } }) {
+export default async function NewMeetingPage({ searchParams }: { searchParams: Promise<{ timeBlockId?: string; attendeeAId?: string; attendeeBId?: string }> }) {
+  const sp = await searchParams
   const [users, timeBlocks] = await Promise.all([
     prisma.user.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true, email: true } }),
     prisma.timeBlock.findMany({ orderBy: { startsAt: 'asc' } }),
@@ -41,9 +42,9 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: {
   let conflicts: { userId: string; reason: string | null }[] = []
   let selectedBlock: typeof timeBlocks[0] | undefined
 
-  if (searchParams.timeBlockId && (searchParams.attendeeAId || searchParams.attendeeBId)) {
-    selectedBlock = timeBlocks.find(tb => tb.id === searchParams.timeBlockId)
-    const userIds = [searchParams.attendeeAId, searchParams.attendeeBId].filter(Boolean) as string[]
+  if (sp.timeBlockId && (sp.attendeeAId || sp.attendeeBId)) {
+    selectedBlock = timeBlocks.find(tb => tb.id === sp.timeBlockId)
+    const userIds = [sp.attendeeAId, sp.attendeeBId].filter(Boolean) as string[]
     if (selectedBlock && userIds.length > 0) {
       conflicts = await checkBlackoutConflicts(prisma, userIds, selectedBlock.startsAt, selectedBlock.endsAt)
     }
@@ -76,7 +77,7 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: {
               <div>
                 <label className="form-label">Attendee A *</label>
                 <select name="attendeeAId" required className="form-input"
-                  defaultValue={searchParams.attendeeAId ?? ''}>
+                  defaultValue={sp.attendeeAId ?? ''}>
                   <option value="">— Select attendee —</option>
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
@@ -88,7 +89,7 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: {
               <div>
                 <label className="form-label">Attendee B *</label>
                 <select name="attendeeBId" required className="form-input"
-                  defaultValue={searchParams.attendeeBId ?? ''}>
+                  defaultValue={sp.attendeeBId ?? ''}>
                   <option value="">— Select attendee —</option>
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
@@ -102,7 +103,7 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: {
             <div>
               <label className="form-label">Time Block *</label>
               <select name="timeBlockId" required className="form-input"
-                defaultValue={searchParams.timeBlockId ?? ''}>
+                defaultValue={sp.timeBlockId ?? ''}>
                 <option value="">— Select time block —</option>
                 {timeBlocks.map(tb => (
                   <option key={tb.id} value={tb.id}>

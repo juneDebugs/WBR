@@ -21,8 +21,9 @@ const TIER_STYLES: Record<string, string> = {
   BRONZE:   'bg-orange-100 text-orange-700',
 }
 
-export default async function TimeBlocksPage({ searchParams }: { searchParams: { q?: string } }) {
-  const q = searchParams.q?.toLowerCase().trim() ?? ''
+export default async function TimeBlocksPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const params = await searchParams
+  const q = params.q?.toLowerCase().trim() ?? ''
 
   const [users, sponsors, totalTimeBlocks] = await Promise.all([
     prisma.user.findMany({
@@ -224,7 +225,7 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: {
 
           {sections.length === 0 && filteredSponsors.length === 0 && (
             <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-              <p className="font-medium text-gray-700">{q ? `No results for "${searchParams.q}"` : 'No time blocks assigned yet'}</p>
+              <p className="font-medium text-gray-700">{q ? `No results for "${params.q}"` : 'No time blocks assigned yet'}</p>
               <p className="text-sm text-gray-400 mt-1">{q ? 'Try a different name or sponsor.' : 'Create time blocks and assign them via attendee profiles or sponsor meetings.'}</p>
             </div>
           )}
