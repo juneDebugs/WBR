@@ -36,6 +36,10 @@ const getCachedCalendarData = unstable_cache(
   { revalidate: 120, tags: ['sessions', 'meetings', 'time-blocks'] },
 )
 
+function toISO(d: Date | string): string {
+  return typeof d === 'string' ? d : d.toISOString()
+}
+
 export default async function CalendarPage() {
   const { conference, sessions, timeBlocks, meetingRequests } = await getCachedCalendarData()
 
@@ -44,8 +48,8 @@ export default async function CalendarPage() {
       id: s.id,
       kind: 'session' as const,
       title: s.title,
-      startsAt: s.startsAt.toISOString(),
-      endsAt: s.endsAt.toISOString(),
+      startsAt: toISO(s.startsAt),
+      endsAt: toISO(s.endsAt),
       meta: [s.type, s.track, s.room].filter(Boolean).join(' · '),
       sub: s.speaker?.name ?? null,
     })),
@@ -53,8 +57,8 @@ export default async function CalendarPage() {
       id: b.id,
       kind: 'timeblock' as const,
       title: `Meeting Slot${b._count.meetingRequests > 0 ? ` (${b._count.meetingRequests} booked)` : ''}`,
-      startsAt: b.startsAt.toISOString(),
-      endsAt: b.endsAt.toISOString(),
+      startsAt: toISO(b.startsAt),
+      endsAt: toISO(b.endsAt),
       meta: b.location ?? null,
       sub: null,
     })),
@@ -62,8 +66,8 @@ export default async function CalendarPage() {
       id: m.id,
       kind: 'meeting' as const,
       title: `${m.requester.name ?? '?'} & ${m.targetUser?.name ?? m.targetSponsor?.name ?? '?'}`,
-      startsAt: m.timeBlock!.startsAt.toISOString(),
-      endsAt: m.timeBlock!.endsAt.toISOString(),
+      startsAt: toISO(m.timeBlock!.startsAt),
+      endsAt: toISO(m.timeBlock!.endsAt),
       meta: m.status,
       sub: null,
     })),
@@ -75,8 +79,8 @@ export default async function CalendarPage() {
       <main className="flex-1 p-6">
         <CalendarClient
           events={events}
-          confStartDate={conference?.startDate.toISOString() ?? null}
-          confEndDate={conference?.endDate.toISOString() ?? null}
+          confStartDate={conference ? toISO(conference.startDate) : null}
+          confEndDate={conference ? toISO(conference.endDate) : null}
         />
       </main>
     </>

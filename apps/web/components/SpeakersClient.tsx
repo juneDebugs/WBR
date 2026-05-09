@@ -39,14 +39,10 @@ type SpeakerForm = {
 
 export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeakers?: Speaker[] }) {
   const { data, isLoading } = useSpeakers()
-  const [speakers, setSpeakers] = useState(initialSpeakers)
+  const [localUpdates, setLocalUpdates] = useState<Speaker[] | null>(null)
 
-  // Update speakers when hook data arrives
-  useEffect(() => {
-    if (data && Array.isArray(data)) {
-      setSpeakers(data)
-    }
-  }, [data])
+  // Use local updates (from edit/delete) if available, otherwise use React Query data or initial SSR data
+  const speakers = localUpdates ?? (data && Array.isArray(data) ? data : initialSpeakers)
 
   const [editingSpeaker, setEditingSpeaker] = useState<Speaker | null>(null)
   const [form, setForm] = useState<SpeakerForm>({
@@ -229,7 +225,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
         throw new Error(data?.error || 'Failed to save')
       }
 
-      setSpeakers(prev => prev.map(s => s.id === editingSpeaker.id ? { ...s, ...updated(data, photoChanged) } : s))
+      setLocalUpdates(speakers.map(s => s.id === editingSpeaker.id ? { ...s, ...updated(data, photoChanged) } : s))
       closeEdit()
     } catch (err: any) {
       setError(err.message)
@@ -254,7 +250,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
         const data = await res.json()
         throw new Error(data.error || 'Failed to delete')
       }
-      setSpeakers(prev => prev.filter(s => s.id !== editingSpeaker.id))
+      setLocalUpdates(speakers.filter(s => s.id !== editingSpeaker.id))
       closeEdit()
     } catch (err: any) {
       setError(err.message)

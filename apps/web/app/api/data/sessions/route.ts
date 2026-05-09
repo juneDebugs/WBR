@@ -1,7 +1,5 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { unstable_cache } from 'next/cache'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma, getActiveConflicts } from '@conference/db'
 
 const getCachedSessions = unstable_cache(
@@ -13,9 +11,8 @@ const getCachedConflicts = unstable_cache(
   ['web-conflicts'], { revalidate: 120, tags: ['conflicts'] }
 )
 
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function GET(request: NextRequest) {
+  if (!request.headers.get('x-user-id')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const [sessions, conflicts] = await Promise.all([getCachedSessions(), getCachedConflicts()])
   return NextResponse.json({ sessions: JSON.parse(JSON.stringify(sessions)), conflicts })
 }

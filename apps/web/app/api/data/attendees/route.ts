@@ -1,7 +1,5 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { unstable_cache } from 'next/cache'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
 const getCachedAttendees = unstable_cache(
@@ -22,9 +20,8 @@ const getCachedAttendees = unstable_cache(
   { revalidate: 300, tags: ['attendees'] },
 )
 
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function GET(request: NextRequest) {
+  if (!request.headers.get('x-user-id')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const users = await getCachedAttendees()
   return NextResponse.json(users)
 }
