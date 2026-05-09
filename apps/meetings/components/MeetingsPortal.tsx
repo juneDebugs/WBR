@@ -94,12 +94,13 @@ export function MeetingsPortal({ currentUserId, currentSponsorId, defaultSection
   const queryClient = useQueryClient()
   const [section, setSection] = useState<Section>(defaultSection)
   const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
-  const [tab, setTab] = useState<Tab>('all')
+  const [tab, setTab] = useState<Tab>(defaultSection === 'meetings' ? 'confirmed' : 'all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   // Pure client-side switch — no server roundtrip, no Next.js navigation
   const switchSection = useCallback((s: Section) => {
     setSection(s)
+    setTab(s === 'meetings' ? 'confirmed' : 'all')
     window.history.replaceState(null, '', s === 'requests' ? '/requests' : '/meetings')
   }, [])
 
