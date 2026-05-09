@@ -22,11 +22,20 @@ function photoStyle(pos: string | null | undefined, fallback?: string) {
 }
 
 // Resize Unsplash URLs to optimal size for context and apply sharpening
-function optimizePhoto(url: string | null, width: number): string | null {
+function optimizePhoto(url: string | null, width: number, height?: number): string | null {
   if (!url) return null
   // Only optimize Unsplash URLs; leave data URIs and other URLs untouched
   if (!url.startsWith('https://images.unsplash.com')) return url
   let optimized = url.replace(/w=\d+/, `w=${width}`).replace(/q=\d+/, `q=${width > 600 ? 85 : 70}`)
+  if (height) {
+    optimized = optimized.includes('h=')
+      ? optimized.replace(/h=\d+/, `h=${height}`)
+      : optimized + `&h=${height}`
+  }
+  // Use crop=face,top to preserve full head in headshots
+  if (height) {
+    optimized = optimized.replace(/crop=[^&]+/, 'crop=face,top')
+  }
   if (!optimized.includes('sharp=')) optimized += '&sharp=15'
   return optimized
 }
@@ -131,8 +140,8 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
       >
         {/* Scrollable content */}
         <div ref={scrollRef} className="overflow-y-auto overscroll-contain pb-10">
-          {/* Hero photo / gradient */}
-          <div className="relative w-full" style={{ height: 'clamp(320px, 60vw, 420px)' }}>
+          {/* Hero photo / gradient — portrait aspect ratio to show full headshot */}
+          <div className="relative w-full" style={{ aspectRatio: '4/5', maxHeight: '50dvh' }}>
             {/* Drag handle — overlaid on image, mobile only */}
             <div className="sm:hidden absolute top-2.5 left-0 right-0 z-10 flex justify-center">
               <div className="w-9 h-1 rounded-full bg-white/50" />
@@ -140,19 +149,19 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
             {speaker.photoUrl ? (
               isExternalUrl(speaker.photoUrl) ? (
                 <Image
-                  src={optimizePhoto(speaker.photoUrl, 800)!}
+                  src={optimizePhoto(speaker.photoUrl, 800, 1000)!}
                   alt={speaker.name}
                   fill
                   priority
                   className="absolute inset-0 w-full h-full object-cover"
-                  style={photoStyle(speaker.photoPosition, '50% 15%')}
+                  style={photoStyle(speaker.photoPosition, '50% 20%')}
                 />
               ) : (
                 <img
                   src={speaker.photoUrl}
                   alt={speaker.name}
                   className="absolute inset-0 w-full h-full object-cover"
-                  style={photoStyle(speaker.photoPosition, '50% 15%')}
+                  style={photoStyle(speaker.photoPosition, '50% 20%')}
                 />
               )
             ) : (
