@@ -137,7 +137,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
         {/* Scrollable content */}
         <div ref={scrollRef} className="overflow-y-auto overscroll-contain pb-10">
           {/* Hero photo / gradient */}
-          <div className="relative w-full" style={{ height: 'clamp(200px, 38vw, 320px)' }}>
+          <div className="relative w-full" style={{ height: 'clamp(320px, 60vw, 420px)' }}>
             {speaker.photoUrl ? (
               isExternalUrl(speaker.photoUrl) ? (
                 <Image
