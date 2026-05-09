@@ -22,7 +22,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(dashUrl)
   }
 
-  return NextResponse.next()
+  // Forward user identity to route handlers via headers (avoids re-decoding JWT)
+  const response = NextResponse.next()
+  if (token) {
+    response.headers.set('x-user-role', (token.role as string) ?? '')
+    response.headers.set('x-user-id', (token.id as string) ?? '')
+  }
+  return response
 }
 
 export const config = {

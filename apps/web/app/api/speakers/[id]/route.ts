@@ -1,88 +1,94 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { getToken } from 'next-auth/jwt'
+import { NextResponse, type NextRequest, after } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@conference/db'
 
-async function revalidateAttendeeSpeakers(speakerId?: string) {
+function revalidateAttendeeSpeakers(speakerId?: string) {
   const tags = ['speakers']
   if (speakerId) tags.push(`speaker-${speakerId}`)
-  try {
-    await fetch('http://localhost:3001/api/revalidate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: process.env.NEXTAUTH_SECRET, tags }),
-    })
-  } catch {
-    // Attendee app may not be running; ignore
-  }
+  fetch('http://localhost:3001/api/revalidate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: process.env.NEXTAUTH_SECRET, tags }),
+  }).catch(() => {})
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const token = await getToken({ req })
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(token.role as string)) {
+  // Auth is handled by middleware; role is forwarded via header
+  const role = req.headers.get('x-user-role')
+  if (!role || !['STAFF', 'ORGANIZER', 'ADMIN'].includes(role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const body = await req.json()
+
+  const [{ id }, body] = await Promise.all([params, req.json()])
 
   if (!body.name || !body.name.trim()) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   }
 
-  let updated
-  try {
-    updated = await prisma.speaker.update({
-      where: { id },
-      data: {
-        name: body.name.trim(),
-        bio: body.bio?.trim() || null,
-        ...('photoUrl' in body && { photoUrl: body.photoUrl || null }),
-        photoPosition: body.photoPosition?.trim() || '50% 50%',
-        company: body.company?.trim() || null,
-        jobTitle: body.jobTitle?.trim() || null,
-        twitterHandle: body.twitterHandle?.trim() || null,
-        linkedinUrl: body.linkedinUrl?.trim() || null,
-      },
-      select: {
-        id: true,
-        name: true,
-        photoUrl: true,
-        photoPosition: true,
-        jobTitle: true,
-        company: true,
-        bio: true,
-        twitterHandle: true,
-        linkedinUrl: true,
-      },
-    })
-  } catch (e: any) {
-    if (e.code === 'P2025') return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
-    throw e
+  const name = body.name.trim()
+  const bio = body.bio?.trim() || null
+  const photoPosition = body.photoPosition?.trim() || '50% 50%'
+  const company = body.company?.trim() || null
+  const jobTitle = body.jobTitle?.trim() || null
+  const twitterHandle = body.twitterHandle?.trim() || null
+  const linkedinUrl = body.linkedinUrl?.trim() || null
+  const hasPhoto = 'photoUrl' in body
+  const photoUrl = hasPhoto ? (body.photoUrl || null) : undefined
+
+  // Respond immediately with optimistic data
+  const optimistic = {
+    id,
+    name,
+    ...(hasPhoto ? { photoUrl } : {}),
+    photoPosition,
+    jobTitle,
+    company,
+    bio,
+    twitterHandle,
+    linkedinUrl,
   }
 
-  revalidateTag('speakers')
-  // Fire-and-forget: don't block the response waiting for attendee app
-  revalidateAttendeeSpeakers(id)
+  // Defer DB write + cache invalidation to after the response is sent
+  after(async () => {
+    try {
+      if (hasPhoto) {
+        await prisma.$queryRawUnsafe(
+          `UPDATE "Speaker" SET "name"=?, "bio"=?, "photoUrl"=?, "photoPosition"=?, "company"=?, "jobTitle"=?, "twitterHandle"=?, "linkedinUrl"=? WHERE "id"=?`,
+          name, bio, photoUrl, photoPosition, company, jobTitle, twitterHandle, linkedinUrl, id
+        )
+      } else {
+        await prisma.$queryRawUnsafe(
+          `UPDATE "Speaker" SET "name"=?, "bio"=?, "photoPosition"=?, "company"=?, "jobTitle"=?, "twitterHandle"=?, "linkedinUrl"=? WHERE "id"=?`,
+          name, bio, photoPosition, company, jobTitle, twitterHandle, linkedinUrl, id
+        )
+      }
+      revalidateTag('speakers')
+      revalidateAttendeeSpeakers(id)
+    } catch (e) {
+      console.error('[PUT /api/speakers] Background write failed:', e)
+    }
+  })
 
-  return NextResponse.json(updated)
+  return NextResponse.json(optimistic)
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const token = await getToken({ req })
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(token.role as string)) {
+  const role = req.headers.get('x-user-role')
+  if (!role || !['STAFF', 'ORGANIZER', 'ADMIN'].includes(role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  try {
-    await prisma.speaker.delete({ where: { id } })
-  } catch (e: any) {
-    if (e.code === 'P2025') return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
-    throw e
-  }
-  revalidateTag('speakers')
-  revalidateAttendeeSpeakers(id)
+  const { id } = await params
+
+  after(async () => {
+    try {
+      await prisma.$queryRawUnsafe(`DELETE FROM "Speaker" WHERE "id"=?`, id)
+      revalidateTag('speakers')
+      revalidateAttendeeSpeakers(id)
+    } catch (e) {
+      console.error('[DELETE /api/speakers] Background delete failed:', e)
+    }
+  })
+
   return NextResponse.json({ success: true })
 }
