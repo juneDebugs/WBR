@@ -1,0 +1,331 @@
+'use client'
+import { useState, useCallback } from 'react'
+import { useMeetings } from '@/lib/hooks'
+import { useQueryClient } from '@tanstack/react-query'
+import { useRouter, usePathname } from 'next/navigation'
+
+type Section = 'meetings' | 'requests'
+type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
+
+function statusBadge(status: string) {
+  const map: Record<string, string> = {
+    PENDING: 'bg-amber-50 text-amber-700 border-amber-100',
+    APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    CONFIRMED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    REJECTED: 'bg-red-50 text-red-600 border-red-100',
+  }
+  return map[status] ?? 'bg-gray-50 text-gray-600 border-gray-100'
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  })
+}
+
+function PersonRow({ person, status, timeBlock, message, direction, onApprove, onDecline, actionLoading }: {
+  person: any; status: string; timeBlock?: any; message?: string;
+  direction: 'inbound' | 'outbound';
+  onApprove?: () => void; onDecline?: () => void;
+  actionLoading?: boolean;
+}) {
+  return (
+    <div className={`card p-5 ${
+      status === 'CONFIRMED' || status === 'APPROVED' ? 'border-l-4 border-emerald-400' :
+      status === 'PENDING' && direction === 'inbound' ? 'border-l-4 border-amber-400' : ''
+    }`}>
+      <div className="flex items-start gap-4">
+        {person?.image ? (
+          <img src={person.image} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-bold text-primary">{person?.name?.[0] ?? '?'}</span>
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-gray-900">{person?.name}</span>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadge(status)}`}>
+              {status}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              direction === 'inbound' ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600'
+            }`}>
+              {direction === 'inbound' ? '← Inbound' : '→ Sent'}
+            </span>
+          </div>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {person?.jobTitle}{person?.company ? ` · ${person.company}` : ''}
+          </p>
+          {person?.email && <p className="text-xs text-gray-400 mt-0.5">{person.email}</p>}
+          {message && (
+            <p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded-lg px-3 py-2 italic">&ldquo;{message}&rdquo;</p>
+          )}
+          {timeBlock && (
+            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {formatTime(timeBlock.startsAt)}
+              {timeBlock.location ? ` · ${timeBlock.location}` : ''}
+            </p>
+          )}
+        </div>
+
+        {direction === 'inbound' && status === 'PENDING' && (
+          <div className="flex gap-2 flex-shrink-0">
+            <button onClick={onApprove} disabled={actionLoading}
+              className="btn-primary text-xs px-3 py-1.5">Approve</button>
+            <button onClick={onDecline} disabled={actionLoading}
+              className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors">Decline</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function MeetingsPortal({ currentUserId, currentSponsorId, defaultSection = 'meetings' }: {
+  currentUserId: string
+  currentSponsorId: string | null
+  defaultSection?: Section
+}) {
+  const { data: meetingsData, isLoading } = useMeetings()
+  const queryClient = useQueryClient()
+  const router = useRouter()
+  const pathname = usePathname()
+  const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
+  const [tab, setTab] = useState<Tab>('all')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  // Derive section from current URL path
+  const section: Section = pathname === '/requests' ? 'requests' : 'meetings'
+
+  const switchSection = useCallback((s: Section) => {
+    const target = s === 'requests' ? '/requests' : '/meetings'
+    if (pathname !== target) {
+      window.history.replaceState(null, '', target)
+    }
+    // Force re-render without navigation — React picks up the new pathname
+    router.replace(target, { scroll: false })
+  }, [pathname, router])
+
+  const requests = (meetingsData?.requests ?? []).map(r =>
+    localUpdates[r.id] ? { ...r, status: localUpdates[r.id] } : r
+  )
+  const sponsorMeetings = meetingsData?.sponsorMeetings ?? []
+  const conflicts = meetingsData?.conflicts ?? []
+
+  async function updateStatus(requestId: string, status: string) {
+    setActionLoading(requestId)
+    setLocalUpdates(prev => ({ ...prev, [requestId]: status }))
+    try {
+      const res = await fetch(`/api/meeting-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) {
+        setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['meetings'] })
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      }
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  if (isLoading && !meetingsData) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <div className="h-7 w-36 bg-gray-200 rounded animate-pulse" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+              <div className="w-10 h-10 bg-gray-100 rounded-full animate-pulse flex-shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 w-36 bg-gray-100 rounded animate-pulse" />
+                <div className="h-3 w-48 bg-gray-50 rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const inbound = requests.filter(r => r.requesterId !== currentUserId)
+  const outbound = requests.filter(r => r.requesterId === currentUserId)
+  const confirmedInbound = inbound.filter(r => r.status === 'CONFIRMED' || r.status === 'APPROVED')
+  const confirmedOutbound = outbound.filter(r => r.status === 'CONFIRMED' || r.status === 'APPROVED')
+  const pendingInbound = inbound.filter(r => r.status === 'PENDING')
+
+  const isMeetings = section === 'meetings'
+  const allCount = inbound.length + outbound.length
+  const confirmedCount = confirmedInbound.length + confirmedOutbound.length + (isMeetings ? sponsorMeetings.length : 0)
+
+  const tabs = [
+    { key: 'all' as Tab, label: 'All', count: allCount },
+    { key: 'inbound' as Tab, label: 'Inbound', count: inbound.length, dot: pendingInbound.length > 0 },
+    { key: 'outbound' as Tab, label: 'Sent', count: outbound.length },
+    { key: 'confirmed' as Tab, label: 'Confirmed', count: confirmedCount },
+  ]
+
+  function getPersonForRequest(r: any, direction: 'inbound' | 'outbound') {
+    if (direction === 'inbound') return r.requester
+    if (r.targetSponsor) {
+      return {
+        name: r.targetSponsor.name,
+        image: r.targetSponsor.logoUrl,
+        jobTitle: `${r.targetSponsor.tier} Sponsor`,
+        company: null,
+        email: null,
+      }
+    }
+    return r.targetUser
+  }
+
+  function renderRequests() {
+    const showInbound = tab === 'all' || tab === 'inbound'
+    const showOutbound = tab === 'all' || tab === 'outbound'
+    const showConfirmed = tab === 'confirmed'
+
+    let items: React.ReactNode[] = []
+
+    if (showConfirmed) {
+      items = [
+        ...confirmedInbound.map(r => (
+          <PersonRow key={r.id} person={getPersonForRequest(r, 'inbound')} status={r.status}
+            timeBlock={r.timeBlock} message={r.message} direction="inbound"
+            actionLoading={actionLoading === r.id} />
+        )),
+        ...confirmedOutbound.map(r => (
+          <PersonRow key={r.id} person={getPersonForRequest(r, 'outbound')} status={r.status}
+            timeBlock={r.timeBlock} message={r.message} direction="outbound" />
+        )),
+        // Sponsor meetings only in Meetings section
+        ...(isMeetings ? sponsorMeetings.map((m: any) => (
+          <div key={m.id} className="card p-5 border-l-4 border-primary/50">
+            <div className="flex items-center gap-4">
+              {m.user.image ? (
+                <img src={m.user.image} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-bold text-primary">{m.user.name?.[0]}</span>
+                </div>
+              )}
+              <div className="flex-1">
+                <p className="font-semibold text-gray-900">{m.user.name}</p>
+                <p className="text-sm text-gray-500">{m.user.jobTitle}{m.user.company ? ` · ${m.user.company}` : ''}</p>
+                {m.timeBlock && (
+                  <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {formatTime(m.timeBlock.startsAt)}
+                    {m.timeBlock.location ? ` · ${m.timeBlock.location}` : ''}
+                  </p>
+                )}
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Scheduled</span>
+            </div>
+          </div>
+        )) : []),
+      ]
+    } else {
+      if (showInbound) {
+        items.push(...inbound.map(r => (
+          <PersonRow key={r.id} person={getPersonForRequest(r, 'inbound')} status={r.status}
+            timeBlock={r.timeBlock} message={r.message} direction="inbound"
+            onApprove={() => updateStatus(r.id, 'APPROVED')}
+            onDecline={() => updateStatus(r.id, 'REJECTED')}
+            actionLoading={actionLoading === r.id} />
+        )))
+      }
+      if (showOutbound) {
+        items.push(...outbound.map(r => (
+          <PersonRow key={r.id} person={getPersonForRequest(r, 'outbound')} status={r.status}
+            timeBlock={r.timeBlock} message={r.message} direction="outbound" />
+        )))
+      }
+    }
+
+    if (items.length === 0) {
+      return (
+        <div className="text-center py-16 text-gray-400">
+          <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <p>{isMeetings ? 'No meetings here yet.' : 'No requests here yet.'}</p>
+        </div>
+      )
+    }
+
+    return <div className="space-y-3">{items}</div>
+  }
+
+  return (
+    <>
+      {isMeetings && conflicts.length > 0 && (
+        <div className="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-red-800">
+              {conflicts.length} presenter conflict{conflicts.length !== 1 ? 's' : ''} detected
+            </p>
+            <p className="text-xs text-red-600 mt-0.5">
+              {conflicts.map((c: any) => c.speakerName).join(', ')} {conflicts.length === 1 ? 'is' : 'are'} double-booked. Session schedule may change — check back for updates.
+            </p>
+          </div>
+        </div>
+      )}
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        {/* Section toggle — instant client-side switch */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+            <button
+              onClick={() => switchSection('meetings')}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                isMeetings ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              Meetings
+            </button>
+            <button
+              onClick={() => switchSection('requests')}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                !isMeetings ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              My Requests
+            </button>
+          </div>
+          <button onClick={() => queryClient.invalidateQueries({ queryKey: ['meetings'] })}
+            className="text-xs text-gray-400 hover:text-primary px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
+            ↻ Refresh
+          </button>
+        </div>
+
+        <div className="flex gap-1 border-b border-gray-100">
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
+                tab === t.key ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-gray-500 hover:text-gray-800'
+              }`}>
+              {t.label}
+              {t.count > 0 && (
+                <span className={`text-xs rounded-full px-1.5 py-0.5 font-semibold ${
+                  (t as any).dot ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                }`}>{t.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {renderRequests()}
+      </div>
+    </>
+  )
+}
