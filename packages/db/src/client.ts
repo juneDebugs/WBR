@@ -5,6 +5,7 @@ import { createClient as createLibsqlWeb } from '@libsql/client/web'
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
   libsqlAdapter: any
+  replicaSynced: Promise<void> | undefined
 }
 
 // Track connection mode for diagnostics
@@ -41,11 +42,35 @@ function createClient(): PrismaClient {
             authToken: tursoToken,
             syncInterval: 60,
           })
+          // Force initial sync so first reads are never stale.
+          // Stored globally so the $extends query guard only blocks until
+          // the very first sync completes; subsequent queries are instant.
+          globalForPrisma.replicaSynced = libsql.sync()
+            .then(() => { console.log('[prisma] Embedded replica synced') })
+            .catch((e: any) => console.error('[prisma] Initial replica sync failed:', e?.message))
           globalForPrisma.libsqlAdapter = new PrismaLibSQL(libsql)
           dbConnectionMode = 'turso-embedded-replica'
         }
       }
-      return new PrismaClient({ adapter: globalForPrisma.libsqlAdapter } as any)
+
+      const raw = new PrismaClient({ adapter: globalForPrisma.libsqlAdapter } as any)
+
+      // If we have a pending sync, wrap every query to await it first.
+      // After the initial sync resolves, await is a no-op (resolved promise).
+      if (globalForPrisma.replicaSynced) {
+        return raw.$extends({
+          query: {
+            $allModels: {
+              async $allOperations({ args, query }) {
+                await globalForPrisma.replicaSynced
+                return query(args)
+              },
+            },
+          },
+        }) as unknown as PrismaClient
+      }
+
+      return raw
     } catch (e: any) {
       dbConnectionMode = 'turso-failed: ' + (e?.message ?? 'unknown error')
       console.error('[prisma] CRITICAL: Turso adapter failed:', e?.message, e?.stack)
