@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 
-export function DeleteSessionButton({ action }: { action: () => Promise<void> }) {
+export function DeleteSessionButton({ action, sessionId }: { action: () => Promise<void>; sessionId: string }) {
   const queryClient = useQueryClient()
   const router = useRouter()
 
@@ -13,9 +13,26 @@ export function DeleteSessionButton({ action }: { action: () => Promise<void> })
       className="btn-danger text-sm"
       onClick={async () => {
         if (!confirm('Delete this session?')) return
-        await action()
-        queryClient.invalidateQueries({ queryKey: ['sessions'] })
+
+        // Optimistic update: remove session from cache immediately
+        queryClient.setQueryData(['sessions'], (old: any) => {
+          if (!old) return old
+          return {
+            ...old,
+            sessions: old.sessions.filter((s: any) => s.id !== sessionId),
+            conflicts: old.conflicts.filter(
+              (c: any) => c.sessionA.id !== sessionId && c.sessionB.id !== sessionId,
+            ),
+          }
+        })
+
+        // Navigate immediately
         router.push('/dashboard/sessions')
+
+        // Fire server action in background (delete + conflict detection)
+        action().then(() => {
+          queryClient.invalidateQueries({ queryKey: ['sessions'] })
+        })
       }}
     >
       Delete

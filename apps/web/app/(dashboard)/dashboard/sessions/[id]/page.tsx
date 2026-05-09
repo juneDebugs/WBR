@@ -131,7 +131,7 @@ export default async function EditSessionPage({ params, searchParams }: { params
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <DeleteSessionButton action={del} />
+              <DeleteSessionButton action={del} sessionId={id} />
               <div className="flex gap-3">
                 <Link href="/dashboard/sessions" className="btn-secondary text-sm">Cancel</Link>
                 <button type="submit" className="btn-primary text-sm">Save Changes</button>
