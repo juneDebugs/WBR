@@ -456,7 +456,8 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function SpeakersClient({ speakers: propSpeakers }: { speakers: Speaker[] }) {
-  const { data: hookData, isLoading } = useSpeakersData()
+  const serverData = propSpeakers.length > 0 ? { speakers: propSpeakers, count: propSpeakers.length } : undefined
+  const { data: hookData, isLoading } = useSpeakersData(serverData)
   const speakers: Speaker[] = hookData?.speakers ?? (propSpeakers.length > 0 ? propSpeakers : [])
   const speakerCount = hookData?.count ?? speakers.length
 
