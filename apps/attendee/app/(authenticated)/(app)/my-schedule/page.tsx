@@ -90,16 +90,20 @@ export default async function MySchedulePage() {
   })
 
   const peerItems = peerRequests.map(r => {
-    const other = r.requesterId === userId ? r.targetUser : r.requester
+    const isRequester = r.requesterId === userId
+    const otherUser = isRequester ? r.targetUser : r.requester
+    // When the target is a sponsor (not a user), use sponsor info
+    const otherSponsor = isRequester ? r.targetSponsor : null
+    const otherName = otherUser?.name ?? otherSponsor?.name ?? 'Attendee'
     return {
       id: r.id,
       type: 'peer' as const,
-      title: `1-1 with ${other?.name ?? 'Attendee'}`,
-      otherId: other?.id ?? null,
-      otherName: other?.name ?? 'Unknown',
-      otherCompany: other?.company ?? null,
-      otherJobTitle: other?.jobTitle ?? null,
-      otherImage: other?.image ?? null,
+      title: `1-1 with ${otherName}`,
+      otherId: otherUser?.id ?? null,
+      otherName,
+      otherCompany: otherUser?.company ?? null,
+      otherJobTitle: otherUser?.jobTitle ?? null,
+      otherImage: otherUser?.image ?? null,
       notes: null as string | null,
       location: r.timeBlock!.location,
       startsAt: r.timeBlock!.startsAt.toISOString(),
