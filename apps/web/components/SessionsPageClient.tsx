@@ -15,7 +15,7 @@ const typeColors: Record<string, string> = {
 export default function SessionsPageClient() {
   const { data, isLoading } = useSessions()
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between mb-4">

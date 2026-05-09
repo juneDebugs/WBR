@@ -85,7 +85,7 @@ function TierHeader({ tier, count }: { tier: string; count: number }) {
 export default function SponsorsPageClient() {
   const { data, isLoading } = useSponsors()
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between mb-4">

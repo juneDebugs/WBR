@@ -30,7 +30,7 @@ export default function MeetingsPageClient() {
   const statusFilter = searchParams.get('status')?.toUpperCase()
   const typeFilter = searchParams.get('type') === 'attendee' ? 'attendee' : searchParams.get('type') === 'sponsor' ? 'sponsor' : undefined
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-6">
