@@ -153,7 +153,10 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
             </div>
           )}
           <button onClick={() => setExpanded(e => !e)}
-            className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5">
+            className="text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 transition-colors flex items-center gap-1.5">
+            <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
             {expanded ? 'Collapse' : 'Expand'}
           </button>
           {incomplete.length > 0 && (
