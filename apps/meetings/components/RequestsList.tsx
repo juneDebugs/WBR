@@ -110,7 +110,6 @@ export function RequestsList({ currentUserId }: { currentUserId: string }) {
         // Revert on failure
         setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
       } else {
-        queryClient.invalidateQueries({ queryKey: ['requests'] })
         queryClient.invalidateQueries({ queryKey: ['meetings'] })
         queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       }
@@ -230,7 +229,7 @@ export function RequestsList({ currentUserId }: { currentUserId: string }) {
           <h1 className="text-2xl font-bold text-gray-900">My Requests</h1>
           <p className="text-sm text-gray-500 mt-1">All meeting requests — inbound from attendees and sent by your team</p>
         </div>
-        <button onClick={() => queryClient.invalidateQueries({ queryKey: ['requests'] })}
+        <button onClick={() => queryClient.invalidateQueries({ queryKey: ['meetings'] })}
           className="text-xs text-gray-400 hover:text-primary px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
           ↻ Refresh
         </button>

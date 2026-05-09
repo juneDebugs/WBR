@@ -53,17 +53,13 @@ export function useRecommendations() {
   })
 }
 
-// ── My Requests page ─────────────────────────────────────────────────
+// ── My Requests page (derives from meetings cache — no extra fetch) ──
 export function useRequests() {
-  return useQuery<any[]>({
-    queryKey: ['requests'],
-    queryFn: async () => {
-      const res = await fetch('/api/requests')
-      if (!res.ok) throw new Error('Failed to fetch requests')
-      return res.json()
-    },
-    staleTime: 5 * 60 * 1000,
-  })
+  const meetings = useMeetings()
+  return {
+    ...meetings,
+    data: meetings.data?.requests,
+  }
 }
 
 // ── Meetings page ────────────────────────────────────────────────────

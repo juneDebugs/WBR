@@ -35,7 +35,6 @@ export function StaffQueue({ requests: initialRequests, timeBlocks }: { requests
         setAssigningId(null)
         setSelectedTimeBlock('')
         queryClient.invalidateQueries({ queryKey: ['meetings'] })
-        queryClient.invalidateQueries({ queryKey: ['requests'] })
         queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         router.refresh()
       }
