@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
@@ -39,10 +40,12 @@ export async function POST(
 
   if (existing) {
     await prisma.follow.delete({ where: { followerId_followingId: { followerId, followingId } } })
+    revalidateTag(`user-social-${followerId}`)
     return NextResponse.json({ following: false })
   }
 
   await prisma.follow.create({ data: { followerId, followingId } })
+  revalidateTag(`user-social-${followerId}`)
   return NextResponse.json({ following: true })
 }
 
