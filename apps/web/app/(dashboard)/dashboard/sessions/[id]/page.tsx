@@ -1,7 +1,7 @@
 export const revalidate = 60
 import { prisma, detectSpeakerConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
-import { ConfirmButton } from '@/components/ConfirmButton'
+import { DeleteSessionButton } from './DeleteSessionButton'
 import { revalidateTag } from 'next/cache'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -40,7 +40,6 @@ async function deleteSession(id: string) {
   await detectSpeakerConflicts(prisma)
   revalidateTag('sessions')
   revalidateTag('conflicts')
-  redirect('/dashboard/sessions')
 }
 
 function toLocalDatetimeString(date: Date): string {
@@ -132,9 +131,7 @@ export default async function EditSessionPage({ params, searchParams }: { params
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <ConfirmButton message="Delete this session?" className="btn-danger text-sm" formAction={del}>
-                Delete
-              </ConfirmButton>
+              <DeleteSessionButton action={del} />
               <div className="flex gap-3">
                 <Link href="/dashboard/sessions" className="btn-secondary text-sm">Cancel</Link>
                 <button type="submit" className="btn-primary text-sm">Save Changes</button>
