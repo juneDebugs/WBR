@@ -26,11 +26,19 @@ const getCachedSpeakers = unstable_cache(
 export default async function SpeakersPage() {
   const speakers = await getCachedSpeakers()
 
+  // Replace data URI photoUrls with lightweight API endpoint URLs to keep SSR payload small
+  const lightSpeakers = speakers.map(s => ({
+    ...s,
+    photoUrl: s.photoUrl
+      ? s.photoUrl.startsWith('data:') ? `/api/speakers/${s.id}/photo` : s.photoUrl
+      : null,
+  }))
+
   return (
     <>
       <AdminHeader title="Speakers" />
       <main className="flex-1 p-6">
-        <SpeakersClient initialSpeakers={speakers} />
+        <SpeakersClient initialSpeakers={lightSpeakers} />
       </main>
     </>
   )

@@ -317,20 +317,17 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {speakers.map((speaker) => (
+            {speakers.map((speaker, idx) => (
               <tr key={speaker.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openEdit(speaker)}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     {speaker.photoUrl ? (
                       <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 relative">
-                        {(() => { const pp = parsePhotoPos(speaker.photoPosition); const isDataUri = speaker.photoUrl!.startsWith('data:'); return isDataUri ? (
-                          <img src={speaker.photoUrl!} alt={speaker.name} width={40} height={40}
-                            loading="lazy" decoding="async"
-                            className="w-full h-full object-cover"
-                            style={{ objectPosition: pp.position, ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }) }} />
-                        ) : (
+                        {(() => { const pp = parsePhotoPos(speaker.photoPosition); return (
                           <Image src={optimizeUrl(speaker.photoUrl!, 80)} alt={speaker.name}
-                            width={80} height={80} sizes="40px" loading="lazy"
+                            width={80} height={80} sizes="40px"
+                            loading={idx < 12 ? 'eager' : 'lazy'}
+                            priority={idx < 6}
                             className="w-full h-full object-cover"
                             style={{ objectPosition: pp.position, ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }) }} />
                         )})()}
@@ -637,7 +634,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                         </div>
 
                         {/* URL input for external images */}
-                        {!form.photoUrl.startsWith('data:') && (
+                        {form.photoUrl && !form.photoUrl.startsWith('data:') && !form.photoUrl.startsWith('/api/') && (
                           <div className="w-full mt-3 px-1">
                             <input
                               type="text"

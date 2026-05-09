@@ -23,9 +23,19 @@ const getCachedSpeakers = unstable_cache(
   { revalidate: 60, tags: ['speakers'] },
 )
 
+/** Replace data URI photoUrls with lightweight API endpoint URLs */
+function stripDataUris(speakers: any[]) {
+  return speakers.map(s => ({
+    ...s,
+    photoUrl: s.photoUrl
+      ? s.photoUrl.startsWith('data:') ? `/api/speakers/${s.id}/photo` : s.photoUrl
+      : null,
+  }))
+}
+
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request })
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const speakers = await getCachedSpeakers()
-  return NextResponse.json(speakers)
+  return NextResponse.json(stripDataUris(speakers))
 }
