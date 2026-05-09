@@ -45,6 +45,7 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ roomI
       }))}
       currentUserId={userId}
       currentUserName={session.user.name ?? ''}
+      otherUserId={otherMember?.id ?? null}
     />
   )
 }

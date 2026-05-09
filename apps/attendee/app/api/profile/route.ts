@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
-const ALLOWED = ['name', 'image', 'bio', 'jobTitle', 'company', 'website', 'companySize', 'annualRevenue', 'solutionsSeeking', 'solutionsOffering']
+const ALLOWED = ['name', 'image', 'bio', 'jobTitle', 'company', 'website', 'linkedinUrl', 'companySize', 'annualRevenue', 'solutionsSeeking', 'solutionsOffering']
 
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions)

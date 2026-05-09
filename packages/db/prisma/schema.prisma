@@ -69,6 +69,7 @@ model User {
   solutionsOffering String?  // JSON string array
   solutionsSeeking  String?  // JSON string array
   website          String?
+  linkedinUrl      String?
   sponsorId        String?   // link to Sponsor company
 
   accounts          Account[]

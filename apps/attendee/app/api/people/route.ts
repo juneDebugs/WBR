@@ -11,6 +11,7 @@ const userSelect = {
   jobTitle: true,
   bio: true,
   website: true,
+  linkedinUrl: true,
 } as const
 
 export async function GET(req: NextRequest) {

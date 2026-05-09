@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface Person {
   id: string
@@ -11,6 +12,7 @@ interface Person {
   jobTitle: string | null
   bio: string | null
   website: string | null
+  linkedinUrl: string | null
 }
 
 interface Props {
@@ -636,7 +638,9 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
                       )}
                       <div className="flex flex-col gap-0.5 max-w-[72%]">
                         {!isMe && (
-                          <span className="text-[10px] text-gray-400 px-1">{msg.sender.name}</span>
+                          <Link href={`/people/${msg.senderId}`} className="text-[10px] text-gray-400 px-1 active:opacity-70">
+                            {msg.sender.name}
+                          </Link>
                         )}
                         <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
                           isMe
@@ -691,15 +695,17 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
           >
             {/* Chat header */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-shrink-0">
-              <div className="w-9 h-9 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Link href={`/people/${selected.id}`} className="w-9 h-9 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 active:opacity-70">
                 {selected.image ? (
                   <img src={selected.image} alt="" loading="lazy" className="w-9 h-9 object-cover" />
                 ) : (
                   <span className="text-primary font-bold text-sm">{(selected.name ?? '?')[0]}</span>
                 )}
-              </div>
+              </Link>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm leading-tight truncate">{selected.name ?? 'Unknown'}</p>
+                <Link href={`/people/${selected.id}`} className="font-semibold text-gray-900 text-sm leading-tight truncate block active:opacity-70">
+                  {selected.name ?? 'Unknown'}
+                </Link>
                 {selected.company && (
                   selected.website ? (
                     <a href={selected.website} target="_blank" rel="noopener noreferrer"
@@ -716,6 +722,15 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
                   )
                 )}
               </div>
+              <Link
+                href={`/people/${selected.id}`}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
+                title="View Profile"
+              >
+                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </Link>
               <button
                 onClick={() => setSelected(null)}
                 className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0"

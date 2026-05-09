@@ -11,6 +11,7 @@ const userSelect = {
   jobTitle: true,
   bio: true,
   website: true,
+  linkedinUrl: true,
 } as const
 
 const getCachedAllPeople = unstable_cache(
@@ -81,6 +82,7 @@ export default async function PeoplePage() {
       jobTitle: u.jobTitle,
       bio: u.bio,
       website: u.website,
+      linkedinUrl: u.linkedinUrl,
     }
   }
 

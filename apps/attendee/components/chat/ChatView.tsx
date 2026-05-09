@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-
+import Link from 'next/link'
 import { format } from 'date-fns'
 
 interface ChatMessage {
@@ -18,9 +18,10 @@ interface Props {
   initialMessages: ChatMessage[]
   currentUserId: string
   currentUserName: string
+  otherUserId?: string | null
 }
 
-export function ChatView({ roomId, displayName, initialMessages, currentUserId }: Props) {
+export function ChatView({ roomId, displayName, initialMessages, currentUserId, otherUserId }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -96,7 +97,13 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h1 className="font-semibold text-gray-900 text-base">{displayName}</h1>
+        {otherUserId ? (
+          <Link href={`/people/${otherUserId}`} className="font-semibold text-gray-900 text-base active:opacity-70">
+            {displayName}
+          </Link>
+        ) : (
+          <h1 className="font-semibold text-gray-900 text-base">{displayName}</h1>
+        )}
       </div>
 
       {/* Messages — scrollable middle */}
@@ -110,14 +117,16 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId }
             <div key={msg.id} className={`${msg.showHeader ? 'mt-4' : 'mt-0.5'}`}>
               {msg.showHeader && !isMe && (
                 <div className="flex items-center gap-2 mb-1 ml-1">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {msg.sender.image ? (
-                      <img src={msg.sender.image} alt="" loading="lazy" className="w-6 h-6 rounded-full object-cover" />
-                    ) : (
-                      <span className="text-primary text-xs font-bold">{(msg.sender.name ?? '?')[0]}</span>
-                    )}
-                  </div>
-                  <span className="text-xs font-semibold text-gray-600">{msg.sender.name}</span>
+                  <Link href={`/people/${msg.sender.id}`} className="flex items-center gap-2 active:opacity-70">
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {msg.sender.image ? (
+                        <img src={msg.sender.image} alt="" loading="lazy" className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <span className="text-primary text-xs font-bold">{(msg.sender.name ?? '?')[0]}</span>
+                      )}
+                    </div>
+                    <span className="text-xs font-semibold text-gray-600">{msg.sender.name}</span>
+                  </Link>
                   <span className="text-xs text-gray-400">{format(new Date(msg.createdAt), 'h:mm a')}</span>
                 </div>
               )}
