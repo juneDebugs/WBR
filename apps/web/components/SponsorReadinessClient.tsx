@@ -141,19 +141,10 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <button onClick={() => setExpanded(e => !e)}
-            className="flex items-center gap-2 group">
-            <div className="text-left">
-              <h2 className="font-semibold text-gray-900 leading-tight">Sponsor Asset Readiness</h2>
-              <p className="text-xs text-gray-400">{metrics.totalSponsors} sponsors · avg {metrics.avgPct}% complete</p>
-            </div>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200 bg-pink-50 group-hover:bg-pink-100 border border-pink-200`}>
-              <svg className={`w-5 h-5 text-pink-500 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
-                fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
-          </button>
+          <div className="text-left">
+            <h2 className="font-semibold text-gray-900 leading-tight">Sponsor Asset Readiness</h2>
+            <p className="text-xs text-gray-400">{metrics.totalSponsors} sponsors · avg {metrics.avgPct}% complete</p>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {!expanded && (
@@ -161,6 +152,10 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
               <Bar pct={metrics.avgPct} height="h-2" gradient />
             </div>
           )}
+          <button onClick={() => setExpanded(e => !e)}
+            className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5">
+            {expanded ? 'Collapse' : 'Expand'}
+          </button>
           {incomplete.length > 0 && (
             <button onClick={sendAllReminders} disabled={sendingAll || allSent}
               className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center gap-1.5">
