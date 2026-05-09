@@ -129,15 +129,14 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
           transition: 'opacity 0.28s ease, transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
         }}
       >
-        {/* Drag handle — visible on mobile only */}
-        <div className="sm:hidden flex justify-center pt-2.5 pb-0 flex-shrink-0">
-          <div className="w-9 h-1 rounded-full bg-gray-300" />
-        </div>
-
         {/* Scrollable content */}
         <div ref={scrollRef} className="overflow-y-auto overscroll-contain pb-10">
           {/* Hero photo / gradient */}
           <div className="relative w-full" style={{ height: 'clamp(320px, 60vw, 420px)' }}>
+            {/* Drag handle — overlaid on image, mobile only */}
+            <div className="sm:hidden absolute top-2.5 left-0 right-0 z-10 flex justify-center">
+              <div className="w-9 h-1 rounded-full bg-white/50" />
+            </div>
             {speaker.photoUrl ? (
               isExternalUrl(speaker.photoUrl) ? (
                 <Image
@@ -146,14 +145,14 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                   fill
                   priority
                   className="absolute inset-0 w-full h-full object-cover"
-                  style={photoStyle(speaker.photoPosition, '50% 20%')}
+                  style={photoStyle(speaker.photoPosition, '50% 15%')}
                 />
               ) : (
                 <img
                   src={speaker.photoUrl}
                   alt={speaker.name}
                   className="absolute inset-0 w-full h-full object-cover"
-                  style={photoStyle(speaker.photoPosition, '50% 20%')}
+                  style={photoStyle(speaker.photoPosition, '50% 15%')}
                 />
               )
             ) : (
