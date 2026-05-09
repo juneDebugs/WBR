@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { useSpeakers } from '@/lib/hooks'
+import Image from 'next/image'
+import { useQuery } from '@tanstack/react-query'
 
 function parsePhotoPos(pos: string | null | undefined) {
   const parts = (pos ?? '50% 50%').trim().split(/\s+/)
@@ -10,6 +11,17 @@ function parsePhotoPos(pos: string | null | undefined) {
     position: `${parts[0] ?? '50%'} ${parts[1] ?? '50%'}`,
     scale: parts.length >= 3 ? parseFloat(parts[2]) || 1 : 1,
   }
+}
+
+/** Optimize remote image URLs for the requested display size */
+function optimizeUrl(url: string, size: number): string {
+  if (!url || url.startsWith('data:')) return url
+  // Unsplash: rewrite to requested width + quality
+  if (url.includes('images.unsplash.com')) {
+    const base = url.split('?')[0]
+    return `${base}?w=${size}&q=60&fit=crop&crop=face&auto=format`
+  }
+  return url
 }
 
 type Speaker = {
@@ -38,7 +50,12 @@ type SpeakerForm = {
 }
 
 export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeakers?: Speaker[] }) {
-  const { data, isLoading } = useSpeakers()
+  const { data, isLoading } = useQuery({
+    queryKey: ['speakers'],
+    queryFn: () => fetch('/api/data/speakers').then(r => r.json()),
+    staleTime: 60_000,
+    initialData: initialSpeakers.length > 0 ? initialSpeakers : undefined,
+  })
   const [localUpdates, setLocalUpdates] = useState<Speaker[] | null>(null)
 
   // Use local updates (from edit/delete) if available, otherwise use React Query data or initial SSR data
@@ -305,9 +322,15 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     {speaker.photoUrl ? (
-                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
-                        {(() => { const pp = parsePhotoPos(speaker.photoPosition); return (
-                          <img src={speaker.photoUrl} alt={speaker.name} width={40} height={40}
+                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 relative">
+                        {(() => { const pp = parsePhotoPos(speaker.photoPosition); const isDataUri = speaker.photoUrl!.startsWith('data:'); return isDataUri ? (
+                          <img src={speaker.photoUrl!} alt={speaker.name} width={40} height={40}
+                            loading="lazy" decoding="async"
+                            className="w-full h-full object-cover"
+                            style={{ objectPosition: pp.position, ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }) }} />
+                        ) : (
+                          <Image src={optimizeUrl(speaker.photoUrl!, 80)} alt={speaker.name}
+                            width={80} height={80} sizes="40px" loading="lazy"
                             className="w-full h-full object-cover"
                             style={{ objectPosition: pp.position, ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }) }} />
                         )})()}
