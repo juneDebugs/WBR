@@ -86,28 +86,6 @@ function TierHeader({ tier, count }: { tier: string; count: number }) {
 export default function SponsorsPageClient() {
   const { data, isLoading } = useSponsors()
 
-  if (isLoading && !data) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-          <div className="h-8 w-28 bg-gray-200 rounded animate-pulse" />
-        </div>
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
-            {[...Array(4)].map((_, j) => (
-              <div key={j} className="flex items-center gap-4 py-3 border-b border-gray-100 last:border-0">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg animate-pulse" />
-                <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-                <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   const sponsors = data?.sponsors ?? []
   const committedRows = data?.committedRows ?? []
 
@@ -132,6 +110,28 @@ export default function SponsorsPageClient() {
 
     return { withReadiness, grouped }
   }, [sponsors, committedRows])
+
+  if (isLoading && !data) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+          <div className="h-8 w-28 bg-gray-200 rounded animate-pulse" />
+        </div>
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
+            {[...Array(4)].map((_, j) => (
+              <div key={j} className="flex items-center gap-4 py-3 border-b border-gray-100 last:border-0">
+                <div className="w-10 h-10 bg-gray-100 rounded-lg animate-pulse" />
+                <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <>

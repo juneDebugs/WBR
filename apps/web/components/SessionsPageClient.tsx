@@ -16,6 +16,14 @@ const typeColors: Record<string, string> = {
 export default function SessionsPageClient() {
   const { data, isLoading } = useSessions()
 
+  const sessions = data?.sessions ?? []
+  const conflicts = data?.conflicts ?? []
+
+  const conflictedSessionIds = useMemo(
+    () => new Set(conflicts.flatMap((c: any) => [c.sessionA.id, c.sessionB.id])),
+    [conflicts],
+  )
+
   if (isLoading && !data) {
     return (
       <div className="space-y-4">
@@ -36,14 +44,6 @@ export default function SessionsPageClient() {
       </div>
     )
   }
-
-  const sessions = data?.sessions ?? []
-  const conflicts = data?.conflicts ?? []
-
-  const conflictedSessionIds = useMemo(
-    () => new Set(conflicts.flatMap((c: any) => [c.sessionA.id, c.sessionB.id])),
-    [conflicts],
-  )
 
   return (
     <>

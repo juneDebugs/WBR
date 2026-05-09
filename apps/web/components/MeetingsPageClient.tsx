@@ -24,34 +24,6 @@ export default function MeetingsPageClient() {
   const statusFilter = searchParams.get('status')?.toUpperCase()
   const typeFilter = searchParams.get('type') === 'attendee' ? 'attendee' : searchParams.get('type') === 'sponsor' ? 'sponsor' : undefined
 
-  if (isLoading && !data) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="h-10 w-36 bg-gray-200 rounded-xl animate-pulse" />
-          <div className="h-10 w-36 bg-gray-200 rounded-xl animate-pulse" />
-        </div>
-        <div className="grid grid-cols-5 gap-3 mb-6">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-              <div className="h-3 w-16 bg-gray-100 rounded animate-pulse mb-2" />
-              <div className="h-8 w-12 bg-gray-100 rounded animate-pulse" />
-            </div>
-          ))}
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gray-100">
-              <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-              <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-              <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   const allMeetingRequests = data?.allMeetingRequests ?? []
   const sponsorMeetings = data?.sponsorMeetings ?? []
   const bookmarkCounts = data?.bookmarkCounts ?? []
@@ -139,6 +111,34 @@ export default function MeetingsPageClient() {
 
     return { allConfirmed, sponsorFillRate, scheduleByDay }
   }, [meetingRequests, confirmedSponsorMeetings])
+
+  if (isLoading && !data) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="h-10 w-36 bg-gray-200 rounded-xl animate-pulse" />
+          <div className="h-10 w-36 bg-gray-200 rounded-xl animate-pulse" />
+        </div>
+        <div className="grid grid-cols-5 gap-3 mb-6">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+              <div className="h-3 w-16 bg-gray-100 rounded animate-pulse mb-2" />
+              <div className="h-8 w-12 bg-gray-100 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gray-100">
+              <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
