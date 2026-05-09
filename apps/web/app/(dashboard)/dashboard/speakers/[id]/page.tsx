@@ -3,7 +3,22 @@ import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { ConfirmButton } from '@/components/ConfirmButton'
 import { redirect, notFound } from 'next/navigation'
+import { revalidateTag } from 'next/cache'
 import Link from 'next/link'
+
+async function revalidateAttendeeSpeakers(speakerId?: string) {
+  const tags = ['speakers']
+  if (speakerId) tags.push(`speaker-${speakerId}`)
+  try {
+    await fetch('http://localhost:3001/api/revalidate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: process.env.NEXTAUTH_SECRET, tags }),
+    })
+  } catch {
+    // Attendee app may not be running; ignore
+  }
+}
 
 async function updateSpeaker(id: string, formData: FormData) {
   'use server'
@@ -19,12 +34,16 @@ async function updateSpeaker(id: string, formData: FormData) {
       linkedinUrl: (formData.get('linkedinUrl') as string) || null,
     },
   })
+  revalidateTag('speakers')
+  await revalidateAttendeeSpeakers(id)
   redirect('/dashboard/speakers')
 }
 
 async function deleteSpeaker(id: string) {
   'use server'
   await prisma.speaker.delete({ where: { id } })
+  revalidateTag('speakers')
+  await revalidateAttendeeSpeakers(id)
   redirect('/dashboard/speakers')
 }
 

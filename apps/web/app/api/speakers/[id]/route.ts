@@ -1,7 +1,22 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
+
+async function revalidateAttendeeSpeakers(speakerId?: string) {
+  const tags = ['speakers']
+  if (speakerId) tags.push(`speaker-${speakerId}`)
+  try {
+    await fetch('http://localhost:3001/api/revalidate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: process.env.NEXTAUTH_SECRET, tags }),
+    })
+  } catch {
+    // Attendee app may not be running; ignore
+  }
+}
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -46,6 +61,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     },
   })
 
+  revalidateTag('speakers')
+  await revalidateAttendeeSpeakers(id)
+
   return NextResponse.json(updated)
 }
 
@@ -61,5 +79,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   await prisma.speaker.delete({ where: { id } })
+  revalidateTag('speakers')
+  await revalidateAttendeeSpeakers(id)
   return NextResponse.json({ success: true })
 }
