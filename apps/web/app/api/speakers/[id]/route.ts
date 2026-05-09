@@ -28,41 +28,44 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
   const body = await req.json()
 
-  const existing = await prisma.speaker.findUnique({ where: { id } })
-  if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
-
   if (!body.name || !body.name.trim()) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   }
 
-  const updated = await prisma.speaker.update({
-    where: { id },
-    data: {
-      name: body.name.trim(),
-      bio: body.bio?.trim() || null,
-      // Only update photoUrl if explicitly included in the payload (avoids re-sending large base64)
-      ...('photoUrl' in body && { photoUrl: body.photoUrl || null }),
-      photoPosition: body.photoPosition?.trim() || '50% 50%',
-      company: body.company?.trim() || null,
-      jobTitle: body.jobTitle?.trim() || null,
-      twitterHandle: body.twitterHandle?.trim() || null,
-      linkedinUrl: body.linkedinUrl?.trim() || null,
-    },
-    select: {
-      id: true,
-      name: true,
-      photoUrl: true,
-      photoPosition: true,
-      jobTitle: true,
-      company: true,
-      bio: true,
-      twitterHandle: true,
-      linkedinUrl: true,
-    },
-  })
+  let updated
+  try {
+    updated = await prisma.speaker.update({
+      where: { id },
+      data: {
+        name: body.name.trim(),
+        bio: body.bio?.trim() || null,
+        ...('photoUrl' in body && { photoUrl: body.photoUrl || null }),
+        photoPosition: body.photoPosition?.trim() || '50% 50%',
+        company: body.company?.trim() || null,
+        jobTitle: body.jobTitle?.trim() || null,
+        twitterHandle: body.twitterHandle?.trim() || null,
+        linkedinUrl: body.linkedinUrl?.trim() || null,
+      },
+      select: {
+        id: true,
+        name: true,
+        photoUrl: true,
+        photoPosition: true,
+        jobTitle: true,
+        company: true,
+        bio: true,
+        twitterHandle: true,
+        linkedinUrl: true,
+      },
+    })
+  } catch (e: any) {
+    if (e.code === 'P2025') return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+    throw e
+  }
 
   revalidateTag('speakers')
-  await revalidateAttendeeSpeakers(id)
+  // Fire-and-forget: don't block the response waiting for attendee app
+  revalidateAttendeeSpeakers(id)
 
   return NextResponse.json(updated)
 }

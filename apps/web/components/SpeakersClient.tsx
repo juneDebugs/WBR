@@ -103,6 +103,27 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
     return () => window.removeEventListener('keydown', onKey)
   }, [editingSpeaker])
 
+  function compressImage(file: File, maxWidth: number, quality: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const scale = Math.min(1, maxWidth / img.width)
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = reject
+      img.src = url
+    })
+  }
+
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -116,16 +137,15 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
     }
     setUploading(true)
     setError('')
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setForm(f => ({ ...f, photoUrl: ev.target?.result as string, photoPosition: '50% 50%', photoScale: 1 }))
-      setUploading(false)
-    }
-    reader.onerror = () => {
-      setError('Failed to read file')
-      setUploading(false)
-    }
-    reader.readAsDataURL(file)
+    compressImage(file, 800, 0.8)
+      .then(dataUrl => {
+        setForm(f => ({ ...f, photoUrl: dataUrl, photoPosition: '50% 50%', photoScale: 1 }))
+        setUploading(false)
+      })
+      .catch(() => {
+        setError('Failed to read file')
+        setUploading(false)
+      })
     e.target.value = ''
   }
 
