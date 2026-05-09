@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
 import { invalidate } from '@/lib/mem-cache'
@@ -11,9 +10,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as any).id as string
+  const user = await getUserFromHeaders()
+  if (!user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = user.id
 
   const body = await req.json()
   const { targetUserId, targetSponsorId, message } = body
@@ -51,14 +50,11 @@ export async function POST(req: Request) {
   return NextResponse.json(request)
 }
 
-export async function GET(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as any).id as string
-  const role = (session.user as any).role as string
-  const sponsorId = (session.user as any).sponsorId as string | null
+export async function GET() {
+  const user = await getUserFromHeaders()
+  if (!user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (role === 'STAFF') {
+  if (user.role === 'STAFF') {
     const requests = await prisma.meetingRequest.findMany({
       include: {
         requester: true,
@@ -74,9 +70,9 @@ export async function GET(req: Request) {
   const requests = await prisma.meetingRequest.findMany({
     where: {
       OR: [
-        { requesterId: userId },
-        { targetUserId: userId },
-        ...(sponsorId ? [{ targetSponsorId: sponsorId }] : []),
+        { requesterId: user.id },
+        { targetUserId: user.id },
+        ...(user.sponsorId ? [{ targetSponsorId: user.sponsorId }] : []),
       ],
     },
     include: {

@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
   const msg = await prisma.message.create({
     data: { roomId: GENERAL_ROOM_ID, senderId: sender.id, content: message.trim() },
-    include: { sender: true },
+    include: { sender: { select: { id: true, name: true, email: true, image: true } } },
   })
 
   return NextResponse.json({ ok: true, message: msg })

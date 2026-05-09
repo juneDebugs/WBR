@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 import { ProfileForm } from '@/components/ProfileForm'
 
@@ -15,10 +15,7 @@ function getCachedProfile(userId: string) {
 }
 
 export default async function ProfilePage() {
-  const session = await getSession()
-  const userId = (session!.user as any).id as string
-
-  const user = await getCachedProfile(userId)
-
-  return <ProfileForm user={user!} />
+  const user = await getUserFromHeaders()
+  const profile = await getCachedProfile(user.id)
+  return <ProfileForm user={profile!} />
 }

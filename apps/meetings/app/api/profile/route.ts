@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 
 const MAX_LEN = 1000
 
 export async function PATCH(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as any).id as string
+  const user = await getUserFromHeaders()
+  if (!user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = user.id
 
   const body = await req.json()
   const { company, jobTitle, companySize, annualRevenue, solutionsOffering, solutionsSeeking, website, bio, image } = body

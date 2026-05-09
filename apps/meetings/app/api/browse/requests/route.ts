@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 
 export async function GET() {
-  const session = await getSession()
-  if (!session) return NextResponse.json({ sponsorIds: [], userIds: [] }, { status: 401 })
-
-  const userId = (session.user as any).id as string
+  const user = await getUserFromHeaders()
+  if (!user.id) return NextResponse.json({ sponsorIds: [], userIds: [] }, { status: 401 })
 
   const rows = await prisma.meetingRequest.findMany({
-    where: { requesterId: userId, status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] } },
+    where: { requesterId: user.id, status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] } },
     select: { targetSponsorId: true, targetUserId: true },
   })
 

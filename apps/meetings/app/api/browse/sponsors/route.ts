@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 
 export async function GET() {
-  const session = await getSession()
-  if (!session) return NextResponse.json([], { status: 401 })
-
-  const userId = (session.user as any).id as string
+  const user = await getUserFromHeaders()
+  if (!user.id) return NextResponse.json([], { status: 401 })
 
   const sponsors = await prisma.sponsor.findMany({
     orderBy: [{ tier: 'asc' }, { name: 'asc' }],
@@ -18,6 +16,6 @@ export async function GET() {
   })
 
   return NextResponse.json(
-    sponsors.map(s => ({ ...s, users: s.users.filter(u => u.id !== userId) })),
+    sponsors.map(s => ({ ...s, users: s.users.filter(u => u.id !== user.id) })),
   )
 }

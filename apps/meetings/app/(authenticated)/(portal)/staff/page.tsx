@@ -1,13 +1,12 @@
 export const revalidate = 30
-import { getSession } from '@/lib/session'
+import { getUserFromHeaders } from '@/lib/user'
 import { redirect } from 'next/navigation'
 import { prisma } from '@conference/db'
 import { StaffQueue } from '@/components/StaffQueue'
 
 export default async function StaffPage() {
-  const session = await getSession()
-  const role = (session!.user as any).role as string
-  if (role !== 'STAFF') redirect('/browse')
+  const user = await getUserFromHeaders()
+  if (user.role !== 'STAFF') redirect('/browse')
 
   const [requests, timeBlocks] = await Promise.all([
     prisma.meetingRequest.findMany({

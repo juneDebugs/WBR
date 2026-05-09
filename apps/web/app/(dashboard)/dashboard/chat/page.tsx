@@ -15,7 +15,7 @@ export default async function ChatAdminPage() {
         messages: {
           orderBy: { createdAt: 'desc' },
           take: 20,
-          include: { sender: true },
+          include: { sender: { select: { id: true, name: true, email: true, image: true } } },
         },
       },
     }),
