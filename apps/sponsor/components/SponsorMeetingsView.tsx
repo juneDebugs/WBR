@@ -98,33 +98,43 @@ export function SponsorMeetingsView({
   const invalidate = useInvalidate()
   const [tab, setTab] = useState<Tab>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
+
+  // Apply optimistic status overrides
+  const patchedInbound = inbound.map(r => localUpdates[r.id] ? { ...r, status: localUpdates[r.id] } : r)
+  const patchedOutbound = outbound.map(r => localUpdates[r.id] ? { ...r, status: localUpdates[r.id] } : r)
 
   async function updateStatus(requestId: string, status: string) {
     setActionLoading(requestId)
+    setLocalUpdates(prev => ({ ...prev, [requestId]: status }))
     try {
-      await fetch(`/api/meetings/${requestId}`, {
+      const res = await fetch(`/api/meetings/${requestId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
-      invalidate.meetings()
-      invalidate.sponsor()
+      if (!res.ok) {
+        setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
+      } else {
+        invalidate.meetings()
+        invalidate.sponsor()
+      }
     } finally {
       setActionLoading(null)
     }
   }
 
-  const confirmedInbound = inbound.filter(r => r.status === 'CONFIRMED' || r.status === 'APPROVED')
-  const confirmedOutbound = outbound.filter(r => r.status === 'CONFIRMED' || r.status === 'APPROVED')
-  const pendingInbound = inbound.filter(r => r.status === 'PENDING')
+  const confirmedInbound = patchedInbound.filter(r => r.status === 'CONFIRMED' || r.status === 'APPROVED')
+  const confirmedOutbound = patchedOutbound.filter(r => r.status === 'CONFIRMED' || r.status === 'APPROVED')
+  const pendingInbound = patchedInbound.filter(r => r.status === 'PENDING')
 
-  const allCount = inbound.length + outbound.length
+  const allCount = patchedInbound.length + patchedOutbound.length
   const confirmedCount = confirmedInbound.length + confirmedOutbound.length + sponsorMeetings.length
 
   const tabs = [
     { key: 'all' as Tab, label: 'All', count: allCount },
-    { key: 'inbound' as Tab, label: 'Inbound', count: inbound.length, dot: pendingInbound.length > 0 },
-    { key: 'outbound' as Tab, label: 'Sent', count: outbound.length },
+    { key: 'inbound' as Tab, label: 'Inbound', count: patchedInbound.length, dot: pendingInbound.length > 0 },
+    { key: 'outbound' as Tab, label: 'Sent', count: patchedOutbound.length },
     { key: 'confirmed' as Tab, label: 'Confirmed', count: confirmedCount },
   ]
 
@@ -170,7 +180,7 @@ export function SponsorMeetingsView({
       ]
     } else {
       if (showInbound) {
-        items.push(...inbound.map(r => (
+        items.push(...patchedInbound.map(r => (
           <PersonRow key={r.id} requestId={r.id} person={r.requester} status={r.status}
             timeBlock={r.timeBlock} message={r.message} direction="inbound"
             onApprove={() => updateStatus(r.id, 'APPROVED')}
@@ -179,7 +189,7 @@ export function SponsorMeetingsView({
         )))
       }
       if (showOutbound) {
-        items.push(...outbound.map(r => (
+        items.push(...patchedOutbound.map(r => (
           <PersonRow key={r.id} requestId={r.id} person={r.targetUser} status={r.status}
             timeBlock={r.timeBlock} message={r.message} direction="outbound" />
         )))

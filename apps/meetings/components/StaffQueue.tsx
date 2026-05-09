@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import { format } from 'date-fns'
 
@@ -18,6 +19,7 @@ export function StaffQueue({ requests: initialRequests, timeBlocks }: { requests
   const [selectedTimeBlock, setSelectedTimeBlock] = useState<string>('')
   const [loading, setLoading] = useState<string | null>(null)
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   async function updateStatus(id: string, status: string, timeBlockId?: string) {
     setLoading(id)
@@ -32,6 +34,9 @@ export function StaffQueue({ requests: initialRequests, timeBlocks }: { requests
         setRequests(prev => prev.map(r => r.id === id ? updated : r))
         setAssigningId(null)
         setSelectedTimeBlock('')
+        queryClient.invalidateQueries({ queryKey: ['meetings'] })
+        queryClient.invalidateQueries({ queryKey: ['requests'] })
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         router.refresh()
       }
     } finally {

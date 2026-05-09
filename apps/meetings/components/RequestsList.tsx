@@ -111,6 +111,8 @@ export function RequestsList({ currentUserId }: { currentUserId: string }) {
         setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
       } else {
         queryClient.invalidateQueries({ queryKey: ['requests'] })
+        queryClient.invalidateQueries({ queryKey: ['meetings'] })
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       }
     } finally {
       setActionLoading(null)

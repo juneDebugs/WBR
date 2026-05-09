@@ -113,6 +113,8 @@ export function MeetingsView({ currentUserId, currentSponsorId }: { currentUserI
         setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
       } else {
         queryClient.invalidateQueries({ queryKey: ['meetings'] })
+        queryClient.invalidateQueries({ queryKey: ['requests'] })
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       }
     } finally {
       setActionLoading(null)
