@@ -14,5 +14,5 @@ export function useAttendees() {
   return useQuery({ queryKey: ['attendees'], queryFn: () => fetch('/api/data/attendees').then(r => r.json()), staleTime: 300_000 })
 }
 export function useMeetingsData() {
-  return useQuery({ queryKey: ['meetings'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 15_000 })
+  return useQuery({ queryKey: ['meetings'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 60_000 })
 }

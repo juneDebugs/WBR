@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 const COMPANY_SIZES = [
   { value: '', label: 'Not set' },
@@ -77,11 +76,9 @@ interface UserData {
 }
 
 export function AttendeeProfileEditor({ user }: { user: UserData }) {
-  const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
 
   const [form, setForm] = useState({
     name: user.name ?? '',
@@ -108,7 +105,6 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
     e.preventDefault()
     setSaving(true)
     setError(null)
-    setSuccess(false)
     try {
       const res = await fetch(`/api/attendees/${user.id}`, {
         method: 'PATCH',
@@ -134,9 +130,7 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
         setError(data.error ?? 'Failed to save.')
         return
       }
-      setSuccess(true)
       setEditing(false)
-      router.refresh()
     } catch {
       setError('Something went wrong.')
     } finally {
@@ -147,7 +141,7 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
   if (!editing) {
     return (
       <button
-        onClick={() => { setEditing(true); setSuccess(false); setError(null) }}
+        onClick={() => { setEditing(true); setError(null) }}
         className="btn-primary text-xs flex items-center gap-1.5"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -171,9 +165,6 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
 
       {error && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200/60 text-red-600 text-xs">{error}</div>
-      )}
-      {success && (
-        <div className="mb-4 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-600 text-xs">Profile saved.</div>
       )}
 
       <form onSubmit={handleSave} className="space-y-4">

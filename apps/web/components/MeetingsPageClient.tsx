@@ -1,19 +1,13 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useMeetingsData } from '@/lib/hooks'
 import { AutoScheduleButton } from '@/components/AutoScheduleButton'
 import { MeetingsTableWithPanel } from '@/components/MeetingsTableWithPanel'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-
-const TZ = 'America/Los_Angeles'
-function fmtTime(d: Date | string, showAmPm = false) {
-  const date = typeof d === 'string' ? new Date(d) : d
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ,
-  }).replace(/\s?(AM|PM)/g, (_, p1: string) => showAmPm ? `\u202f${p1.toLowerCase()}` : '')
-}
+import { fmtTime, TZ } from '@/lib/format'
 
 const TIER_COLORS: Record<string, string> = {
   PLATINUM: 'bg-slate-100 text-slate-700',
@@ -62,29 +56,24 @@ export default function MeetingsPageClient() {
   const sponsorMeetings = data?.sponsorMeetings ?? []
   const bookmarkCounts = data?.bookmarkCounts ?? []
 
-  // Compute status counts in-memory from all requests
-  const counts: Record<string, number> = {}
-  for (const r of allMeetingRequests) {
-    counts[r.status] = (counts[r.status] ?? 0) + 1
-  }
-
-  // Compute requester commitments in-memory (non-rejected/cancelled)
-  const requesterCommitments: Record<string, number> = {}
-  for (const r of allMeetingRequests) {
-    if (r.status !== 'REJECTED' && r.status !== 'CANCELLED') {
-      requesterCommitments[r.requesterId] = (requesterCommitments[r.requesterId] ?? 0) + 1
+  const { counts, requesterCommitments, sponsorCommitments, bookmarkCommitments } = useMemo(() => {
+    const counts: Record<string, number> = {}
+    const requesterCommitments: Record<string, number> = {}
+    for (const r of allMeetingRequests) {
+      counts[r.status] = (counts[r.status] ?? 0) + 1
+      if (r.status !== 'REJECTED' && r.status !== 'CANCELLED') {
+        requesterCommitments[r.requesterId] = (requesterCommitments[r.requesterId] ?? 0) + 1
+      }
     }
-  }
-
-  // Compute sponsor commitments in-memory (non-cancelled sponsor meetings)
-  const sponsorCommitments: Record<string, number> = {}
-  for (const sm of sponsorMeetings) {
-    if (sm.status !== 'CANCELLED') {
-      sponsorCommitments[sm.sponsorId] = (sponsorCommitments[sm.sponsorId] ?? 0) + 1
+    const sponsorCommitments: Record<string, number> = {}
+    for (const sm of sponsorMeetings) {
+      if (sm.status !== 'CANCELLED') {
+        sponsorCommitments[sm.sponsorId] = (sponsorCommitments[sm.sponsorId] ?? 0) + 1
+      }
     }
-  }
-
-  const bookmarkCommitments = Object.fromEntries(bookmarkCounts.map((r: any) => [r.userId, r._count._all]))
+    const bookmarkCommitments = Object.fromEntries(bookmarkCounts.map((r: any) => [r.userId, r._count._all]))
+    return { counts, requesterCommitments, sponsorCommitments, bookmarkCommitments }
+  }, [allMeetingRequests, sponsorMeetings, bookmarkCounts])
 
   // Apply filters for the displayed list
   const meetingRequests = allMeetingRequests.filter((r: any) => {
@@ -94,59 +83,62 @@ export default function MeetingsPageClient() {
     return true
   })
 
-  // Filter sponsor meetings to confirmed only for schedule view
-  const confirmedSponsorMeetings = sponsorMeetings.filter((sm: any) => sm.status === 'CONFIRMED')
+  const confirmedSponsorMeetings = useMemo(
+    () => sponsorMeetings.filter((sm: any) => sm.status === 'CONFIRMED'),
+    [sponsorMeetings],
+  )
 
-  // Build master schedule: group confirmed sponsor meetings by time slot
-  const confirmedRequests = meetingRequests.filter((r: any) => r.status === 'CONFIRMED' && r.timeBlock)
-  const allConfirmed = [
-    ...confirmedSponsorMeetings.map((sm: any) => ({
-      id: sm.id,
-      type: 'sponsor' as const,
-      timeBlock: sm.timeBlock,
-      sponsorName: sm.sponsor.name,
-      sponsorLogo: sm.sponsor.logoUrl,
-      sponsorTier: sm.sponsor.tier,
-      personName: sm.user.name ?? sm.user.email ?? '\u2014',
-      personCompany: sm.user.company ?? '',
-      personRole: sm.user.role,
-      status: sm.status,
-    })),
-    ...confirmedRequests.map((r: any) => ({
-      id: r.id,
-      type: 'request' as const,
-      timeBlock: r.timeBlock!,
-      sponsorName: r.targetSponsor?.name ?? null,
-      sponsorLogo: r.targetSponsor?.logoUrl ?? null,
-      sponsorTier: r.targetSponsor?.tier ?? null,
-      personName: r.requester.name ?? '\u2014',
-      personCompany: r.requester.company ?? '',
-      personRole: r.requester.role,
-      targetName: r.targetUser?.name ?? null,
-      targetCompany: r.targetUser?.company ?? null,
-      status: r.status,
-    })),
-  ].sort((a, b) => new Date(a.timeBlock.startsAt).getTime() - new Date(b.timeBlock.startsAt).getTime())
+  const { allConfirmed, sponsorFillRate, scheduleByDay } = useMemo(() => {
+    const confirmedRequests = meetingRequests.filter((r: any) => r.status === 'CONFIRMED' && r.timeBlock)
+    const allConfirmed = [
+      ...confirmedSponsorMeetings.map((sm: any) => ({
+        id: sm.id,
+        type: 'sponsor' as const,
+        timeBlock: sm.timeBlock,
+        sponsorName: sm.sponsor.name,
+        sponsorLogo: sm.sponsor.logoUrl,
+        sponsorTier: sm.sponsor.tier,
+        personName: sm.user.name ?? sm.user.email ?? '\u2014',
+        personCompany: sm.user.company ?? '',
+        personRole: sm.user.role,
+        status: sm.status,
+      })),
+      ...confirmedRequests.map((r: any) => ({
+        id: r.id,
+        type: 'request' as const,
+        timeBlock: r.timeBlock!,
+        sponsorName: r.targetSponsor?.name ?? null,
+        sponsorLogo: r.targetSponsor?.logoUrl ?? null,
+        sponsorTier: r.targetSponsor?.tier ?? null,
+        personName: r.requester.name ?? '\u2014',
+        personCompany: r.requester.company ?? '',
+        personRole: r.requester.role,
+        targetName: r.targetUser?.name ?? null,
+        targetCompany: r.targetUser?.company ?? null,
+        status: r.status,
+      })),
+    ].sort((a, b) => new Date(a.timeBlock.startsAt).getTime() - new Date(b.timeBlock.startsAt).getTime())
 
-  // Sponsor fill-rate summary (for schedule tab)
-  const sponsorFillMap = new Map<string, { id: string; name: string; tier: string; logoUrl: string | null; count: number }>()
-  for (const sm of confirmedSponsorMeetings) {
-    const id = sm.sponsor.id
-    if (!sponsorFillMap.has(id)) sponsorFillMap.set(id, { id, name: sm.sponsor.name, tier: sm.sponsor.tier, logoUrl: sm.sponsor.logoUrl, count: 0 })
-    sponsorFillMap.get(id)!.count++
-  }
-  const sponsorFillRate = Array.from(sponsorFillMap.values()).sort((a, b) => b.count - a.count)
+    const sponsorFillMap = new Map<string, { id: string; name: string; tier: string; logoUrl: string | null; count: number }>()
+    for (const sm of confirmedSponsorMeetings) {
+      const id = sm.sponsor.id
+      if (!sponsorFillMap.has(id)) sponsorFillMap.set(id, { id, name: sm.sponsor.name, tier: sm.sponsor.tier, logoUrl: sm.sponsor.logoUrl, count: 0 })
+      sponsorFillMap.get(id)!.count++
+    }
+    const sponsorFillRate = Array.from(sponsorFillMap.values()).sort((a, b) => b.count - a.count)
 
-  // Group by day then by time slot
-  const scheduleByDay = new Map<string, Map<string, typeof allConfirmed>>()
-  for (const item of allConfirmed) {
-    const day = new Date(item.timeBlock.startsAt).toISOString().slice(0, 10)
-    const slot = item.timeBlock.id
-    if (!scheduleByDay.has(day)) scheduleByDay.set(day, new Map())
-    const dayMap = scheduleByDay.get(day)!
-    if (!dayMap.has(slot)) dayMap.set(slot, [])
-    dayMap.get(slot)!.push(item)
-  }
+    const scheduleByDay = new Map<string, Map<string, typeof allConfirmed>>()
+    for (const item of allConfirmed) {
+      const day = new Date(item.timeBlock.startsAt).toISOString().slice(0, 10)
+      const slot = item.timeBlock.id
+      if (!scheduleByDay.has(day)) scheduleByDay.set(day, new Map())
+      const dayMap = scheduleByDay.get(day)!
+      if (!dayMap.has(slot)) dayMap.set(slot, [])
+      dayMap.get(slot)!.push(item)
+    }
+
+    return { allConfirmed, sponsorFillRate, scheduleByDay }
+  }, [meetingRequests, confirmedSponsorMeetings])
 
   return (
     <>

@@ -1,4 +1,4 @@
-export const revalidate = 30
+export const revalidate = 120
 import { prisma } from '@conference/db'
 import { unstable_cache } from 'next/cache'
 import { AdminHeader } from '@/components/AdminHeader'
@@ -9,15 +9,17 @@ import { notFound } from 'next/navigation'
 
 import { AttendeeProfileEditor } from '@/components/AttendeeProfileEditor'
 
-const getCachedAllUsers = unstable_cache(
-  async (excludeUserId: string) => prisma.user.findMany({
-    where: { id: { not: excludeUserId }, role: { in: ['ATTENDEE', 'SPEAKER', 'SPONSOR'] } },
-    select: { id: true, name: true, email: true, company: true },
-    orderBy: { name: 'asc' },
-  }),
-  ['attendee-page-all-users'],
-  { revalidate: 300, tags: ['attendees'] },
-)
+function getCachedAllUsers(excludeUserId: string) {
+  return unstable_cache(
+    async () => prisma.user.findMany({
+      where: { id: { not: excludeUserId }, role: { in: ['ATTENDEE', 'SPEAKER', 'SPONSOR'] } },
+      select: { id: true, name: true, email: true, company: true },
+      orderBy: { name: 'asc' },
+    }),
+    ['attendee-page-all-users', excludeUserId],
+    { revalidate: 300, tags: ['attendees'] },
+  )()
+}
 
 const getCachedTimeBlocks = unstable_cache(
   async () => prisma.timeBlock.findMany({

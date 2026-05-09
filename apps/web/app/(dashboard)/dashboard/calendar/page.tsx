@@ -1,34 +1,43 @@
-export const revalidate = 30
+export const revalidate = 120
 import { prisma } from '@conference/db'
+import { unstable_cache } from 'next/cache'
 import { AdminHeader } from '@/components/AdminHeader'
 import { CalendarClient } from '@/components/CalendarClient'
 
-export default async function CalendarPage() {
-  const conference = await prisma.conference.findFirst({
-    where: { active: true },
-    select: { startDate: true, endDate: true },
-  })
+const getCachedCalendarData = unstable_cache(
+  async () => {
+    const [conference, sessions, timeBlocks, meetingRequests] = await Promise.all([
+      prisma.conference.findFirst({
+        where: { active: true },
+        select: { startDate: true, endDate: true },
+      }),
+      prisma.confSession.findMany({
+        orderBy: { startsAt: 'asc' },
+        include: { speaker: { select: { name: true } } },
+      }),
+      prisma.timeBlock.findMany({
+        orderBy: { startsAt: 'asc' },
+        include: { _count: { select: { meetingRequests: { where: { status: 'CONFIRMED' } } } } },
+      }),
+      prisma.meetingRequest.findMany({
+        where: { status: 'CONFIRMED', timeBlockId: { not: null } },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          timeBlock: true,
+          requester: { select: { name: true } },
+          targetUser: { select: { name: true } },
+          targetSponsor: { select: { name: true } },
+        },
+      }),
+    ])
+    return { conference, sessions, timeBlocks, meetingRequests }
+  },
+  ['web-calendar-data'],
+  { revalidate: 120, tags: ['sessions', 'meetings', 'time-blocks'] },
+)
 
-  const [sessions, timeBlocks, meetingRequests] = await Promise.all([
-    prisma.confSession.findMany({
-      orderBy: { startsAt: 'asc' },
-      include: { speaker: { select: { name: true } } },
-    }),
-    prisma.timeBlock.findMany({
-      orderBy: { startsAt: 'asc' },
-      include: { _count: { select: { meetingRequests: { where: { status: 'CONFIRMED' } } } } },
-    }),
-    prisma.meetingRequest.findMany({
-      where: { status: 'CONFIRMED', timeBlockId: { not: null } },
-      orderBy: { createdAt: 'asc' },
-      include: {
-        timeBlock: true,
-        requester: { select: { name: true } },
-        targetUser: { select: { name: true } },
-        targetSponsor: { select: { name: true } },
-      },
-    }),
-  ])
+export default async function CalendarPage() {
+  const { conference, sessions, timeBlocks, meetingRequests } = await getCachedCalendarData()
 
   const events = [
     ...sessions.map(s => ({

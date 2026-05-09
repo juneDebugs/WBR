@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 
 interface Props {
@@ -44,7 +44,7 @@ export function ConferenceBanner({ id, name, venue, startDate, endDate }: Props)
     setSaving(false)
   }
 
-  const dateRange = (() => {
+  const dateRange = useMemo(() => {
     try {
       const s = new Date(current.startDate)
       const e = new Date(current.endDate)
@@ -53,7 +53,7 @@ export function ConferenceBanner({ id, name, venue, startDate, endDate }: Props)
       }
       return `${format(s, 'MMMM d')} – ${format(e, 'MMMM d, yyyy')}`
     } catch { return '' }
-  })()
+  }, [current.startDate, current.endDate])
 
   return (
     <div className="mb-6 bg-primary/5 border border-primary/20 rounded-xl p-4">

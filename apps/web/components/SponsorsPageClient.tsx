@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useSponsors } from '@/lib/hooks'
 import { SponsorLogo } from '@/components/SponsorLogo'
 import { SponsorRemindButton } from '@/components/SponsorRemindButton'
@@ -110,23 +111,27 @@ export default function SponsorsPageClient() {
   const sponsors = data?.sponsors ?? []
   const committedRows = data?.committedRows ?? []
 
-  const committedMap = new Map(committedRows.map((r: any) => [r.sponsorId, r._count._all]))
+  const { withReadiness, grouped } = useMemo(() => {
+    const committedMap = new Map(committedRows.map((r: any) => [r.sponsorId, r._count._all]))
 
-  const withReadiness = [...sponsors]
-    .sort((a: any, b: any) => (TIER_ORDER[a.tier] ?? 9) - (TIER_ORDER[b.tier] ?? 9) || a.name.localeCompare(b.name))
-    .map((s: any) => {
-      const results = CHECKLIST.map(item => ({ key: item.key, label: item.label, done: item.check(s) }))
-      const done = results.filter(r => r.done).length
-      const pct = Math.round((done / CHECKLIST.length) * 100)
-      return { ...s, pct, missing: results.filter(r => !r.done).map(r => r.label) }
-    })
+    const withReadiness = [...sponsors]
+      .sort((a: any, b: any) => (TIER_ORDER[a.tier] ?? 9) - (TIER_ORDER[b.tier] ?? 9) || a.name.localeCompare(b.name))
+      .map((s: any) => {
+        const results = CHECKLIST.map(item => ({ key: item.key, label: item.label, done: item.check(s) }))
+        const done = results.filter(r => r.done).length
+        const pct = Math.round((done / CHECKLIST.length) * 100)
+        return { ...s, pct, missing: results.filter(r => !r.done).map(r => r.label) }
+      })
 
-  const grouped = TIER_LIST.map(tier => ({
-    tier,
-    sponsors: sponsors
-      .filter((s: any) => s.tier === tier)
-      .map((s: any) => ({ ...s, committed: committedMap.get(s.id) ?? 0 })),
-  })).filter(g => g.sponsors.length > 0)
+    const grouped = TIER_LIST.map(tier => ({
+      tier,
+      sponsors: sponsors
+        .filter((s: any) => s.tier === tier)
+        .map((s: any) => ({ ...s, committed: committedMap.get(s.id) ?? 0 })),
+    })).filter(g => g.sponsors.length > 0)
+
+    return { withReadiness, grouped }
+  }, [sponsors, committedRows])
 
   return (
     <>

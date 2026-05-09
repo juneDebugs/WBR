@@ -1,4 +1,4 @@
-export const revalidate = 30
+export const revalidate = 120
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
@@ -17,7 +17,7 @@ const getCachedDashboardStats = unstable_cache(
     return { sessionCount, speakerCount, pendingMeetings, attendeeCount, conference }
   },
   ['web-dashboard-stats'],
-  { revalidate: 30, tags: ['sessions', 'speakers', 'meetings', 'attendees'] },
+  { revalidate: 120, tags: ['sessions', 'speakers', 'meetings', 'attendees'] },
 )
 
 export default async function DashboardPage() {

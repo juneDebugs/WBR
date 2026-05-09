@@ -4,20 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { MeetingRequestActions } from './MeetingRequestActions'
-
-const TZ = 'America/Los_Angeles'
-
-function fmtTime(d: string | Date, showAmPm = false) {
-  const date = typeof d === 'string' ? new Date(d) : d
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit',
-    hour12: true, timeZone: TZ,
-  }).replace(/\s?(AM|PM)/g, (_, p1: string) => showAmPm ? `\u202f${p1.toLowerCase()}` : '')
-}
-function fmtDate(d: string | Date) {
-  const date = typeof d === 'string' ? new Date(d) : d
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ })
-}
+import { fmtTime, fmtDate, TZ } from '@/lib/format'
 
 function CommitPill({ label, n, total, done, warn }: { label: string; n: number; total: number; done: boolean; warn: boolean }) {
   return (

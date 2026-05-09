@@ -1,4 +1,4 @@
-export const revalidate = 30
+export const revalidate = 60
 import { prisma, detectSpeakerConflicts } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { ConfirmButton } from '@/components/ConfirmButton'

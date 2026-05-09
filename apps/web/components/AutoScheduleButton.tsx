@@ -1,14 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 interface Props {
   approvedCount: number
 }
 
 export function AutoScheduleButton({ approvedCount }: Props) {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ scheduled: number; skipped: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -31,15 +29,12 @@ export function AutoScheduleButton({ approvedCount }: Props) {
         return
       }
       setResult({ scheduled: data.scheduled, skipped: data.skipped })
-      router.refresh()
     } catch {
       setError('Network error')
     } finally {
       setLoading(false)
     }
   }
-
-  const hasApproved = (approvedCount ?? 0) > 0
 
   return (
     <div className="flex items-center gap-2">
@@ -51,13 +46,13 @@ export function AutoScheduleButton({ approvedCount }: Props) {
       {error && (
         <span className="text-xs text-red-500">{error}</span>
       )}
-      {!hasApproved && !result && (
+      {!approvedCount && !result && (
         <span className="text-xs text-gray-400">Approve requests first to enable auto-scheduling</span>
       )}
       <button
         onClick={run}
-        disabled={loading || !hasApproved}
-        title={!hasApproved ? 'No approved requests to schedule' : undefined}
+        disabled={loading || !approvedCount}
+        title={!approvedCount ? 'No approved requests to schedule' : undefined}
         className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {loading ? (
@@ -74,7 +69,7 @@ export function AutoScheduleButton({ approvedCount }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            Auto-Schedule All{hasApproved ? ` (${approvedCount})` : ''}
+            Auto-Schedule All{approvedCount ? ` (${approvedCount})` : ''}
           </>
         )}
       </button>

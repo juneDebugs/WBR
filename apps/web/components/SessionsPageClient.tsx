@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useSessions } from '@/lib/hooks'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -39,8 +40,10 @@ export default function SessionsPageClient() {
   const sessions = data?.sessions ?? []
   const conflicts = data?.conflicts ?? []
 
-  // Build a set of session IDs involved in any conflict
-  const conflictedSessionIds = new Set(conflicts.flatMap((c: any) => [c.sessionA.id, c.sessionB.id]))
+  const conflictedSessionIds = useMemo(
+    () => new Set(conflicts.flatMap((c: any) => [c.sessionA.id, c.sessionB.id])),
+    [conflicts],
+  )
 
   return (
     <>

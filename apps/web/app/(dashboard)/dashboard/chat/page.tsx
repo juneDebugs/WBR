@@ -1,4 +1,4 @@
-export const revalidate = 30
+export const revalidate = 120
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { GlobalChatAdmin } from '@/components/GlobalChatAdmin'
