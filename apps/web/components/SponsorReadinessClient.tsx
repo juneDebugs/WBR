@@ -159,7 +159,6 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
           {!expanded && (
             <div className="flex items-center gap-2">
               <Bar pct={metrics.avgPct} height="h-2" gradient />
-              <span className="text-sm font-bold" style={{ color: scoreColor(metrics.avgPct) }}>{metrics.avgPct}%</span>
             </div>
           )}
           {incomplete.length > 0 && (
