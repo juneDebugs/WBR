@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useQuery } from '@tanstack/react-query'
 
 function parsePhotoPos(pos: string | null | undefined) {
@@ -322,12 +321,12 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     {speaker.photoUrl ? (
-                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 relative">
+                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
                         {(() => { const pp = parsePhotoPos(speaker.photoPosition); return (
-                          <Image src={optimizeUrl(speaker.photoUrl!, 80)} alt={speaker.name}
-                            width={80} height={80} sizes="40px"
+                          <img src={optimizeUrl(speaker.photoUrl!, 80)} alt={speaker.name}
+                            width={40} height={40}
                             loading={idx < 12 ? 'eager' : 'lazy'}
-                            priority={idx < 6}
+                            decoding="async"
                             className="w-full h-full object-cover"
                             style={{ objectPosition: pp.position, ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }) }} />
                         )})()}

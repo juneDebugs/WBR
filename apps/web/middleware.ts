@@ -3,13 +3,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request })
-  const isPublicRoute = request.nextUrl.pathname.startsWith('/login') ||
+  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/api/auth') ||
     request.nextUrl.pathname === '/api/health' ||
-    request.nextUrl.pathname === '/api/login' ||
-    /^\/api\/speakers\/[^/]+\/photo$/.test(request.nextUrl.pathname)
+    request.nextUrl.pathname === '/api/login'
 
-  if (!token && !isPublicRoute) {
+  if (!token && !isAuthRoute) {
     // API routes get 401 JSON, page routes get redirect to login
     if (request.nextUrl.pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
