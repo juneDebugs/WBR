@@ -53,15 +53,6 @@ export function useRecommendations() {
   })
 }
 
-// ── My Requests page (derives from meetings cache — no extra fetch) ──
-export function useRequests() {
-  const meetings = useMeetings()
-  return {
-    ...meetings,
-    data: meetings.data?.requests,
-  }
-}
-
 // ── Meetings page ────────────────────────────────────────────────────
 export function useMeetings() {
   return useQuery<{ requests: any[]; sponsorMeetings: any[]; conflicts: any[] }>({
