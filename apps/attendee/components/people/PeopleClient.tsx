@@ -298,6 +298,15 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
   }
 
   const searchLower = search.toLowerCase()
+
+  // Build an optimistic friends list from friendState + all known users
+  const optimisticFriends = useMemo(() => {
+    const allKnown = new Map<string, Person>()
+    for (const u of friends) allKnown.set(u.id, u)
+    for (const u of loadedUsers) allKnown.set(u.id, u)
+    return Array.from(allKnown.values()).filter(u => friendState[u.id])
+  }, [friends, loadedUsers, friendState])
+
   const filteredPeople = useMemo(() => {
     if (tab === 'Messages') return []
     if (tab === 'Discover') {
@@ -309,13 +318,13 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
         (u.company ?? '').toLowerCase().includes(searchLower)
       )
     }
-    // Friends tab
-    if (!search) return friends
-    return friends.filter(u =>
+    // Friends tab — use optimistic list for instant updates
+    if (!search) return optimisticFriends
+    return optimisticFriends.filter(u =>
       (u.name ?? '').toLowerCase().includes(searchLower) ||
       (u.company ?? '').toLowerCase().includes(searchLower)
     )
-  }, [tab, loadedUsers, friends, search, searchLower, searchResults])
+  }, [tab, loadedUsers, optimisticFriends, search, searchLower, searchResults])
 
   const filteredConvos = useMemo(() => {
     if (tab !== 'Messages') return []
@@ -434,8 +443,8 @@ export function PeopleClient({ currentUserId, allUsers, totalCount, friends, fri
               tab === t ? 'text-primary border-b-2 border-primary' : 'text-gray-500'
             }`}>
             {t}
-            {t === 'Friends' && friends.length > 0 && (
-              <span className="text-xs text-gray-400">({friends.length})</span>
+            {t === 'Friends' && optimisticFriends.length > 0 && (
+              <span className="text-xs text-gray-400">({optimisticFriends.length})</span>
             )}
             {t === 'Messages' && conversations.length > 0 && (
               <span className="text-xs text-gray-400">({conversations.length})</span>
