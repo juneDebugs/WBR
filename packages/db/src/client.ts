@@ -5,6 +5,7 @@ import { createClient as createLibsqlWeb } from '@libsql/client/web'
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
   libsqlAdapter: any
+  libsqlClient: any
   replicaSynced: Promise<void> | undefined
 }
 
@@ -49,28 +50,32 @@ function createClient(): PrismaClient {
             .then(() => { console.log('[prisma] Embedded replica synced') })
             .catch((e: any) => console.error('[prisma] Initial replica sync failed:', e?.message))
           globalForPrisma.libsqlAdapter = new PrismaLibSQL(libsql)
+          globalForPrisma.libsqlClient = libsql
           dbConnectionMode = 'turso-embedded-replica'
         }
       }
 
       const raw = new PrismaClient({ adapter: globalForPrisma.libsqlAdapter } as any)
 
-      // If we have a pending sync, wrap every query to await it first.
-      // After the initial sync resolves, await is a no-op (resolved promise).
-      if (globalForPrisma.replicaSynced) {
-        return raw.$extends({
-          query: {
-            $allModels: {
-              async $allOperations({ args, query }) {
+      // Wrap queries: await initial sync before reads, and sync replica after writes
+      // so that subsequent reads see the latest data.
+      const WRITE_OPS = new Set(['create', 'createMany', 'update', 'updateMany', 'delete', 'deleteMany', 'upsert'])
+      return raw.$extends({
+        query: {
+          $allModels: {
+            async $allOperations({ operation, args, query }: any) {
+              if (globalForPrisma.replicaSynced) {
                 await globalForPrisma.replicaSynced
-                return query(args)
-              },
+              }
+              const result = await query(args)
+              if (WRITE_OPS.has(operation) && globalForPrisma.libsqlClient) {
+                globalForPrisma.libsqlClient.sync().catch(() => {})
+              }
+              return result
             },
           },
-        }) as unknown as PrismaClient
-      }
-
-      return raw
+        },
+      }) as unknown as PrismaClient
     } catch (e: any) {
       dbConnectionMode = 'turso-failed: ' + (e?.message ?? 'unknown error')
       console.error('[prisma] CRITICAL: Turso adapter failed:', e?.message, e?.stack)
