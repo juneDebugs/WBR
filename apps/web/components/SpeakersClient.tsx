@@ -150,7 +150,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
     }
     setUploading(true)
     setError('')
-    compressImage(file, 800, 0.8)
+    compressImage(file, 400, 0.65)
       .then(dataUrl => {
         setForm(f => ({ ...f, photoUrl: dataUrl, photoPosition: '50% 50%', photoScale: 1 }))
         setUploading(false)

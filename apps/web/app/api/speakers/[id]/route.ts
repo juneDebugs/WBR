@@ -35,6 +35,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const hasPhoto = 'photoUrl' in body
   const photoUrl = hasPhoto ? (body.photoUrl || null) : undefined
 
+  // Guard: reject oversized data URIs (max ~100KB base64 ≈ 75KB image)
+  if (photoUrl && photoUrl.startsWith('data:') && photoUrl.length > 150_000) {
+    return NextResponse.json({ error: 'Photo too large. Please use a smaller image.' }, { status: 400 })
+  }
+
   // Respond immediately with optimistic data
   const optimistic = {
     id,
