@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
+import { format, isToday as isTodayFn, isTomorrow } from 'date-fns'
 import Link from 'next/link'
 
 
@@ -34,6 +34,21 @@ export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, o
   const [decliningId, setDecliningId] = useState<string | null>(null)
   const now = new Date()
   const activeList = tab === 'past' ? past : upcoming
+
+  // Group meetings by date
+  const grouped = activeList.reduce<Record<string, UpcomingMeeting[]>>((acc, meeting) => {
+    const dateKey = format(new Date(meeting.startsAt), 'yyyy-MM-dd')
+    ;(acc[dateKey] ??= []).push(meeting)
+    return acc
+  }, {})
+  const dateKeys = Object.keys(grouped)
+
+  function dateLabel(key: string) {
+    const d = new Date(key + 'T00:00:00')
+    if (isTodayFn(d)) return 'Today'
+    if (isTomorrow(d)) return 'Tomorrow'
+    return format(d, 'EEEE, MMMM d')
+  }
 
   const tabs = [
     { key: 'upcoming', label: 'Upcoming', count: upcoming.length },
@@ -78,63 +93,73 @@ export function AttendeesMeetingsView({ upcoming, past, incomingRequests, tab, o
               {tab === 'upcoming' && <p className="text-gray-400 text-sm mt-1">Your scheduled 1-1s will appear here.</p>}
             </div>
           ) : (
-            <div className="space-y-3">
-              {activeList.map((meeting, i) => {
-                const diffMs = new Date(meeting.startsAt).getTime() - now.getTime()
-                const isToday = diffMs > 0 && diffMs < 24 * 3_600_000
-                const h = Math.floor(diffMs / 3_600_000)
-                const m = Math.floor((diffMs % 3_600_000) / 60_000)
-                const countdown = isToday ? (h > 0 ? `in ${h}h ${m}m` : `in ${m}m`) : null
-                const isNext = tab === 'upcoming' && i === 0
-
+            <div className="space-y-5">
+              {dateKeys.map((dateKey, gi) => {
+                const meetings = grouped[dateKey]
                 return (
-                  <Link key={meeting.id} href={`/meetings/${meeting.id}`}
-                    className={`card block active:scale-[0.99] transition-transform ${isNext ? 'ring-2 ring-primary/20' : ''}`}>
-                    {isNext && (
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">Next Up</p>
-                    )}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
-                          {meeting.other.image
-                            ? <img src={meeting.other.image} alt={meeting.other.name ?? ''} loading="lazy" className="w-10 h-10 rounded-full object-cover" />
-                            : <span className="text-primary font-bold">{(meeting.other.name ?? '?')[0]}</span>}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900 text-sm">{meeting.other.name ?? 'Unknown'}</p>
-                          {(meeting.other.jobTitle || meeting.other.company) && (
-                            <p className="text-xs text-gray-500">{[meeting.other.jobTitle, meeting.other.company].filter(Boolean).join(' · ')}</p>
-                          )}
-                          <div className="flex items-center gap-1 mt-1.5 text-xs text-gray-500">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {format(new Date(meeting.startsAt), 'MMM d, h:mm a')} – {format(new Date(meeting.endsAt), 'h:mm a')}
-                          </div>
-                          {meeting.location && (
-                            <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-400">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              </svg>
-                              {meeting.location}
+                  <div key={dateKey}>
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">{dateLabel(dateKey)}</p>
+                    <div className="space-y-3">
+                      {meetings.map((meeting, i) => {
+                        const diffMs = new Date(meeting.startsAt).getTime() - now.getTime()
+                        const meetingIsToday = diffMs > 0 && diffMs < 24 * 3_600_000
+                        const h = Math.floor(diffMs / 3_600_000)
+                        const m = Math.floor((diffMs % 3_600_000) / 60_000)
+                        const countdown = meetingIsToday ? (h > 0 ? `in ${h}h ${m}m` : `in ${m}m`) : null
+                        const isNext = tab === 'upcoming' && gi === 0 && i === 0
+
+                        return (
+                          <Link key={meeting.id} href={`/meetings/${meeting.id}`}
+                            className={`card block active:scale-[0.99] transition-transform ${isNext ? 'ring-2 ring-primary/20' : ''}`}>
+                            {isNext && (
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">Next Up</p>
+                            )}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
+                                  {meeting.other.image
+                                    ? <img src={meeting.other.image} alt={meeting.other.name ?? ''} loading="lazy" className="w-10 h-10 rounded-full object-cover" />
+                                    : <span className="text-primary font-bold">{(meeting.other.name ?? '?')[0]}</span>}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-900 text-sm">{meeting.other.name ?? 'Unknown'}</p>
+                                  {(meeting.other.jobTitle || meeting.other.company) && (
+                                    <p className="text-xs text-gray-500">{[meeting.other.jobTitle, meeting.other.company].filter(Boolean).join(' · ')}</p>
+                                  )}
+                                  <div className="flex items-center gap-1 mt-1.5 text-xs text-gray-500">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    {format(new Date(meeting.startsAt), 'h:mm a')} – {format(new Date(meeting.endsAt), 'h:mm a')}
+                                  </div>
+                                  {meeting.location && (
+                                    <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-400">
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                      </svg>
+                                      {meeting.location}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                <span className={`badge ${statusColors[meeting.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                                  {meeting.status.charAt(0) + meeting.status.slice(1).toLowerCase()}
+                                </span>
+                                {countdown && (
+                                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                    {countdown}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        <span className={`badge ${statusColors[meeting.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {meeting.status.charAt(0) + meeting.status.slice(1).toLowerCase()}
-                        </span>
-                        {countdown && (
-                          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                            {countdown}
-                          </span>
-                        )}
-                      </div>
+                          </Link>
+                        )
+                      })}
                     </div>
-                  </Link>
+                  </div>
                 )
               })}
             </div>
