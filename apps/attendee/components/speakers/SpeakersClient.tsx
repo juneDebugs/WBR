@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useSpeakersData } from '@/lib/hooks'
 import { CompanyLogo, COMPANY_LOGO_NAMES } from './CompanyLogos'
 
@@ -307,54 +308,70 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                     const isExpanded = expandedSession === session.id
                     const { day, time } = formatSessionTime(session.startsAt, session.endsAt)
                     return (
-                      <button
+                      <div
                         key={session.id}
-                        onClick={() => setExpandedSession(isExpanded ? null : session.id)}
-                        className="w-full text-left rounded-xl bg-white transition-all duration-200 active:scale-[0.98]"
+                        className="rounded-xl bg-white transition-all duration-200"
                         style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
                       >
-                        <div className="px-3.5 py-3 flex items-start gap-3">
-                          <div
-                            className="w-1 rounded-full flex-shrink-0 mt-0.5"
-                            style={{
-                              background: `linear-gradient(to bottom, ${palette.from}, ${palette.to})`,
-                              height: isExpanded ? '100%' : '36px',
-                              minHeight: '36px',
-                              transition: 'height 0.2s ease',
-                            }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 leading-snug">{session.title}</p>
-                            <div className="flex items-center gap-1.5 mt-1.5">
-                              <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <span className="text-xs text-gray-500">{day} · {time}</span>
-                            </div>
-                            {session.room && (
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span className="text-xs text-gray-500">{session.room}</span>
-                              </div>
-                            )}
-                            {/* Expandable description */}
+                        <button
+                          onClick={() => setExpandedSession(isExpanded ? null : session.id)}
+                          className="w-full text-left active:scale-[0.98] transition-transform"
+                        >
+                          <div className="px-3.5 py-3 flex items-start gap-3">
                             <div
+                              className="w-1 rounded-full flex-shrink-0 mt-0.5"
                               style={{
-                                maxHeight: isExpanded ? '500px' : '0px',
-                                opacity: isExpanded ? 1 : 0,
-                                overflow: 'hidden',
-                                transition: 'max-height 0.3s ease, opacity 0.2s ease',
+                                background: `linear-gradient(to bottom, ${palette.from}, ${palette.to})`,
+                                height: isExpanded ? '100%' : '36px',
+                                minHeight: '36px',
+                                transition: 'height 0.2s ease',
                               }}
-                            >
-                              {session.description && (
-                                <p className="text-xs text-gray-500 leading-relaxed mt-2.5 pt-2.5 border-t border-gray-100">
-                                  {session.description}
-                                </p>
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 leading-snug">{session.title}</p>
+                              <div className="flex items-center gap-1.5 mt-1.5">
+                                <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-xs text-gray-500">{day} · {time}</span>
+                              </div>
+                              {session.room && (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  <span className="text-xs text-gray-500">{session.room}</span>
+                                </div>
                               )}
-                              <div className="flex flex-wrap gap-1.5 mt-2">
+                            </div>
+                            {/* Chevron */}
+                            <svg
+                              className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1 transition-transform duration-200"
+                              style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </button>
+                        {/* Expandable content */}
+                        <div
+                          style={{
+                            maxHeight: isExpanded ? '500px' : '0px',
+                            opacity: isExpanded ? 1 : 0,
+                            overflow: 'hidden',
+                            transition: 'max-height 0.3s ease, opacity 0.2s ease',
+                          }}
+                        >
+                          <div className="px-3.5 pb-3">
+                            {session.description && (
+                              <p className="text-xs text-gray-500 leading-relaxed pb-2.5 mb-2.5 border-b border-gray-100">
+                                {session.description}
+                              </p>
+                            )}
+                            <div className="flex items-center justify-between">
+                              <div className="flex flex-wrap gap-1.5">
                                 {session.track && (
                                   <span
                                     className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
@@ -367,18 +384,21 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                                   {session.type}
                                 </span>
                               </div>
+                              <Link
+                                href={`/schedule/${session.id}`}
+                                className="flex items-center gap-1 text-xs font-semibold active:opacity-60 transition-opacity"
+                                style={{ color: palette.chipText }}
+                                onClick={e => e.stopPropagation()}
+                              >
+                                View in Agenda
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                              </Link>
                             </div>
                           </div>
-                          {/* Chevron */}
-                          <svg
-                            className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1 transition-transform duration-200"
-                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
                         </div>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>
