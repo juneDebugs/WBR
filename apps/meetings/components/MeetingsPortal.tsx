@@ -276,20 +276,28 @@ export function MeetingsPortal({ currentUserId, currentSponsorId, defaultSection
         </div>
       )}
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        {/* Section toggle — instant client-side switch */}
+        {/* iOS-style segmented control */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+          <div className="relative flex items-center bg-gray-200/70 backdrop-blur-sm rounded-[10px] p-[3px]">
+            {/* Sliding indicator */}
+            <div
+              className="absolute top-[3px] bottom-[3px] rounded-[8px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)] transition-transform duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
+              style={{
+                width: 'calc(50% - 1.5px)',
+                transform: isMeetings ? 'translateX(0)' : 'translateX(calc(100% + 3px))',
+              }}
+            />
             <button
               onClick={() => switchSection('meetings')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-                isMeetings ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              className={`relative z-10 min-w-[120px] px-5 py-[7px] text-[13px] font-semibold rounded-[8px] transition-colors duration-200 ${
+                isMeetings ? 'text-gray-900' : 'text-gray-500 active:text-gray-700'
               }`}>
               Meetings
             </button>
             <button
               onClick={() => switchSection('requests')}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-                !isMeetings ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              className={`relative z-10 min-w-[120px] px-5 py-[7px] text-[13px] font-semibold rounded-[8px] transition-colors duration-200 ${
+                !isMeetings ? 'text-gray-900' : 'text-gray-500 active:text-gray-700'
               }`}>
               My Requests
             </button>
