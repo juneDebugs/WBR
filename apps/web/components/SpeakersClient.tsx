@@ -296,12 +296,12 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
           <div className="h-9 w-32 bg-gray-200/60 rounded-xl animate-pulse" />
         </div>
         <div className="h-10 bg-gray-200/40 rounded-xl animate-pulse" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {[...Array(12)].map((_, i) => (
-            <div key={i} className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-white/60 animate-pulse">
-              <div className="w-20 h-20 rounded-full bg-gray-100" />
-              <div className="h-4 w-20 bg-gray-100 rounded-lg" />
-              <div className="h-3 w-16 bg-gray-100/60 rounded-lg" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {[...Array(10)].map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/60 animate-pulse">
+              <div className="w-24 h-24 rounded-full bg-gray-100" />
+              <div className="h-4 w-24 bg-gray-100 rounded-lg" />
+              <div className="h-3 w-20 bg-gray-100/60 rounded-lg" />
             </div>
           ))}
         </div>
@@ -344,24 +344,24 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
 
       {/* Speaker grid */}
       {filtered.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filtered.map((speaker, idx) => {
             const pp = parsePhotoPos(speaker.photoPosition)
             return (
               <button
                 key={speaker.id}
                 onClick={() => openEdit(speaker)}
-                className="group flex flex-col items-center text-center p-5 rounded-2xl bg-white ring-1 ring-black/[0.04] hover:ring-[#007AFF]/30 hover:shadow-lg hover:shadow-blue-500/[0.06] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+                className="group flex flex-col items-center text-center p-6 rounded-2xl bg-white ring-1 ring-black/[0.04] hover:ring-[#007AFF]/30 hover:shadow-lg hover:shadow-blue-500/[0.06] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer"
               >
                 {/* Avatar */}
                 {speaker.photoUrl ? (
-                  <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-black/[0.06] mb-3">
+                  <div className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-black/[0.06] mb-3.5">
                     <img
-                      src={optimizeUrl(speaker.photoUrl!, 160)}
+                      src={optimizeUrl(speaker.photoUrl!, 192)}
                       alt={speaker.name}
-                      width={80}
-                      height={80}
-                      loading={idx < 18 ? 'eager' : 'lazy'}
+                      width={96}
+                      height={96}
+                      loading={idx < 15 ? 'eager' : 'lazy'}
                       decoding="async"
                       className="w-full h-full object-cover"
                       style={{
@@ -371,21 +371,21 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                     />
                   </div>
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0 ring-1 ring-black/[0.04] mb-3">
-                    <span className="text-gray-400 font-semibold text-2xl">{speaker.name[0]}</span>
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0 ring-1 ring-black/[0.04] mb-3.5">
+                    <span className="text-gray-400 font-semibold text-3xl">{speaker.name[0]}</span>
                   </div>
                 )}
 
                 {/* Info */}
-                <p className="text-[14px] font-semibold text-gray-900 leading-tight line-clamp-1">{speaker.name}</p>
+                <p className="text-[15px] font-semibold text-gray-900 leading-snug line-clamp-2">{speaker.name}</p>
                 {speaker.jobTitle && (
-                  <p className="text-[12px] text-gray-400 mt-0.5 leading-tight line-clamp-1">{speaker.jobTitle}</p>
+                  <p className="text-[13px] text-gray-400 mt-0.5 leading-tight line-clamp-1">{speaker.jobTitle}</p>
                 )}
                 {speaker.company && (
-                  <p className="text-[12px] font-medium text-[#007AFF]/80 mt-0.5 leading-tight line-clamp-1">{speaker.company}</p>
+                  <p className="text-[13px] font-medium text-[#007AFF]/80 mt-0.5 leading-tight line-clamp-1">{speaker.company}</p>
                 )}
                 {speaker._count.confSessions > 0 && (
-                  <div className="mt-2.5 px-2 py-0.5 rounded-full bg-gray-100/80 text-[11px] font-medium text-gray-500">
+                  <div className="mt-3 px-2.5 py-0.5 rounded-full bg-gray-100/80 text-[11px] font-medium text-gray-500">
                     {speaker._count.confSessions} session{speaker._count.confSessions !== 1 ? 's' : ''}
                   </div>
                 )}
