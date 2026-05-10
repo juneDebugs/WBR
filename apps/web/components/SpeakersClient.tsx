@@ -278,19 +278,30 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
   // iOS-style grouped input
   const iosInput = 'w-full bg-transparent text-[15px] text-gray-900 placeholder:text-gray-400 outline-none'
 
+  const [search, setSearch] = useState('')
+
+  const filtered = speakers.filter((s: Speaker) => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    return s.name.toLowerCase().includes(q)
+      || (s.company ?? '').toLowerCase().includes(q)
+      || (s.jobTitle ?? '').toLowerCase().includes(q)
+  })
+
   if (isLoading && speakers.length === 0) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-6">
-          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-          <div className="h-8 w-28 bg-gray-200 rounded animate-pulse" />
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="h-5 w-32 bg-gray-200/60 rounded-lg animate-pulse" />
+          <div className="h-9 w-32 bg-gray-200/60 rounded-xl animate-pulse" />
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gray-100">
-              <div className="w-10 h-10 bg-gray-100 rounded-full animate-pulse" />
-              <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-              <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+        <div className="h-10 bg-gray-200/40 rounded-xl animate-pulse" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {[...Array(12)].map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-white/60 animate-pulse">
+              <div className="w-20 h-20 rounded-full bg-gray-100" />
+              <div className="h-4 w-20 bg-gray-100 rounded-lg" />
+              <div className="h-3 w-16 bg-gray-100/60 rounded-lg" />
             </div>
           ))}
         </div>
@@ -300,59 +311,109 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-gray-500">{speakers.length} speakers total</p>
-        <Link href="/dashboard/speakers/new" className="btn-primary text-sm">+ New Speaker</Link>
+      {/* Header bar */}
+      <div className="flex items-center justify-between mb-5">
+        <p className="text-[13px] text-gray-400 font-medium">{speakers.length} speaker{speakers.length !== 1 ? 's' : ''}</p>
+        <Link
+          href="/dashboard/speakers/new"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white bg-[#007AFF] rounded-xl hover:bg-[#0066d6] active:bg-[#004dad] transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+          Add Speaker
+        </Link>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Speaker</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Company</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Sessions</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {speakers.map((speaker, idx) => (
-              <tr key={speaker.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openEdit(speaker)}>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    {speaker.photoUrl ? (
-                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
-                        {(() => { const pp = parsePhotoPos(speaker.photoPosition); return (
-                          <img src={optimizeUrl(speaker.photoUrl!, 80)} alt={speaker.name}
-                            width={40} height={40}
-                            loading={idx < 12 ? 'eager' : 'lazy'}
-                            decoding="async"
-                            className="w-full h-full object-cover"
-                            style={{ objectPosition: pp.position, ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }) }} />
-                        )})()}
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">
-                        <span className="text-gray-500 font-semibold text-sm">{speaker.name[0]}</span>
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-medium text-gray-900">{speaker.name}</p>
-                      {speaker.jobTitle && <p className="text-xs text-gray-400">{speaker.jobTitle}</p>}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-gray-600">{speaker.company ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-600">{speaker._count.confSessions}</td>
-                <td className="px-4 py-3 text-right">
-                  <span className="text-primary text-xs font-medium">Edit</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {speakers.length === 0 && <p className="text-center text-gray-400 py-12">No speakers yet.</p>}
+      {/* Search */}
+      <div className="relative mb-5">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search speakers..."
+          className="w-full pl-9 pr-4 py-2.5 bg-white/80 backdrop-blur-sm rounded-xl text-[15px] text-gray-900 placeholder:text-gray-400 outline-none ring-1 ring-black/[0.04] focus:ring-[#007AFF]/40 focus:ring-2 transition-shadow"
+        />
+        {search && (
+          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-300/60 flex items-center justify-center hover:bg-gray-300 transition-colors">
+            <svg className="w-3 h-3 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        )}
       </div>
+
+      {/* Speaker grid */}
+      {filtered.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          {filtered.map((speaker, idx) => {
+            const pp = parsePhotoPos(speaker.photoPosition)
+            return (
+              <button
+                key={speaker.id}
+                onClick={() => openEdit(speaker)}
+                className="group flex flex-col items-center text-center p-5 rounded-2xl bg-white ring-1 ring-black/[0.04] hover:ring-[#007AFF]/30 hover:shadow-lg hover:shadow-blue-500/[0.06] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+              >
+                {/* Avatar */}
+                {speaker.photoUrl ? (
+                  <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-black/[0.06] mb-3">
+                    <img
+                      src={optimizeUrl(speaker.photoUrl!, 160)}
+                      alt={speaker.name}
+                      width={80}
+                      height={80}
+                      loading={idx < 18 ? 'eager' : 'lazy'}
+                      decoding="async"
+                      className="w-full h-full object-cover"
+                      style={{
+                        objectPosition: pp.position,
+                        ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }),
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0 ring-1 ring-black/[0.04] mb-3">
+                    <span className="text-gray-400 font-semibold text-2xl">{speaker.name[0]}</span>
+                  </div>
+                )}
+
+                {/* Info */}
+                <p className="text-[14px] font-semibold text-gray-900 leading-tight line-clamp-1">{speaker.name}</p>
+                {speaker.jobTitle && (
+                  <p className="text-[12px] text-gray-400 mt-0.5 leading-tight line-clamp-1">{speaker.jobTitle}</p>
+                )}
+                {speaker.company && (
+                  <p className="text-[12px] font-medium text-[#007AFF]/80 mt-0.5 leading-tight line-clamp-1">{speaker.company}</p>
+                )}
+                {speaker._count.confSessions > 0 && (
+                  <div className="mt-2.5 px-2 py-0.5 rounded-full bg-gray-100/80 text-[11px] font-medium text-gray-500">
+                    {speaker._count.confSessions} session{speaker._count.confSessions !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-20">
+          {search ? (
+            <>
+              <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+              </div>
+              <p className="text-[15px] font-medium text-gray-900">No results</p>
+              <p className="text-[13px] text-gray-400 mt-1">No speakers match &ldquo;{search}&rdquo;</p>
+            </>
+          ) : (
+            <>
+              <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+              </div>
+              <p className="text-[15px] font-medium text-gray-900">No speakers yet</p>
+              <p className="text-[13px] text-gray-400 mt-1">Add your first speaker to get started</p>
+            </>
+          )}
+        </div>
+      )}
 
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
 
