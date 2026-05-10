@@ -1,4 +1,4 @@
-export const revalidate = 30
+export const dynamic = 'force-dynamic'
 import { prisma } from '@conference/db'
 import { getSession } from '@/lib/session'
 import { MyScheduleView } from '@/components/my-schedule/MyScheduleView'
