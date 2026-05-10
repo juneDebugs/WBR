@@ -23,6 +23,15 @@ function optimizeUrl(url: string, size: number): string {
   return url
 }
 
+type ConfSessionInfo = {
+  id: string
+  title: string
+  description: string | null
+  startsAt: string
+  track: string | null
+  type: string
+}
+
 type Speaker = {
   id: string
   name: string
@@ -33,8 +42,33 @@ type Speaker = {
   bio?: string | null
   twitterHandle?: string | null
   linkedinUrl?: string | null
+  confSessions?: ConfSessionInfo[]
   _count: { confSessions: number }
 }
+
+function getProfileCompletion(s: Speaker): { pct: number; missing: string[] } {
+  const fields: [string, boolean][] = [
+    ['Photo', !!s.photoUrl],
+    ['Bio', !!s.bio?.trim()],
+    ['Company', !!s.company?.trim()],
+    ['Title', !!s.jobTitle?.trim()],
+    ['Social', !!(s.twitterHandle?.trim() || s.linkedinUrl?.trim())],
+  ]
+  const filled = fields.filter(([, ok]) => ok).length
+  return { pct: Math.round((filled / fields.length) * 100), missing: fields.filter(([, ok]) => !ok).map(([n]) => n) }
+}
+
+function getSessionOutlineStatus(s: Speaker): 'complete' | 'partial' | 'missing' | 'none' {
+  const sessions = s.confSessions ?? []
+  if (sessions.length === 0) return 'none'
+  const withDesc = sessions.filter(sess => sess.description?.trim())
+  if (withDesc.length === sessions.length) return 'complete'
+  if (withDesc.length > 0) return 'partial'
+  return 'missing'
+}
+
+type SortKey = 'name' | 'company' | 'completion' | 'sessions'
+type SortDir = 'asc' | 'desc'
 
 type SpeakerForm = {
   name: string
@@ -279,6 +313,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
   const iosInput = 'w-full bg-transparent text-[15px] text-gray-900 placeholder:text-gray-400 outline-none'
 
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'name', dir: 'asc' })
 
   const filtered = speakers.filter((s: Speaker) => {
     if (!search.trim()) return true
@@ -288,6 +323,33 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
       || (s.jobTitle ?? '').toLowerCase().includes(q)
   })
 
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sort.dir === 'asc' ? 1 : -1
+    switch (sort.key) {
+      case 'name': return dir * a.name.localeCompare(b.name)
+      case 'company': return dir * (a.company ?? '').localeCompare(b.company ?? '')
+      case 'completion': return dir * (getProfileCompletion(a).pct - getProfileCompletion(b).pct)
+      case 'sessions': return dir * (a._count.confSessions - b._count.confSessions)
+      default: return 0
+    }
+  })
+
+  function toggleSort(key: SortKey) {
+    setSort(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sort.key !== col) return <svg className="w-3.5 h-3.5 text-gray-300 ml-1" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4M16 15l-4 4-4-4" /></svg>
+    return <svg className="w-3.5 h-3.5 text-[#007AFF] ml-1" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d={sort.dir === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} /></svg>
+  }
+
+  // Stats for header
+  const totalSpeakers = speakers.length
+  const avgCompletion = totalSpeakers > 0 ? Math.round(speakers.reduce((sum: number, s: Speaker) => sum + getProfileCompletion(s).pct, 0) / totalSpeakers) : 0
+  const totalSessions = speakers.reduce((sum: number, s: Speaker) => sum + s._count.confSessions, 0)
+  const outlineComplete = speakers.filter((s: Speaker) => getSessionOutlineStatus(s) === 'complete').length
+  const speakersWithSessions = speakers.filter((s: Speaker) => s._count.confSessions > 0).length
+
   if (isLoading && speakers.length === 0) {
     return (
       <div className="space-y-5">
@@ -296,12 +358,16 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
           <div className="h-9 w-32 bg-gray-200/60 rounded-xl animate-pulse" />
         </div>
         <div className="h-10 bg-gray-200/40 rounded-xl animate-pulse" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/60 animate-pulse">
-              <div className="w-24 h-24 rounded-full bg-gray-100" />
-              <div className="h-4 w-24 bg-gray-100 rounded-lg" />
-              <div className="h-3 w-20 bg-gray-100/60 rounded-lg" />
+        <div className="bg-white rounded-2xl overflow-hidden ring-1 ring-black/[0.04]">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-gray-100 last:border-b-0 animate-pulse">
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 bg-gray-100 rounded" />
+                <div className="h-3 w-24 bg-gray-100/60 rounded" />
+              </div>
+              <div className="h-3 w-20 bg-gray-100 rounded" />
+              <div className="h-3 w-16 bg-gray-100 rounded" />
             </div>
           ))}
         </div>
@@ -313,7 +379,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
     <>
       {/* Header bar */}
       <div className="flex items-center justify-between mb-5">
-        <p className="text-[13px] text-gray-400 font-medium">{speakers.length} speaker{speakers.length !== 1 ? 's' : ''}</p>
+        <p className="text-[13px] text-gray-400 font-medium">{totalSpeakers} speaker{totalSpeakers !== 1 ? 's' : ''}</p>
         <Link
           href="/dashboard/speakers/new"
           className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white bg-[#007AFF] rounded-xl hover:bg-[#0066d6] active:bg-[#004dad] transition-colors"
@@ -323,8 +389,28 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
         </Link>
       </div>
 
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="bg-white rounded-2xl px-4 py-3 ring-1 ring-black/[0.04]">
+          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Avg Profile</p>
+          <p className="text-[22px] font-bold text-gray-900 mt-0.5">{avgCompletion}%</p>
+        </div>
+        <div className="bg-white rounded-2xl px-4 py-3 ring-1 ring-black/[0.04]">
+          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Sessions</p>
+          <p className="text-[22px] font-bold text-gray-900 mt-0.5">{totalSessions}</p>
+        </div>
+        <div className="bg-white rounded-2xl px-4 py-3 ring-1 ring-black/[0.04]">
+          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Assigned</p>
+          <p className="text-[22px] font-bold text-gray-900 mt-0.5">{speakersWithSessions}<span className="text-[13px] font-normal text-gray-400">/{totalSpeakers}</span></p>
+        </div>
+        <div className="bg-white rounded-2xl px-4 py-3 ring-1 ring-black/[0.04]">
+          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Outlines Done</p>
+          <p className="text-[22px] font-bold text-gray-900 mt-0.5">{outlineComplete}<span className="text-[13px] font-normal text-gray-400">/{speakersWithSessions}</span></p>
+        </div>
+      </div>
+
       {/* Search */}
-      <div className="relative mb-5">
+      <div className="relative mb-4">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
         </svg>
@@ -342,53 +428,136 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
         )}
       </div>
 
-      {/* Speaker grid */}
-      {filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {filtered.map((speaker, idx) => {
+      {/* Speaker table */}
+      {sorted.length > 0 ? (
+        <div className="bg-white rounded-2xl overflow-hidden ring-1 ring-black/[0.04]">
+          {/* Table header */}
+          <div className="hidden md:grid grid-cols-[1fr_140px_100px_120px] items-center px-5 py-2.5 bg-gray-50/80 border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+            <button onClick={() => toggleSort('name')} className="flex items-center text-left hover:text-gray-600 transition-colors">
+              Speaker <SortIcon col="name" />
+            </button>
+            <button onClick={() => toggleSort('completion')} className="flex items-center justify-center hover:text-gray-600 transition-colors">
+              Profile <SortIcon col="completion" />
+            </button>
+            <button onClick={() => toggleSort('sessions')} className="flex items-center justify-center hover:text-gray-600 transition-colors">
+              Sessions <SortIcon col="sessions" />
+            </button>
+            <div className="text-center">Outline</div>
+          </div>
+
+          {/* Rows */}
+          {sorted.map((speaker, idx) => {
             const pp = parsePhotoPos(speaker.photoPosition)
+            const profile = getProfileCompletion(speaker)
+            const outline = getSessionOutlineStatus(speaker)
             return (
               <button
                 key={speaker.id}
                 onClick={() => openEdit(speaker)}
-                className="group flex flex-col items-center text-center p-6 rounded-2xl bg-white ring-1 ring-black/[0.04] hover:ring-[#007AFF]/30 hover:shadow-lg hover:shadow-blue-500/[0.06] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+                className="w-full grid grid-cols-1 md:grid-cols-[1fr_140px_100px_120px] items-center px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-[#007AFF]/[0.03] active:bg-[#007AFF]/[0.06] transition-colors text-left cursor-pointer group"
               >
-                {/* Avatar */}
-                {speaker.photoUrl ? (
-                  <div className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-black/[0.06] mb-3.5">
-                    <img
-                      src={optimizeUrl(speaker.photoUrl!, 192)}
-                      alt={speaker.name}
-                      width={96}
-                      height={96}
-                      loading={idx < 15 ? 'eager' : 'lazy'}
-                      decoding="async"
-                      className="w-full h-full object-cover"
-                      style={{
-                        objectPosition: pp.position,
-                        ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }),
-                      }}
-                    />
+                {/* Speaker info */}
+                <div className="flex items-center gap-3.5 min-w-0">
+                  {speaker.photoUrl ? (
+                    <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-black/[0.06]">
+                      <img
+                        src={optimizeUrl(speaker.photoUrl!, 80)}
+                        alt={speaker.name}
+                        width={40}
+                        height={40}
+                        loading={idx < 20 ? 'eager' : 'lazy'}
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                        style={{
+                          objectPosition: pp.position,
+                          ...(pp.scale !== 1 && { transform: `scale(${pp.scale})`, transformOrigin: pp.position }),
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0 ring-1 ring-black/[0.04]">
+                      <span className="text-gray-400 font-semibold text-sm">{speaker.name[0]}</span>
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[14px] font-semibold text-gray-900 leading-snug truncate group-hover:text-[#007AFF] transition-colors">{speaker.name}</p>
+                    <p className="text-[12px] text-gray-400 leading-tight truncate">
+                      {[speaker.jobTitle, speaker.company].filter(Boolean).join(' · ') || 'No details'}
+                    </p>
                   </div>
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0 ring-1 ring-black/[0.04] mb-3.5">
-                    <span className="text-gray-400 font-semibold text-3xl">{speaker.name[0]}</span>
-                  </div>
-                )}
+                </div>
 
-                {/* Info */}
-                <p className="text-[15px] font-semibold text-gray-900 leading-snug line-clamp-2">{speaker.name}</p>
-                {speaker.jobTitle && (
-                  <p className="text-[13px] text-gray-400 mt-0.5 leading-tight line-clamp-1">{speaker.jobTitle}</p>
-                )}
-                {speaker.company && (
-                  <p className="text-[13px] font-medium text-[#007AFF]/80 mt-0.5 leading-tight line-clamp-1">{speaker.company}</p>
-                )}
-                {speaker._count.confSessions > 0 && (
-                  <div className="mt-3 px-2.5 py-0.5 rounded-full bg-gray-100/80 text-[11px] font-medium text-gray-500">
-                    {speaker._count.confSessions} session{speaker._count.confSessions !== 1 ? 's' : ''}
+                {/* Profile completion */}
+                <div className="hidden md:flex flex-col items-center gap-1.5">
+                  <div className="flex items-center gap-2 w-full max-w-[100px]">
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          profile.pct === 100 ? 'bg-green-500' : profile.pct >= 60 ? 'bg-[#007AFF]' : 'bg-amber-400'
+                        }`}
+                        style={{ width: `${profile.pct}%` }}
+                      />
+                    </div>
+                    <span className={`text-[11px] font-medium tabular-nums ${
+                      profile.pct === 100 ? 'text-green-600' : profile.pct >= 60 ? 'text-gray-500' : 'text-amber-600'
+                    }`}>{profile.pct}%</span>
                   </div>
-                )}
+                  {profile.missing.length > 0 && (
+                    <p className="text-[10px] text-gray-400 leading-none truncate max-w-[120px]">{profile.missing.join(', ')}</p>
+                  )}
+                </div>
+
+                {/* Sessions */}
+                <div className="hidden md:flex justify-center">
+                  {speaker._count.confSessions > 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-[12px] font-medium text-[#007AFF]">
+                      {speaker._count.confSessions}
+                    </span>
+                  ) : (
+                    <span className="text-[12px] text-gray-300">--</span>
+                  )}
+                </div>
+
+                {/* Outline status */}
+                <div className="hidden md:flex justify-center">
+                  {outline === 'complete' && (
+                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-green-600">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      Complete
+                    </span>
+                  )}
+                  {outline === 'partial' && (
+                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-amber-500">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z" clipRule="evenodd" /></svg>
+                      Partial
+                    </span>
+                  )}
+                  {outline === 'missing' && (
+                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-red-400">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                      Missing
+                    </span>
+                  )}
+                  {outline === 'none' && (
+                    <span className="text-[12px] text-gray-300">--</span>
+                  )}
+                </div>
+
+                {/* Mobile meta row */}
+                <div className="flex md:hidden items-center gap-3 mt-2 ml-[54px]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${profile.pct === 100 ? 'bg-green-500' : profile.pct >= 60 ? 'bg-[#007AFF]' : 'bg-amber-400'}`} style={{ width: `${profile.pct}%` }} />
+                    </div>
+                    <span className="text-[10px] font-medium text-gray-400">{profile.pct}%</span>
+                  </div>
+                  {speaker._count.confSessions > 0 && (
+                    <span className="text-[10px] font-medium text-gray-400">{speaker._count.confSessions} session{speaker._count.confSessions !== 1 ? 's' : ''}</span>
+                  )}
+                  {outline !== 'none' && outline !== 'complete' && (
+                    <span className={`text-[10px] font-medium ${outline === 'missing' ? 'text-red-400' : 'text-amber-500'}`}>Outline {outline}</span>
+                  )}
+                </div>
               </button>
             )
           })}

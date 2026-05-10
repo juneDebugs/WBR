@@ -15,6 +15,16 @@ const getCachedSpeakers = unstable_cache(
       bio: true,
       twitterHandle: true,
       linkedinUrl: true,
+      confSessions: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          startsAt: true,
+          track: true,
+          type: true,
+        },
+      },
       _count: { select: { confSessions: true } },
     },
     orderBy: { name: 'asc' },
