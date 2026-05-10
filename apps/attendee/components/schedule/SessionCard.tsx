@@ -66,14 +66,17 @@ interface Props {
   session: SessionWithSpeaker
   saved?: boolean
   hasConflict?: boolean
+  /** Title of a bookmarked session that overlaps this one's time slot */
+  conflictingBookmark?: string
   onBookmarkChange?: (sessionId: string, bookmarked: boolean) => void
 }
 
-export function SessionCard({ session, saved = false, hasConflict = false, onBookmarkChange }: Props) {
+export function SessionCard({ session, saved = false, hasConflict = false, conflictingBookmark, onBookmarkChange }: Props) {
   const [optimistic, setOptimistic] = useState<boolean | null>(null)
   const bookmarked = optimistic ?? saved
   const [loading, setLoading] = useState(false)
   const isBreak = session.type === 'BREAK'
+  const isKeynote = session.type === 'KEYNOTE'
   const config = typeConfig[session.type] ?? typeConfig.TALK
 
   async function toggleBookmark(e: React.MouseEvent) {
@@ -115,13 +118,17 @@ export function SessionCard({ session, saved = false, hasConflict = false, onBoo
       href={`/schedule/${session.id}`}
       className="block active:scale-[0.98] transition-all overflow-hidden"
       style={{
-        background: hasConflict ? '#fff5f5' : config.tint,
+        background: hasConflict ? '#fff5f5' : isKeynote ? 'rgba(245,158,11,0.06)' : config.tint,
         borderRadius: 16,
-        border: hasConflict ? '1px solid #fed7d7' : `1px solid ${config.color}18`,
+        border: hasConflict
+          ? '1px solid #fed7d7'
+          : isKeynote
+            ? `2.5px solid ${config.color}`
+            : `1px solid ${config.color}18`,
       }}
     >
       {/* Color accent bar at top */}
-      <div style={{ height: 3, background: config.color }} />
+      <div style={{ height: isKeynote ? 4 : 3, background: isKeynote ? `linear-gradient(90deg, ${config.color}, #f97316)` : config.color }} />
 
       {hasConflict && (
         <div className="flex items-center gap-1.5 px-4 pt-3 pb-0">
@@ -132,94 +139,219 @@ export function SessionCard({ session, saved = false, hasConflict = false, onBoo
         </div>
       )}
 
-      <div className="p-4 flex gap-3.5">
-        {/* Speaker photo or type icon */}
-        <div className="flex-shrink-0 pt-0.5">
-          {session.speaker?.photoUrl ? (
-            <img
-              src={optimizePhoto(session.speaker.photoUrl, 100)!}
-              alt={session.speaker.name}
-              loading="lazy"
-              className="w-11 h-11 rounded-2xl object-cover"
-              style={{ border: `2.5px solid ${config.color}`, ...photoStyle(session.speaker.photoPosition) }}
-            />
-          ) : session.speaker ? (
-            (() => {
-              const [ag1, ag2] = avatarGradient(session.speaker.name)
-              return (
-                <div
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center"
-                  style={{ background: `linear-gradient(135deg, ${ag1}, ${ag2})`, border: `2.5px solid ${config.color}` }}
-                >
-                  <span className="text-white font-bold text-base">{session.speaker.name[0]}</span>
-                </div>
-              )
-            })()
-          ) : (
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: config.color }}>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="#fff" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={config.icon} />
-              </svg>
+      {isKeynote ? (
+        /* ── Keynote extended layout ── */
+        <div className="p-4">
+          {/* Top row: badge + time + bookmark */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1"
+                style={{ background: config.color, color: '#fff' }}
+              >
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d={config.icon} />
+                </svg>
+                {config.label}
+              </span>
+              <span className="text-[11px] font-medium text-gray-400">
+                {format(session.startsAt, 'h:mm')}–{format(session.endsAt, 'h:mm a')}
+              </span>
             </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {/* Type badge + time */}
-          <div className="flex items-center gap-2 mb-1.5">
-            <span
-              className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-              style={{ background: config.color, color: '#fff' }}
+            <button
+              onClick={toggleBookmark}
+              disabled={loading}
+              className="flex-shrink-0 p-1.5 -mr-1 rounded-full transition-all"
+              style={{ background: bookmarked ? 'rgba(255,45,85,0.1)' : 'transparent' }}
+              aria-label={bookmarked ? 'Remove from schedule' : 'Save to schedule'}
             >
-              {config.label}
-            </span>
-            <span className="text-[11px] font-medium text-gray-400">
-              {format(session.startsAt, 'h:mm')}–{format(session.endsAt, 'h:mm a')}
-            </span>
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill={bookmarked ? '#ff2d55' : 'none'} stroke={bookmarked ? '#ff2d55' : '#c7c7cc'} strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            </button>
           </div>
 
-          {/* Title */}
-          <h3 className="text-[15px] font-semibold text-gray-900 leading-snug line-clamp-2">{session.title}</h3>
+          {/* Title – larger for keynotes */}
+          <h3 className="text-[17px] font-bold text-gray-900 leading-snug mb-2">{session.title}</h3>
 
-          {/* Speaker */}
+          {/* Speaker row */}
           {session.speaker && (
-            <p className="text-[13px] text-gray-500 mt-1">
-              {session.speaker.name}
-              {session.speaker.company && <span className="text-gray-300"> · {session.speaker.company}</span>}
-            </p>
-          )}
-
-          {/* Room */}
-          {session.room && (
-            <div className="flex items-center gap-1 mt-1.5">
-              <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke={config.color} strokeWidth={2} style={{ opacity: 0.5 }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-[12px] text-gray-400">{session.room}</span>
+            <div className="flex items-center gap-3 mb-2">
+              {session.speaker.photoUrl ? (
+                <img
+                  src={optimizePhoto(session.speaker.photoUrl, 100)!}
+                  alt={session.speaker.name}
+                  loading="lazy"
+                  className="w-10 h-10 rounded-full object-cover"
+                  style={{ border: `2px solid ${config.color}`, ...photoStyle(session.speaker.photoPosition) }}
+                />
+              ) : (
+                (() => {
+                  const [ag1, ag2] = avatarGradient(session.speaker.name)
+                  return (
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center"
+                      style={{ background: `linear-gradient(135deg, ${ag1}, ${ag2})`, border: `2px solid ${config.color}` }}
+                    >
+                      <span className="text-white font-bold text-sm">{session.speaker.name[0]}</span>
+                    </div>
+                  )
+                })()
+              )}
+              <div>
+                <p className="text-[14px] font-semibold text-gray-800">{session.speaker.name}</p>
+                {session.speaker.company && (
+                  <p className="text-[12px] text-gray-400">{session.speaker.company}</p>
+                )}
+              </div>
             </div>
           )}
 
-          {/* About this session */}
+          {/* Description – show more lines for keynotes */}
           {session.description && (
-            <p className="text-[12px] leading-relaxed text-gray-400 mt-2 line-clamp-2">{session.description}</p>
+            <p className="text-[12px] leading-relaxed text-gray-500 mt-1 line-clamp-3">{session.description}</p>
           )}
-        </div>
 
-        {/* Bookmark */}
-        <button
-          onClick={toggleBookmark}
-          disabled={loading}
-          className="flex-shrink-0 self-start p-1.5 -mr-1 rounded-full transition-all"
-          style={{ background: bookmarked ? 'rgba(255,45,85,0.1)' : 'transparent' }}
-          aria-label={bookmarked ? 'Remove from schedule' : 'Save to schedule'}
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill={bookmarked ? '#ff2d55' : 'none'} stroke={bookmarked ? '#ff2d55' : '#c7c7cc'} strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-          </svg>
-        </button>
-      </div>
+          {/* Room + availability */}
+          <div className="flex items-center gap-3 mt-2.5">
+            {session.room && (
+              <div className="flex items-center gap-1">
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke={config.color} strokeWidth={2} style={{ opacity: 0.5 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[12px] text-gray-400">{session.room}</span>
+              </div>
+            )}
+            {!saved && (
+              <div className="flex items-center gap-1.5">
+                {conflictingBookmark ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#ff9500' }} />
+                    <span className="text-[11px] text-amber-500 font-medium truncate">
+                      Busy · {conflictingBookmark}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#34c759' }} />
+                    <span className="text-[11px] text-emerald-500 font-medium">Free</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ── Standard card layout ── */
+        <div className="p-4 flex gap-3.5">
+          {/* Speaker photo or type icon */}
+          <div className="flex-shrink-0 pt-0.5">
+            {session.speaker?.photoUrl ? (
+              <img
+                src={optimizePhoto(session.speaker.photoUrl, 100)!}
+                alt={session.speaker.name}
+                loading="lazy"
+                className="w-11 h-11 rounded-2xl object-cover"
+                style={{ border: `2.5px solid ${config.color}`, ...photoStyle(session.speaker.photoPosition) }}
+              />
+            ) : session.speaker ? (
+              (() => {
+                const [ag1, ag2] = avatarGradient(session.speaker.name)
+                return (
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center"
+                    style={{ background: `linear-gradient(135deg, ${ag1}, ${ag2})`, border: `2.5px solid ${config.color}` }}
+                  >
+                    <span className="text-white font-bold text-base">{session.speaker.name[0]}</span>
+                  </div>
+                )
+              })()
+            ) : (
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: config.color }}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="#fff" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={config.icon} />
+                </svg>
+              </div>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            {/* Type badge + time */}
+            <div className="flex items-center gap-2 mb-1.5">
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                style={{ background: config.color, color: '#fff' }}
+              >
+                {config.label}
+              </span>
+              <span className="text-[11px] font-medium text-gray-400">
+                {format(session.startsAt, 'h:mm')}–{format(session.endsAt, 'h:mm a')}
+              </span>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-[15px] font-semibold text-gray-900 leading-snug line-clamp-2">{session.title}</h3>
+
+            {/* Speaker */}
+            {session.speaker && (
+              <p className="text-[13px] text-gray-500 mt-1">
+                {session.speaker.name}
+                {session.speaker.company && <span className="text-gray-300"> · {session.speaker.company}</span>}
+              </p>
+            )}
+
+            {/* Room */}
+            {session.room && (
+              <div className="flex items-center gap-1 mt-1.5">
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke={config.color} strokeWidth={2} style={{ opacity: 0.5 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[12px] text-gray-400">{session.room}</span>
+              </div>
+            )}
+
+            {/* Availability indicator */}
+            {!saved && session.type !== 'BREAK' && (
+              <div className="flex items-center gap-1.5 mt-2">
+                {conflictingBookmark ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#ff9500' }} />
+                    <span className="text-[11px] text-amber-500 font-medium truncate">
+                      Busy · {conflictingBookmark}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#34c759' }} />
+                    <span className="text-[11px] text-emerald-500 font-medium">Free</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* About this session */}
+            {session.description && (
+              <p className="text-[12px] leading-relaxed text-gray-400 mt-2 line-clamp-2">{session.description}</p>
+            )}
+          </div>
+
+          {/* Bookmark */}
+          <button
+            onClick={toggleBookmark}
+            disabled={loading}
+            className="flex-shrink-0 self-start p-1.5 -mr-1 rounded-full transition-all"
+            style={{ background: bookmarked ? 'rgba(255,45,85,0.1)' : 'transparent' }}
+            aria-label={bookmarked ? 'Remove from schedule' : 'Save to schedule'}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill={bookmarked ? '#ff2d55' : 'none'} stroke={bookmarked ? '#ff2d55' : '#c7c7cc'} strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+          </button>
+        </div>
+      )}
     </Link>
   )
 }

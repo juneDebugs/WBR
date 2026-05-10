@@ -46,6 +46,21 @@ export function ScheduleView({ days: propDays, savedIds: propSavedIds, conflicte
     ? currentDay?.sessions.filter(s => s.track === trackFilter)
     : currentDay?.sessions
 
+  // Compute availability: for each non-saved session, find any overlapping saved session
+  const conflictMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const allSessions = days.flatMap(d => d.sessions)
+    const saved = allSessions.filter(s => savedIds.has(s.id))
+    for (const session of allSessions) {
+      if (savedIds.has(session.id) || session.type === 'BREAK') continue
+      const overlap = saved.find(
+        s => new Date(s.startsAt) < new Date(session.endsAt) && new Date(s.endsAt) > new Date(session.startsAt)
+      )
+      if (overlap) map.set(session.id, overlap.title)
+    }
+    return map
+  }, [days, savedIds])
+
   function handleBookmarkChange(sessionId: string, bookmarked: boolean) {
     setSavedIds(prev => {
       const next = new Set(prev)
@@ -161,6 +176,7 @@ export function ScheduleView({ days: propDays, savedIds: propSavedIds, conflicte
             session={session}
             saved={savedIds.has(session.id)}
             hasConflict={conflictedIds.has(session.id)}
+            conflictingBookmark={conflictMap.get(session.id)}
             onBookmarkChange={handleBookmarkChange}
           />
         ))}
