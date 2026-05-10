@@ -1,13 +1,13 @@
-import { redirect } from 'next/navigation'
-import { getUserFromHeaders } from '@/lib/user'
 import { NavBar } from '@/components/NavBar'
+import { BackgroundPrefetch } from '@/components/BackgroundPrefetch'
 
-export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const user = await getUserFromHeaders()
-  if (!user.id) redirect('/login')
+// Do NOT add blocking server-side fetches here — it causes white screen delays.
+// User info is available client-side via useUser() hook (reads from NextAuth session).
+export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
-      <NavBar sponsorName={user.sponsorName} role={user.role} />
+      <BackgroundPrefetch />
+      <NavBar />
       <main className="flex-1">{children}</main>
     </div>
   )

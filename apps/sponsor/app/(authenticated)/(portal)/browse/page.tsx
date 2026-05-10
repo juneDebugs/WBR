@@ -1,12 +1,8 @@
-import { getUserFromHeaders } from '@/lib/user'
 import { SponsorBrowseView } from '@/components/SponsorBrowseView'
 
-export default async function BrowsePage() {
-  const user = await getUserFromHeaders()
-  return (
-    <SponsorBrowseView
-      sponsorId={user.sponsorId}
-      isStaff={user.role === 'STAFF'}
-    />
-  )
+// Data is fetched client-side via hooks (useAttendees, useSponsorData).
+// Do NOT add blocking server-side fetches here — it causes white screen delays.
+// BackgroundPrefetch in the layout pre-warms the cache.
+export default function BrowsePage() {
+  return <SponsorBrowseView />
 }

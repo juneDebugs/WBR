@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { useSponsorData, useMeetingsData, useAttendees, useInvalidate } from '@/lib/hooks'
+import { useUser, useSponsorData, useMeetingsData, useAttendees, useInvalidate } from '@/lib/hooks'
 import { RecommendedAttendees } from './RecommendedAttendees'
 import { TeamMembers } from './TeamMembers'
 
@@ -43,9 +43,8 @@ function scoreAttendees(attendees: any[], sponsorSignals: string[]) {
   return results.slice(0, 12)
 }
 
-export function DashboardView({ userName, userRole, sponsorId }: {
-  userName: string; userRole: string; sponsorId: string | null;
-}) {
+export function DashboardView() {
+  const { name: userName, role: userRole, sponsorId } = useUser()
   const { data: sponsorData, isLoading: sponsorLoading } = useSponsorData()
   const { data: meetingsData } = useMeetingsData()
   const { data: allAttendees } = useAttendees()

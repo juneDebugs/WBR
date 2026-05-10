@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo, useCallback, memo, useDeferredValue } from 'react'
-import { useAttendees, useSponsorData } from '@/lib/hooks'
+import { useUser, useAttendees, useSponsorData } from '@/lib/hooks'
 
 import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription, getBorderColorForSeeking } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
@@ -299,11 +299,8 @@ const PersonCard = memo(function PersonCard({
 })
 
 
-export function SponsorBrowseView({
-  sponsorId, isStaff,
-}: {
-  sponsorId: string | null; isStaff: boolean;
-}) {
+export function SponsorBrowseView() {
+  const { sponsorId, isStaff } = useUser()
   // TanStack Query: fetch attendee list once, cache for 5 min — no server round-trip on navigation
   const { data: people = [], isLoading: queryLoading } = useAttendees()
   const { data: sponsorData } = useSponsorData()

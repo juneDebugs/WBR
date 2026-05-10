@@ -1,12 +1,8 @@
-import { getUserFromHeaders } from '@/lib/user'
 import { SponsorMeetingsView } from '@/components/SponsorMeetingsView'
 
-export default async function MeetingsPage() {
-  const user = await getUserFromHeaders()
-  return (
-    <SponsorMeetingsView
-      sponsorId={user.sponsorId}
-      isStaff={user.role === 'STAFF'}
-    />
-  )
+// Data is fetched client-side via useMeetingsData hook.
+// Do NOT add blocking server-side fetches here — it causes white screen delays.
+// BackgroundPrefetch in the layout pre-warms the cache.
+export default function MeetingsPage() {
+  return <SponsorMeetingsView />
 }

@@ -1,6 +1,22 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+
+// ── User info from NextAuth session (no server round-trip) ────────────
+export function useUser() {
+  const { data: session } = useSession()
+  const user = session?.user as any
+  return {
+    id: (user?.id as string) ?? '',
+    name: (user?.name as string) ?? '',
+    role: (user?.role as string) ?? 'ATTENDEE',
+    sponsorId: (user?.sponsorId as string | null) ?? null,
+    sponsorName: (user?.sponsorName as string | null) ?? null,
+    isStaff: user?.role === 'STAFF',
+  }
+}
 
 // ── Attendees (browse page + recommendations) ──────────────────────────
 export function useAttendees() {
@@ -78,6 +94,19 @@ export function useTeammates() {
   })
 }
 
+// ── Sponsor profile (profile page) ────────────────────────────────────
+export function useSponsorProfile() {
+  return useQuery<{ sponsor: any; availableUsers: any[] }>({
+    queryKey: ['sponsor-profile'],
+    queryFn: async () => {
+      const res = await fetch('/api/profile/sponsor-data')
+      if (!res.ok) throw new Error('Failed to fetch profile')
+      return res.json()
+    },
+    staleTime: 60 * 1000,
+  })
+}
+
 // ── Invalidation helpers ───────────────────────────────────────────────
 export function useInvalidate() {
   const qc = useQueryClient()
@@ -85,6 +114,17 @@ export function useInvalidate() {
     meetings: () => qc.invalidateQueries({ queryKey: ['meetings-data'] }),
     sponsor: () => qc.invalidateQueries({ queryKey: ['sponsor-data'] }),
     attendees: () => qc.invalidateQueries({ queryKey: ['attendees'] }),
+    profile: () => qc.invalidateQueries({ queryKey: ['sponsor-profile'] }),
     all: () => qc.invalidateQueries(),
   }
+}
+
+// ── Background prefetch (layout-level cache warming) ──────────────────
+export function usePrefetchAll() {
+  const qc = useQueryClient()
+  useEffect(() => {
+    qc.prefetchQuery({ queryKey: ['sponsor-data'], queryFn: () => fetch('/api/sponsor-data').then(r => r.json()), staleTime: 60_000 })
+    qc.prefetchQuery({ queryKey: ['meetings-data'], queryFn: () => fetch('/api/meetings-data').then(r => r.json()), staleTime: 30_000 })
+    qc.prefetchQuery({ queryKey: ['attendees'], queryFn: () => fetch('/api/attendees').then(r => r.json()), staleTime: 300_000 })
+  }, [qc])
 }

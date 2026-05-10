@@ -1,6 +1,6 @@
 'use client'
 import { memo, useCallback, useMemo, useState } from 'react'
-import { useMeetingsData, useInvalidate } from '@/lib/hooks'
+import { useUser, useMeetingsData, useInvalidate } from '@/lib/hooks'
 
 
 type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
@@ -84,11 +84,8 @@ const PersonRow = memo(function PersonRow({ person, status, timeBlock, message, 
   )
 })
 
-export function SponsorMeetingsView({
-  sponsorId, isStaff,
-}: {
-  sponsorId: string | null; isStaff: boolean;
-}) {
+export function SponsorMeetingsView() {
+  const { sponsorId, isStaff } = useUser()
   // TanStack Query: auto-refreshes every 60s, shared cache with schedule/dashboard — no server round-trip on navigation
   const { data: meetingsData, isLoading } = useMeetingsData()
   const inbound = meetingsData?.inbound ?? []
