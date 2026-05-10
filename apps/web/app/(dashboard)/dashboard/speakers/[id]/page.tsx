@@ -47,6 +47,8 @@ async function deleteSpeaker(id: string) {
   redirect('/dashboard/speakers')
 }
 
+const inputClass = 'w-full bg-transparent text-[15px] text-gray-900 placeholder:text-gray-400 outline-none'
+
 export default async function EditSpeakerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const speaker = await prisma.speaker.findUnique({ where: { id } })
@@ -58,63 +60,98 @@ export default async function EditSpeakerPage({ params }: { params: Promise<{ id
   return (
     <>
       <AdminHeader title="Edit Speaker" />
-      <main className="flex-1 p-6 max-w-2xl">
-        <Link href="/dashboard/speakers" className="text-sm text-primary hover:underline mb-6 block">
-          ← Back to Speakers
+      <main className="flex-1 p-6 max-w-lg">
+        <Link href="/dashboard/speakers" className="inline-flex items-center gap-1 text-[15px] text-[#007AFF] hover:opacity-70 transition-opacity mb-6">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+          Speakers
         </Link>
 
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <form action={update} className="space-y-4">
-            <div>
-              <label className="form-label">Name *</label>
-              <input name="name" required defaultValue={speaker.name} className="form-input" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="form-label">Company</label>
-                <input name="company" defaultValue={speaker.company ?? ''} className="form-input" />
+        <form action={update} className="space-y-6">
+          {/* Info section */}
+          <div>
+            <p className="text-[13px] font-medium text-gray-500 uppercase tracking-wide px-4 mb-1.5">Info</p>
+            <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+              <div className="flex items-center px-4 py-2.5">
+                <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">Name</label>
+                <input name="name" required defaultValue={speaker.name} placeholder="Required" className={inputClass} />
               </div>
-              <div>
-                <label className="form-label">Job Title</label>
-                <input name="jobTitle" defaultValue={speaker.jobTitle ?? ''} className="form-input" />
+              <div className="ml-24 border-b border-gray-100" />
+              <div className="flex items-center px-4 py-2.5">
+                <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">Company</label>
+                <input name="company" defaultValue={speaker.company ?? ''} placeholder="Optional" className={inputClass} />
               </div>
-            </div>
-
-            <div>
-              <label className="form-label">Bio</label>
-              <textarea name="bio" rows={4} defaultValue={speaker.bio ?? ''} className="form-input" />
-            </div>
-
-            <div>
-              <label className="form-label">Photo URL</label>
-              <input name="photoUrl" type="url" defaultValue={speaker.photoUrl ?? ''} className="form-input" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="form-label">Twitter / X Handle</label>
-                <input name="twitterHandle" defaultValue={speaker.twitterHandle ?? ''} className="form-input" />
-              </div>
-              <div>
-                <label className="form-label">LinkedIn URL</label>
-                <input name="linkedinUrl" type="url" defaultValue={speaker.linkedinUrl ?? ''} className="form-input" />
+              <div className="ml-24 border-b border-gray-100" />
+              <div className="flex items-center px-4 py-2.5">
+                <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">Title</label>
+                <input name="jobTitle" defaultValue={speaker.jobTitle ?? ''} placeholder="Optional" className={inputClass} />
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <form action={del}>
-                <ConfirmButton message="Delete this speaker?" className="btn-danger text-sm">
-                  Delete
-                </ConfirmButton>
-              </form>
-              <div className="flex gap-3">
-                <Link href="/dashboard/speakers" className="btn-secondary text-sm">Cancel</Link>
-                <button type="submit" className="btn-primary text-sm">Save Changes</button>
+          {/* Bio section */}
+          <div>
+            <p className="text-[13px] font-medium text-gray-500 uppercase tracking-wide px-4 mb-1.5">Bio</p>
+            <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+              <textarea
+                name="bio"
+                rows={4}
+                defaultValue={speaker.bio ?? ''}
+                placeholder="Write a short bio..."
+                className="w-full px-4 py-3 bg-transparent text-[15px] text-gray-900 placeholder:text-gray-400 outline-none resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Photo section */}
+          <div>
+            <p className="text-[13px] font-medium text-gray-500 uppercase tracking-wide px-4 mb-1.5">Photo</p>
+            <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+              <div className="flex items-center px-4 py-2.5">
+                <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">URL</label>
+                <input name="photoUrl" type="url" defaultValue={speaker.photoUrl ?? ''} placeholder="https://..." className={inputClass} />
               </div>
             </div>
-          </form>
-        </div>
+          </div>
+
+          {/* Social section */}
+          <div>
+            <p className="text-[13px] font-medium text-gray-500 uppercase tracking-wide px-4 mb-1.5">Social</p>
+            <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 0 0 0.5px rgba(0,0,0,0.04)' }}>
+              <div className="flex items-center px-4 py-2.5">
+                <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">X / Twitter</label>
+                <input name="twitterHandle" defaultValue={speaker.twitterHandle ?? ''} placeholder="@handle" className={inputClass} />
+              </div>
+              <div className="ml-24 border-b border-gray-100" />
+              <div className="flex items-center px-4 py-2.5">
+                <label className="text-[15px] text-gray-900 w-20 flex-shrink-0">LinkedIn</label>
+                <input name="linkedinUrl" type="url" defaultValue={speaker.linkedinUrl ?? ''} placeholder="https://linkedin.com/in/..." className={inputClass} />
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pt-1">
+            <form action={del}>
+              <ConfirmButton message="Delete this speaker? This cannot be undone." className="px-4 py-2 text-[15px] font-normal text-[#FF3B30] rounded-xl hover:bg-red-50 transition-colors">
+                Delete Speaker
+              </ConfirmButton>
+            </form>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard/speakers"
+                className="px-5 py-2 text-[15px] font-normal text-[#007AFF] rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                className="px-5 py-2 text-[15px] font-semibold text-white bg-[#007AFF] rounded-xl hover:bg-[#0066d6] active:bg-[#004dad] transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </form>
       </main>
     </>
   )
