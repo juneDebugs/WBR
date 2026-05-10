@@ -59,10 +59,16 @@ export interface DaySchedule {
   sessions: SessionWithSpeaker[]
 }
 
-export function groupSessionsByDay(sessions: SessionWithSpeaker[]): DaySchedule[] {
+export function groupSessionsByDay(sessions: SessionWithSpeaker[], timezone?: string | null): DaySchedule[] {
   const map = new Map<string, SessionWithSpeaker[]>()
   for (const s of sessions) {
-    const day = s.startsAt.toISOString().slice(0, 10)
+    let day: string
+    if (timezone) {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(s.startsAt)
+      day = parts // en-CA gives YYYY-MM-DD
+    } else {
+      day = s.startsAt.toISOString().slice(0, 10)
+    }
     const list = map.get(day) ?? []
     list.push(s)
     map.set(day, list)

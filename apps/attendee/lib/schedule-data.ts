@@ -57,7 +57,7 @@ export async function fetchScheduleData(userId: string) {
       createdAt: new Date(s.createdAt),
     })) as unknown as SessionWithSpeaker[]
 
-  const days = groupSessionsByDay(sessions)
+  const days = groupSessionsByDay(sessions, conference.venueTimezone)
   const savedIds = bookmarks.map((b: { sessionId: string }) => b.sessionId)
   const conflictedIds = conflicts.flatMap(c => [c.sessionA.id, c.sessionB.id])
 

@@ -70,7 +70,8 @@ interface Props {
 }
 
 export function SessionCard({ session, saved = false, hasConflict = false, onBookmarkChange }: Props) {
-  const [bookmarked, setBookmarked] = useState(saved)
+  const [optimistic, setOptimistic] = useState<boolean | null>(null)
+  const bookmarked = optimistic ?? saved
   const [loading, setLoading] = useState(false)
   const isBreak = session.type === 'BREAK'
   const config = typeConfig[session.type] ?? typeConfig.TALK
@@ -80,11 +81,17 @@ export function SessionCard({ session, saved = false, hasConflict = false, onBoo
     e.stopPropagation()
     if (loading) return
     setLoading(true)
+    setOptimistic(!bookmarked)
+    onBookmarkChange?.(session.id, !bookmarked)
     const res = await fetch(`/api/sessions/${session.id}/bookmark`, { method: 'POST' })
     if (res.ok) {
       const data = await res.json()
-      setBookmarked(data.bookmarked)
+      setOptimistic(null) // clear optimistic, trust server savedIds going forward
       onBookmarkChange?.(session.id, data.bookmarked)
+    } else {
+      // Revert on failure
+      setOptimistic(null)
+      onBookmarkChange?.(session.id, bookmarked)
     }
     setLoading(false)
   }

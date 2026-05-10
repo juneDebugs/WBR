@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
@@ -21,11 +21,13 @@ export async function POST(
 
   if (existing) {
     await prisma.sessionBookmark.delete({ where: { userId_sessionId: { userId, sessionId } } })
+    revalidateTag(`user-bookmarks-${userId}`)
     revalidatePath('/my-schedule')
     return NextResponse.json({ bookmarked: false })
   }
 
   await prisma.sessionBookmark.create({ data: { userId, sessionId } })
+  revalidateTag(`user-bookmarks-${userId}`)
   revalidatePath('/my-schedule')
   return NextResponse.json({ bookmarked: true })
 }
