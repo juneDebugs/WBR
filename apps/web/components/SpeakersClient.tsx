@@ -430,9 +430,9 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
 
       {/* Speaker table */}
       {sorted.length > 0 ? (
-        <div className="bg-white rounded-2xl overflow-hidden ring-1 ring-black/[0.04]">
+        <div className="bg-white rounded-2xl overflow-hidden ring-1 ring-black/[0.04] overflow-x-auto">
           {/* Table header */}
-          <div className="hidden md:grid grid-cols-[1fr_140px_100px_120px] items-center px-5 py-2.5 bg-gray-50/80 border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          <div className="hidden lg:grid grid-cols-[1fr_120px_80px_100px_100px_60px] items-center px-5 py-2.5 bg-gray-50/80 border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider min-w-[700px]">
             <button onClick={() => toggleSort('name')} className="flex items-center text-left hover:text-gray-600 transition-colors">
               Speaker <SortIcon col="name" />
             </button>
@@ -442,7 +442,9 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
             <button onClick={() => toggleSort('sessions')} className="flex items-center justify-center hover:text-gray-600 transition-colors">
               Sessions <SortIcon col="sessions" />
             </button>
+            <div className="text-center">Track</div>
             <div className="text-center">Outline</div>
+            <div className="text-center">Social</div>
           </div>
 
           {/* Rows */}
@@ -450,21 +452,26 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
             const pp = parsePhotoPos(speaker.photoPosition)
             const profile = getProfileCompletion(speaker)
             const outline = getSessionOutlineStatus(speaker)
+            const sessions = speaker.confSessions ?? []
+            const tracks = Array.from(new Set(sessions.map((s: ConfSessionInfo) => s.track).filter((t: string | null): t is string => !!t)))
+            const sessionTypes = Array.from(new Set(sessions.map((s: ConfSessionInfo) => s.type)))
+            const hasTwitter = !!speaker.twitterHandle?.trim()
+            const hasLinkedin = !!speaker.linkedinUrl?.trim()
             return (
               <button
                 key={speaker.id}
                 onClick={() => openEdit(speaker)}
-                className="w-full grid grid-cols-1 md:grid-cols-[1fr_140px_100px_120px] items-center px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-[#007AFF]/[0.03] active:bg-[#007AFF]/[0.06] transition-colors text-left cursor-pointer group"
+                className="w-full grid grid-cols-1 lg:grid-cols-[1fr_120px_80px_100px_100px_60px] items-center px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-[#007AFF]/[0.03] active:bg-[#007AFF]/[0.06] transition-colors text-left cursor-pointer group min-w-[700px]"
               >
                 {/* Speaker info */}
                 <div className="flex items-center gap-3.5 min-w-0">
                   {speaker.photoUrl ? (
-                    <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-black/[0.06]">
+                    <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 ring-1 ring-black/[0.06]">
                       <img
-                        src={optimizeUrl(speaker.photoUrl!, 80)}
+                        src={optimizeUrl(speaker.photoUrl!, 72)}
                         alt={speaker.name}
-                        width={40}
-                        height={40}
+                        width={36}
+                        height={36}
                         loading={idx < 20 ? 'eager' : 'lazy'}
                         decoding="async"
                         className="w-full h-full object-cover"
@@ -475,21 +482,26 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                       />
                     </div>
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0 ring-1 ring-black/[0.04]">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0 ring-1 ring-black/[0.04]">
                       <span className="text-gray-400 font-semibold text-sm">{speaker.name[0]}</span>
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-[14px] font-semibold text-gray-900 leading-snug truncate group-hover:text-[#007AFF] transition-colors">{speaker.name}</p>
-                    <p className="text-[12px] text-gray-400 leading-tight truncate">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[13px] font-semibold text-gray-900 leading-snug truncate group-hover:text-[#007AFF] transition-colors">{speaker.name}</p>
+                      {sessionTypes.includes('KEYNOTE') && (
+                        <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-amber-50 text-[9px] font-bold text-amber-600 uppercase tracking-wide">Keynote</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-tight truncate">
                       {[speaker.jobTitle, speaker.company].filter(Boolean).join(' · ') || 'No details'}
                     </p>
                   </div>
                 </div>
 
                 {/* Profile completion */}
-                <div className="hidden md:flex flex-col items-center gap-1.5">
-                  <div className="flex items-center gap-2 w-full max-w-[100px]">
+                <div className="hidden lg:flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2 w-full max-w-[90px]">
                     <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
@@ -502,13 +514,13 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                       profile.pct === 100 ? 'text-green-600' : profile.pct >= 60 ? 'text-gray-500' : 'text-amber-600'
                     }`}>{profile.pct}%</span>
                   </div>
-                  {profile.missing.length > 0 && (
-                    <p className="text-[10px] text-gray-400 leading-none truncate max-w-[120px]">{profile.missing.join(', ')}</p>
+                  {profile.missing.length > 0 && profile.missing.length <= 3 && (
+                    <p className="text-[9px] text-gray-400 leading-none truncate max-w-[110px]">{profile.missing.join(', ')}</p>
                   )}
                 </div>
 
                 {/* Sessions */}
-                <div className="hidden md:flex justify-center">
+                <div className="hidden lg:flex justify-center">
                   {speaker._count.confSessions > 0 ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-[12px] font-medium text-[#007AFF]">
                       {speaker._count.confSessions}
@@ -518,22 +530,33 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                   )}
                 </div>
 
+                {/* Track */}
+                <div className="hidden lg:flex justify-center">
+                  {tracks.length > 0 ? (
+                    <span className="px-2 py-0.5 rounded-full bg-purple-50 text-[11px] font-medium text-purple-600 truncate max-w-[90px]">
+                      {tracks[0] as string}{tracks.length > 1 ? ` +${tracks.length - 1}` : ''}
+                    </span>
+                  ) : (
+                    <span className="text-[12px] text-gray-300">--</span>
+                  )}
+                </div>
+
                 {/* Outline status */}
-                <div className="hidden md:flex justify-center">
+                <div className="hidden lg:flex justify-center">
                   {outline === 'complete' && (
-                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-green-600">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-600">
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      Complete
+                      Done
                     </span>
                   )}
                   {outline === 'partial' && (
-                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-amber-500">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-500">
                       <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z" clipRule="evenodd" /></svg>
                       Partial
                     </span>
                   )}
                   {outline === 'missing' && (
-                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-red-400">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-400">
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
                       Missing
                     </span>
@@ -543,8 +566,21 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                   )}
                 </div>
 
+                {/* Social icons */}
+                <div className="hidden lg:flex justify-center items-center gap-1.5">
+                  {hasTwitter && (
+                    <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                  )}
+                  {hasLinkedin && (
+                    <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" /></svg>
+                  )}
+                  {!hasTwitter && !hasLinkedin && (
+                    <span className="text-[12px] text-gray-300">--</span>
+                  )}
+                </div>
+
                 {/* Mobile meta row */}
-                <div className="flex md:hidden items-center gap-3 mt-2 ml-[54px]">
+                <div className="flex lg:hidden items-center gap-3 mt-2 ml-[50px]">
                   <div className="flex items-center gap-1.5">
                     <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${profile.pct === 100 ? 'bg-green-500' : profile.pct >= 60 ? 'bg-[#007AFF]' : 'bg-amber-400'}`} style={{ width: `${profile.pct}%` }} />
@@ -556,6 +592,12 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                   )}
                   {outline !== 'none' && outline !== 'complete' && (
                     <span className={`text-[10px] font-medium ${outline === 'missing' ? 'text-red-400' : 'text-amber-500'}`}>Outline {outline}</span>
+                  )}
+                  {(hasTwitter || hasLinkedin) && (
+                    <div className="flex items-center gap-1">
+                      {hasTwitter && <svg className="w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>}
+                      {hasLinkedin && <svg className="w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" /></svg>}
+                    </div>
                   )}
                 </div>
               </button>
