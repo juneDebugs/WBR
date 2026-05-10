@@ -1,8 +1,8 @@
 'use client'
 
-import { usePrefetchMeetings } from '@/lib/hooks'
+import { usePrefetchAll } from '@/lib/hooks'
 
 export function BackgroundPrefetch() {
-  usePrefetchMeetings()
+  usePrefetchAll()
   return null
 }

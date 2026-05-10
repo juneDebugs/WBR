@@ -1,26 +1,12 @@
 import { ScheduleView } from '@/components/schedule/ScheduleView'
-import { getSession } from '@/lib/session'
-import { fetchScheduleData } from '@/lib/schedule-data'
 
-export default async function SchedulePage() {
-  const session = await getSession()
-  const user = session?.user as any
-  if (!user?.id) {
-    return (
-      <div className="page-container">
-        <ScheduleView days={[]} savedIds={new Set()} conflictedIds={new Set()} />
-      </div>
-    )
-  }
-
-  const data = await fetchScheduleData(user.id)
+// Data is fetched client-side via useScheduleData() hook in ScheduleView.
+// Do NOT add blocking server-side fetches here — it causes white screen delays.
+// The BackgroundPrefetch component in the layout pre-warms the cache.
+export default function SchedulePage() {
   return (
     <div className="page-container">
-      <ScheduleView
-        days={data.days}
-        savedIds={new Set(data.savedIds)}
-        conflictedIds={new Set(data.conflictedIds)}
-      />
+      <ScheduleView days={[]} savedIds={new Set()} conflictedIds={new Set()} />
     </div>
   )
 }

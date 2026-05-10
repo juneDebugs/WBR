@@ -21,9 +21,12 @@ export function useMeetingsData() {
   return useQuery({ queryKey: ['meetings-data'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 30_000 })
 }
 
-export function usePrefetchMeetings() {
+export function usePrefetchAll() {
   const qc = useQueryClient()
   useEffect(() => {
     qc.prefetchQuery({ queryKey: ['meetings-data'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 30_000 })
+    qc.prefetchQuery({ queryKey: ['home-data'], queryFn: () => fetch('/api/data/home').then(r => r.json()), staleTime: 30_000 })
+    qc.prefetchQuery({ queryKey: ['schedule-data'], queryFn: () => fetch('/api/data/schedule').then(r => r.json()), staleTime: 300_000 })
+    qc.prefetchQuery({ queryKey: ['speakers-data'], queryFn: () => fetch('/api/data/speakers').then(r => r.json()), staleTime: 5_000 })
   }, [qc])
 }

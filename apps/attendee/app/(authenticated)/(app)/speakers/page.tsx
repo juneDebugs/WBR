@@ -1,11 +1,12 @@
 import { SpeakersClient } from '@/components/speakers/SpeakersClient'
-import { fetchSpeakersData } from '@/lib/speakers-data'
 
-export default async function SpeakersPage() {
-  const { speakers } = await fetchSpeakersData()
+// Data is fetched client-side via useSpeakersData() hook in SpeakersClient.
+// Do NOT add blocking server-side fetches here — it causes white screen delays.
+// The BackgroundPrefetch component in the layout pre-warms the cache.
+export default function SpeakersPage() {
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #eef2ff 0%, #f8f8fc 40%)' }}>
-      <SpeakersClient speakers={speakers} />
+      <SpeakersClient speakers={[]} />
     </div>
   )
 }
