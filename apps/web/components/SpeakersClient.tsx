@@ -432,7 +432,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
       {sorted.length > 0 ? (
         <div className="bg-white rounded-2xl overflow-hidden ring-1 ring-black/[0.04] overflow-x-auto">
           {/* Table header */}
-          <div className="hidden lg:grid grid-cols-[1fr_120px_80px_100px_100px_60px] items-center px-5 py-2.5 bg-gray-50/80 border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider min-w-[700px]">
+          <div className="hidden lg:grid grid-cols-[1fr_160px_80px_100px_100px_60px] items-center px-5 py-2.5 bg-gray-50/80 border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider min-w-[740px]">
             <button onClick={() => toggleSort('name')} className="flex items-center text-left hover:text-gray-600 transition-colors">
               Speaker <SortIcon col="name" />
             </button>
@@ -461,7 +461,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
               <button
                 key={speaker.id}
                 onClick={() => openEdit(speaker)}
-                className="w-full grid grid-cols-1 lg:grid-cols-[1fr_120px_80px_100px_100px_60px] items-center px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-[#007AFF]/[0.03] active:bg-[#007AFF]/[0.06] transition-colors text-left cursor-pointer group min-w-[700px]"
+                className="w-full grid grid-cols-1 lg:grid-cols-[1fr_160px_80px_100px_100px_60px] items-center px-5 py-3 border-b border-gray-100 last:border-b-0 hover:bg-[#007AFF]/[0.03] active:bg-[#007AFF]/[0.06] transition-colors text-left cursor-pointer group min-w-[700px]"
               >
                 {/* Speaker info */}
                 <div className="flex items-center gap-3.5 min-w-0">
@@ -501,8 +501,8 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
 
                 {/* Profile completion */}
                 <div className="hidden lg:flex flex-col items-center gap-1">
-                  <div className="flex items-center gap-2 w-full max-w-[90px]">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="flex items-center gap-2.5 w-full max-w-[140px]">
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
                           profile.pct === 100 ? 'bg-green-500' : profile.pct >= 60 ? 'bg-[#007AFF]' : 'bg-amber-400'
@@ -515,7 +515,7 @@ export default function SpeakersClient({ initialSpeakers = [] }: { initialSpeake
                     }`}>{profile.pct}%</span>
                   </div>
                   {profile.missing.length > 0 && profile.missing.length <= 3 && (
-                    <p className="text-[9px] text-gray-400 leading-none truncate max-w-[110px]">{profile.missing.join(', ')}</p>
+                    <p className="text-[9px] text-gray-400 leading-none truncate max-w-[140px]">{profile.missing.join(', ')}</p>
                   )}
                 </div>
 
