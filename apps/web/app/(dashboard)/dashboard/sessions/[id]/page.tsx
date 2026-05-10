@@ -57,6 +57,11 @@ export default async function EditSessionPage({ params, searchParams }: { params
 
   if (!session) notFound()
 
+  const conference = await prisma.conference.findFirst({ where: { active: true } }) ??
+    await prisma.conference.findFirst({ orderBy: { startDate: 'desc' } })
+  const confMin = conference ? toLocalDatetimeString(conference.startDate) : undefined
+  const confMax = conference ? toLocalDatetimeString(conference.endDate) : undefined
+
   const update = updateSession.bind(null, id)
   const del = deleteSession.bind(null, id)
 
@@ -89,12 +94,12 @@ export default async function EditSessionPage({ params, searchParams }: { params
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="form-label">Start Time *</label>
-                <input name="startsAt" type="datetime-local" required
+                <input name="startsAt" type="datetime-local" required min={confMin} max={confMax}
                   defaultValue={toLocalDatetimeString(session.startsAt)} className="form-input" />
               </div>
               <div>
                 <label className="form-label">End Time *</label>
-                <input name="endsAt" type="datetime-local" required
+                <input name="endsAt" type="datetime-local" required min={confMin} max={confMax}
                   defaultValue={toLocalDatetimeString(session.endsAt)} className="form-input" />
               </div>
             </div>

@@ -42,6 +42,13 @@ export default async function NewSessionPage({ searchParams }: { searchParams: P
   ])
   const activeConf = conferences.find(c => c.active) ?? conferences[0]
 
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  const toLocalDatetimeString = (date: Date) =>
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+
+  const confMin = activeConf ? toLocalDatetimeString(activeConf.startDate) : undefined
+  const confMax = activeConf ? toLocalDatetimeString(activeConf.endDate) : undefined
+
   return (
     <>
       <AdminHeader title="New Session" />
@@ -73,11 +80,11 @@ export default async function NewSessionPage({ searchParams }: { searchParams: P
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="form-label">Start Time *</label>
-                <input name="startsAt" type="datetime-local" required className="form-input" />
+                <input name="startsAt" type="datetime-local" required min={confMin} max={confMax} className="form-input" />
               </div>
               <div>
                 <label className="form-label">End Time *</label>
-                <input name="endsAt" type="datetime-local" required className="form-input" />
+                <input name="endsAt" type="datetime-local" required min={confMin} max={confMax} className="form-input" />
               </div>
             </div>
 
