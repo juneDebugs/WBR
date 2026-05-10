@@ -118,17 +118,13 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
       href={`/schedule/${session.id}`}
       className="block active:scale-[0.98] transition-all overflow-hidden"
       style={{
-        background: hasConflict ? '#fff5f5' : isKeynote ? 'rgba(245,158,11,0.06)' : config.tint,
+        background: hasConflict ? '#fff5f5' : config.tint,
         borderRadius: 16,
-        border: hasConflict
-          ? '1px solid #fed7d7'
-          : isKeynote
-            ? `2.5px solid ${config.color}`
-            : `1px solid ${config.color}18`,
+        border: hasConflict ? '1px solid #fed7d7' : `1px solid ${config.color}18`,
       }}
     >
       {/* Color accent bar at top */}
-      <div style={{ height: isKeynote ? 4 : 3, background: isKeynote ? `linear-gradient(90deg, ${config.color}, #f97316)` : config.color }} />
+      <div style={{ height: 3, background: config.color }} />
 
       {hasConflict && (
         <div className="flex items-center gap-1.5 px-4 pt-3 pb-0">
