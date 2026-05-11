@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
@@ -30,5 +31,6 @@ export async function PATCH(req: Request) {
   if (endDate !== undefined) data.endDate = new Date(endDate)
 
   const conf = await prisma.conference.update({ where: { id }, data })
+  revalidateTag('app-settings')
   return NextResponse.json({ ok: true, conference: conf })
 }

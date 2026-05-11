@@ -1,5 +1,6 @@
 export const revalidate = 120
 import { prisma } from '@conference/db'
+import { unstable_cache } from 'next/cache'
 import { AdminHeader } from '@/components/AdminHeader'
 import { SponsorLogo } from '@/components/SponsorLogo'
 import { TimeBlockSearch } from '@/components/TimeBlockSearch'
@@ -21,47 +22,56 @@ const TIER_STYLES: Record<string, string> = {
   BRONZE:   'bg-orange-100 text-orange-700',
 }
 
+const getCachedTimeBlocksData = unstable_cache(
+  async () => {
+    const [users, sponsors, totalTimeBlocks] = await Promise.all([
+      prisma.user.findMany({
+        where: { role: { in: ['ATTENDEE', 'SPEAKER', 'STAFF'] } },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          role: true,
+          company: true,
+          meetingsAsA: {
+            select: { timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } } },
+            orderBy: { timeBlock: { startsAt: 'asc' } },
+          },
+          meetingsAsB: {
+            select: { timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } } },
+            orderBy: { timeBlock: { startsAt: 'asc' } },
+          },
+          blackoutTimes: {
+            select: { id: true, startsAt: true, endsAt: true, reason: true },
+            orderBy: { startsAt: 'asc' },
+          },
+        },
+      }),
+      prisma.sponsor.findMany({
+        orderBy: [{ tier: 'asc' }, { name: 'asc' }],
+        include: {
+          users: { select: { id: true, name: true } },
+          meetings: {
+            include: { timeBlock: true, user: { select: { id: true, name: true, email: true } } },
+            orderBy: { timeBlock: { startsAt: 'asc' } },
+          },
+        },
+      }),
+      prisma.timeBlock.count(),
+    ])
+    return [users, sponsors, totalTimeBlocks] as const
+  },
+  ['web-time-blocks-data'],
+  { revalidate: 120, tags: ['time-blocks', 'meetings', 'users'] },
+)
+
 export default async function TimeBlocksPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const params = await searchParams
   const q = params.q?.toLowerCase().trim() ?? ''
 
-  const [users, sponsors, totalTimeBlocks] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: { in: ['ATTENDEE', 'SPEAKER', 'STAFF'] } },
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        role: true,
-        company: true,
-        meetingsAsA: {
-          select: { timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } } },
-          orderBy: { timeBlock: { startsAt: 'asc' } },
-        },
-        meetingsAsB: {
-          select: { timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } } },
-          orderBy: { timeBlock: { startsAt: 'asc' } },
-        },
-        blackoutTimes: {
-          select: { id: true, startsAt: true, endsAt: true, reason: true },
-          orderBy: { startsAt: 'asc' },
-        },
-      },
-    }),
-    prisma.sponsor.findMany({
-      orderBy: [{ tier: 'asc' }, { name: 'asc' }],
-      include: {
-        users: { select: { id: true, name: true } },
-        meetings: {
-          include: { timeBlock: true, user: { select: { id: true, name: true, email: true } } },
-          orderBy: { timeBlock: { startsAt: 'asc' } },
-        },
-      },
-    }),
-    prisma.timeBlock.count(),
-  ])
+  const [users, sponsors, totalTimeBlocks] = await getCachedTimeBlocksData()
 
   const filteredUsers = q
     ? users.filter(u =>

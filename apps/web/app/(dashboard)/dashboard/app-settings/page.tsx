@@ -1,10 +1,17 @@
-export const revalidate = 0
+export const revalidate = 60
 import { prisma } from '@conference/db'
+import { unstable_cache } from 'next/cache'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AppSettingsForm } from '@/components/AppSettingsForm'
 
+const getCachedConference = unstable_cache(
+  async () => prisma.conference.findFirst({ where: { active: true } }),
+  ['web-app-settings'],
+  { revalidate: 60, tags: ['app-settings'] },
+)
+
 export default async function AppSettingsPage() {
-  const conference = await prisma.conference.findFirst({ where: { active: true } })
+  const conference = await getCachedConference()
 
   if (!conference) {
     return (

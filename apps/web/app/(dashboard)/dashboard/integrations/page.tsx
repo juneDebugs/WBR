@@ -1,11 +1,18 @@
 export const revalidate = 60
 import { prisma } from '@conference/db'
+import { unstable_cache } from 'next/cache'
 import { AdminHeader } from '@/components/AdminHeader'
 import { IntegrationsClient } from '@/components/IntegrationsClient'
 
+const getCachedIntegrations = unstable_cache(
+  async () => prisma.integration.findMany(),
+  ['web-integrations'],
+  { revalidate: 60, tags: ['integrations'] },
+)
+
 export default async function IntegrationsPage({ searchParams }: { searchParams: Promise<{ connected?: string; error?: string }> }) {
   const [saved, params] = await Promise.all([
-    prisma.integration.findMany(),
+    getCachedIntegrations(),
     searchParams,
   ])
   return (
