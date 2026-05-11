@@ -13,7 +13,6 @@ interface Person {
   jobTitle: string | null
   bio: string | null
   website: string | null
-  linkedinUrl: string | null
 }
 
 interface Props {
@@ -150,21 +149,15 @@ interface ChatMessage {
 }
 
 export function PeopleClient(_props: Props) {
-  const { data, isLoading, error } = usePeopleData()
+  const { data, isLoading } = usePeopleData()
 
   if (isLoading || !data?.currentUserId) {
     return (
       <div className="page-container">
         <h1 className="text-2xl font-bold mb-4">People</h1>
-        {error ? (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
-            <p className="text-sm text-red-700 font-mono break-all">{error.message || String(error)}</p>
-          </div>
-        ) : (
-          <div className="flex justify-center py-16">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
+        <div className="flex justify-center py-16">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     )
   }
