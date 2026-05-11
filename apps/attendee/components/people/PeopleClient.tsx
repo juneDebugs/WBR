@@ -150,15 +150,26 @@ interface ChatMessage {
 }
 
 export function PeopleClient(_props: Props) {
-  const { data, isLoading } = usePeopleData()
+  const { data, isLoading, error } = usePeopleData()
 
   if (isLoading || !data?.currentUserId) {
     return (
       <div className="page-container">
         <h1 className="text-2xl font-bold mb-4">People</h1>
-        <div className="flex justify-center py-16">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
+        {error ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+            <p className="text-sm text-red-700 font-mono">{String(error)}</p>
+          </div>
+        ) : (
+          <div className="flex justify-center py-16">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {data && (
+          <pre className="text-xs text-gray-500 bg-gray-100 p-2 rounded overflow-auto">
+            {JSON.stringify({ keys: Object.keys(data), _debug: (data as any)._debug, currentUserId: data.currentUserId?.slice(0,8), allUsersLen: data.allUsers?.length }, null, 2)}
+          </pre>
+        )}
       </div>
     )
   }

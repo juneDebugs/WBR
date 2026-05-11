@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { getUserFromHeaders } from '@/lib/user'
-import { prisma } from '@conference/db'
+import { prisma, dbConnectionMode } from '@conference/db'
 
 const userSelect = {
   id: true,
@@ -84,6 +84,7 @@ export async function GET() {
       friends,
       friendIds,
       conversations,
+      _debug: { dbMode: dbConnectionMode, userCount: allUsers.length, followCount: following.length, dmCount: dmRooms.length },
     })
   } catch (e: any) {
     console.error('[api/data/people] Error:', e?.message, e?.stack)
