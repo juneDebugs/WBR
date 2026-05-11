@@ -1,11 +1,11 @@
 export default function ChatLoading() {
   return (
-    <div className="min-h-screen bg-white animate-pulse">
-      <div className="px-4 pt-12 pb-3 flex items-center justify-between border-b border-gray-100">
+    <div className="min-h-screen animate-pulse" style={{ background: '#f0ece4' }}>
+      <div className="px-4 pt-12 pb-3 flex items-center justify-between border-b border-[#e5e1d9]">
         <div className="h-6 w-24 bg-gray-200 rounded" />
         <div className="w-8 h-8 bg-gray-200 rounded" />
       </div>
-      <div className="divide-y divide-gray-50 pb-6">
+      <div className="pb-6">
         {[1, 2, 3, 4].map(i => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <div className="w-14 h-14 rounded-full bg-gray-200" />

@@ -32,6 +32,15 @@ export function useMeetingsData() {
 export function usePeopleData() {
   return useQuery({ queryKey: ['people-data'], queryFn: () => safeFetch('/api/data/people'), staleTime: 30_000 })
 }
+export function useChatData() {
+  return useQuery({ queryKey: ['chat-data'], queryFn: () => safeFetch('/api/data/chat'), staleTime: 30_000 })
+}
+export function useMyScheduleData() {
+  return useQuery({ queryKey: ['my-schedule-data'], queryFn: () => safeFetch('/api/data/my-schedule'), staleTime: 30_000 })
+}
+export function useSetupData() {
+  return useQuery({ queryKey: ['setup-data'], queryFn: () => safeFetch('/api/data/setup'), staleTime: 60_000 })
+}
 
 export function usePrefetchAll() {
   const qc = useQueryClient()
@@ -41,5 +50,8 @@ export function usePrefetchAll() {
     qc.prefetchQuery({ queryKey: ['schedule-data'], queryFn: () => safeFetch('/api/data/schedule'), staleTime: 300_000 })
     qc.prefetchQuery({ queryKey: ['speakers-data'], queryFn: () => safeFetch('/api/data/speakers'), staleTime: 5_000 })
     qc.prefetchQuery({ queryKey: ['people-data'], queryFn: () => safeFetch('/api/data/people'), staleTime: 30_000 })
+    qc.prefetchQuery({ queryKey: ['chat-data'], queryFn: () => safeFetch('/api/data/chat'), staleTime: 30_000 })
+    qc.prefetchQuery({ queryKey: ['my-schedule-data'], queryFn: () => safeFetch('/api/data/my-schedule'), staleTime: 30_000 })
+    qc.prefetchQuery({ queryKey: ['setup-data'], queryFn: () => safeFetch('/api/data/setup'), staleTime: 60_000 })
   }, [qc])
 }

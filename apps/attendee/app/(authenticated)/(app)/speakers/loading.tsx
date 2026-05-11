@@ -1,6 +1,6 @@
 export default function SpeakersLoading() {
   return (
-    <div className="min-h-screen animate-pulse" style={{ background: 'linear-gradient(160deg, #eef2ff 0%, #f8f8fc 40%)' }}>
+    <div className="min-h-screen animate-pulse" style={{ background: '#f0ece4' }}>
       <div className="px-4 pt-4 pb-3">
         <div className="h-7 w-32 bg-gray-200 rounded" />
         <div className="h-4 w-20 bg-gray-200 rounded mt-1" />

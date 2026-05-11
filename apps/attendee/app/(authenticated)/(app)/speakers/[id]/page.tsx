@@ -40,7 +40,7 @@ export default async function SpeakerDetailPage({ params }: { params: Promise<{ 
   const [from, to] = getGradient(speaker.name)
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: '#f0ece4' }}>
       {/* Hero */}
       <div
         className="relative px-4 pt-14 pb-8"
