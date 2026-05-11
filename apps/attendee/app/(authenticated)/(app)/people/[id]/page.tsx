@@ -18,14 +18,15 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
       company: true,
       jobTitle: true,
       website: true,
-      speakerProfile: { select: { id: true, linkedinUrl: true, twitterHandle: true } },
+      linkedinUrl: true,
+      speakerProfile: { select: { id: true, twitterHandle: true } },
     },
   })
 
   if (!user) notFound()
 
   const name = user.name ?? 'Unknown'
-  const linkedinUrl = user.speakerProfile?.linkedinUrl ?? null
+  const linkedinUrl = user.linkedinUrl ?? null
   const twitterHandle = user.speakerProfile?.twitterHandle ?? null
   const isOther = user.id !== currentUserId
 

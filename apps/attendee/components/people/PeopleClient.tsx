@@ -13,6 +13,7 @@ interface Person {
   jobTitle: string | null
   bio: string | null
   website: string | null
+  linkedinUrl: string | null
 }
 
 interface Props {
