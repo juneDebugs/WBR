@@ -4,8 +4,8 @@ import { useChatData } from '@/lib/hooks'
 import { GlobalChatAdmin } from '@/components/GlobalChatAdmin'
 import { DMRoomsClient } from '@/components/DMRoomsClient'
 
-export function ChatPageClient() {
-  const { data, isLoading } = useChatData()
+export function ChatPageClient({ initialData }: { initialData?: any }) {
+  const { data, isLoading } = useChatData(initialData)
 
   if (isLoading || !data) {
     return (

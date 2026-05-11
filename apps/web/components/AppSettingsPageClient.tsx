@@ -3,11 +3,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { AppSettingsForm } from '@/components/AppSettingsForm'
 
-export function AppSettingsPageClient() {
+export function AppSettingsPageClient({ initialData }: { initialData?: any }) {
   const { data, isLoading } = useQuery({
     queryKey: ['app-settings'],
     queryFn: () => fetch('/api/data/app-settings').then(r => r.json()),
     staleTime: 60_000,
+    initialData,
   })
 
   if (isLoading || data === undefined) {

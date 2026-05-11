@@ -5,8 +5,8 @@ import { useDashboardStats } from '@/lib/hooks'
 import { ConferenceBanner } from '@/components/ConferenceBanner'
 import { SponsorReadinessClient } from '@/components/SponsorReadinessClient'
 
-export function OverviewClient() {
-  const { data, isLoading } = useDashboardStats()
+export function OverviewClient({ initialData }: { initialData?: any }) {
+  const { data, isLoading } = useDashboardStats(initialData)
 
   if (isLoading || !data) {
     return (

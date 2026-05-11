@@ -3,8 +3,8 @@
 import { useCalendarData } from '@/lib/hooks'
 import { CalendarClient } from '@/components/CalendarClient'
 
-export function CalendarPageClient() {
-  const { data, isLoading } = useCalendarData()
+export function CalendarPageClient({ initialData }: { initialData?: any }) {
+  const { data, isLoading } = useCalendarData(initialData)
 
   if (isLoading || !data) {
     return (

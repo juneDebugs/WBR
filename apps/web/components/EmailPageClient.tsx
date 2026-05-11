@@ -3,8 +3,8 @@
 import { useEmailData } from '@/lib/hooks'
 import { EmailClient } from '@/components/EmailClient'
 
-export function EmailPageClient() {
-  const { data, isLoading } = useEmailData()
+export function EmailPageClient({ initialData }: { initialData?: any }) {
+  const { data, isLoading } = useEmailData(initialData)
 
   if (isLoading || !data) {
     return (

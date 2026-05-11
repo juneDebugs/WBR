@@ -3,8 +3,8 @@
 import { useAccessData } from '@/lib/hooks'
 import { AccessClient } from '@/components/AccessClient'
 
-export function AccessPageClient() {
-  const { data, isLoading } = useAccessData()
+export function AccessPageClient({ initialData }: { initialData?: any }) {
+  const { data, isLoading } = useAccessData(initialData)
 
   if (isLoading || !data) {
     return (
