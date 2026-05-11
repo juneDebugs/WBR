@@ -149,14 +149,25 @@ interface ChatMessage {
   sender: { name: string | null; image: string | null }
 }
 
-export function PeopleClient(props: Props) {
+export function PeopleClient(_props: Props) {
   const { data, isLoading } = usePeopleData()
-  const currentUserId = data?.currentUserId || props.currentUserId
-  const allUsers: Person[] = data?.allUsers ?? props.allUsers
-  const totalCount: number = data?.totalCount ?? props.totalCount
-  const friends: Person[] = data?.friends ?? props.friends
-  const friendIds: string[] = data?.friendIds ?? props.friendIds
-  const conversations: Conversation[] = data?.conversations ?? props.conversations
+
+  if (isLoading || !data) {
+    return (
+      <div className="page-container">
+        <h1 className="text-2xl font-bold mb-4">People</h1>
+        <div className="flex justify-center py-16">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
+  return <PeopleClientInner data={data} />
+}
+
+function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: Person[]; totalCount: number; friends: Person[]; friendIds: string[]; conversations: Conversation[] } }) {
+  const { currentUserId, allUsers, totalCount, friends, friendIds, conversations } = data
 
   const [tab, setTab] = useState<typeof TABS[number]>('Discover')
   const [search, setSearch] = useState('')
@@ -182,24 +193,10 @@ export function PeopleClient(props: Props) {
   const [globalSending, setGlobalSending] = useState(false)
   const [latestBroadcast, setLatestBroadcast] = useState<string | null>(null)
   const globalEndRef = useRef<HTMLDivElement>(null)
-  // Sync state when API data arrives
-  useEffect(() => {
-    if (allUsers.length > 0) {
-      setLoadedUsers(allUsers)
-      setNextCursor(allUsers.length < totalCount ? allUsers[allUsers.length - 1]?.id ?? null : null)
-    }
-  }, [allUsers, totalCount])
 
   const [friendState, setFriendState] = useState<Record<string, boolean>>(
     Object.fromEntries(friendIds.map(id => [id, true]))
   )
-
-  // Sync friend state when API data arrives
-  useEffect(() => {
-    if (friendIds.length > 0) {
-      setFriendState(Object.fromEntries(friendIds.map(id => [id, true])))
-    }
-  }, [friendIds])
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [groupLimits, setGroupLimits] = useState<Record<string, number>>({})
@@ -441,17 +438,6 @@ export function PeopleClient(props: Props) {
             )}
           </div>
         )}
-      </div>
-    )
-  }
-
-  if (isLoading && !currentUserId) {
-    return (
-      <div className="page-container">
-        <h1 className="text-2xl font-bold mb-4">People</h1>
-        <div className="flex justify-center py-16">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
       </div>
     )
   }
