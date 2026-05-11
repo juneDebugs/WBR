@@ -88,6 +88,12 @@ const securityHeaders = [
 
 module.exports = withPWA({
   reactStrictMode: true,
+  experimental: {
+    staleTimes: {
+      dynamic: 300,
+      static: 300,
+    },
+  },
   poweredByHeader: false,
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
