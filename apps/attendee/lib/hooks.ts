@@ -21,7 +21,15 @@ export function useMeetingsData() {
   return useQuery({ queryKey: ['meetings-data'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 30_000 })
 }
 export function usePeopleData() {
-  return useQuery({ queryKey: ['people-data'], queryFn: () => fetch('/api/data/people').then(r => r.json()), staleTime: 30_000 })
+  return useQuery({
+    queryKey: ['people-data'],
+    queryFn: async () => {
+      const r = await fetch('/api/data/people')
+      if (!r.ok) throw new Error(`People API ${r.status}`)
+      return r.json()
+    },
+    staleTime: 30_000,
+  })
 }
 
 export function usePrefetchAll() {

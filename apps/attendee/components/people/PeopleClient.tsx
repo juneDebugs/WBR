@@ -152,7 +152,7 @@ interface ChatMessage {
 export function PeopleClient(_props: Props) {
   const { data, isLoading } = usePeopleData()
 
-  if (isLoading || !data) {
+  if (isLoading || !data?.currentUserId) {
     return (
       <div className="page-container">
         <h1 className="text-2xl font-bold mb-4">People</h1>
