@@ -1,44 +1,12 @@
 import { AdminHeader } from '@/components/AdminHeader'
 import SpeakersClient from '@/components/SpeakersClient'
-import { unstable_cache } from 'next/cache'
-import { prisma } from '@conference/db'
 
-const getCachedSpeakers = unstable_cache(
-  async () => prisma.speaker.findMany({
-    select: {
-      id: true,
-      name: true,
-      photoUrl: true,
-      photoPosition: true,
-      jobTitle: true,
-      company: true,
-      bio: true,
-      twitterHandle: true,
-      linkedinUrl: true,
-      _count: { select: { confSessions: true } },
-    },
-    orderBy: { name: 'asc' },
-  }),
-  ['web-speakers'],
-  { revalidate: 60, tags: ['speakers'] },
-)
-
-export default async function SpeakersPage() {
-  const speakers = await getCachedSpeakers()
-
-  // Replace data URI photoUrls with lightweight API endpoint URLs to keep SSR payload small
-  const lightSpeakers = speakers.map(s => ({
-    ...s,
-    photoUrl: s.photoUrl
-      ? s.photoUrl.startsWith('data:') ? `/api/speakers/${s.id}/photo` : s.photoUrl
-      : null,
-  }))
-
+export default function SpeakersPage() {
   return (
     <>
       <AdminHeader title="Speakers" />
       <main className="flex-1 p-6">
-        <SpeakersClient initialSpeakers={lightSpeakers} />
+        <SpeakersClient />
       </main>
     </>
   )

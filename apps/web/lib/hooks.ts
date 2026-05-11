@@ -16,3 +16,18 @@ export function useAttendees() {
 export function useMeetingsData() {
   return useQuery({ queryKey: ['meetings'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 60_000 })
 }
+export function useDashboardStats() {
+  return useQuery({ queryKey: ['dashboard'], queryFn: () => fetch('/api/data/dashboard').then(r => r.json()), staleTime: 120_000 })
+}
+export function useCalendarData() {
+  return useQuery({ queryKey: ['calendar'], queryFn: () => fetch('/api/data/calendar').then(r => r.json()), staleTime: 120_000 })
+}
+export function useChatData() {
+  return useQuery({ queryKey: ['chat'], queryFn: () => fetch('/api/data/chat').then(r => r.json()), staleTime: 120_000 })
+}
+export function useEmailData() {
+  return useQuery({ queryKey: ['email'], queryFn: () => fetch('/api/data/email').then(r => r.json()), staleTime: 60_000 })
+}
+export function useAccessData() {
+  return useQuery({ queryKey: ['access'], queryFn: () => fetch('/api/data/access').then(r => r.json()), staleTime: 60_000 })
+}
