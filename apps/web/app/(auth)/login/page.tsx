@@ -52,7 +52,7 @@ export default function LoginPage() {
           {/* Header */}
           <div className="text-center mb-7">
             <img src="/icons/icon-192.png" alt="WBR" className="w-16 h-16 object-contain mx-auto mb-4" />
-            <h1 className="text-[20px] font-semibold text-gray-900 tracking-tight">Conference Admin</h1>
+            <h1 className="text-[20px] font-semibold text-gray-900 tracking-tight">WBR Admin</h1>
             <p className="text-[13px] text-gray-400 mt-1">Organizer access only</p>
           </div>
 
