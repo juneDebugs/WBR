@@ -38,3 +38,4 @@ apps/attendee/public/sw.js
 apps/attendee/public/sw.js.map
 apps/attendee/public/workbox-*.js
 apps/attendee/public/workbox-*.js.map
+.env*

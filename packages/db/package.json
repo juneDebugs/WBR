@@ -4,11 +4,11 @@
   "private": true,
   "main": "./src/index.ts",
   "scripts": {
-    "db:generate": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" prisma generate --schema=./prisma/schema.prisma",
-    "db:migrate": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" prisma migrate dev --schema=./prisma/schema.prisma",
-    "db:push": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" prisma db push --schema=./prisma/schema.prisma",
-    "db:seed": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" ts-node --compiler-options '{\"module\":\"CommonJS\"}' ./prisma/seed.ts && cp /Users/june/WBR/packages/db/dev.db /Users/june/WBR/apps/attendee/dev.db && cp /Users/june/WBR/packages/db/dev.db /Users/june/WBR/apps/web/dev.db && cp /Users/june/WBR/packages/db/dev.db /Users/june/WBR/apps/sponsor/dev.db && cp /Users/june/WBR/packages/db/dev.db /Users/june/WBR/apps/meetings/dev.db",
-    "db:seed-meetings": "DATABASE_URL=\"file:/Users/june/WBR/packages/db/dev.db\" ts-node --compiler-options '{\"module\":\"CommonJS\"}' ./prisma/seed-meetings.ts && cp /Users/june/WBR/packages/db/dev.db /Users/june/WBR/apps/attendee/dev.db && cp /Users/june/WBR/packages/db/dev.db /Users/june/WBR/apps/web/dev.db && cp /Users/june/WBR/packages/db/dev.db /Users/june/WBR/apps/sponsor/dev.db && cp /Users/june/WBR/packages/db/dev.db /Users/june/WBR/apps/meetings/dev.db",
+    "db:generate": "DATABASE_URL=\"file:./dev.db\" prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "DATABASE_URL=\"file:./dev.db\" prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:push": "DATABASE_URL=\"file:./dev.db\" prisma db push --schema=./prisma/schema.prisma",
+    "db:seed": "DATABASE_URL=\"file:./dev.db\" ts-node --compiler-options '{\"module\":\"CommonJS\"}' ./prisma/seed.ts && cp ./dev.db ../../apps/attendee/dev.db && cp ./dev.db ../../apps/web/dev.db && cp ./dev.db ../../apps/sponsor/dev.db && cp ./dev.db ../../apps/meetings/dev.db",
+    "db:seed-meetings": "DATABASE_URL=\"file:./dev.db\" ts-node --compiler-options '{\"module\":\"CommonJS\"}' ./prisma/seed-meetings.ts && cp ./dev.db ../../apps/attendee/dev.db && cp ./dev.db ../../apps/web/dev.db && cp ./dev.db ../../apps/sponsor/dev.db && cp ./dev.db ../../apps/meetings/dev.db",
     "db:seed-turso": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' ./prisma/seed.ts",
     "db:seed-meetings-turso": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' ./prisma/seed-meetings.ts",
     "db:studio": "prisma studio --schema=./prisma/schema.prisma"
