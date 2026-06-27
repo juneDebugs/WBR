@@ -40,17 +40,46 @@ The `docs/` tree is the load-bearing reference set for engineers and AI agents p
 # 1. Install dependencies. The postinstall hook runs `prisma generate`.
 pnpm install
 
-# 2. Copy the env template at repo root.
-cp .env.example .env
+# 2. Create a .env.local for each app. Next.js loads env files per-app
+#    (process.cwd() during `next dev`), so the repo-root `.env.example`
+#    is reference-only — it is not auto-loaded by the apps. The shared
+#    NEXTAUTH_SECRET is required for cross-app JWT validity.
+NEXTAUTH_SECRET="$(openssl rand -base64 32)"
 
-# 3. Generate a NEXTAUTH_SECRET and paste it into .env.
-openssl rand -base64 32
+cat > apps/attendee/.env.local <<EOF
+DATABASE_URL="file:../../packages/db/prisma/dev.db"
+NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
+NEXTAUTH_URL="http://localhost:3001"
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+EOF
 
-# 4. Initialize the local SQLite database.
+cat > apps/web/.env.local <<EOF
+DATABASE_URL="file:../../packages/db/prisma/dev.db"
+NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
+NEXTAUTH_URL="http://localhost:3000"
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+ADMIN_EMAILS="your@email.com"
+EOF
+
+cat > apps/meetings/.env.local <<EOF
+DATABASE_URL="file:../../packages/db/prisma/dev.db"
+NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
+NEXTAUTH_URL="http://localhost:3002"
+EOF
+
+cat > apps/sponsor/.env.local <<EOF
+DATABASE_URL="file:../../packages/db/prisma/dev.db"
+NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
+NEXTAUTH_URL="http://localhost:3003"
+EOF
+
+# 3. Initialize the local SQLite database.
 DATABASE_URL="file:./packages/db/prisma/dev.db" \
   npx prisma db push --schema=packages/db/prisma/schema.prisma
 
-# 5. Seed sample data (72 speakers, 20 sponsors, ~1000 demo attendees).
+# 4. Seed sample data (72 speakers, 20 sponsors, ~1000 demo attendees).
 DATABASE_URL="file:./packages/db/prisma/dev.db" \
   npx ts-node --compiler-options '{"module":"CommonJS"}' \
   packages/db/prisma/seed.ts
@@ -113,7 +142,7 @@ Only the admin app restricts login by role (STAFF / ORGANIZER / ADMIN). The othe
 - **Type or lint errors not failing the build.** Intentional. Every `next.config.js` sets `typescript.ignoreBuildErrors: true` and `eslint.ignoreDuringBuilds: true`. Run `pnpm typecheck` and `pnpm lint` manually for honest results.
 - **Inspecting database state.** `DATABASE_URL="file:./packages/db/prisma/dev.db" npx prisma studio --schema=packages/db/prisma/schema.prisma` — opens Prisma Studio against the local SQLite file.
 - **Which DB mode am I in?** Import `dbConnectionMode` from `@conference/db` and log it at startup. Values: `build-phase-sqlite`, `turso-http`, `turso-embedded-replica`, `sqlite: <url>`, or `turso-failed: <reason>`.
-- **Per-app env overrides.** `apps/attendee/.env.local.example` and `apps/web/.env.local.example` document the per-port `NEXTAUTH_URL` each app needs. Copy to `.env.local` inside the app dir when local divergent values are needed.
+- **Per-app env files.** Each app loads its own `.env.local` from its own directory at `next dev` time. `apps/attendee/.env.local.example` and `apps/web/.env.local.example` are tracked starting templates; `meetings` and `sponsor` follow the same shape but ship without examples (the First-clone setup above creates all four).
 
 ### Useful scripts
 

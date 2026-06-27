@@ -21,14 +21,14 @@ WBR is a **monorepo of four Next.js 15 apps** sharing one database, one identity
 
 | Component | What it is |
 |---|---|
-| Monorepo orchestrator | Turborepo 2.3 + pnpm 10.8 workspaces |
+| Monorepo orchestrator | Turborepo 2.9 + pnpm 10.8 workspaces |
 | Framework | Next.js 15.5.15 (App Router) on React 19.2 |
 | Styling | Tailwind CSS 3.4 — no component library |
 | Identity | NextAuth v4.24 with JWT sessions |
 | Data layer | Prisma 5.22 + libSQL (Turso) — SQLite locally, Turso in production |
 | Hosting | Four independent Vercel projects |
 | AI | OpenAI SDK in `apps/web` only |
-| TypeScript | 5.5 strict mode — but build silently ignores TS + ESLint errors |
+| TypeScript | 5.9 strict mode — but build silently ignores TS + ESLint errors |
 
 ## The four apps
 
@@ -46,13 +46,13 @@ This app is the most-developed of the four. Recent commit traffic concentrates h
 
 ### `apps/attendee` — participant PWA (port 3001)
 
-Progressive Web App for conference attendees. Mobile-first. Uses `@ducanh2912/next-pwa` for service-worker generation, React Query + IndexedDB (`@tanstack/react-query-persist-client` + `idb-keyval`) for offline cache persistence.
+Progressive Web App for conference attendees. Mobile-first. Uses `@ducanh2912/next-pwa` for service-worker generation. Offline behavior comes entirely from the service worker's network-first page/data caching (see [PWA layer](#pwa-layer-attendee-only)); React Query runs with a plain in-memory client (`apps/attendee/lib/query-provider.tsx`) — no React Query persistence layer in attendee. The persist plugin (`@tanstack/react-query-persist-client` + `idb-keyval`) is present in `meetings` and `sponsor` only.
 
 No role restriction. Google OAuth sign-ins auto-create a `User` row with role `ATTENDEE`. Surfaces: home, schedule, my schedule (bookmarks), speakers, people directory, chat (DB-polled DMs — no websocket layer), setup (blackout times + sponsor interests).
 
 ### `apps/meetings` — meeting coordination portal (port 3002)
 
-Desktop-oriented portal for the 1-on-1 *business* meeting workflow. Same user base as attendee — no role restriction at login. The `/staff` route is the operational core: it lists `MeetingRequest` rows in `APPROVED`-but-unscheduled status and lets a `STAFF` user assign each to a `TimeBlock`, creating a `Meeting` record.
+Desktop-oriented portal for the 1-on-1 *business* meeting workflow. Same user base as attendee — no role restriction at login. The `/staff` route is the operational core: it loads the latest 100 `MeetingRequest` rows (ordered by `createdAt desc`, across all statuses) plus all `TimeBlock` rows for `conferenceId = 'conf-2025'` (scoped to the seeded conference id), and renders the `StaffQueue` client component. The UI defaults to a `PENDING` filter; `STAFF` users approve, reject, or — on approve/confirm — assign the request to a `TimeBlock`. The `MeetingRequest.status` and `timeBlockId` are updated; **on confirm with a time block, the route handler additionally creates a `SponsorMeeting` row** when both a `sponsorId` and an `attendeeId` can be derived from the request (it does *not* create a `Meeting` row). Backing API: `apps/meetings/app/api/meeting-requests/[id]/route.ts`.
 
 **Attendees do not pick their own meeting times.** They request → recipient approves → staff assigns. This is deliberate manual curation, not a missing self-service feature.
 
@@ -124,15 +124,14 @@ Sessions are JWT (`session: { strategy: 'jwt' }`). The cookie is `next-auth.sess
 
 ### Middleware (`apps/<app>/middleware.ts`)
 
-Each app's middleware decodes the JWT once per request and forwards user identity to downstream handlers via custom request headers:
+Each app's middleware decodes the JWT once per request, then exposes user identity to downstream code. **Two patterns are in use** and the choice matters for route-handler authoring:
 
-- `x-user-role`
-- `x-user-id`
-- `x-user-sponsor-id` (sponsor app only)
+- **Request-header forwarding — `meetings` and `sponsor`.** The middleware builds a new `Headers` object with `x-user-id`, `x-user-role`, `x-user-sponsor-id` (sponsor additionally sets `x-user-sponsor-name`, `x-user-sponsor-logo-url`, `x-user-name`) and returns `NextResponse.next({ request: { headers: requestHeaders } })`. Downstream server components and route handlers read the values via `headers()` from `next/headers` (e.g. `apps/meetings/lib/user.ts:getUserFromHeaders`). One JWT decode per request.
+- **Response-header only — `attendee` and `web`.** The middleware sets `x-user-id` / `x-user-role` (attendee additionally sets `x-user-sponsor-id`) on the `NextResponse` object. These headers ride back to the browser; they are **not** visible to downstream route handlers. Route handlers in these apps re-derive identity via `getServerSession` / `getToken` from `next-auth` — a second decode per request.
 
-Unauthenticated requests to non-auth routes get redirected to `/login` (or returned as `{ error: 'Unauthorized' }` JSON with status 401 for `/api/*`). Authenticated requests to `/login` redirect to `/dashboard` (or the app-equivalent landing route).
+Unauthenticated requests to non-auth routes get redirected to `/login` (or returned as `{ error: 'Unauthorized' }` JSON with status 401 for `/api/*`). Authenticated requests to `/login` redirect to the app's landing route (`/home`, `/dashboard`, `/`, etc.).
 
-The middleware matcher excludes `_next/static`, `_next/image`, `favicon.ico`, `manifest.json`, and common image extensions to avoid running on static assets.
+The matcher pattern also varies per app. `apps/web/middleware.ts` uses a regex that excludes static-asset paths *and* common image extensions; `attendee`, `meetings`, and `sponsor` exclude a fixed path set (`_next/static`, `_next/image`, `favicon.ico`, `icons`, `manifest.json`, `sw.js`, `workbox-*`). See each `middleware.ts` for the exact `config.matcher`.
 
 ### Cross-app identity
 
@@ -146,10 +145,10 @@ Each app owns its `app/api/*` route tree. There is no shared API gateway; one ap
 |---|---|
 | `web` | Full admin surface — auth, conference + speaker + session + sponsor + time-block + meeting + attendee CRUD, email send + log, integration OAuth flows, AI surfaces (OpenAI), exports |
 | `attendee` | Auth, home/schedule/speakers/people read endpoints, chat send/receive (DB-polled), bookmarks, profile editing, blackout times |
-| `meetings` | Auth, meeting-request CRUD, recommended-people algorithm, staff queue under `/api/meetings/staff/...` |
+| `meetings` | Auth, meeting-request CRUD (`/api/meeting-requests`, `/api/meeting-requests/[id]` — also the staff-queue actions), browse helpers (`/api/browse/{people,sponsors,requests}`), dashboard recommendations, bootstrap, meetings reads, profile |
 | `sponsor` | Auth, sponsor profile CRUD (incl. base64 logo upload), attendee browse + meeting-request flows, submission-form CRUD, team management |
 
-All API route handlers assume the middleware has populated `x-user-id` and `x-user-role` headers; they re-read these rather than re-decoding the JWT. This is a deliberate optimization — JWT decoding has measurable per-request cost.
+**Auth posture in route handlers varies by app** and tracks the middleware pattern split (see [Middleware](#middleware-appsappmiddlewarets)). `meetings` and `sponsor` route handlers primarily read forwarded request headers via `headers()` (with mixed `getServerSession` use in sponsor). `web` route handlers primarily call `getServerSession` / `getToken`. `attendee` route handlers mix `getServerSession` with header reads. There is no single uniform pattern; check the specific app's `lib/` helpers (`user.ts`, `auth.ts`, `session.ts`) before assuming.
 
 ## PWA layer (attendee only)
 
@@ -167,7 +166,7 @@ Runtime caching rules (current state):
 | Google Fonts | `fonts.gstatic|googleapis.com/*` | `CacheFirst` | — |
 | Static assets | `*.js|*.css` | `StaleWhileRevalidate` | — |
 
-The React Query cache is persisted to IndexedDB via `@tanstack/react-query-persist-client` backed by `idb-keyval`. This keeps the app usable when conference WiFi flaps mid-session.
+Offline content in attendee comes from these service-worker rules alone — there is no React Query persistence layer in attendee (`apps/attendee/lib/query-provider.tsx` is a plain in-memory `QueryClientProvider`). The persist plugin (`@tanstack/react-query-persist-client` + `idb-keyval`) is installed in `meetings` and `sponsor`, not attendee.
 
 Note that the `_next/data/*.json` rule's URL pattern is Pages-Router-shaped; under App Router the broader page rule is what fires for RSC traffic in practice.
 
