@@ -1,5 +1,3 @@
-export const revalidate = 60
-
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
