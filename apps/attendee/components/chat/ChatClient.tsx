@@ -9,7 +9,11 @@ interface ChatRoom {
   id: string
   name: string | null
   type: string
-  members: { userId: string; user: { id: string; name: string | null; image: string | null } }[]
+  // Server-computed for DIRECT rooms: the counterparty user. Always null for
+  // CHANNEL rooms (which render a "#" gradient icon, not an avatar). Replaces
+  // the previous client-side members.find(...) lookup; the API no longer ships
+  // the full members array (Phase 15 — chat payload trim).
+  otherMember: { id: string; name: string | null; image: string | null } | null
   lastMessage: {
     id: string
     content: string
@@ -43,9 +47,7 @@ export function ChatClient() {
         {rooms.map((room: ChatRoom) => {
           const lastMsg = room.lastMessage
           const isChannel = room.type === 'CHANNEL'
-          const otherMember = !isChannel
-            ? room.members.find((m: ChatRoom['members'][0]) => m.userId !== userId)?.user
-            : null
+          const otherMember = isChannel ? null : room.otherMember
           const displayName = isChannel ? room.name : (otherMember?.name ?? 'Unknown')
           const avatar = otherMember?.image ?? null
 
