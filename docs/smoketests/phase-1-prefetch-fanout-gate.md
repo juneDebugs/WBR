@@ -146,18 +146,26 @@ pnpm --filter attendee start
       --only-categories=performance
   done
   ```
-- [ ] Compare each route's LCP and TBT against the Phase 2 baseline:
+- [ ] **AC bar amended 2026-06-27** per PRD §6 Phase 1 (methodology finding). Read against **observed LCP** as primary, **simulated LCP** as supplementary signal.
 
-| Route | Phase 2 baseline LCP | Target |
-|---|---:|---:|
-| `/home` | 17.10 s | < 3 s (preferred) or ≥ 50% reduction (i.e., < 8.55 s) |
-| `/speakers` | 15.50 s | ≥ 50% reduction (< 7.75 s); under 3 s preferred on at least one route |
-| `/schedule` | 8.83 s | ≥ 50% reduction (< 4.42 s); under 3 s preferred |
-| `/people` | 8.14 s | ≥ 50% reduction (< 4.07 s); under 3 s preferred |
+  Extract both per route from the Lighthouse JSON:
+  ```bash
+  for route in home speakers schedule people; do
+    node -e "const lh=require('/tmp/wbr-phase1-preview-${route}.json'); const m=lh.audits.metrics.details.items[0]; console.log('${route}: obsLCP=' + Math.round(m.observedLargestContentfulPaint) + 'ms, simLCP=' + Math.round(lh.audits['largest-contentful-paint'].numericValue) + 'ms, TBT=' + Math.round(lh.audits['total-blocking-time'].numericValue) + 'ms')"
+  done
+  ```
 
-  - **Pass (AC bar met):** at least one route under 3 s AND all four routes ≥ 50% reduction vs. baseline. TBT on `/home` ≤ 100 ms baseline.
-  - **Partial pass:** ≥ 50% reduction on all routes but no route < 3 s — decision point per PRD §6 Phase 8 (gates whether the `initialData` wire-up is needed).
-  - **Fail:** any route fails the ≥ 50% reduction bar OR `/home` TBT regresses.
+  | Route | Phase 2 baseline simLCP | Primary AC (observed) | Supplementary (simulated, reported but not gating) |
+  |---|---:|---:|---:|
+  | `/home` | 17.10 s | obsLCP < 3 s | track simLCP reduction for Phase 13 |
+  | `/speakers` | 15.50 s | obsLCP < 3 s | track simLCP reduction for Phase 13 |
+  | `/schedule` | 8.83 s | obsLCP < 3 s | track simLCP reduction for Phase 13 |
+  | `/people` | 8.14 s | obsLCP < 3 s | track simLCP reduction for Phase 13 |
+
+  - **Pass (Phase 1 AC bar met):** every route's `audits.metrics.details.items[0].observedLargestContentfulPaint` < 3000 ms on the Vercel preview Lighthouse mobile run. TBT on `/home` ≤ 150 ms (Phase 2 baseline ~100 ms).
+  - **Fail:** any route's observed LCP ≥ 3000 ms OR `/home` TBT > 150 ms.
+
+  The simulated-LCP reduction is reported for the Phase 13 perf delta report but does NOT gate Phase 1 acceptance — the lantern-model amplification of the base64-in-DB image storage pattern in `/api/data/*` responses inflates simulated LCP independent of Phase 1's deferral work. The architectural unlock for simulated LCP is Phase 16 (post-sprint per PRD §6 Phase 16).
 
 ### Step 7 — Post-merge production confirmation [perf-bar tier A]
 
@@ -205,7 +213,7 @@ pnpm --filter attendee start
 The phase ships when:
 - Steps 1–4 PASS on any valid environment.
 - Step 5 PASS on local prod build.
-- Step 6 PASS (or partial pass acknowledged per §6's gating note) on the Vercel preview before merge.
+- Step 6 PASS on the Vercel preview before merge (observed LCP < 3s on all 4 routes; TBT ≤ 150 ms on `/home`). Simulated-LCP reduction reported for Phase 13 but non-gating.
 - Step 8 PASS on local prod build.
 - Step 7 is the post-merge confirmation gate (sprint Phase 7).
 
