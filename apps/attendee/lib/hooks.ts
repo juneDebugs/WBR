@@ -45,13 +45,49 @@ export function useSetupData() {
 export function usePrefetchAll() {
   const qc = useQueryClient()
   useEffect(() => {
-    qc.prefetchQuery({ queryKey: ['meetings-data'], queryFn: () => safeFetch('/api/data/meetings'), staleTime: 30_000 })
-    qc.prefetchQuery({ queryKey: ['home-data'], queryFn: () => safeFetch('/api/data/home'), staleTime: 30_000 })
-    qc.prefetchQuery({ queryKey: ['schedule-data'], queryFn: () => safeFetch('/api/data/schedule'), staleTime: 300_000 })
-    qc.prefetchQuery({ queryKey: ['speakers-data'], queryFn: () => safeFetch('/api/data/speakers'), staleTime: 5_000 })
-    qc.prefetchQuery({ queryKey: ['people-data'], queryFn: () => safeFetch('/api/data/people'), staleTime: 30_000 })
-    qc.prefetchQuery({ queryKey: ['chat-data'], queryFn: () => safeFetch('/api/data/chat'), staleTime: 30_000 })
-    qc.prefetchQuery({ queryKey: ['my-schedule-data'], queryFn: () => safeFetch('/api/data/my-schedule'), staleTime: 30_000 })
-    qc.prefetchQuery({ queryKey: ['setup-data'], queryFn: () => safeFetch('/api/data/setup'), staleTime: 60_000 })
+    if (typeof window === 'undefined') return
+    // Defer fan-out until after the browser's `load` event so the eight
+    // prefetches don't compete with the current page's critical query for
+    // bandwidth or Prisma connection during the LCP window. After load,
+    // schedule via `requestIdleCallback` (or fall back to setTimeout for
+    // Safari < 16.4) so the work runs when the main thread is genuinely idle.
+    const run = () => {
+      qc.prefetchQuery({ queryKey: ['meetings-data'], queryFn: () => safeFetch('/api/data/meetings'), staleTime: 30_000 })
+      qc.prefetchQuery({ queryKey: ['home-data'], queryFn: () => safeFetch('/api/data/home'), staleTime: 30_000 })
+      qc.prefetchQuery({ queryKey: ['schedule-data'], queryFn: () => safeFetch('/api/data/schedule'), staleTime: 300_000 })
+      qc.prefetchQuery({ queryKey: ['speakers-data'], queryFn: () => safeFetch('/api/data/speakers'), staleTime: 5_000 })
+      qc.prefetchQuery({ queryKey: ['people-data'], queryFn: () => safeFetch('/api/data/people'), staleTime: 30_000 })
+      qc.prefetchQuery({ queryKey: ['chat-data'], queryFn: () => safeFetch('/api/data/chat'), staleTime: 30_000 })
+      qc.prefetchQuery({ queryKey: ['my-schedule-data'], queryFn: () => safeFetch('/api/data/my-schedule'), staleTime: 30_000 })
+      qc.prefetchQuery({ queryKey: ['setup-data'], queryFn: () => safeFetch('/api/data/setup'), staleTime: 60_000 })
+    }
+
+    let idleId: number | undefined
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const schedule = () => {
+      if (typeof window.requestIdleCallback === 'function') {
+        // 10s timeout is a safety net for pages that never reach true idle
+        // (e.g. polling background work). Still well outside the LCP window.
+        idleId = window.requestIdleCallback(run, { timeout: 10_000 })
+      } else {
+        timeoutId = setTimeout(run, 0)
+      }
+    }
+
+    let onLoad: (() => void) | undefined
+    if (document.readyState === 'complete') {
+      schedule()
+    } else {
+      onLoad = () => schedule()
+      window.addEventListener('load', onLoad, { once: true })
+    }
+
+    return () => {
+      if (onLoad) window.removeEventListener('load', onLoad)
+      if (idleId !== undefined && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId)
+      }
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+    }
   }, [qc])
 }
