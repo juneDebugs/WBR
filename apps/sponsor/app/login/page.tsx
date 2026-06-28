@@ -66,6 +66,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex bg-[#1a1a2e]">
       {/* Left panel — slideshow */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        {/* Phase 4: imagery rendering disabled to stop serving 428KB of hot-linked Unsplash
+            assets on first load. Block preserved (commented) for quick re-enablement.
+            Before re-enabling, see PRD §6 Phase 4 follow-up: prefer optimized local copies
+            (WebP, responsive sizes, lazy loading) over the original Unsplash hot-links. */}
+        {/*
         {slides.map((slide, i) => (
           <img
             key={i}
@@ -76,6 +81,7 @@ export default function LoginPage() {
             }`}
           />
         ))}
+        */}
         <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/30 to-[#1a1a2e]" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a2e] via-transparent to-transparent" />
         <div className="absolute bottom-16 left-10 right-10">
