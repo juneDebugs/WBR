@@ -21,6 +21,8 @@ A **contract check** verifies a behavioral contract that depends only on code, n
 
 **Where contract checks may run:** anywhere. Local dev server is fine. The verification's validity does not depend on environment fidelity.
 
+**How contract checks may be driven:** by hand (DevTools Network panel, console logs, source greps) OR by a Playwright script per PRD §8.6. Playwright is the *runner*, not a new step category — pass criteria remain binary observables. Per-phase Playwright applicability is decided in PRD §8.6; scripts live at `docs/smoketests/playwright/phase-N-<short-title>.mjs`.
+
 **Pass criterion shape:** binary observable event. Either a request fires or it doesn't; a redirect happens or it doesn't; a cleanup function runs or it doesn't. Pass criteria must NOT use subjective language ("feels fast", "renders instantly", "no jank"). If the criterion isn't expressible as "X happens" / "X does not happen" in a deterministic observation tool (DevTools Network panel, console logs, React Query DevTools, etc.), it's not a valid contract-check pass criterion.
 
 ### 1.2 Perf-bar check (env-specific)

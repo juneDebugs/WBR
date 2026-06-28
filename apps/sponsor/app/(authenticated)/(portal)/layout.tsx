@@ -5,10 +5,13 @@ import { BackgroundPrefetch } from '@/components/BackgroundPrefetch'
 // User info is available client-side via useUser() hook (reads from NextAuth session).
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
-      <BackgroundPrefetch />
-      <NavBar />
-      <main className="flex-1">{children}</main>
-    </div>
+    <>
+      <link rel="preload" href="/api/attendees" as="fetch" crossOrigin="anonymous" />
+      <div className="min-h-screen flex flex-col">
+        <BackgroundPrefetch />
+        <NavBar />
+        <main className="flex-1">{children}</main>
+      </div>
+    </>
   )
 }

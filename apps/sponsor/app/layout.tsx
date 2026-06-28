@@ -16,9 +16,6 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preload" href="/api/attendees" as="fetch" crossOrigin="anonymous" />
-      </head>
       <body>
         {children}
       </body>

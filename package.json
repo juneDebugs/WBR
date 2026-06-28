@@ -21,6 +21,7 @@
     "db:studio": "pnpm --filter @conference/db db:studio"
   },
   "devDependencies": {
+    "playwright": "^1.61.1",
     "prisma": "^5.22.0",
     "turbo": "^2.3.0",
     "typescript": "^5.5.0"
