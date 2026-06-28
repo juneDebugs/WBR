@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -7,7 +7,9 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
 }
 
-export const viewport = {
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
   themeColor: '#6366f1',
 }
 
