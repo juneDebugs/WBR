@@ -5,6 +5,7 @@ Current-state architecture of the WBR conferencing app. Written for cold pickup 
 ## Contents
 
 - [At a glance](#at-a-glance)
+- [System diagram](#system-diagram)
 - [The four apps](#the-four-apps)
 - [Data flow](#data-flow)
 - [Identity and auth](#identity-and-auth)
@@ -29,6 +30,88 @@ WBR is a **monorepo of four Next.js 15 apps** sharing one database, one identity
 | Hosting | Four independent Vercel projects |
 | AI | OpenAI SDK in `apps/web` only |
 | TypeScript | 5.9 strict mode — but build silently ignores TS + ESLint errors |
+
+## System diagram
+
+```mermaid
+flowchart TB
+    users(["End users<br/>(browser / mobile / PWA)"])
+
+    subgraph apps["Four Vercel projects — independent deploys; one local-dev-only cross-app fetch (web → attendee /api/revalidate)"]
+        direction LR
+        web["<b>wbr-admin</b><br/>apps/web<br/>port 3000<br/>Admin dashboard<br/>+ AI surfaces"]
+        attendee["<b>wbr</b><br/>apps/attendee<br/>port 3001<br/>Participant PWA<br/>(service worker)"]
+        meetings["<b>wbr-meetings</b><br/>apps/meetings<br/>port 3002<br/>Staff queue<br/>+ meeting portal"]
+        sponsor["<b>wbr-sponsor</b><br/>apps/sponsor<br/>port 3003<br/>Sponsor portal"]
+    end
+
+    subgraph authLayer["Per-app NextAuth v4.24 — shared NEXTAUTH_SECRET, JWT cookie scoped per origin (no SSO across apps)"]
+        nextauth["Credentials provider<br/>(scrypt verify)"]
+        oauth["Google OAuth<br/>(per-app redirect URIs)"]
+    end
+
+    subgraph pkg["packages/db — shared workspace package"]
+        prisma["Prisma 5.22 client<br/>multi-mode runtime adapter<br/>(build / Vercel-HTTP / embedded-replica / local-SQLite)"]
+        helpers["Password helpers<br/>scrypt N=2048<br/>cost-encoded hashes"]
+    end
+
+    subgraph dataLayer["Data layer — one schema, one User table, shared by all four apps"]
+        turso[("Turso / libSQL<br/>production<br/>HTTP from Vercel")]
+        replica[("Embedded replica<br/>local dev<br/>file:/tmp/turso-replica.db<br/>60s sync")]
+        sqlite[("SQLite file<br/>via DATABASE_URL<br/>default packages/db/prisma/dev.db")]
+    end
+
+    subgraph external["External runtime services beyond identity"]
+        openai[("OpenAI API<br/>admin only")]
+        weather[("Open-Meteo API<br/>attendee weather widget<br/>no auth")]
+        smtp[("Gmail / Outlook SMTP<br/>admin email send<br/>via user OAuth Integration")]
+    end
+
+    users -->|HTTPS| web
+    users -->|HTTPS| attendee
+    users -->|HTTPS| meetings
+    users -->|HTTPS| sponsor
+
+    web --> authLayer
+    attendee --> authLayer
+    meetings --> authLayer
+    sponsor --> authLayer
+
+    authLayer -.->|OAuth| oauth
+
+    web --> prisma
+    attendee --> prisma
+    meetings --> prisma
+    sponsor --> prisma
+
+    nextauth --> helpers
+
+    prisma --> turso
+    prisma --> replica
+    prisma --> sqlite
+
+    web -->|AI calls| openai
+    web -->|outbound email| smtp
+    attendee -->|weather data| weather
+    web -.->|local-dev only,<br/>cache revalidation| attendee
+
+    classDef webStyle fill:#fef3c7,stroke:#d97706
+    classDef attendeeStyle fill:#dbeafe,stroke:#2563eb
+    classDef meetingsStyle fill:#dcfce7,stroke:#16a34a
+    classDef sponsorStyle fill:#fce7f3,stroke:#db2777
+    class web webStyle
+    class attendee attendeeStyle
+    class meetings meetingsStyle
+    class sponsor sponsorStyle
+```
+
+Key invariants shown by the diagram:
+
+- **App-to-app API calls are almost absent.** "Data flow between the four apps" overwhelmingly happens at the shared-database layer, not at the application layer. One narrow exception: `apps/web/app/(dashboard)/dashboard/speakers/[id]/page.tsx` and `apps/web/app/api/speakers/[id]/route.ts` fetch `http://localhost:3001/api/revalidate` (the attendee app's `revalidateTag` endpoint) on speaker updates. The URL is hardcoded to localhost, so the call **only succeeds in local dev** where both servers run on the same machine; in production it silently fails into a catch block. All other cross-app coordination relies on the shared schema — a change in one app's data is visible to the other three on the next read.
+- **Per-app auth, shared secret.** Each app mounts its own NextAuth instance and issues its own JWT session cookie scoped to its own origin. All four apps share `NEXTAUTH_SECRET` and the `User` table, so the same credentials work everywhere — but **there is no single-sign-on**; users log in to each app independently. See [Identity and auth](#identity-and-auth).
+- **One Prisma schema, one User table, three runtime data backends.** The multi-mode client at `packages/db/src/client.ts` picks the right backend per environment: HTTP libSQL on Vercel, embedded replica during long-running local dev, plain SQLite as the local fallback. See [Data flow → Database client](#database-client-packagesdbsrcclientts).
+- **Independent deploys.** Each app is its own Vercel project. A failure in one app's build does not block the others; per-app env-var matrices, custom-domain mappings, and build caches are isolated. See [Deployment topology](#deployment-topology). Vercel project names locally confirmed: `apps/web` → `wbr-admin` (`.vercel/repo.json`), `apps/attendee` → `wbr` (`apps/attendee/.vercel/project.json`); names for `apps/meetings` and `apps/sponsor` are operationally defined (best confirmed via the Vercel UI on the `june-1220s-projects` team).
+- **External surfaces beyond identity, all narrow.** Beyond Google OAuth (the only shared external identity provider), runtime apps reach four other external services: **OpenAI API** (admin only — sponsor-reminder personalization and admin AI surfaces); **Open-Meteo weather API** (attendee home screen widget, no auth); **Gmail / Outlook SMTP** (admin email send, via per-user OAuth Integration rather than a global service account); and **Google admin Integration callback** (`apps/web/app/api/integrations/google/callback` — a separate OAuth flow from sign-in, used to wire admin Gmail accounts for the email-send path).
 
 ## The four apps
 
@@ -150,7 +233,7 @@ All four apps share the same `User` table and `NEXTAUTH_SECRET`, so the same cre
 
 ## API surface
 
-Each app owns its `app/api/*` route tree. There is no shared API gateway; one app does not call another app's API.
+Each app owns its `app/api/*` route tree. There is no shared API gateway. One narrow cross-app exception: the admin app fetches `http://localhost:3001/api/revalidate` (the attendee app's `revalidateTag` endpoint) from `apps/web/app/(dashboard)/dashboard/speakers/[id]/page.tsx` and `apps/web/app/api/speakers/[id]/route.ts` on speaker updates. The URL is hardcoded to localhost; the fetch succeeds in local dev but silently no-ops in production (the catch block swallows the error). Production cross-app cache invalidation effectively does not work today.
 
 | App | API responsibilities |
 |---|---|

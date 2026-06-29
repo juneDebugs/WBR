@@ -21,7 +21,7 @@ Manual verification path. Both human and AI agents are valid runners. Authored p
 - **Node 20 or newer** for Step 2 — the Playwright script uses `Response.headers.getSetCookie()` to extract the NextAuth session cookie from the `/api/login` response; that API was added in Node 19.7 and is reliable on 20+. The Phase 5 smoketest documented this prerequisite for the same API; reuse the constraint.
 - **Web `.env.local` required for Step 2's authenticated half** (`/api/login` POST must succeed). At minimum: `NEXTAUTH_SECRET=<any-base64>`, `NEXTAUTH_URL=http://localhost:3000`, and `DATABASE_URL=file:<absolute-path-to>/packages/db/prisma/dev.db`. Use an absolute path for `DATABASE_URL` (the relative-path-spin issue documented in the Phase 3 smoketest applies here too).
 - For perf-bar Step 3 (transfer size) and Step 4 (LCP) Tier-C: same local prod build on port 3000. Tier-D dev mode is invalid (CONTRACT.md §1.2).
-- For perf-bar Tier-B confirmation: the PR's Vercel preview URL (`vercel ls wbr-web --scope june-1220s-projects | head -10`) and the deployment-protection bypass token. Lighthouse must run with the seeded admin session cookie or `finalDisplayedUrl` will land on `/login`; see the cookie-injection recipe.
+- For perf-bar Tier-B confirmation: the PR's Vercel preview URL (`vercel ls wbr-admin --scope june-1220s-projects | head -10`) and the deployment-protection bypass token. Lighthouse must run with the seeded admin session cookie or `finalDisplayedUrl` will land on `/login`; see the cookie-injection recipe.
 - Seeded credentials per `packages/db/prisma/seed.ts` (default: `june@tailor.tech` / `admin123`; ORGANIZER role). The bulk attendee seed (≥ ~1000 rows) is what makes the pagination + search assertions meaningful.
 
 ## Steps
@@ -155,7 +155,7 @@ done
 
 ```bash
 # Set PREVIEW_BASELINE (main branch preview / production) + PREVIEW_POST (this PR's preview).
-# Look up via: vercel ls wbr-web --scope june-1220s-projects | head -10
+# Look up via: vercel ls wbr-admin --scope june-1220s-projects | head -10
 # Bypass token: Vercel project Settings → Deployment Protection.
 
 # Capture session cookie against the preview.
