@@ -1,21 +1,14 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 import Link from 'next/link'
-import { useAttendees } from '@/lib/hooks'
-
-interface User {
-  id: string
-  name: string | null
-  email: string | null
-  image: string | null
-  role: string
-  company: string | null
-  jobTitle: string | null
-}
+import { useQueryClient } from '@tanstack/react-query'
+import { useAttendeesPage, type AttendeesPageParams } from '@/lib/hooks'
+import type { AttendeesPage } from '@/lib/attendees-query'
 
 const PAGE_SIZE = 50
+const SEARCH_DEBOUNCE_MS = 250
 
 const ROLE_COLORS: Record<string, string> = {
   ATTENDEE: 'bg-blue-50 text-blue-700',
@@ -24,18 +17,23 @@ const ROLE_COLORS: Record<string, string> = {
   STAFF: 'bg-emerald-50 text-emerald-700',
 }
 
-export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] }) {
-  const { data, isLoading } = useAttendees()
-  const [users, setUsers] = useState(initialUsers)
+const INITIAL_PARAMS_KEY = ['attendees', { page: 0, q: '', role: '' }] as const
 
-  // Update users when hook data arrives
+export function AttendeesTable({ initialData }: { initialData: AttendeesPage }) {
+  const queryClient = useQueryClient()
+
+  // React Query persists across route navigation under the dashboard's
+  // shared QueryProvider. With `staleTime: 60_000`, an entry that lives in
+  // the cache from a previous mount would be returned ahead of the fresh
+  // SSR-provided initialData. Override the cache on every mount so return
+  // navigation sees the server-rendered first page.
   useEffect(() => {
-    if (data && Array.isArray(data)) {
-      setUsers(data)
-    }
-  }, [data])
+    queryClient.setQueryData(INITIAL_PARAMS_KEY, initialData)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData])
 
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('')
   const [page, setPage] = useState(0)
   const [showAdd, setShowAdd] = useState(false)
@@ -43,29 +41,29 @@ export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] })
   const [addError, setAddError] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', email: '', company: '', jobTitle: '', role: 'ATTENDEE', password: '' })
 
-  const filtered = useMemo(() => {
-    let result = users
-    if (roleFilter) {
-      result = result.filter(u => u.role === roleFilter)
-    }
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter(u =>
-        (u.name ?? '').toLowerCase().includes(q) ||
-        (u.email ?? '').toLowerCase().includes(q) ||
-        (u.company ?? '').toLowerCase().includes(q) ||
-        (u.jobTitle ?? '').toLowerCase().includes(q)
-      )
-    }
-    return result
-  }, [users, search, roleFilter])
+  // Debounce search input AND reset page in the same batched update so the
+  // queryKey moves from {page:N, q:''} straight to {page:0, q:'new'} — avoids
+  // the intermediate {page:N, q:'new'} render that fires a wasted request.
+  // Role filter resets page synchronously in its onChange handler below; React
+  // batches setState calls in event handlers, so that's a single render too.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(0)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [search])
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const params: AttendeesPageParams = { page, q: debouncedSearch, role: roleFilter }
+  const isInitialParams = params.page === 0 && params.q === '' && params.role === ''
+  const { data, isLoading } = useAttendeesPage(params, isInitialParams ? initialData : undefined)
+
+  const rows = data?.rows ?? []
+  const total = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
-    setPage(0)
   }, [])
 
   async function handleAdd(e: React.FormEvent) {
@@ -78,9 +76,9 @@ export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] })
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-      const data = await res.json()
-      if (!res.ok) { setAddError(data.error ?? 'Failed to create attendee.'); return }
-      setUsers(prev => [...prev, data].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')))
+      const created = await res.json()
+      if (!res.ok) { setAddError(created.error ?? 'Failed to create attendee.'); return }
+      await queryClient.invalidateQueries({ queryKey: ['attendees'] })
       setForm({ name: '', email: '', company: '', jobTitle: '', role: 'ATTENDEE', password: '' })
       setShowAdd(false)
     } catch {
@@ -90,7 +88,7 @@ export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] })
     }
   }
 
-  if (isLoading && users.length === 0) {
+  if (isLoading && rows.length === 0) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4 mb-4">
@@ -119,7 +117,7 @@ export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] })
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-3">
-          <p className="text-sm text-gray-500">{filtered.length} users</p>
+          <p className="text-sm text-gray-500">{total} users</p>
           <select
             value={roleFilter}
             onChange={e => { setRoleFilter(e.target.value); setPage(0) }}
@@ -142,7 +140,7 @@ export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] })
               onChange={handleSearch}
             />
             {search && (
-              <button onClick={() => { setSearch(''); setPage(0) }} className="text-gray-300 hover:text-gray-500">
+              <button onClick={() => setSearch('')} className="text-gray-300 hover:text-gray-500">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
@@ -173,7 +171,7 @@ export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] })
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {paged.map(user => (
+            {rows.map(user => (
               <tr key={user.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
                   <Link href={`/dashboard/attendees/${user.id}`} className="flex items-center gap-3 group">
@@ -202,7 +200,7 @@ export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] })
           </tbody>
         </table>
 
-        {paged.length === 0 && (
+        {rows.length === 0 && (
           <p className="text-center text-gray-400 py-12">No users match your search.</p>
         )}
       </div>
@@ -211,7 +209,7 @@ export function AttendeesTable({ users: initialUsers = [] }: { users?: User[] })
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-xs text-gray-400">
-            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+            Showing {total === 0 ? 0 : page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
           </p>
           <div className="flex items-center gap-1">
             <button

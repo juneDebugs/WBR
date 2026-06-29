@@ -111,6 +111,17 @@ Embedded-replica mode wraps queries in a `$extends` guard that:
 
 `turbo.json` declares these as the env vars to plumb through the build and dev pipelines. The repo-root `.env.example` documents the local subset; per-app `.env.local.example` files (in `apps/attendee/` and `apps/web/`) document per-port `NEXTAUTH_URL` overrides.
 
+### Server-side pagination — admin attendees (`apps/web`)
+
+The admin `/dashboard/attendees` route is the one endpoint in the codebase that ships paginated rows rather than the full collection. The same Prisma query function (`apps/web/lib/attendees-query.ts → fetchAttendeesPage`) is consumed by both surfaces:
+
+- **SSR** (`apps/web/app/(dashboard)/dashboard/attendees/page.tsx`) calls `fetchAttendeesPage({ page: 0 })` and passes the result to `AttendeesTable` as `initialData`.
+- **Client refetch + interaction** (`apps/web/components/AttendeesTable.tsx → useAttendeesPage`) calls `GET /api/data/attendees?page=N&q=...&role=...` whenever the page, debounced search (250 ms), or role filter changes. React Query keys on the param object so each unique view caches independently; `placeholderData: prev` keeps the previous page visible while the next request lands.
+
+The route handler (`apps/web/app/api/data/attendees/route.ts`) reads the same params off `URL.searchParams` and delegates to `fetchAttendeesPage`, returning `{ rows, total, page, pageSize, hasMore }`. There is no `unstable_cache` on this endpoint — the 50-row paginated Prisma query is cheap enough that the cache wasn't load-bearing, and removing it sidesteps a per-page invalidation matrix on Add/Edit.
+
+Other `/api/data/*` endpoints (sessions, speakers, sponsors, meetings, dashboard, calendar, chat, email, access) still return their full collection per call. Extending the pagination pattern to another endpoint means adding a sibling `lib/<resource>-query.ts` function and re-shaping both the SSR caller and the React Query hook to take params.
+
 ## Identity and auth
 
 ### NextAuth v4.24
