@@ -1,25 +1,14 @@
-import { unstable_cache } from 'next/cache'
-import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AttendeesTable } from '@/components/AttendeesTable'
-
-const getCachedAttendees = unstable_cache(
-  async () => prisma.user.findMany({
-    where: { role: { in: ['ATTENDEE', 'SPEAKER'] } },
-    orderBy: { name: 'asc' },
-    select: { id: true, name: true, email: true, image: true, role: true, company: true, jobTitle: true },
-  }),
-  ['web-attendees'],
-  { revalidate: 300, tags: ['attendees'] },
-)
+import { fetchAttendeesPage } from '@/lib/attendees-query'
 
 export default async function AttendeesPage() {
-  const users = await getCachedAttendees()
+  const firstPage = await fetchAttendeesPage({ page: 0 })
   return (
     <>
       <AdminHeader title="Attendees" />
       <main className="flex-1 p-6">
-        <AttendeesTable users={users} />
+        <AttendeesTable initialData={firstPage} />
       </main>
     </>
   )
