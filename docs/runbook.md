@@ -43,23 +43,34 @@ When a procedure does not succeed or a production-side issue surfaces, the sympt
 Wipe the SQLite database and reseed with the standard demo dataset (~1000 attendees, 72 speakers, 20 sponsors, plus all conference, sponsor, meeting, and chat seed data).
 
 ```bash
-# 1. From repo root: stop any running dev servers, then remove the SQLite file.
+# 1. From repo root: stop any running dev servers, then remove BOTH local SQLite files
+#    plus the per-app copies. The two packages/db files exist because db:push and the
+#    apps' .env.local templates target different paths — see packages/db/README.md
+#    §Local-dev DB location.
 ./clean.sh
-rm -f packages/db/prisma/dev.db apps/*/dev.db
+rm -f packages/db/dev.db packages/db/prisma/dev.db apps/*/dev.db
 
 # 2. Recreate the schema from prisma/schema.prisma.
+#    pnpm db:push proxies to packages/db with DATABASE_URL="file:./dev.db" — writes
+#    packages/db/dev.db, not packages/db/prisma/dev.db.
 pnpm db:push
 
-# 3. Seed. This runs packages/db/prisma/seed.ts and copies the resulting
-#    dev.db to each app directory as a safety net for any code path that
-#    reads the local copy directly.
+# 3. Seed. This runs packages/db/prisma/seed.ts (against packages/db/dev.db) and
+#    copies the resulting file into each app directory.
 pnpm db:seed
 
-# 4. Restart the apps.
+# 4. Recreate the prisma/dev.db file the apps' .env.local templates point at, by
+#    pushing + copying from the seeded packages/db/dev.db. (If you only ever invoke
+#    db:* scripts and never run the apps via their .env.local, you can skip this.)
+DATABASE_URL="file:./packages/db/prisma/dev.db" \
+  npx prisma db push --schema=packages/db/prisma/schema.prisma
+cp packages/db/dev.db packages/db/prisma/dev.db
+
+# 5. Restart the apps.
 ./dev.sh
 ```
 
-**Why the cross-copy in step 3.** `pnpm db:seed` runs the seed script against `packages/db/prisma/dev.db`, then copies that file into `apps/attendee/dev.db`, `apps/web/dev.db`, `apps/meetings/dev.db`, and `apps/sponsor/dev.db`. The per-app `.env.local` files point at `../../packages/db/prisma/dev.db` (the canonical file), so the per-app copies are belt-and-suspenders rather than the runtime source.
+**Why two `dev.db` files.** `pnpm db:push` / `pnpm db:seed` resolve `DATABASE_URL="file:./dev.db"` from `packages/db` cwd → `packages/db/dev.db`. The per-app `.env.local` templates point at `../../packages/db/prisma/dev.db` from each app's cwd → `packages/db/prisma/dev.db`. The two paths are different files on disk and can drift if only one path is updated. The seed step copies `./dev.db` outward to each app's own `dev.db` as a safety net for code that reads the local copy directly. Step 4 above re-syncs the `prisma/dev.db` path so the apps' default `.env.local` continues to work.
 
 **Variants.** Defined inside `packages/db/package.json:11–13` — not exposed as root-level shortcuts. Invoke via filter:
 
