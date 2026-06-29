@@ -19,11 +19,12 @@ The `docs/` tree is the load-bearing reference set for engineers and AI agents p
 
 | File | Purpose |
 |---|---|
-| [`docs/architecture.md`](docs/architecture.md) | Current-state architecture — apps, data flow, auth, PWA, deployment topology |
-| `docs/runbook.md` | Common operational tasks (deploy, env-var rotation, custom-domain add, token rotation) — added in Phase 0b |
-| `docs/incident-playbook.md` | Symptom → check → cause → mitigation for known failure surfaces — added in Phase 0b |
-| `docs/decisions.md` | Curated engineering decisions log with rationale — added in Phase 0b |
-| `docs/smoketests/phase-N-*.md` | Per-phase manual verification checklists (regression library) |
+| [`docs/architecture.md`](docs/architecture.md) | Current-state architecture — apps, data flow, auth, PWA, deployment topology, system diagram |
+| [`docs/runbook.md`](docs/runbook.md) | Common operational tasks — reset local DB, run the apps, rotate secrets, add env vars, tune PWA timeouts, run Lighthouse, inspect DB state, descriptive current-Vercel posture |
+| [`docs/incident-playbook.md`](docs/incident-playbook.md) | Symptom → check → likely cause → mitigation for 13 known failure surfaces (vanity URL, build failure, DB outage, AI provider degradation, auth, PWA cache, email, schema drift, replica staleness, cross-login, sponsor rate limiter, stray dev processes) |
+| [`docs/decisions.md`](docs/decisions.md) | Chronological + topical index of engineering decisions; one paragraph per decision linking out to the relevant ADR or source doc |
+| [`docs/adr/`](docs/adr/) | Architectural-grade ADRs in Nygard format: 0001 monorepo, 0002 NextAuth + JWT + scrypt, 0003 Turso + libSQL multi-mode client, 0004 base64-images-in-DB |
+| `docs/smoketests/phase-N-*.md` | Per-phase manual verification checklists (regression library) — see [`docs/smoketests/CONTRACT.md`](docs/smoketests/CONTRACT.md) for the shape |
 | `docs/codex-reviews/phase-N-*.md` | Per-phase Codex adversarial review logs |
 
 ## Getting Started
@@ -85,7 +86,7 @@ DATABASE_URL="file:./packages/db/prisma/dev.db" \
   packages/db/prisma/seed.ts
 ```
 
-> **Known gotcha.** The `pnpm db:push`, `pnpm db:seed`, and `pnpm db:studio` shortcuts in `packages/db/package.json` currently hardcode an absolute path (`/Users/june/WBR/`). Use the inline `DATABASE_URL=...` invocations above for local work, or edit `packages/db/package.json` to use relative paths. Cleanup is tracked separately.
+> **Shortcut alternative (with a caveat).** Once the local DB is initialized, `pnpm db:push`, `pnpm db:seed`, and `pnpm db:studio` from the repo root proxy through to `packages/db`. The proxied scripts use `DATABASE_URL="file:./dev.db"` from `packages/db` cwd, which resolves to `packages/db/dev.db` — **not** the `packages/db/prisma/dev.db` file the inline first-clone setup above targets and the apps' `.env.local` templates point at. The two files can drift. See [`packages/db/README.md`](packages/db/README.md) §Local-dev DB location for the full picture + the Turso-targeted variant scripts.
 
 ### Run the apps locally
 

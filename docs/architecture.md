@@ -110,40 +110,40 @@ Key invariants shown by the diagram:
 - **App-to-app API calls are almost absent.** "Data flow between the four apps" overwhelmingly happens at the shared-database layer, not at the application layer. One narrow exception: `apps/web/app/(dashboard)/dashboard/speakers/[id]/page.tsx` and `apps/web/app/api/speakers/[id]/route.ts` fetch `http://localhost:3001/api/revalidate` (the attendee app's `revalidateTag` endpoint) on speaker updates. The URL is hardcoded to localhost, so the call **only succeeds in local dev** where both servers run on the same machine; in production it silently fails into a catch block. All other cross-app coordination relies on the shared schema — a change in one app's data is visible to the other three on the next read.
 - **Per-app auth, shared secret.** Each app mounts its own NextAuth instance and issues its own JWT session cookie scoped to its own origin. All four apps share `NEXTAUTH_SECRET` and the `User` table, so the same credentials work everywhere — but **there is no single-sign-on**; users log in to each app independently. See [Identity and auth](#identity-and-auth).
 - **One Prisma schema, one User table, three runtime data backends.** The multi-mode client at `packages/db/src/client.ts` picks the right backend per environment: HTTP libSQL on Vercel, embedded replica during long-running local dev, plain SQLite as the local fallback. See [Data flow → Database client](#database-client-packagesdbsrcclientts).
-- **Independent deploys.** Each app is its own Vercel project. A failure in one app's build does not block the others; per-app env-var matrices, custom-domain mappings, and build caches are isolated. See [Deployment topology](#deployment-topology). Vercel project names locally confirmed: `apps/web` → `wbr-admin` (`.vercel/repo.json`), `apps/attendee` → `wbr` (`apps/attendee/.vercel/project.json`); names for `apps/meetings` and `apps/sponsor` are operationally defined (best confirmed via the Vercel UI on the `june-1220s-projects` team).
+- **Independent deploys.** Each app is its own Vercel project. A failure in one app's build does not block the others; per-app env-var matrices, custom-domain mappings, and build caches are isolated. See [Deployment topology](#deployment-topology). Vercel project names locally confirmed: `apps/web` → `wbr-admin` (`.vercel/repo.json`), `apps/attendee` → `wbr` (`apps/attendee/.vercel/project.json`); names for `apps/meetings` and `apps/sponsor` are operationally defined (best confirmed via the Vercel UI on the project-owner's team).
 - **External surfaces beyond identity, all narrow.** Beyond Google OAuth (the only shared external identity provider), runtime apps reach four other external services: **OpenAI API** (admin only — sponsor-reminder personalization and admin AI surfaces); **Open-Meteo weather API** (attendee home screen widget, no auth); **Gmail / Outlook SMTP** (admin email send, via per-user OAuth Integration rather than a global service account); and **Google admin Integration callback** (`apps/web/app/api/integrations/google/callback` — a separate OAuth flow from sign-in, used to wire admin Gmail accounts for the email-send path).
 
 ## The four apps
 
 ### `apps/web` — admin dashboard (port 3000)
 
-Back-office tool for WBR organizers. Login is gated to `STAFF`, `ORGANIZER`, or `ADMIN` role values via the credentials provider in `apps/web/lib/auth.ts`. Surfaces:
+Back-office tool for WBR organizers. Login is gated to `STAFF`, `ORGANIZER`, or `ADMIN` role values via the credentials provider in `apps/web/lib/auth.ts`. The most-developed of the four; recent commit traffic concentrates on dashboard performance (server-side prefetch into React Query `initialData` under `apps/web/app/(dashboard)/`). Surfaces include the admin dashboard, full speaker/session/sponsor/time-block/meeting/attendee CRUD, email composer + audit log, settings, third-party integrations, and OpenAI-driven sponsor-reminder personalization.
 
-- Conference dashboard (health metrics, sponsor readiness scorecard)
-- Speaker, session, sponsor, time-block, meeting, and attendee management
-- Email composer + audit log
-- Conference settings + third-party integration management
-- AI-assisted surfaces (OpenAI SDK; sponsor-reminder personalization is the primary current integration point)
-
-This app is the most-developed of the four. Recent commit traffic concentrates here on dashboard performance — the server-side prefetch into React Query `initialData` pattern under `apps/web/app/(dashboard)/`.
+Working-here detail: [`apps/web/README.md`](../apps/web/README.md).
 
 ### `apps/attendee` — participant PWA (port 3001)
 
-Progressive Web App for conference attendees. Mobile-first. Uses `@ducanh2912/next-pwa` for service-worker generation. Offline behavior comes entirely from the service worker's network-first page/data caching (see [PWA layer](#pwa-layer-attendee-only)); React Query runs with a plain in-memory client (`apps/attendee/lib/query-provider.tsx`) — no React Query persistence layer in attendee. The persist plugin (`@tanstack/react-query-persist-client` + `idb-keyval`) is present in `meetings` and `sponsor` only.
+Progressive Web App for conference attendees. Mobile-first. Uses `@ducanh2912/next-pwa` for service-worker generation; offline behavior comes from the SW's runtime caching rules (see [PWA layer](#pwa-layer-attendee-only)). React Query runs with a plain in-memory client (`apps/attendee/lib/query-provider.tsx`) — no React Query persistence layer in attendee. The persist plugin (`@tanstack/react-query-persist-client` + `idb-keyval`) is present in `meetings` and `sponsor` only.
 
-No role restriction. Google OAuth sign-ins auto-create a `User` row with role `ATTENDEE`. Surfaces: home, schedule, my schedule (bookmarks), speakers, people directory, chat (DB-polled DMs — no websocket layer), setup (blackout times + sponsor interests).
+No role restriction at login. Google OAuth sign-ins auto-create a `User` row with role `ATTENDEE`. Surfaces: home, schedule, my schedule, speakers, people directory, chat (DB-polled DMs, no websocket transport), setup.
+
+Working-here detail: [`apps/attendee/README.md`](../apps/attendee/README.md).
 
 ### `apps/meetings` — meeting coordination portal (port 3002)
 
-Desktop-oriented portal for the 1-on-1 *business* meeting workflow. Same user base as attendee — no role restriction at login. The `/staff` route is the operational core: it loads the latest 100 `MeetingRequest` rows (ordered by `createdAt desc`, across all statuses) plus all `TimeBlock` rows for `conferenceId = 'conf-2025'` (scoped to the seeded conference id), and renders the `StaffQueue` client component. The UI defaults to a `PENDING` filter; `STAFF` users approve, reject, or — on approve/confirm — assign the request to a `TimeBlock`. The `MeetingRequest.status` and `timeBlockId` are updated; **on confirm with a time block, the route handler additionally creates a `SponsorMeeting` row** when both a `sponsorId` and an `attendeeId` can be derived from the request (it does *not* create a `Meeting` row). Backing API: `apps/meetings/app/api/meeting-requests/[id]/route.ts`.
+Desktop-oriented portal for the 1-on-1 business-meeting workflow. Same user base as attendee — no role restriction at login. The `/staff` route is the operational core: `STAFF`-only approval queue over `MeetingRequest` rows assigned into `TimeBlock` slots. On status `CONFIRMED` with a `timeBlockId` and a sponsor on either side, the PATCH handler additionally creates a `SponsorMeeting` row (not a `Meeting` row) — the negotiation vs. materialized-slot split.
 
 **Attendees do not pick their own meeting times.** They request → recipient approves → staff assigns. This is deliberate manual curation, not a missing self-service feature.
 
+Working-here detail (including the `MeetingRequest` lifecycle states and per-route validation): [`apps/meetings/README.md`](../apps/meetings/README.md).
+
 ### `apps/sponsor` — sponsor company portal (port 3003)
 
-Used by employees of sponsoring companies. Access is gated by `User.sponsorId` (a foreign key into the `Sponsor` table), not by role. The presence of a non-null `sponsorId` is what tells the portal which company the current user represents.
+Used by employees of sponsoring companies. Access is gated by `User.sponsorId` (a foreign key into the `Sponsor` table), not by role. The presence of a non-null `sponsorId` is what tells the portal which company the current user represents — sponsorship enforcement is per-route, not in middleware.
 
-Surfaces: dashboard, attendee browse + meeting request, inbound/outbound request management, scheduled meetings, company profile editor, custom submission forms (six types: `ABSTRACT` / `FULL_PAPER` / `SPEAKER_PROPOSAL` / `PANEL` / `SYMPOSIUM` / `CUSTOM`), team management.
+Surfaces: dashboard, attendee browse + meeting request, inbound/outbound request management, scheduled meetings, company profile editor, custom submission forms (`ABSTRACT` / `FULL_PAPER` / `SPEAKER_PROPOSAL` / `PANEL` / `SYMPOSIUM` / `CUSTOM`), team management.
+
+Working-here detail: [`apps/sponsor/README.md`](../apps/sponsor/README.md).
 
 ## Data flow
 
@@ -252,13 +252,15 @@ Runtime caching rules (current state):
 
 | Rule class | URL pattern | Handler | `networkTimeoutSeconds` |
 |---|---|---|---|
-| App pages | same-origin, non-`/api/*` | `NetworkFirst` | 10 |
-| Next/Image | `/_next/image?url=…` | `NetworkFirst` | 10 |
-| RSC / data payloads | `/_next/data/*.json` | `NetworkFirst` | 10 |
-| Cross-origin images | non-same-origin `*.jpg|jpeg|png|webp|svg` | `NetworkFirst` | 10 |
-| Unsplash images | `images.unsplash.com/*` | `NetworkFirst` | 10 |
+| Next/Image | `/_next/image?url=…` | `StaleWhileRevalidate` | — |
+| Cross-origin images | non-same-origin `*.jpg|jpeg|png|webp|svg` | `StaleWhileRevalidate` | — |
+| Unsplash images | `images.unsplash.com/*` | `StaleWhileRevalidate` | — |
 | Google Fonts | `fonts.gstatic|googleapis.com/*` | `CacheFirst` | — |
 | Static assets | `*.js|*.css` | `StaleWhileRevalidate` | — |
+| RSC / data payloads | `/_next/data/*.json` | `NetworkFirst` | 5 |
+| App pages | same-origin, non-`/api/*` | `NetworkFirst` | 5 |
+
+Rule order matters because Workbox uses first-match: image-class and asset rules sit above the broader page rule so a same-origin `.js`/`.css`/`/_next/image` request hits the SWR handler, not the page NetworkFirst handler. The rule-class split — distinct handlers + `networkTimeoutSeconds` for image vs page vs data — is the Phase 5 deliverable; see [`docs/smoketests/phase-5-pwa-timeout-split.md`](smoketests/phase-5-pwa-timeout-split.md).
 
 Offline content in attendee comes from these service-worker rules alone — there is no React Query persistence layer in attendee (`apps/attendee/lib/query-provider.tsx` is a plain in-memory `QueryClientProvider`). The persist plugin (`@tanstack/react-query-persist-client` + `idb-keyval`) is installed in `meetings` and `sponsor`, not attendee.
 
@@ -287,7 +289,7 @@ From `turbo.json` (the canonical list of build/dev env keys):
 - `NEXTAUTH_URL` — per-project; matches each app's deployed URL (or the vanity URL for attendee).
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — required for Google sign-in.
 
-The admin app additionally reads `ADMIN_EMAILS` (comma-separated allow-list) and `OPENAI_API_KEY`. Other env vars used by specific surfaces (`CONFERENCE_ID`, `SPONSOR_PORTAL_URL`) are listed in the repo-root `.env.example`.
+The admin app additionally reads `OPENAI_API_KEY` (consumed only by `app/api/sponsors/remind/route.ts`). `ADMIN_EMAILS` appears in `apps/web/.env.local.example` but is documentation residue — no runtime code reads it; admin access is role-based via `apps/web/lib/auth.ts`. Other env vars used by specific surfaces (`CONFERENCE_ID`, `SPONSOR_PORTAL_URL`) are listed in the repo-root `.env.example`.
 
 ### Build behavior
 
@@ -299,20 +301,15 @@ Every `next.config.js` sets `typescript: { ignoreBuildErrors: true }` and `eslin
 
 ### `@conference/db` (`packages/db/`)
 
-The active data layer. Exports:
-- The singleton `prisma` client (multi-mode per [Data flow → Database client](#database-client-packagesdbsrcclientts))
-- All generated Prisma types (re-exported from `@prisma/client`)
-- The `dbConnectionMode` diagnostic string
-- Password helpers (`hashPassword`, `verifyPassword` — scrypt-based with cost-factor encoding)
-- A handful of composite types (`SessionWithSpeaker`, `MeetingWithDetails`) and domain helpers (date grouping with timezone support, speaker conflict detection, blackout-time conflict checks)
+The active data layer. Exports the multi-mode `prisma` client (see [Data flow → Database client](#database-client-packagesdbsrcclientts)), the `dbConnectionMode` diagnostic, scrypt password helpers, generated Prisma types, and a handful of composite types and domain helpers (date grouping, speaker conflict detection, blackout-time conflict checks). Full export inventory + script list: [`packages/db/README.md`](../packages/db/README.md).
 
 ### `@conference/types` (`packages/types/`)
 
-Hand-written TypeScript types. **Out of sync.** Uses snake_case field names from the abandoned Supabase data model. Do not import; read the Prisma schema instead.
+Deprecated. Snake_case Supabase-era types; out of sync with the live Prisma schema. Only `@conference/supabase` still imports it. See [`packages/types/README.md`](../packages/types/README.md).
 
 ### `@conference/supabase` (`packages/supabase/`)
 
-Dead code. No app imports it. A pre-Prisma artifact. Candidate for removal in a future cleanup phase.
+Dead code — no source file in the four apps imports it. Candidate for removal alongside `@conference/types`. See [`packages/supabase/README.md`](../packages/supabase/README.md).
 
 ## Known limitations and operational gaps
 
@@ -332,13 +329,18 @@ Surfaced so cold readers do not have to discover these by tripping on them.
 
 | When you need… | Look at |
 |---|---|
+| Cold-engineer Getting Started + test creds | [`README.md`](../README.md) |
+| The agent-facing first-read order | [`CLAUDE.md`](../CLAUDE.md) |
+| Workflow conventions used during the demo sprint | [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
+| Working-here detail for a specific app | `apps/<app>/README.md` (linked from each app section above) |
+| Working-here detail for the data layer | [`packages/db/README.md`](../packages/db/README.md) |
 | A specific code path | The relevant app's `app/`, `components/`, and `lib/` directories |
-| The data model | `packages/db/prisma/schema.prisma` |
-| A seeding example or demo credentials | `packages/db/prisma/seed.ts` |
-| The PWA cache rules | `apps/attendee/next.config.js` |
+| The data model | [`packages/db/prisma/schema.prisma`](../packages/db/prisma/schema.prisma) |
+| A seeding example or demo credentials | [`packages/db/prisma/seed.ts`](../packages/db/prisma/seed.ts) |
+| The PWA cache rules | [`apps/attendee/next.config.js`](../apps/attendee/next.config.js) |
 | Auth config for an app | `apps/<app>/lib/auth.ts` and `apps/<app>/middleware.ts` |
 | Vercel build config for an app | `apps/<app>/vercel.json` |
 | The env-var contract | `.env.example` (root), `apps/<app>/.env.local.example`, `turbo.json` |
-| Why the architecture is what it is | `docs/decisions.md` (added in Phase 0b) |
-| Operational procedures | `docs/runbook.md` (added in Phase 0b) |
-| Symptom-to-cause for known failures | `docs/incident-playbook.md` (added in Phase 0b) |
+| Why the architecture is what it is | [`docs/decisions.md`](decisions.md) + [`docs/adr/`](adr/) |
+| Operational procedures | [`docs/runbook.md`](runbook.md) |
+| Symptom-to-cause for known failures | [`docs/incident-playbook.md`](incident-playbook.md) |
