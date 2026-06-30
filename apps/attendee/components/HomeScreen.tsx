@@ -699,8 +699,37 @@ export function HomeScreen(props: Props) {
 
         {/* ── Full hero — image behind everything ── */}
         <div className="relative overflow-hidden" style={{ borderRadius: '0 0 28px 28px' }}>
-          {/* Image */}
+          {/*
+            Phase 14 (2026-06-29): hot-linked fallback removed.
+            The previous fallback URL (agcdn-1d97e.kxcdn.com) served an unrelated
+            marketing image whenever conference.heroImageUrl was null — including
+            every dev environment and every fresh production install. Replaced
+            with a code-based gradient matching the WBR-module gradient at
+            PeopleClient.tsx:558.
+
+            ROLLBACK (if UAT rejects the gradient):
+              1. Comment out the active conditional block below.
+              2. Uncomment the preserved <Image> block beneath it.
+              3. The agcdn-1d97e.kxcdn.com entry in apps/attendee/next.config.js
+                 images.remotePatterns is retained for this rollback path.
+          */}
           <div className="absolute inset-0" style={{ top: '-50px', height: 'calc(100% + 50px)' }}>
+            {conference?.heroImageUrl ? (
+              <Image
+                src={conference.heroImageUrl}
+                alt=""
+                fill
+                className="object-cover"
+                style={{ objectPosition: '50% 100%' }}
+              />
+            ) : (
+              <div
+                className="absolute inset-0"
+                style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)' }}
+                aria-hidden="true"
+              />
+            )}
+            {/* Phase 14 rollback — pre-Phase-14 <Image> render preserved verbatim:
             <Image
               src={conference?.heroImageUrl ?? 'https://agcdn-1d97e.kxcdn.com/wp-content/uploads/2020/12/alphagamma-eTail-2021-opportunities-1024x640.jpg'}
               alt=""
@@ -708,6 +737,7 @@ export function HomeScreen(props: Props) {
               className="object-cover"
               style={{ objectPosition: '50% 100%' }}
             />
+            */}
           </div>
           {/* Black gradient from top */}
           <div className="absolute inset-0 z-10 pointer-events-none"

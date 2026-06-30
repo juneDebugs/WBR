@@ -156,6 +156,11 @@ module.exports = withPWA({
       { protocol: 'https', hostname: 'randomuser.me' },
       { protocol: 'https', hostname: 'github.com' },
       { protocol: 'https', hostname: 'api.dicebear.com' },
+      // Phase 14 (2026-06-29): the two hostnames below are retained for the
+      // rollback paths documented in apps/attendee/components/HomeScreen.tsx
+      // (hero render block) and apps/attendee/components/people/PeopleClient.tsx
+      // (WBR module avatar render). Drop both entries if the post-Phase-14
+      // fallback renders survive UAT.
       { protocol: 'https', hostname: 'agcdn-1d97e.kxcdn.com' },
       { protocol: 'https', hostname: 'encrypted-tbn0.gstatic.com' },
     ],

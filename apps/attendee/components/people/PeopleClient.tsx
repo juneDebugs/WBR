@@ -558,7 +558,18 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
             style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)' }}
           >
             <div className="flex-shrink-0 rounded-full p-[2px]" style={{ boxShadow: '0 0 8px 2px #f72585, 0 0 16px 4px #f72585', background: 'linear-gradient(135deg, #f72585, #ff85c1)' }}>
+              {/*
+                Phase 14 (2026-06-29): hot-linked gstatic.com thumbnail replaced
+                with the local WBR PWA app icon. Same rollback shape as the hero
+                render block in HomeScreen.tsx — uncomment the preserved <Image>
+                below + comment the active one if UAT rejects. The
+                encrypted-tbn0.gstatic.com entry in apps/attendee/next.config.js
+                images.remotePatterns is retained for this rollback path.
+              */}
+              <Image src="/icons/icon-192.png" alt="WBR" width={44} height={44} className="w-11 h-11 rounded-full object-cover block" />
+              {/* Phase 14 rollback — pre-Phase-14 <Image> render preserved verbatim:
               <Image src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSgAAvPlrRRvUDB1RF75eTXwrpt20VLulV3Dg&s" alt="WBR 2027" width={44} height={44} className="w-11 h-11 rounded-full object-cover block" />
+              */}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-white text-sm">WBR</p>
