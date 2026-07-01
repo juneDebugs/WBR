@@ -94,6 +94,26 @@ export function useTeammates() {
   })
 }
 
+// ── AI quota (Phase 12b) ──────────────────────────────────────────────
+// Pre-flight remaining count + current cap-hit state for the sponsor's
+// Draft intro surface. Consumed by RecommendedAttendees button + the
+// IntroDraftModal remaining-count line. Invalidated after every send
+// so the button reflects fresh state.
+export function useAiQuota() {
+  return useQuery<{
+    remaining: number | null
+    capHit: 'burst_limit' | 'daily_limit' | 'global_limit' | null
+  }>({
+    queryKey: ['ai-quota'],
+    queryFn: async () => {
+      const res = await fetch('/api/recommendations/quota')
+      if (!res.ok) return { remaining: null, capHit: null }
+      return res.json()
+    },
+    staleTime: 15 * 1000,
+  })
+}
+
 // ── Sponsor profile (profile page) ────────────────────────────────────
 export function useSponsorProfile() {
   return useQuery<{ sponsor: any; availableUsers: any[] }>({
@@ -115,6 +135,7 @@ export function useInvalidate() {
     sponsor: () => qc.invalidateQueries({ queryKey: ['sponsor-data'] }),
     attendees: () => qc.invalidateQueries({ queryKey: ['attendees'] }),
     profile: () => qc.invalidateQueries({ queryKey: ['sponsor-profile'] }),
+    aiQuota: () => qc.invalidateQueries({ queryKey: ['ai-quota'] }),
     all: () => qc.invalidateQueries(),
   }
 }

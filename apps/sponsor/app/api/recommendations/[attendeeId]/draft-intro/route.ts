@@ -10,6 +10,15 @@ import {
   type AttendeeInputs,
   type SponsorInputs,
 } from '@/lib/ai-intro'
+import {
+  CAP_HTTP_STATUS,
+  SURFACE_SPONSOR_DRAFT_INTRO,
+  estimateCostUsd,
+  findFreshIdempotencyHit,
+  insertOrDedup,
+  preflightCaps,
+  remainingDailyForUser,
+} from '@/lib/ai-controls'
 
 function parseArr(val: string | null | undefined): string[] {
   if (!val) return []
@@ -30,7 +39,17 @@ function isFeatureEnabled(): boolean {
   return process.env.WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED === 'true'
 }
 
-export async function POST(_req: Request, ctx: { params: Promise<{ attendeeId: string }> }) {
+// Idempotency key shape guard. Accepts any non-empty string (UUIDs are
+// standard, but a caller could send a nonce of another shape). Rejects
+// empty / whitespace / non-string. Long values are truncated at the DB
+// column bound implicitly — SQLite TEXT has no length cap, but we cap
+// at a sane maximum so a malicious client can't stuff megabytes.
+const IDEMPOTENCY_KEY_MAX = 128
+function isValidIdempotencyKey(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0 && v.length <= IDEMPOTENCY_KEY_MAX
+}
+
+export async function POST(req: Request, ctx: { params: Promise<{ attendeeId: string }> }) {
   // Server-side kill-switch. Client mirror
   // (NEXT_PUBLIC_WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED) hides the button,
   // but the route is the authoritative gate.
@@ -55,18 +74,79 @@ export async function POST(_req: Request, ctx: { params: Promise<{ attendeeId: s
     return NextResponse.json({ error: 'attendeeId required' }, { status: 400 })
   }
 
-  // Any error from here through the AI call routes to the same
-  // pattern-γ 502 the client's IntroDraftModal expects. Prisma errors
-  // (DB down), malformed JSON downstream, and AI failures all surface
-  // as `{ error: 'ai_unavailable' }` with a normalized 502 status —
-  // the modal opens with an empty editable textarea + the AI-draft-
-  // unavailable banner regardless of which stage failed. This keeps
-  // the client's failure contract simple (any non-2xx = pattern γ) and
-  // prevents uncontrolled 5xx pages from leaking through.
-  // Local capture so the closure below sees the narrowed non-null
-  // string type (TypeScript narrowing from `if (!user.sponsorId)`
-  // doesn't propagate into a nested arrow function scope).
+  // Idempotency key from request body. Required in Phase 12b — the
+  // client (RecommendedAttendees.tsx) generates a fresh UUID per Draft
+  // intro click. Reject requests without a valid key so we can't write
+  // untracked AI calls.
+  let idempotencyKey: string
+  try {
+    const body = await req.json()
+    if (!isValidIdempotencyKey(body?.idempotencyKey)) {
+      return NextResponse.json({ error: 'idempotencyKey required' }, { status: 400 })
+    }
+    idempotencyKey = body.idempotencyKey
+  } catch {
+    return NextResponse.json({ error: 'idempotencyKey required' }, { status: 400 })
+  }
+
+  const userId = user.id
   const sponsorIdNarrowed: string = user.sponsorId
+  const surface = SURFACE_SPONSOR_DRAFT_INTRO
+
+  // Any DB error from here on routes to pattern-γ 502 ai_unavailable —
+  // the modal opens with an empty editable textarea + the banner. This
+  // preserves Phase 12a's "any non-cap non-2xx = pattern γ" contract.
+  let dedupHit: string | null
+  let capHit: Awaited<ReturnType<typeof preflightCaps>>
+  try {
+    // ─ 1. Idempotency dedup ─────────────────────────────────────────
+    // A live prior entry with the same (userId, attendeeId, key) short-
+    // circuits: return the stored payload without a new AI call and
+    // without consuming cap budget. Client retries within the 5s window
+    // land here — the whole point of the idempotency key.
+    dedupHit = await findFreshIdempotencyHit({ userId, attendeeId, idempotencyKey })
+
+    // ─ 2. Cap pre-flight (skip on dedup) ────────────────────────────
+    // Order-sensitive: burst → user-daily → global-daily. The first hit
+    // wins. See the locked response matrix in `lib/ai-controls.ts`.
+    capHit = dedupHit ? null : await preflightCaps(userId, surface)
+  } catch (err: any) {
+    console.error('[draft-intro] DB cap-check failed', err?.message ?? err)
+    return NextResponse.json({ error: 'ai_unavailable' }, { status: 502 })
+  }
+
+  if (dedupHit) {
+    try {
+      const remaining = await remainingDailyForUser(userId, surface)
+      return NextResponse.json({ ...JSON.parse(dedupHit), remaining })
+    } catch {
+      // If we can parse the stored payload but not the remaining count,
+      // still return the payload — the remaining line is decorative.
+      // If JSON.parse itself throws, that's DB corruption → pattern γ.
+      try {
+        return NextResponse.json(JSON.parse(dedupHit))
+      } catch {
+        return NextResponse.json({ error: 'ai_unavailable' }, { status: 502 })
+      }
+    }
+  }
+
+  if (capHit) {
+    // burst_limit → 429; daily_limit → 429; global_limit → 503.
+    // Remaining is included on user-caps to power the modal's counter;
+    // global_limit is a platform-wide state, so we omit remaining.
+    const status = CAP_HTTP_STATUS[capHit]
+    if (capHit === 'global_limit') {
+      return NextResponse.json({ error: capHit }, { status })
+    }
+    try {
+      const remaining = await remainingDailyForUser(userId, surface)
+      return NextResponse.json({ error: capHit, remaining }, { status })
+    } catch {
+      return NextResponse.json({ error: capHit }, { status })
+    }
+  }
+
   const dbFetch = async () =>
     Promise.all([
       prisma.user.findUnique({
@@ -163,8 +243,9 @@ export async function POST(_req: Request, ctx: { params: Promise<{ attendeeId: s
     sponsor: sponsorInputs,
   })
 
+  let aiResult: Awaited<ReturnType<typeof generateText>>
   try {
-    const result = await generateText({
+    aiResult = await generateText({
       model: openai('gpt-4o-mini'),
       output: Output.object({ schema: IntroSchema }),
       system,
@@ -172,17 +253,52 @@ export async function POST(_req: Request, ctx: { params: Promise<{ attendeeId: s
       temperature: 0.2,
       maxOutputTokens: 200,
     })
-
-    // AI SDK v7 returns the structured object on result.output when an
-    // output specification is provided. Zod validation happens inside
-    // the SDK; a validation failure throws before we get here.
-    return NextResponse.json(result.output)
   } catch (err: any) {
     // Pattern γ: on any AI failure (5xx / 429 / Zod validation / stream
     // abort / provider error) the route surfaces a normalized failure
     // so the client can open the modal with an empty editable textarea
     // and the "⚠ AI draft unavailable" banner. No retry.
     console.error('[draft-intro] AI failure', err?.message ?? err)
+    return NextResponse.json({ error: 'ai_unavailable' }, { status: 502 })
+  }
+
+  const output = aiResult.output
+  const costEstimateUsd = estimateCostUsd(aiResult.usage ?? {})
+
+  try {
+    // ─ 3. Write AiCallLog row (race-safe) ───────────────────────────
+    // On concurrent same-key requests the unique constraint on
+    // (userId, attendeeId, idempotencyKey) makes one INSERT win; the
+    // loser falls back to SELECT the winner's row *only if that row is
+    // still within its 5s dedup window*. Both callers converge on the
+    // same response body — critical for the client's "double-click
+    // generates one intro" contract.
+    const { responsePayload } = await insertOrDedup({
+      userId,
+      attendeeId,
+      idempotencyKey,
+      surface,
+      costEstimateUsd,
+      responsePayload: JSON.stringify(output),
+    })
+
+    // Race-loser returns the winner's stored payload — parse it back
+    // to an object so `NextResponse.json` serializes cleanly (a stringy
+    // payload would land as a double-encoded JSON string on the wire).
+    const payloadObj = JSON.parse(responsePayload)
+    const remaining = await remainingDailyForUser(userId, surface)
+    return NextResponse.json({ ...payloadObj, remaining })
+  } catch (err: any) {
+    // Post-AI DB failure — either the audit insert threw a non-P2002
+    // error, OR an expired same-key collision (winner row exists but
+    // is outside its dedup window; returning it would double-serve
+    // stale content). Either way, the "every successful AI call is
+    // logged" AC forbids returning 200 without a written row, so we
+    // normalize to pattern γ 502 `ai_unavailable`. The AI-token spend
+    // is lost silently on this path — accepted trade-off. Should be
+    // rare (the same DB was reachable a few hundred ms ago for the
+    // cap check).
+    console.error('[draft-intro] audit write failed', err?.message ?? err)
     return NextResponse.json({ error: 'ai_unavailable' }, { status: 502 })
   }
 }

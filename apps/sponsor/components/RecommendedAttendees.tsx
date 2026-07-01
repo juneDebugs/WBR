@@ -4,7 +4,13 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { getCompanyDescription, SOLUTION_COLORS } from '@/lib/solutions'
-import { canDraft, getCanDraftBlockers, BLOCKER_COPY } from '@/lib/ai-intro'
+import {
+  canDraft,
+  getCanDraftBlockers,
+  BLOCKER_COPY,
+  CAP_HIT_COPY,
+} from '@/lib/ai-intro'
+import { useAiQuota } from '@/lib/hooks'
 import { IntroDraftModal } from './IntroDraftModal'
 
 const FALLBACK_COLORS = [
@@ -32,6 +38,16 @@ function tagColor(tag: string): { bg: string; text: string } {
 // the /api/recommendations/[attendeeId]/draft-intro route is authoritative.
 const AI_DRAFT_INTRO_ENABLED =
   process.env.NEXT_PUBLIC_WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED === 'true'
+
+// crypto.randomUUID exists on modern browsers + Node ≥14.17. Guard for
+// old browsers with a v4-shaped fallback so the button click never
+// throws — the idempotency key just needs to be a fresh nonce.
+function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `k-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
 
 export interface Attendee {
   id: string
@@ -63,6 +79,14 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
   const [requestedWithIntro, setRequestedWithIntro] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState<string | null>(null)
   const [draftTarget, setDraftTarget] = useState<Attendee | null>(null)
+  // Fresh idempotency key generated on Draft intro click, threaded to
+  // the modal for its POST body. Cleared when the modal closes so the
+  // next open produces a new key (per PRD §6 Phase 12b: "Client
+  // generates a fresh idempotencyKey UUID per Draft intro button click").
+  const [pendingKey, setPendingKey] = useState<string | null>(null)
+
+  const quota = useAiQuota()
+  const capHit = AI_DRAFT_INTRO_ENABLED ? quota.data?.capHit ?? null : null
 
   async function connect(attendeeId: string) {
     if (!sponsorId) return
@@ -83,6 +107,18 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
     setRequested(prev => new Set([...prev, attendeeId]))
     if (withIntro) setRequestedWithIntro(prev => new Set([...prev, attendeeId]))
     setDraftTarget(null)
+    setPendingKey(null)
+  }
+
+  function onDraftIntroClick(a: Attendee, disabled: boolean) {
+    if (disabled) return
+    setPendingKey(newIdempotencyKey())
+    setDraftTarget(a)
+  }
+
+  function onDraftClose() {
+    setDraftTarget(null)
+    setPendingKey(null)
   }
 
   if (attendees.length === 0) return null
@@ -118,8 +154,20 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
           const blockers = sponsor
             ? getCanDraftBlockers({ attendee: { bio: a.bio }, sponsor: { tagline: sponsor.tagline } })
             : ['tagline_missing' as const]
-          const draftDisabled = blockers.length > 0 || isRequested
-          const draftTooltip = blockers.length > 0 ? BLOCKER_COPY[blockers[0]] : ''
+          // Blocker precedence: data-side blockers (bio/tagline) come
+          // first because the user can fix them; cap-hit is a temporal
+          // state that will pass on its own. Both make the button
+          // non-clickable, but the label + tooltip reflect the first
+          // reason in the precedence list.
+          const blockerCopy = blockers.length > 0 ? BLOCKER_COPY[blockers[0]] : null
+          const capHitCopy = capHit ? CAP_HIT_COPY[capHit] : null
+          const draftDisabled = blockers.length > 0 || isRequested || capHit !== null
+          const draftLabel = blockerCopy
+            ? 'Draft intro'
+            : capHitCopy
+              ? capHitCopy
+              : 'Draft intro'
+          const draftTooltip = blockerCopy ?? capHitCopy ?? undefined
 
           return (
             <div
@@ -197,12 +245,13 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
 
                   {AI_DRAFT_INTRO_ENABLED && sponsor && (
                     <button
-                      onClick={() => !draftDisabled && setDraftTarget(a)}
+                      onClick={() => onDraftIntroClick(a, draftDisabled)}
                       disabled={draftDisabled}
-                      title={draftTooltip || undefined}
-                      className="w-full py-2 rounded-xl text-sm font-semibold border border-primary text-primary bg-transparent hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={draftTooltip}
+                      data-cap-hit={capHit ?? undefined}
+                      className="w-full py-2 rounded-xl text-[11px] leading-tight font-semibold border border-primary text-primary bg-transparent hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed sm:text-sm"
                     >
-                      Draft intro
+                      {draftLabel}
                     </button>
                   )}
                 </div>
@@ -212,14 +261,18 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
         })}
       </div>
 
-      {draftTarget && sponsor && canDraft({ attendee: { bio: draftTarget.bio }, sponsor: { tagline: sponsor.tagline } }) && (
-        <IntroDraftModal
-          attendee={draftTarget}
-          sponsor={sponsor}
-          onClose={() => setDraftTarget(null)}
-          onSent={withIntro => onSent(draftTarget.id, withIntro)}
-        />
-      )}
+      {draftTarget &&
+        sponsor &&
+        pendingKey &&
+        canDraft({ attendee: { bio: draftTarget.bio }, sponsor: { tagline: sponsor.tagline } }) && (
+          <IntroDraftModal
+            attendee={draftTarget}
+            sponsor={sponsor}
+            idempotencyKey={pendingKey}
+            onClose={onDraftClose}
+            onSent={withIntro => onSent(draftTarget.id, withIntro)}
+          />
+        )}
     </div>
   )
 }

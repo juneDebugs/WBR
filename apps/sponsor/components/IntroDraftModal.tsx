@@ -1,26 +1,31 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   IntroSchema,
   hasSparseInputs,
   groundedFieldsIncomplete,
   type IntroDraft,
   MESSAGE_MAX_CHARS,
+  CAP_HIT_COPY,
+  type CapErrorCode,
 } from '@/lib/ai-intro'
 import type { Attendee, SponsorContext } from './RecommendedAttendees'
 
 interface Props {
   attendee: Attendee
   sponsor: SponsorContext
+  idempotencyKey: string
   onClose: () => void
   onSent: (withIntro: boolean) => void
 }
 
 type Phase =
   | { kind: 'loading' } // AI call in flight
-  | { kind: 'ready'; draft: IntroDraft } // AI succeeded — editable
+  | { kind: 'ready'; draft: IntroDraft; remaining: number | null } // AI succeeded — editable
   | { kind: 'failed' } // AI unavailable — pattern γ, empty textarea
+  | { kind: 'capHit'; code: CapErrorCode; remaining: number | null } // rate-limit / cost-cap hit
   | { kind: 'sending' }
   | { kind: 'sendError'; message: string } // final send returned non-2xx
 
@@ -32,13 +37,25 @@ function toMessageString(draft: IntroDraft): string {
   return [draft.greeting, draft.body, draft.signoff].filter(Boolean).join('\n\n')
 }
 
-export function IntroDraftModal({ attendee, sponsor, onClose, onSent }: Props) {
+function isCapCode(v: unknown): v is CapErrorCode {
+  return v === 'burst_limit' || v === 'daily_limit' || v === 'global_limit'
+}
+
+export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, onSent }: Props) {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' })
   const [message, setMessage] = useState<string>('')
   const [groundedFields, setGroundedFields] = useState<readonly string[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
+  // `useQueryClient` returns a stable singleton across renders, so the
+  // `useCallback` here yields a truly stable reference — safe to put in
+  // the useEffect deps without refiring the AI call every render.
+  const qc = useQueryClient()
+  const invalidateAiQuota = useCallback(
+    () => qc.invalidateQueries({ queryKey: ['ai-quota'] }),
+    [qc],
+  )
 
   // On AI-failed (pattern γ) manual-send path, we bypass the low-
   // confidence confirm modal per PRD — user authorship implies
@@ -51,22 +68,56 @@ export function IntroDraftModal({ attendee, sponsor, onClose, onSent }: Props) {
     const ctrl = new AbortController()
     abortRef.current = ctrl
 
+    // Reset local state when the effect re-runs (e.g. the parent
+    // remounts with a different attendee.id or a fresh
+    // idempotencyKey). Without this, a re-mount briefly shows the
+    // prior draft's textarea contents and could allow sending stale
+    // text against the new attendee before the new fetch settles.
+    setPhase({ kind: 'loading' })
+    setMessage('')
+    setGroundedFields([])
+    setWasAiFailed(false)
+    setConfirmOpen(false)
+
     fetch(`/api/recommendations/${attendee.id}/draft-intro`, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idempotencyKey }),
     })
       .then(async res => {
-        if (!res.ok) throw new Error(`ai_${res.status}`)
-        const json = await res.json()
-        const parsed = IntroSchema.safeParse(json)
-        if (!parsed.success) throw new Error('ai_schema')
-        return parsed.data
+        // Read the body once for both success and cap-hit branches.
+        let json: any = null
+        try {
+          json = await res.json()
+        } catch {}
+
+        if (res.ok) {
+          const parsed = IntroSchema.safeParse(json)
+          if (!parsed.success) throw new Error('ai_schema')
+          const remaining =
+            typeof json?.remaining === 'number' ? (json.remaining as number) : null
+          return { kind: 'ready' as const, draft: parsed.data, remaining }
+        }
+
+        // 429 / 503 with a locked cap-hit error code → capHit branch.
+        if ((res.status === 429 || res.status === 503) && isCapCode(json?.error)) {
+          const remaining =
+            typeof json?.remaining === 'number' ? (json.remaining as number) : null
+          return { kind: 'capHit' as const, code: json.error as CapErrorCode, remaining }
+        }
+
+        throw new Error(`ai_${res.status}`)
       })
-      .then(draft => {
-        setPhase({ kind: 'ready', draft })
-        setMessage(toMessageString(draft))
-        setGroundedFields(draft.groundedFields)
+      .then(next => {
+        if (next.kind === 'ready') {
+          setPhase(next)
+          setMessage(toMessageString(next.draft))
+          setGroundedFields(next.draft.groundedFields)
+        } else {
+          setPhase(next)
+        }
+        invalidateAiQuota()
       })
       .catch(err => {
         if (err?.name === 'AbortError') return
@@ -74,10 +125,15 @@ export function IntroDraftModal({ attendee, sponsor, onClose, onSent }: Props) {
         setWasAiFailed(true)
         setMessage('')
         setGroundedFields([])
+        invalidateAiQuota()
       })
 
     return () => ctrl.abort()
-  }, [attendee.id])
+    // idempotencyKey is a per-open constant from the parent (fresh UUID
+    // per Draft intro click); attendee.id is the primary dep. If the
+    // parent ever re-uses the key across re-mounts, keeping the key in
+    // deps ensures the effect refires correctly.
+  }, [attendee.id, idempotencyKey, invalidateAiQuota])
 
   const bannerSparse = hasSparseInputs({
     attendee: { bio: attendee.bio, jobTitle: attendee.jobTitle },
@@ -87,13 +143,15 @@ export function IntroDraftModal({ attendee, sponsor, onClose, onSent }: Props) {
     phase.kind === 'ready' && groundedFieldsIncomplete(groundedFields)
   const showLimitedDataBanner = bannerSparse || bannerGroundingIncomplete
   const showAiUnavailableBanner = phase.kind === 'failed'
+  const showCapHitBanner = phase.kind === 'capHit'
 
   const isSending = phase.kind === 'sending'
   const canSend =
     !isSending &&
     message.trim().length > 0 &&
     message.length <= MESSAGE_MAX_CHARS &&
-    phase.kind !== 'loading'
+    phase.kind !== 'loading' &&
+    phase.kind !== 'capHit'
 
   const provenance =
     phase.kind === 'ready' && groundedFields.length > 0
@@ -101,6 +159,15 @@ export function IntroDraftModal({ attendee, sponsor, onClose, onSent }: Props) {
           .map(f => f.replace(/^(attendee|sponsor)\./, ''))
           .join(', ')}`
       : null
+
+  // Remaining-count line: shown in ready and capHit-with-remaining
+  // phases. Suppressed on global_limit (no per-user remaining meaning)
+  // and on failed (pattern γ has no cap accounting).
+  const remainingValue =
+    phase.kind === 'ready' || phase.kind === 'capHit' ? phase.remaining : null
+  const showRemainingLine =
+    remainingValue !== null &&
+    !(phase.kind === 'capHit' && phase.code === 'global_limit')
 
   async function actuallySend() {
     setPhase({ kind: 'sending' })
@@ -154,19 +221,34 @@ export function IntroDraftModal({ attendee, sponsor, onClose, onSent }: Props) {
             <div className="text-sm text-gray-500 py-8 text-center">Drafting an intro…</div>
           )}
 
+          {showCapHitBanner && phase.kind === 'capHit' && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {CAP_HIT_COPY[phase.code]}
+            </div>
+          )}
+
           {showAiUnavailableBanner && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               ⚠ AI draft unavailable — write your own message and send.
             </div>
           )}
 
-          {phase.kind !== 'loading' && showLimitedDataBanner && !showAiUnavailableBanner && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              ⚠ Limited data — Review carefully.
-            </div>
+          {phase.kind !== 'loading' &&
+            phase.kind !== 'capHit' &&
+            showLimitedDataBanner &&
+            !showAiUnavailableBanner && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                ⚠ Limited data — Review carefully.
+              </div>
+            )}
+
+          {showRemainingLine && (
+            <p className="text-[11px] text-gray-500">
+              {remainingValue} AI draft{remainingValue === 1 ? '' : 's'} remaining today
+            </p>
           )}
 
-          {phase.kind !== 'loading' && (
+          {phase.kind !== 'loading' && phase.kind !== 'capHit' && (
             <>
               {provenance && (
                 <p className="text-[11px] text-gray-500 italic">{provenance}</p>
@@ -205,14 +287,16 @@ export function IntroDraftModal({ attendee, sponsor, onClose, onSent }: Props) {
           >
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={onSendClick}
-            disabled={!canSend}
-            className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isSending ? 'Sending…' : `Send intro to ${firstNameOf(attendee.name)}`}
-          </button>
+          {phase.kind !== 'capHit' && (
+            <button
+              type="button"
+              onClick={onSendClick}
+              disabled={!canSend}
+              className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isSending ? 'Sending…' : `Send intro to ${firstNameOf(attendee.name)}`}
+            </button>
+          )}
         </div>
       </div>
 

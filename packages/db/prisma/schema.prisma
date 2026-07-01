@@ -496,6 +496,28 @@ model EmailLog {
   @@index([sponsorId])
 }
 
+// ─── AI Call Log ──────────────────────────────────────────────────────────────
+// Phase 12b: per-call audit + rate-limit accounting + idempotency dedup.
+// Plain string userId/attendeeId (no FK relations) mirrors EmailLog: the
+// audit trail survives user deletion so cost accounting is not lost.
+
+model AiCallLog {
+  id              String   @id @default(cuid())
+  userId          String
+  attendeeId      String
+  surface         String   // e.g. "sponsor_draft_intro"
+  createdAt       DateTime @default(now())
+  costEstimateUsd Float
+  idempotencyKey  String
+  responsePayload String   // JSON.stringify(IntroSchema-validated object)
+  expiresAt       DateTime // createdAt + 5s — dedup-window boundary
+
+  @@unique([userId, attendeeId, idempotencyKey])
+  @@index([userId, surface, createdAt])
+  @@index([surface, createdAt])
+  @@index([userId, attendeeId, idempotencyKey, expiresAt])
+}
+
 // ─── Integrations ─────────────────────────────────────────────────────────────
 
 model Integration {
