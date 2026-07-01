@@ -93,6 +93,20 @@ export function canDraft(input: {
   return getCanDraftBlockers(input).length === 0
 }
 
+// ── Cap-hit copy (Phase 12b) ─────────────────────────────────────────
+// Locked strings for the three cap-hit states shown at both the
+// Draft-intro button and the intro-draft modal. Kept in this client-
+// safe module so both the modal and RecommendedAttendees can import
+// without pulling in the server-only `ai-controls.ts` (Prisma).
+
+export type CapErrorCode = 'burst_limit' | 'daily_limit' | 'global_limit'
+
+export const CAP_HIT_COPY: Record<CapErrorCode, string> = {
+  burst_limit: 'Slow down — try again in a minute.',
+  daily_limit: 'Daily limit reached. Resets at midnight.',
+  global_limit: 'AI temporarily unavailable.',
+}
+
 // ── Confidence signals ───────────────────────────────────────────────
 // Pre-generation: depends only on input data. Evaluated pre-flight AND
 // after AI success. When true post-success, the tiered-friction confirm

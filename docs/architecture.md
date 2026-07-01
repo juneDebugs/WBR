@@ -28,7 +28,7 @@ WBR is a **monorepo of four Next.js 15 apps** sharing one database, one identity
 | Identity | NextAuth v4.24 with JWT sessions |
 | Data layer | Prisma 5.22 + libSQL (Turso) — SQLite locally, Turso in production |
 | Hosting | Four independent Vercel projects |
-| AI | `openai` package in `apps/web` (admin sponsor-reminder). AI SDK v7 (`ai@^7`) in `apps/sponsor` (Draft intro, Phase 12a; kill-switched behind `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED`) |
+| AI | `openai` package in `apps/web` (admin sponsor-reminder). AI SDK v7 (`ai@^7`) in `apps/sponsor` (Draft intro, Phase 12a; kill-switched behind `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED`). Phase 12b adds DB-backed rate limits, idempotency dedup, and cost-attribution telemetry via the `AiCallLog` table for the sponsor Draft intro surface. |
 | TypeScript | 5.9 strict mode — but build silently ignores TS + ESLint errors |
 
 ## System diagram
@@ -322,7 +322,7 @@ Surfaced so cold readers do not have to discover these by tripping on them.
 - **No real file storage.** Logos, hero images, and speaker photos are external URLs or base64-encoded strings in the database.
 - **No transactional email beyond manual admin sends.** Mail goes via a user-configured Gmail/Outlook OAuth `Integration`; without one, emails are logged to `EmailLog` but not delivered.
 - **No in-app notifications, push notifications, or audit trail.**
-- **No production-safe rate limiting.** The sponsor app's in-memory limiter is bypassed by Vercel's multi-instance runtime. Phase 12a's new sponsor-side AI route (`/api/recommendations/[attendeeId]/draft-intro`) inherits this gap and relies on the `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` kill-switch + internal-demo audience bound as its Phase 12a compensating controls. Phase 12b (sequenced follow-up, MUST land before non-demo usage) adds per-user + global caps via a DB-backed `AiCallLog` table, closing the gap for this surface specifically.
+- **No production-safe rate limiting** (partial closure, sponsor draft-intro only). The sponsor app's in-memory limiter is bypassed by Vercel's multi-instance runtime. Phase 12b added a DB-backed cap on `/api/recommendations/[attendeeId]/draft-intro` via the `AiCallLog` table — per-user burst (5/min), per-user daily (20/day), and global daily (1000/day) with locked HTTP response codes. This closes the gap for the AI Draft intro surface specifically. All other sponsor endpoints (and the admin `sponsors/remind` AI route) remain in the system-wide gap; a shared Upstash/Redis limiter is the post-sprint solution.
 - **Type and lint errors silently ignored at build time** — see [Deployment → Build behavior](#build-behavior).
 
 ## Reference map

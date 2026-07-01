@@ -160,13 +160,29 @@ Kill-switched behind `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` (server, authoritative
 
 Full scope in the engineer-local sprint PRD § Phase 12a (gitignored). Grip competitive-intelligence lens is what motivated the surface choice: Grip's flagship AI Matchmaking is non-generative (16 ML strategies, Tinder-style swipe UX; no intro-drafting text anywhere in the matchmaking flow). Phase 12a ships generative text INTO the matchmaking flow — the differentiation angle.
 
-### Phase 12b — AI surface production controls (sequenced, MUST land before non-demo usage)
+### Phase 12b — AI surface production controls (added 2026-07-01)
 
-Adds per-user + global rate limiting, cost-attribution telemetry, idempotency-key request dedup, and a graceful set of cap-hit UI states to the Phase 12a route. Response matrix locked: burst-cap → HTTP 429 `{error: "burst_limit"}`; user-daily-cap → HTTP 429 `{error: "daily_limit"}`; global-daily-cap → HTTP 503 `{error: "global_limit"}`.
+Adds per-user + global rate limiting, cost-attribution telemetry, idempotency-key request dedup, and a graceful set of cap-hit UI states to the Phase 12a route. Closes the sponsor-side rate-limit gap for the Draft intro surface specifically; other sponsor endpoints remain in the system-wide gap.
 
-New `AiCallLog` Prisma model persists per-call metadata (`userId`, `attendeeId`, `surface`, `createdAt`, `costEstimateUsd`, `idempotencyKey`, `responsePayload`, `expiresAt`) with three composite indexes + a unique constraint on `(userId, attendeeId, idempotencyKey)` for race-safe atomic first-write-wins under concurrent same-key requests. Idempotency-key dedup uses a 5-second window.
+**Locked caps** (as code constants in `apps/sponsor/lib/ai-controls.ts`; tunable in-place, promote to env vars if tuning becomes frequent post-deploy):
 
-Sequenced follow-up to Phase 12a — may land in-sprint if 12a converges with headroom; may be deferred post-sprint if the 7/6 demo lands clean and the 12a kill-switch stays engaged until 12b ships. Full scope in the engineer-local PRD § Phase 12b (gitignored).
+- per-user **burst**: 5 requests / rolling 60s window
+- per-user **daily**: 20 requests / rolling 24h window
+- **global daily**: 1000 requests / rolling 24h window (all users combined)
+
+**Response matrix (locked):** burst-cap → HTTP 429 `{error: "burst_limit"}`; user-daily-cap → HTTP 429 `{error: "daily_limit"}`; global-daily-cap → HTTP 503 `{error: "global_limit"}`. Route checks in order (burst → user-daily → global-daily); first hit wins.
+
+**AiCallLog Prisma model** persists per-call metadata (`userId`, `attendeeId`, `surface`, `createdAt`, `costEstimateUsd`, `idempotencyKey`, `responsePayload`, `expiresAt`) with three composite indexes on `(userId, surface, createdAt)` / `(surface, createdAt)` / `(userId, attendeeId, idempotencyKey, expiresAt)` and a unique constraint on `(userId, attendeeId, idempotencyKey)` for race-safe atomic first-write-wins under concurrent same-key requests. No FK relations — matches the `EmailLog` precedent so the audit trail survives user/attendee deletion.
+
+**Request flow:** dedup lookup → cap pre-flight → attendee/sponsor DB fetch + `canDraft` gate → AI call → `insertOrDedup` (row write with unique-violation fallback that returns the winner's payload for concurrent same-key races). Client generates a fresh `idempotencyKey` UUID per Draft intro button click; the 5-second dedup window absorbs retry loops without new AI cost. `GET /api/recommendations/quota` returns `{remaining, capHit}` for pre-flight button-level state.
+
+**Cap-hit UI copy** (locked):
+
+- burst_limit → `Slow down — try again in a minute.`
+- daily_limit → `Daily limit reached. Resets at midnight.`
+- global_limit → `AI temporarily unavailable.`
+
+Landed in the sprint per the 7/1 tech-check headroom. Full scope in the engineer-local PRD § Phase 12b (gitignored).
 
 ---
 
