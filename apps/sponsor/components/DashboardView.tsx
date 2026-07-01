@@ -36,6 +36,7 @@ function scoreAttendees(attendees: any[], sponsorSignals: string[]) {
     const score = Math.round((matched.length / Math.max(sponsorSignals.length, attendeeTags.length)) * 100)
     results.push({
       id: a.id, name: a.name ?? 'Attendee', image: a.image, company: a.company, jobTitle: a.jobTitle,
+      bio: a.bio ?? null,
       matchScore: Math.min(score, 99), matchedTags: [...new Set(matched)], allTags: [...new Set(attendeeTags)],
     })
   }
@@ -144,7 +145,15 @@ export function DashboardView() {
       </div>
 
       {recommended.length > 0 && sponsorId && (
-        <RecommendedAttendees attendees={recommended} sponsorId={sponsorId} />
+        <RecommendedAttendees
+          attendees={recommended}
+          sponsorId={sponsorId}
+          sponsor={{
+            id: sponsorId,
+            name: sponsor?.name ?? null,
+            tagline: sponsor?.tagline ?? null,
+          }}
+        />
       )}
 
       <div className="grid md:grid-cols-2 gap-6">
