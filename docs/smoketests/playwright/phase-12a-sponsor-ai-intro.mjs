@@ -3,8 +3,10 @@
  * Phase 12a contract verification — two modes:
  *
  *   Default mode (Step 5, AI-failure / pattern γ):
- *     Intercept POST /api/recommendations/*/draft-intro at the network layer
- *     and return HTTP 502 { error: "ai_unavailable" }. Assert the modal:
+ *     Intercept POST /api/recommendations/[attendeeId]/draft-intro at the
+ *     network layer and return HTTP 502 { error: "ai_unavailable" }. The
+ *     wildcard is escaped in this comment to avoid closing the JSDoc block.
+ *     Assert the modal:
  *       1. opens with an empty textarea,
  *       2. renders the "⚠ AI draft unavailable" banner,
  *       3. keeps Send disabled while the textarea is empty,
@@ -55,6 +57,14 @@ const MODE = process.env.PHASE12A_MODE ?? 'ai-failure' // 'ai-failure' | 'send-e
 const SEND_ERROR_STATUS = 400
 const SEND_ERROR_BODY = 'Message too long (max 1000 chars)'
 
+// Vercel Deployment Protection bypass. Set this when running against a
+// Preview URL that has Protection enabled. Generate via Vercel Project
+// Settings → Deployment Protection → Protection Bypass for Automation.
+const VERCEL_PROTECTION_BYPASS = process.env.VERCEL_PROTECTION_BYPASS
+const BYPASS_HEADERS = VERCEL_PROTECTION_BYPASS
+  ? { 'x-vercel-protection-bypass': VERCEL_PROTECTION_BYPASS }
+  : {}
+
 // Cookie prefix follows the protocol (matches Phase 3 + Phase 14 precedent).
 const COOKIE_NAME = BASE_URL.startsWith('https://')
   ? '__Secure-next-auth.session-token'
@@ -71,7 +81,7 @@ function fail(msg) { failCount++; console.log(`  ✗ ${msg}`) }
 async function loginAndExtractCookie() {
   const res = await fetch(`${BASE_URL}/api/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...BYPASS_HEADERS },
     body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
   })
   if (res.status !== 200) {
@@ -91,6 +101,7 @@ async function runAiFailureMode(browser) {
   const sessionToken = await loginAndExtractCookie()
   const ctx = await browser.newContext({
     viewport: { width: 1280, height: 800 },
+    extraHTTPHeaders: BYPASS_HEADERS,
   })
   try {
     await ctx.addCookies([
@@ -135,13 +146,17 @@ async function runAiFailureMode(browser) {
       return
     }
 
-    // Locate the first Draft intro button. Guard: it must be enabled;
-    // if none are enabled the recommended-attendee set doesn't include
-    // a canDraft-passing entry, which is a seed-data problem, not a
-    // Phase 12a defect.
+    // Wait for the tanstack-query fetches to hydrate. `networkidle`
+    // catches the SSR shell + initial data-fetch idle, but React
+    // client-side re-renders after `useAttendees()` resolves — the
+    // Draft intro buttons transition from disabled (pre-hydration
+    // default) to their real state (per `canDraft`) only after that
+    // resolve.
     const draftBtn = page.locator('button:has-text("Draft intro"):not([disabled])').first()
-    if ((await draftBtn.count()) === 0) {
-      fail('no enabled "Draft intro" button on /dashboard — check that the feature flag is on AND at least one recommended-attendee row has bio ≥ 20 chars AND the sponsor has a tagline. Also verify NEXT_PUBLIC_WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED was set at BUILD TIME (the client mirror is compile-time inlined).')
+    try {
+      await draftBtn.waitFor({ state: 'attached', timeout: 10_000 })
+    } catch {
+      fail('no enabled "Draft intro" button on /dashboard after 10s — check that the feature flag is on AND at least one recommended-attendee row has bio ≥ 20 chars AND the sponsor has a tagline. Also verify NEXT_PUBLIC_WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED was set at BUILD TIME (the client mirror is compile-time inlined).')
       return
     }
     ok('found enabled Draft intro button')
@@ -225,7 +240,10 @@ async function runAiFailureMode(browser) {
 async function runSendErrorMode(browser) {
   console.log('\n── Phase 12a Send-error path (400 from /api/request-meeting) ──')
   const sessionToken = await loginAndExtractCookie()
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  const ctx = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    extraHTTPHeaders: BYPASS_HEADERS,
+  })
   try {
     await ctx.addCookies([
       {
@@ -263,17 +281,21 @@ async function runSendErrorMode(browser) {
     }
 
     const draftBtn = page.locator('button:has-text("Draft intro"):not([disabled])').first()
-    if ((await draftBtn.count()) === 0) {
-      fail('no enabled "Draft intro" button on /dashboard — see AI-failure mode error message for setup checklist')
+    try {
+      await draftBtn.waitFor({ state: 'attached', timeout: 10_000 })
+    } catch {
+      fail('no enabled "Draft intro" button on /dashboard after 10s — see AI-failure mode error message for setup checklist')
       return
     }
     await draftBtn.click()
 
     // Wait for either the AI-drafted textarea to populate OR the pattern-γ
     // empty state to render. In either case, the textarea must eventually
-    // exist and Send must eventually be reachable.
+    // exist and Send must eventually be reachable. The generous 30s
+    // budget accommodates cold-start Vercel Function latency + gpt-4o-mini
+    // structured-output response time.
     const textarea = page.locator('textarea').first()
-    await textarea.waitFor({ timeout: 10_000 })
+    await textarea.waitFor({ timeout: 30_000 })
 
     // Ensure the textarea has non-empty content so Send is enabled.
     const currentValue = await textarea.inputValue()
