@@ -150,6 +150,24 @@ The 2026-06-22 sprint sets a deliberate non-goal of production-scale AI rollout.
 
 This posture exists to surface AI capability without committing to production-scale rollout planning. The three larger AI features named in the project charter (recommendation engine, smart matchmaking, conversation assistant) remain on the post-demo roadmap, not the sprint deliverable list.
 
+### Phase 12a — Sponsor portal AI intro drafter (added 2026-07-01)
+
+The visible AI moment in the 7/6 demo. A `Draft intro` secondary button on the existing sponsor-portal `RecommendedAttendees` cards opens an intro draft modal — the AI streams a 3-sentence personalized opener grounded in attendee bio + role + matched solution tags + sponsor tagline, and the sponsor reviews / edits / sends. The intro lands in `MeetingRequest.message` per [ADR 0005](adr/0005-ai-intros-via-meeting-request-message.md); the existing one-click Connect flow is unchanged.
+
+Locked at implementation: `gpt-4o-mini` via AI SDK v7 (`ai@^7` + `@ai-sdk/openai@^4` + `zod@^4`); structured output via `generateText` + `Output.object({ schema })`; `temperature: 0.2`, `maxOutputTokens: 200`. Layer 1 prompt grounding ("Do NOT invent" system message + JSON-only user payload). Layer 2 Zod-validated structured output with a `groundedFields` provenance array. Layer 3 UI-level HITL: pre-flight `canDraft` input gate + tiered friction (shape E from grill) — high-confidence sends single-click, low-confidence interposes a "Limited data — Send anyway?" confirm. Graceful degradation (pattern γ): AI failure opens the modal with an empty editable textarea + `⚠ AI draft unavailable` banner; the manual-send path bypasses the confirm modal.
+
+Kill-switched behind `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` (server, authoritative) + `NEXT_PUBLIC_WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` (client mirror, compile-time inlined — a build is required after toggling). Rate limits, cost caps, `AiCallLog` persistence, idempotency-key dedup, and cap-hit UI states are explicitly deferred to Phase 12b — the demo-audience worst-case cost is sub-dollar and the kill-switch is the compensating control for the 7/6 demo.
+
+Full scope in the engineer-local sprint PRD § Phase 12a (gitignored). Grip competitive-intelligence lens is what motivated the surface choice: Grip's flagship AI Matchmaking is non-generative (16 ML strategies, Tinder-style swipe UX; no intro-drafting text anywhere in the matchmaking flow). Phase 12a ships generative text INTO the matchmaking flow — the differentiation angle.
+
+### Phase 12b — AI surface production controls (sequenced, MUST land before non-demo usage)
+
+Adds per-user + global rate limiting, cost-attribution telemetry, idempotency-key request dedup, and a graceful set of cap-hit UI states to the Phase 12a route. Response matrix locked: burst-cap → HTTP 429 `{error: "burst_limit"}`; user-daily-cap → HTTP 429 `{error: "daily_limit"}`; global-daily-cap → HTTP 503 `{error: "global_limit"}`.
+
+New `AiCallLog` Prisma model persists per-call metadata (`userId`, `attendeeId`, `surface`, `createdAt`, `costEstimateUsd`, `idempotencyKey`, `responsePayload`, `expiresAt`) with three composite indexes + a unique constraint on `(userId, attendeeId, idempotencyKey)` for race-safe atomic first-write-wins under concurrent same-key requests. Idempotency-key dedup uses a 5-second window.
+
+Sequenced follow-up to Phase 12a — may land in-sprint if 12a converges with headroom; may be deferred post-sprint if the 7/6 demo lands clean and the 12a kill-switch stays engaged until 12b ships. Full scope in the engineer-local PRD § Phase 12b (gitignored).
+
 ---
 
 ## Hosting

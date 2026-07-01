@@ -28,7 +28,7 @@ WBR is a **monorepo of four Next.js 15 apps** sharing one database, one identity
 | Identity | NextAuth v4.24 with JWT sessions |
 | Data layer | Prisma 5.22 + libSQL (Turso) — SQLite locally, Turso in production |
 | Hosting | Four independent Vercel projects |
-| AI | OpenAI SDK in `apps/web` only |
+| AI | `openai` package in `apps/web` (admin sponsor-reminder). AI SDK v7 (`ai@^7`) in `apps/sponsor` (Draft intro, Phase 12a; kill-switched behind `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED`) |
 | TypeScript | 5.9 strict mode — but build silently ignores TS + ESLint errors |
 
 ## System diagram
@@ -111,7 +111,7 @@ Key invariants shown by the diagram:
 - **Per-app auth, shared secret.** Each app mounts its own NextAuth instance and issues its own JWT session cookie scoped to its own origin. All four apps share `NEXTAUTH_SECRET` and the `User` table, so the same credentials work everywhere — but **there is no single-sign-on**; users log in to each app independently. See [Identity and auth](#identity-and-auth).
 - **One Prisma schema, one User table, three runtime data backends.** The multi-mode client at `packages/db/src/client.ts` picks the right backend per environment: HTTP libSQL on Vercel, embedded replica during long-running local dev, plain SQLite as the local fallback. See [Data flow → Database client](#database-client-packagesdbsrcclientts).
 - **Independent deploys.** Each app is its own Vercel project. A failure in one app's build does not block the others; per-app env-var matrices, custom-domain mappings, and build caches are isolated. See [Deployment topology](#deployment-topology). Vercel project names locally confirmed: `apps/web` → `wbr-admin` (`.vercel/repo.json`), `apps/attendee` → `wbr` (`apps/attendee/.vercel/project.json`); names for `apps/meetings` and `apps/sponsor` are operationally defined (best confirmed via the Vercel UI on the project-owner's team).
-- **External surfaces beyond identity, all narrow.** Beyond Google OAuth (the only shared external identity provider), runtime apps reach four other external services: **OpenAI API** (admin only — sponsor-reminder personalization and admin AI surfaces); **Open-Meteo weather API** (attendee home screen widget, no auth); **Gmail / Outlook SMTP** (admin email send, via per-user OAuth Integration rather than a global service account); and **Google admin Integration callback** (`apps/web/app/api/integrations/google/callback` — a separate OAuth flow from sign-in, used to wire admin Gmail accounts for the email-send path).
+- **External surfaces beyond identity, all narrow.** Beyond Google OAuth (the only shared external identity provider), runtime apps reach four other external services: **OpenAI API** (admin sponsor-reminder personalization + admin AI surfaces via the `openai` package; sponsor-side Draft intro via AI SDK v7 as of Phase 12a — same OpenAI account, kill-switched); **Open-Meteo weather API** (attendee home screen widget, no auth); **Gmail / Outlook SMTP** (admin email send, via per-user OAuth Integration rather than a global service account); and **Google admin Integration callback** (`apps/web/app/api/integrations/google/callback` — a separate OAuth flow from sign-in, used to wire admin Gmail accounts for the email-send path).
 
 ## The four apps
 
@@ -141,7 +141,7 @@ Working-here detail (including the `MeetingRequest` lifecycle states and per-rou
 
 Used by employees of sponsoring companies. Access is gated by `User.sponsorId` (a foreign key into the `Sponsor` table), not by role. The presence of a non-null `sponsorId` is what tells the portal which company the current user represents — sponsorship enforcement is per-route, not in middleware.
 
-Surfaces: dashboard, attendee browse + meeting request, inbound/outbound request management, scheduled meetings, company profile editor, custom submission forms (`ABSTRACT` / `FULL_PAPER` / `SPEAKER_PROPOSAL` / `PANEL` / `SYMPOSIUM` / `CUSTOM`), team management.
+Surfaces: dashboard, attendee browse + meeting request, inbound/outbound request management, scheduled meetings, company profile editor, custom submission forms (`ABSTRACT` / `FULL_PAPER` / `SPEAKER_PROPOSAL` / `PANEL` / `SYMPOSIUM` / `CUSTOM`), team management, and (Phase 12a) an AI-drafted intro flow on the recommended-attendees row — kill-switched via `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED`. The AI-drafted intro writes to `MeetingRequest.message` per [ADR 0005](adr/0005-ai-intros-via-meeting-request-message.md), routed through the existing `/api/request-meeting` endpoint alongside the one-click Connect flow.
 
 Working-here detail: [`apps/sponsor/README.md`](../apps/sponsor/README.md).
 
@@ -289,7 +289,7 @@ From `turbo.json` (the canonical list of build/dev env keys):
 - `NEXTAUTH_URL` — per-project; matches each app's deployed URL (or the vanity URL for attendee).
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — required for Google sign-in.
 
-The admin app additionally reads `OPENAI_API_KEY` (consumed only by `app/api/sponsors/remind/route.ts`). `ADMIN_EMAILS` appears in `apps/web/.env.local.example` but is documentation residue — no runtime code reads it; admin access is role-based via `apps/web/lib/auth.ts`. Other env vars used by specific surfaces (`CONFERENCE_ID`, `SPONSOR_PORTAL_URL`) are listed in the repo-root `.env.example`.
+The admin app reads `OPENAI_API_KEY` (consumed by `app/api/sponsors/remind/route.ts`). The sponsor app also reads `OPENAI_API_KEY` (consumed by `app/api/recommendations/[attendeeId]/draft-intro/route.ts`, Phase 12a; same OpenAI account as the admin app). The sponsor app additionally reads `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` (server-side kill-switch) and `NEXT_PUBLIC_WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` (client mirror, compile-time inlined — a build is required after toggling). `ADMIN_EMAILS` appears in `apps/web/.env.local.example` but is documentation residue — no runtime code reads it; admin access is role-based via `apps/web/lib/auth.ts`. Other env vars used by specific surfaces (`CONFERENCE_ID`, `SPONSOR_PORTAL_URL`) are listed in the repo-root `.env.example`.
 
 ### Build behavior
 
@@ -322,7 +322,7 @@ Surfaced so cold readers do not have to discover these by tripping on them.
 - **No real file storage.** Logos, hero images, and speaker photos are external URLs or base64-encoded strings in the database.
 - **No transactional email beyond manual admin sends.** Mail goes via a user-configured Gmail/Outlook OAuth `Integration`; without one, emails are logged to `EmailLog` but not delivered.
 - **No in-app notifications, push notifications, or audit trail.**
-- **No production-safe rate limiting.** The sponsor app's in-memory limiter is bypassed by Vercel's multi-instance runtime.
+- **No production-safe rate limiting.** The sponsor app's in-memory limiter is bypassed by Vercel's multi-instance runtime. Phase 12a's new sponsor-side AI route (`/api/recommendations/[attendeeId]/draft-intro`) inherits this gap and relies on the `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` kill-switch + internal-demo audience bound as its Phase 12a compensating controls. Phase 12b (sequenced follow-up, MUST land before non-demo usage) adds per-user + global caps via a DB-backed `AiCallLog` table, closing the gap for this surface specifically.
 - **Type and lint errors silently ignored at build time** — see [Deployment → Build behavior](#build-behavior).
 
 ## Reference map

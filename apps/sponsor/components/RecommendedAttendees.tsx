@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { getCompanyDescription, SOLUTION_COLORS } from '@/lib/solutions'
+import { canDraft, getCanDraftBlockers, BLOCKER_COPY } from '@/lib/ai-intro'
+import { IntroDraftModal } from './IntroDraftModal'
 
 const FALLBACK_COLORS = [
   { bg: '#fff1f2', text: '#e11d48' }, // rose
@@ -26,32 +28,47 @@ function tagColor(tag: string): { bg: string; text: string } {
   return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length]
 }
 
-interface Attendee {
+// AI intro draft is a client-mirror feature flag; server-side gate on
+// the /api/recommendations/[attendeeId]/draft-intro route is authoritative.
+const AI_DRAFT_INTRO_ENABLED =
+  process.env.NEXT_PUBLIC_WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED === 'true'
+
+export interface Attendee {
   id: string
   name: string
   image: string | null
   company: string | null
   jobTitle: string | null
+  bio: string | null
   matchScore: number
   matchedTags: string[]
   allTags: string[]
 }
 
+export interface SponsorContext {
+  id: string
+  name: string | null
+  tagline: string | null
+}
+
 interface Props {
   attendees: Attendee[]
   sponsorId: string | null
+  sponsor?: SponsorContext | null
 }
 
-export function RecommendedAttendees({ attendees, sponsorId }: Props) {
+export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
   const router = useRouter()
   const [requested, setRequested] = useState<Set<string>>(new Set())
+  const [requestedWithIntro, setRequestedWithIntro] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState<string | null>(null)
+  const [draftTarget, setDraftTarget] = useState<Attendee | null>(null)
 
   async function connect(attendeeId: string) {
     if (!sponsorId) return
     setLoading(attendeeId)
     try {
-      await fetch('/api/meeting-requests', {
+      await fetch('/api/request-meeting', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetUserId: attendeeId }),
@@ -60,6 +77,12 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
     } finally {
       setLoading(null)
     }
+  }
+
+  function onSent(attendeeId: string, withIntro: boolean) {
+    setRequested(prev => new Set([...prev, attendeeId]))
+    if (withIntro) setRequestedWithIntro(prev => new Set([...prev, attendeeId]))
+    setDraftTarget(null)
   }
 
   if (attendees.length === 0) return null
@@ -83,6 +106,7 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
         {attendees.map(a => {
           const isRequested = requested.has(a.id)
           const isLoading = loading === a.id
+          const withIntro = requestedWithIntro.has(a.id)
           // Show up to 4 tags: matched tags first (purple), then remaining (gray)
           const matchedSet = new Set(a.matchedTags)
           const matched = a.allTags.filter(t => matchedSet.has(t))
@@ -90,6 +114,12 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
           const orderedTags = [...matched, ...unmatched]
           const visibleTags = orderedTags.slice(0, 4)
           const extraCount = orderedTags.length - visibleTags.length
+
+          const blockers = sponsor
+            ? getCanDraftBlockers({ attendee: { bio: a.bio }, sponsor: { tagline: sponsor.tagline } })
+            : ['tagline_missing' as const]
+          const draftDisabled = blockers.length > 0 || isRequested
+          const draftTooltip = blockers.length > 0 ? BLOCKER_COPY[blockers[0]] : ''
 
           return (
             <div
@@ -145,23 +175,51 @@ export function RecommendedAttendees({ attendees, sponsorId }: Props) {
                   )}
                 </div>
 
-                {/* Connect button */}
-                <button
-                  onClick={() => connect(a.id)}
-                  disabled={isRequested || isLoading || !sponsorId}
-                  className={`mt-auto pt-3 w-full py-2 rounded-xl text-sm font-semibold transition-all ${
-                    isRequested
-                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                      : 'bg-primary text-white hover:bg-primary/90 disabled:opacity-50'
-                  }`}
-                >
-                  {isLoading ? '…' : isRequested ? '✓ Requested' : 'Connect'}
-                </button>
+                {/* Connect + Draft intro buttons */}
+                <div className="mt-auto pt-3 flex flex-col gap-2">
+                  <button
+                    onClick={() => connect(a.id)}
+                    disabled={isRequested || isLoading || !sponsorId}
+                    className={`w-full py-2 rounded-xl text-sm font-semibold transition-all ${
+                      isRequested
+                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                        : 'bg-primary text-white hover:bg-primary/90 disabled:opacity-50'
+                    }`}
+                  >
+                    {isLoading
+                      ? '…'
+                      : isRequested
+                      ? withIntro
+                        ? '✓ Requested · with intro'
+                        : '✓ Requested'
+                      : 'Connect'}
+                  </button>
+
+                  {AI_DRAFT_INTRO_ENABLED && sponsor && (
+                    <button
+                      onClick={() => !draftDisabled && setDraftTarget(a)}
+                      disabled={draftDisabled}
+                      title={draftTooltip || undefined}
+                      className="w-full py-2 rounded-xl text-sm font-semibold border border-primary text-primary bg-transparent hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Draft intro
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )
         })}
       </div>
+
+      {draftTarget && sponsor && canDraft({ attendee: { bio: draftTarget.bio }, sponsor: { tagline: sponsor.tagline } }) && (
+        <IntroDraftModal
+          attendee={draftTarget}
+          sponsor={sponsor}
+          onClose={() => setDraftTarget(null)}
+          onSent={withIntro => onSent(draftTarget.id, withIntro)}
+        />
+      )}
     </div>
   )
 }

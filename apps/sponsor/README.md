@@ -69,7 +69,7 @@ Sponsorship enforcement is **per-route and inconsistent**. The profile-write rou
 - **`/api/attendees` is preloaded from the authenticated portal layout, not the root.** The preload was relocated in Phase 3 because emitting it from the root layout fired against the login page (where the call returns 401), filling the network panel with red entries and contributing to login-page LCP delay. See [`docs/smoketests/phase-3-sponsor-preload-relocate.md`](../../docs/smoketests/phase-3-sponsor-preload-relocate.md).
 - **The in-memory rate limiter is broken on Vercel multi-instance.** Same shape as apps/web's and apps/meetings'. Per-instance accounting means a hot caller can exceed the intended cap by `~N_instances`. Captured for follow-up; Redis backing is the real fix.
 - **The portal layout sets PWA metadata** (`app/layout.tsx` declares `manifest: '/manifest.json'`), but unlike apps/attendee this app **does not register a service worker** — there is no `next-pwa` wrapper in `next.config.js`. The manifest enables "Add to home screen" but the offline cache layer is absent.
-- **No `.env.local.example` is committed for this app.** The root [`README.md`](../../README.md) §First-clone setup generates the `.env.local` inline.
+- **`.env.local.example` is committed** ([`apps/sponsor/.env.local.example`](.env.local.example)); the root [`README.md`](../../README.md) §First-clone setup is the fallback flow for generating `.env.local` inline if the template is missing.
 
 ## App-specific dev commands
 
@@ -108,4 +108,7 @@ Plain attendees (`steph@curry.com`) can sign in but hit 403 on sponsor-only rout
 | `DATABASE_URL` | Yes | Prisma client target (local SQLite file or Turso `libsql://`) |
 | `NEXTAUTH_SECRET` | Yes | JWT signing; must match across all four apps |
 | `NEXTAUTH_URL` | Yes | `http://localhost:3003` for local, the deploy URL in production |
+| `OPENAI_API_KEY` | If AI intro-draft feature flag is on | Powers the sponsor-side Draft intro AI route (`/api/recommendations/[attendeeId]/draft-intro`). Same OpenAI account as the admin app's sponsor-reminder route. |
+| `WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` | Optional (defaults off) | Server-side kill-switch for the Draft intro surface. Set to the literal string `"true"` to enable; any other value (or unset) keeps the surface disabled and the route returns 404. |
+| `NEXT_PUBLIC_WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED` | Optional (defaults off) | Client mirror of the server flag — hides the button. Compile-time inlined; a rebuild is required after toggling. |
 | `TURSO_AUTH_TOKEN` | Production only | Auth for Turso libSQL connections (see ADR 0003) |

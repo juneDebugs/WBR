@@ -39,3 +39,5 @@ apps/attendee/public/sw.js.map
 apps/attendee/public/workbox-*.js
 apps/attendee/public/workbox-*.js.map
 .env*
+# ...but let per-app env templates through so setup docs stay in sync with the code.
+!.env.local.example

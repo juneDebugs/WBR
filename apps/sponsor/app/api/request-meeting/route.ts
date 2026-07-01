@@ -19,7 +19,22 @@ export async function POST(req: Request) {
   const existing = await prisma.meetingRequest.findFirst({
     where: { requesterId: user.id, targetUserId },
   })
-  if (existing) return NextResponse.json(existing)
+  if (existing) {
+    // Idempotent duplicate. If the caller supplied a non-empty message
+    // and the existing row has none, promote the message onto the row
+    // so a Connect → Draft-intro sequence lands the AI-drafted intro on
+    // the persisted record per ADR 0005. If both sides have a message,
+    // the existing one wins (later drafts don't overwrite earlier sends
+    // — the user's already-sent intro is the source of truth).
+    if (message && !existing.message) {
+      const updated = await prisma.meetingRequest.update({
+        where: { id: existing.id },
+        data: { message },
+      })
+      return NextResponse.json(updated)
+    }
+    return NextResponse.json(existing)
+  }
 
   const created = await prisma.meetingRequest.create({
     data: {
