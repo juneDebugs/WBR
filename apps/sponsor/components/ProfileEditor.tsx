@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef } from 'react'
+import { useInvalidate } from '@/lib/hooks'
 
 const SOLUTIONS = [
   'Analytics & Data', 'Email Marketing', 'SMS Marketing', 'Loyalty & Retention',
@@ -214,6 +215,7 @@ function TeammateManager({ teammates, available, onAdd, onRemove }: {
 export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
   sponsor: any; currentUserId: string; availableUsers: any[]
 }) {
+  const invalidate = useInvalidate()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -290,6 +292,7 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
         }),
       })
       if (!res.ok) throw new Error(await res.text())
+      await Promise.all([invalidate.sponsor(), invalidate.profile()])
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err: any) {
