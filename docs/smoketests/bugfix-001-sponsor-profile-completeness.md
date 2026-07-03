@@ -18,19 +18,42 @@ BUG-001 lives entirely inside this app. You do NOT need to spin up `apps/web`, `
 
 ## 2. Prerequisites
 
-Assumes you've already cloned the repo and set up dependencies at least once. If this is your first time on this laptop:
+**First check — do you already have a working setup?** Look for the file `packages/db/prisma/dev.db` in your local repo:
+
+```bash
+ls -lh packages/db/prisma/dev.db
+```
+
+If it exists and is > 1 MB, your DB is already seeded — **skip the rest of this section, go to §3**. (This is the typical case if you've run any WBR app locally before.)
+
+### First-time-on-this-laptop setup only
+
+Only run these commands if `dev.db` is missing or empty.
 
 ```bash
 # From the repo root — /Users/<you>/Work/sandbox/WBR or wherever you cloned.
-pnpm install                                         # install dependencies
-pnpm --filter @conference/db exec prisma generate    # generate Prisma client
-pnpm --filter @conference/db exec prisma db push     # apply schema to local SQLite
-pnpm --filter @conference/db exec tsx prisma/seed.ts # seed demo accounts + data
+
+# 1. Copy the env template to a real .env file so Prisma can read DATABASE_URL.
+cp .env.example .env
+# (Optional: edit .env to change NEXTAUTH_SECRET to a random value.)
+
+# 2. Install dependencies. This also runs `prisma generate` in a postinstall hook.
+pnpm install
+
+# 3. Push the schema to a fresh local SQLite file.
+pnpm --filter @conference/db run db:push
+
+# 4. Seed the demo accounts + sample data.
+pnpm --filter @conference/db run db:seed
 ```
 
-You can skip these if you've run the app locally before and the DB isn't stale.
+**Common first-time errors:**
 
-**Sanity check:** you should have a file at `packages/db/prisma/dev.db` (the local SQLite database).
+- `Environment variable not found: DATABASE_URL` — you skipped step 1. Copy `.env.example` to `.env`, or set `DATABASE_URL="file:./dev.db"` inline for the command.
+- `Command "tsx" not found` — do NOT run `prisma/seed.ts` directly with `tsx`. The correct command is `pnpm --filter @conference/db run db:seed`, which uses `ts-node` internally.
+- `Ignored build scripts: sharp` warning after `pnpm install` — harmless. `sharp` is an image-processing lib whose native build is optional.
+
+**Sanity check after setup:** `packages/db/prisma/dev.db` exists and is > 1 MB.
 
 ---
 
