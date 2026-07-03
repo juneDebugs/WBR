@@ -41,7 +41,17 @@ const COOKIE_NAME = BASE_URL.startsWith('https://')
   : 'next-auth.session-token'
 
 const INVALIDATION_LATENCY_MS = 500 // Max acceptable delta between PATCH response and refetch fire
-const ARRAY_FIELD_LABELS = ['Solutions offering', 'Solutions seeking', 'Target industries']
+
+// Dashboard's completeness() uses these labels in the "missing" list.
+const DASHBOARD_ARRAY_LABELS = ['Solutions offering', 'Solutions seeking', 'Target industries']
+
+// ProfileEditor MultiChips render with these labels. Order maps to
+// DASHBOARD_ARRAY_LABELS above (offering / seeking / industries).
+const EDITOR_CHIP_LABELS = [
+  'Solutions & Categories',           // → solutionsOffering
+  "Solutions They're Looking For",    // → solutionsSeeking
+  'Industries',                       // → targetIndustries
+]
 
 let passCount = 0
 let failCount = 0
@@ -86,23 +96,60 @@ function attachSaveObserver(page) {
   return events
 }
 
+// Type-aware default values for each HTML input type. URL and email inputs
+// have HTML5 validation that blocks form submission on invalid values, so
+// generic filler strings like "test-value" won't work.
+function defaultValueFor(type) {
+  switch (type) {
+    case 'url': return 'https://example.com/test.png'
+    case 'email': return 'test@example.com'
+    case 'tel': return '+1 555 000 0000'
+    case 'number': return '2020'
+    case 'date': return '2026-01-01'
+    default: return 'test value' // safe for text, textarea, untyped
+  }
+}
+
 async function fillAllProfileFields(page) {
   // Fill every visible input on the profile editor with non-empty values.
-  // Idempotent — safe to call on any profile state. Selects the first option
-  // in every <select>, ticks at least one option in every chip group.
+  // Idempotent — safe to call on any profile state.
 
-  // Text inputs and textareas — set a placeholder value on every non-file input
-  const textInputs = page.locator('input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input:not([type]), textarea')
-  const count = await textInputs.count()
+  // Every text-ish input including URL / email / tel — fill with a
+  // type-appropriate value so HTML5 validation doesn't block submit.
+  const inputSelector = [
+    'input[type="text"]',
+    'input[type="email"]',
+    'input[type="tel"]',
+    'input[type="url"]',
+    'input[type="number"]',
+    'input[type="date"]',
+    'input:not([type])',
+    'textarea',
+  ].join(', ')
+  const inputs = page.locator(inputSelector)
+  const count = await inputs.count()
   for (let i = 0; i < count; i++) {
-    const el = textInputs.nth(i)
-    // Skip disabled + readonly + hidden inputs
+    const el = inputs.nth(i)
     if (!(await el.isVisible().catch(() => false))) continue
     if (await el.isDisabled().catch(() => false)) continue
+    const inputType = (await el.getAttribute('type').catch(() => '')) || 'text'
     const currentVal = await el.inputValue().catch(() => '')
-    if (!currentVal) {
-      await el.fill('test-value').catch(() => {})
+
+    // For URL and email inputs, HTML5 validation blocks form submit if the
+    // current value fails the type's format check. The Shopify seed contains
+    // relative logoUrl values like `/sponsors/shopify.png` which are invalid
+    // per `<input type="url">`. Overwrite these with a valid absolute value.
+    if (inputType === 'url' && currentVal && !/^https?:\/\//i.test(currentVal)) {
+      await el.fill(defaultValueFor('url')).catch(() => {})
+      continue
     }
+    if (inputType === 'email' && currentVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(currentVal)) {
+      await el.fill(defaultValueFor('email')).catch(() => {})
+      continue
+    }
+
+    if (currentVal) continue
+    await el.fill(defaultValueFor(inputType)).catch(() => {})
   }
 
   // <select> — pick the first non-empty option on every select
@@ -121,27 +168,35 @@ async function fillAllProfileFields(page) {
     }
   }
 
-  // Chip toggles — target the array-field labels (Solutions offering, Solutions
-  // seeking, Target industries). Click the first chip in each group if the
-  // group has no selected chip.
-  for (const label of ARRAY_FIELD_LABELS) {
-    const group = page.locator(`label:has-text("${label}") + div, label:has-text("${label}") ~ div`).first()
+  // Chip toggles — the three array fields we care about for BUG-001.
+  // Editor uses labels distinct from the dashboard's completeness labels
+  // (see EDITOR_CHIP_LABELS). Ensure at least one chip is selected in each.
+  for (const label of EDITOR_CHIP_LABELS) {
+    const group = page.locator(`label:has-text("${label}") + div`).first()
     if (!(await group.isVisible().catch(() => false))) continue
+    const anySelected = await group.locator('button.text-white').count().catch(() => 0)
+    if (anySelected > 0) continue
     const chips = group.locator('button[type="button"]')
     const chipCount = await chips.count().catch(() => 0)
-    if (chipCount === 0) continue
-    // Check if any chip in this group is already selected (activated state uses
-    // a text-white class per the MultiChips component)
-    const anySelected = await group.locator('button.text-white').count().catch(() => 0)
-    if (anySelected === 0) {
+    if (chipCount > 0) {
       await chips.first().click({ force: true }).catch(() => {})
     }
   }
 }
 
 async function clickSaveButton(page) {
-  const btn = page.locator('button[type="submit"]:has-text("Save"), button:has-text("Save changes")').first()
-  await btn.click({ force: true })
+  // The ProfileEditor renders two submit buttons: top "Save Changes" and
+  // bottom "Save All Changes". Either triggers handleSave. Match the first
+  // enabled submit button in the profile form.
+  const btn = page.locator('form button[type="submit"]:not([disabled])').first()
+  try {
+    await btn.waitFor({ state: 'visible', timeout: 15000 })
+  } catch {
+    // Diagnostic screenshot so a failure has a visible artifact
+    await page.screenshot({ path: `bugfix-001-save-button-not-found-${Date.now()}.png`, fullPage: true }).catch(() => {})
+    throw new Error('Save button not visible on /profile after 15s. Screenshot captured.')
+  }
+  await btn.click()
 }
 
 async function readCompletenessPercentage(page) {
@@ -154,10 +209,12 @@ async function readCompletenessPercentage(page) {
 
 async function readMissingList(page) {
   // The dashboard renders the completeness "missing" list of field labels.
+  // Uses DASHBOARD_ARRAY_LABELS — the labels defined in completeness()'s
+  // field tuples in DashboardView.tsx.
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
   const bodyText = await page.locator('body').innerText()
   const missing = []
-  for (const label of ARRAY_FIELD_LABELS) {
+  for (const label of DASHBOARD_ARRAY_LABELS) {
     if (bodyText.includes(label)) missing.push(label)
   }
   return missing
@@ -180,11 +237,26 @@ async function step1_saveTriggersRefetch(browser, cookie) {
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
     await fillAllProfileFields(page)
     await clickSaveButton(page)
-    // Wait for the "Saved & synced" indicator OR up to 10s
     await page.waitForSelector('text=/Saved.*synced/i', { timeout: 10000 }).catch(() => {})
 
     const patchResp = events.find(e => e.kind === 'patch-response')
-    if (!patchResp) { fail('no PATCH /api/profile response observed'); return }
+    if (!patchResp) {
+      // Diagnostic — surface any HTML5-invalid form elements before failing,
+      // since browser-side validation is the most common reason PATCH doesn't
+      // fire (relative URLs in <input type="url"> etc.)
+      const invalidCount = await page.locator('form :invalid').count().catch(() => 0)
+      if (invalidCount > 0) {
+        console.log(`    [dbg] ${invalidCount} form element(s) failing HTML5 validation:`)
+        const invalids = await page.locator('form :invalid').all()
+        for (const el of invalids.slice(0, 5)) {
+          const name = await el.getAttribute('name').catch(() => '(no name)')
+          const type = await el.getAttribute('type').catch(() => '(no type)')
+          const val = await el.inputValue().catch(() => '(no value)')
+          console.log(`      invalid: name=${name} type=${type} value="${val}"`)
+        }
+      }
+      fail('no PATCH /api/profile response observed'); return
+    }
     if (patchResp.status !== 200) { fail(`PATCH /api/profile returned ${patchResp.status} — save failed`); return }
 
     const sponsorDataAfterPatch = events.find(e => e.kind === 'sponsor-data' && e.t >= patchResp.t)
@@ -238,42 +310,50 @@ async function step2_dashboardShowsFreshPercentage(browser, cookie) {
 }
 
 async function step3_emptyArraysCountedAsMissing(browser, cookie) {
-  console.log('\n── Step 3: clearing the 3 array fields counts them as missing (AC-3 + AC-4) ──')
+  console.log('\n── Step 3: empty arrays are counted as missing in completeness() (AC-3 + AC-4) ──')
+
+  // Rather than fight the MultiChips UI to un-tick chips, PATCH the profile
+  // with empty arrays directly through the API. This tests the actual fix:
+  // does completeness() treat "[]" as empty (missing), not as filled?
+  //
+  // The Defect B fix is in DashboardView.completeness(), independent of how
+  // the empty arrays get into the DB. A direct API PATCH exercises the same
+  // persistence path the ProfileEditor UI uses (JSON.stringify([]) → "[]"
+  // in the DB via apps/sponsor/app/api/profile/route.ts).
+  const patchRes = await fetch(`${BASE_URL}/api/profile`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: `${COOKIE_NAME}=${cookie}`,
+    },
+    body: JSON.stringify({
+      solutionsOffering: [],
+      solutionsSeeking: [],
+      targetIndustries: [],
+    }),
+  })
+  if (patchRes.status !== 200) {
+    fail(`direct PATCH /api/profile for empty arrays returned ${patchRes.status}`)
+    return
+  }
+  ok('PATCH /api/profile with empty arrays returned 200')
+
+  // Load the dashboard and read the "missing" list.
   const ctx = await browser.newContext()
   await ctx.addCookies([{
     name: COOKIE_NAME, value: cookie, url: BASE_URL, httpOnly: true, sameSite: 'Lax',
   }])
   const page = await ctx.newPage()
   try {
-    await page.goto(`${BASE_URL}/profile`, { waitUntil: 'domcontentloaded', timeout: 20000 })
+    await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 20000 })
     if (page.url().includes('/login')) {
-      fail('landed on /login when navigating to /profile — session cookie not accepted')
+      fail('landed on /login when navigating to /dashboard — session cookie not accepted')
       return
     }
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
-
-    // Un-tick every selected chip in each of the 3 array-field groups
-    for (const label of ARRAY_FIELD_LABELS) {
-      const group = page.locator(`label:has-text("${label}") + div, label:has-text("${label}") ~ div`).first()
-      if (!(await group.isVisible().catch(() => false))) continue
-      // Selected chips have the text-white class
-      const selectedChips = group.locator('button.text-white')
-      const n = await selectedChips.count().catch(() => 0)
-      for (let i = 0; i < n; i++) {
-        // Each click removes one; the collection shifts, so always click the first
-        await group.locator('button.text-white').first().click({ force: true }).catch(() => {})
-      }
-    }
-
-    await clickSaveButton(page)
-    await page.waitForSelector('text=/Saved.*synced/i', { timeout: 10000 }).catch(() => {})
-
-    // Navigate to dashboard and read missing list
-    await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded', timeout: 20000 })
     const missing = await readMissingList(page)
-    for (const label of ARRAY_FIELD_LABELS) {
+    for (const label of DASHBOARD_ARRAY_LABELS) {
       if (missing.includes(label)) {
-        ok(`AC-3/4: "${label}" appears in dashboard "missing" list after clearing`)
+        ok(`AC-3/4: "${label}" appears in dashboard "missing" list after empty-array PATCH`)
       } else {
         fail(`AC-3/4: "${label}" does NOT appear in dashboard "missing" list — completeness treats "[]" as filled`)
       }
