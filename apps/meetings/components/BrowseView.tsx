@@ -1,10 +1,11 @@
 'use client'
-import { useState, useMemo, useCallback, useDeferredValue } from 'react'
+import { useState, useMemo, useCallback, useDeferredValue, type ReactElement } from 'react'
 import { FilterPanel, Filters, EMPTY_FILTERS } from './FilterPanel'
 import { PersonCard } from './PersonCard'
 import { SponsorCard } from './SponsorCard'
 import { SponsorRepCard } from './SponsorRepCard'
-import { getIndustry, getJobFunction, getTitleLevel, getPeopleCategory, PEOPLE_CATEGORIES } from '@/lib/solutions'
+import { getPeopleCategory, PEOPLE_CATEGORIES } from '@/lib/solutions'
+import { filterMeetingsPeople, filterMeetingsSponsors } from '@conference/db/src/browse-taxonomy'
 import { useBrowseSponsors, useBrowsePeople, useBrowseRequests } from '@/lib/hooks'
 
 const PAGE_SIZE = 48
@@ -69,46 +70,11 @@ export function BrowseView({ mode }: Props) {
   }, [])
 
   const filteredPeople = useMemo(() => {
-    return people.filter(p => {
-      // Category filter (from sub-tabs)
-      if (deferredCategory !== null && getPeopleCategory(p.company) !== deferredCategory) return false
-      if (deferredFilters.roles.length > 0 && !deferredFilters.roles.includes(p.role)) return false
-      if (deferredFilters.industries.length > 0 && !deferredFilters.industries.includes(getIndustry(p.company))) return false
-      if (deferredFilters.titleLevels.length > 0 && !deferredFilters.titleLevels.includes(getTitleLevel(p.jobTitle))) return false
-      if (deferredFilters.jobFunctions.length > 0 && !deferredFilters.jobFunctions.includes(getJobFunction(p.jobTitle))) return false
-      if (deferredFilters.companySizes.length > 0 && !deferredFilters.companySizes.includes(p.companySize)) return false
-      if (deferredFilters.revenues.length > 0 && !deferredFilters.revenues.includes(p.annualRevenue)) return false
-      if (deferredFilters.solutionsOffering.length > 0) {
-        if (!deferredFilters.solutionsOffering.some(s => p._parsedOffering.includes(s))) return false
-      }
-      if (deferredFilters.solutionsSeeking.length > 0) {
-        if (!deferredFilters.solutionsSeeking.some(s => p._parsedSeeking.includes(s))) return false
-      }
-      if (deferredFilters.search) {
-        const q = deferredFilters.search.toLowerCase()
-        if (!`${p.name ?? ''} ${p.company ?? ''} ${p.jobTitle ?? ''} ${p.email ?? ''}`.toLowerCase().includes(q)) return false
-      }
-      return true
-    })
+    return filterMeetingsPeople(people, deferredFilters, deferredCategory)
   }, [people, deferredFilters, deferredCategory])
 
   const filteredSponsors = useMemo(() => {
-    return sponsors.filter(s => {
-      if (deferredFilters.industries.length > 0 && !deferredFilters.industries.includes(getIndustry(s.name))) return false
-      if (deferredFilters.companySizes.length > 0 && !deferredFilters.companySizes.includes(s.companySize)) return false
-      if (deferredFilters.revenues.length > 0 && !deferredFilters.revenues.includes(s.annualRevenue)) return false
-      if (deferredFilters.solutionsOffering.length > 0) {
-        if (!deferredFilters.solutionsOffering.some(x => s._parsedOffering.includes(x))) return false
-      }
-      if (deferredFilters.solutionsSeeking.length > 0) {
-        if (!deferredFilters.solutionsSeeking.some(x => s._parsedSeeking.includes(x))) return false
-      }
-      if (deferredFilters.search) {
-        const q = deferredFilters.search.toLowerCase()
-        if (!`${s.name} ${s.description ?? ''}`.toLowerCase().includes(q)) return false
-      }
-      return true
-    })
+    return filterMeetingsSponsors(sponsors, deferredFilters)
   }, [sponsors, deferredFilters])
 
   // Category counts for sub-tabs (memoized)
@@ -130,10 +96,65 @@ export function BrowseView({ mode }: Props) {
   // What to render
   const isSponsorsView = mode === 'sponsor-browsing-people' ? false : browseTab === 'sponsors'
   const isPeopleView = mode === 'sponsor-browsing-people' || browseTab === 'people'
-  const totalFiltered = isSponsorsView
-    ? filteredSponsors.flatMap(s => { const r = (s.users ?? []).filter((u: any) => u.role !== 'SPONSOR'); return r.length ? r : [s] }).length
-    : filteredPeople.length
-  const hasMore = isPeopleView && visibleCount < filteredPeople.length
+
+  const visiblePeople = filteredPeople.results.slice(0, visibleCount)
+
+  // Build sponsor rep cards once per (results, requested) change: the card
+  // count and the strict/similar boundary both depend on the same rep split.
+  const sponsorGrid = useMemo(() => {
+    if (!isSponsorsView) return { cards: [] as ReactElement[], strictCards: 0 }
+    let strictCards = 0
+    const cards = filteredSponsors.results.flatMap((s, i) => {
+      const reps = (s.users ?? []).filter((u: any) => u.role !== 'SPONSOR')
+      if (i < filteredSponsors.strictCount) strictCards += reps.length || 1
+      if (reps.length === 0) {
+        return [<SponsorCard key={s.id} sponsor={s} requested={requestedSponsorSet.has(s.id)} />]
+      }
+      return reps.map((rep: any) => (
+        <SponsorRepCard
+          key={`${s.id}-${rep.id}`}
+          sponsor={s}
+          rep={rep}
+          requested={requestedSponsorSet.has(s.id)}
+        />
+      ))
+    })
+    return { cards, strictCards }
+  }, [isSponsorsView, filteredSponsors, requestedSponsorSet])
+
+  const strictShown = isSponsorsView ? sponsorGrid.strictCards : filteredPeople.strictCount
+  const similarShown = isSponsorsView ? sponsorGrid.cards.length - sponsorGrid.strictCards : filteredPeople.similarCount
+  const totalFiltered = isSponsorsView ? sponsorGrid.cards.length : filteredPeople.results.length
+  const hasMore = isPeopleView && visibleCount < filteredPeople.results.length
+
+  // The engine only backfills when a chip filter is active, so similarShown > 0
+  // already implies an active chip filter.
+  const dividerIndex = isSponsorsView ? sponsorGrid.strictCards : filteredPeople.strictCount
+  const showDivider = similarShown > 0 && (isSponsorsView || dividerIndex < visiblePeople.length)
+
+  const gridCards = isSponsorsView
+    ? [...sponsorGrid.cards]
+    : visiblePeople.map(p => <PersonCard key={p.id} person={p} requested={requestedUserSet.has(p.id)} />)
+  if (showDivider) {
+    gridCards.splice(dividerIndex, 0, (
+      <div key="similar-divider" className="col-span-full">
+        <div className="flex items-center gap-3 my-2">
+          <div className="h-px flex-1 bg-gray-200" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Similar matches</span>
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+        {strictShown === 0 && (
+          <p className="text-sm text-gray-500 text-center">No exact matches for your filters — showing the closest results.</p>
+        )}
+      </div>
+    ))
+  }
+
+  const resultsLabel = strictShown > 0 && similarShown > 0
+    ? `${strictShown} result${strictShown !== 1 ? 's' : ''} · ${similarShown} similar`
+    : strictShown === 0 && similarShown > 0
+      ? `${similarShown} similar result${similarShown !== 1 ? 's' : ''}`
+      : `${totalFiltered} result${totalFiltered !== 1 ? 's' : ''}`
 
   return (
     <div className="flex h-[calc(100vh-56px)]">
@@ -177,7 +198,7 @@ export function BrowseView({ mode }: Props) {
                   ? 'Browse Attendees & Speakers'
                   : browseTab === 'sponsors' ? 'Solution Providers' : 'People'}
               </h1>
-              <p className="text-xs text-gray-400 mt-0.5">{loading ? 'Loading...' : `${totalFiltered} result${totalFiltered !== 1 ? 's' : ''}`}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{loading ? 'Loading...' : resultsLabel}</p>
             </div>
             <button
               onClick={() => setFilterOpen(true)}
@@ -267,25 +288,7 @@ export function BrowseView({ mode }: Props) {
           ) : (
             <>
               <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
-                {isSponsorsView
-                  ? filteredSponsors.flatMap(s => {
-                      const reps = (s.users ?? []).filter((u: any) => u.role !== 'SPONSOR')
-                      if (reps.length === 0) {
-                        return [<SponsorCard key={s.id} sponsor={s} requested={requestedSponsorSet.has(s.id)} />]
-                      }
-                      return reps.map((rep: any) => (
-                        <SponsorRepCard
-                          key={`${s.id}-${rep.id}`}
-                          sponsor={s}
-                          rep={rep}
-                          requested={requestedSponsorSet.has(s.id)}
-                        />
-                      ))
-                    })
-                  : filteredPeople.slice(0, visibleCount).map(p => (
-                      <PersonCard key={p.id} person={p} requested={requestedUserSet.has(p.id)} />
-                    ))
-                }
+                {gridCards}
               </div>
 
               {/* Load more */}
@@ -295,7 +298,7 @@ export function BrowseView({ mode }: Props) {
                     onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
                     className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
                   >
-                    Show more ({filteredPeople.length - visibleCount} remaining)
+                    Show more ({filteredPeople.results.length - visibleCount} remaining)
                   </button>
                 </div>
               )}

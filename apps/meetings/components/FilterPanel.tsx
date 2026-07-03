@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import {
   SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS,
-  INDUSTRIES, JOB_FUNCTIONS, TITLE_LEVELS, CATEGORY_BORDER_COLORS,
+  INDUSTRIES, JOB_FUNCTIONS, TITLE_LEVELS, CATEGORY_BORDER_COLORS, SOLUTION_CATEGORY_GROUPS,
 } from '@/lib/solutions'
 
 export interface Filters {
@@ -63,14 +63,6 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   )
 }
 
-const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
-  { label: 'Marketing', items: ['Email Marketing', 'SMS Marketing', 'Reviews & UGC', 'Personalization'] },
-  { label: 'Commerce & Payments', items: ['Payment Processing', 'Subscription Management', 'B2B Commerce', 'Headless Commerce', 'Marketplace Integration'] },
-  { label: 'Operations', items: ['Shipping & Fulfillment', 'Inventory Management', 'Returns Management', 'ERP / Operations'] },
-  { label: 'Data & AI', items: ['Analytics & Reporting', 'AI & Automation', 'Search & Discovery'] },
-  { label: 'Customer', items: ['Customer Support', 'Loyalty & Rewards'] },
-]
-
 function SolutionCategoryFilter({ selected, toggleSolution }: { selected: string[]; toggleSolution: (s: string) => void }) {
   const [openCat, setOpenCat] = useState<string | null>(null)
 
@@ -80,7 +72,7 @@ function SolutionCategoryFilter({ selected, toggleSolution }: { selected: string
     <div>
       <p className="text-sm font-bold text-primary mb-3">Strategic Solutions</p>
       <div className="space-y-1">
-        {SOLUTION_CATEGORIES.map(cat => {
+        {SOLUTION_CATEGORY_GROUPS.map(cat => {
           const isOpen = openCat === cat.label
           const count = selectedCountByCat(cat.items)
           return (

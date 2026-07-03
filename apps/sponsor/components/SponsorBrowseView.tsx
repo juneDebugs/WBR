@@ -1,6 +1,7 @@
 'use client'
-import { useState, useMemo, useCallback, memo, useDeferredValue } from 'react'
+import { Fragment, useState, useMemo, useCallback, memo, useDeferredValue } from 'react'
 import { useUser, useAttendees, useSponsorData } from '@/lib/hooks'
+import { filterSponsorPortalAttendees } from '@conference/db/src/browse-taxonomy'
 
 import { getIndustry as getIndustryFromLib, getJobFunction as getJobFnFromLib, getTitleLevel, getCompanyDescription, getBorderColorForSeeking } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
@@ -86,7 +87,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 const INDUSTRIES = [
   'Fashion & Apparel', 'Beauty & Cosmetics', 'Skincare', 'Health & Wellness',
-  'Food & Beverage', 'Home & Lifestyle', 'Jewelry & Accessories', 'Pet', 'Kids & Baby',
+  'Food & Beverage', 'Home & Lifestyle', 'Jewelry & Accessories', 'Luxury', 'Pet', 'Kids & Baby',
   'Technology',
 ]
 
@@ -336,24 +337,19 @@ export function SponsorBrowseView() {
   const deferredSeeking = useDeferredValue(seeking)
 
   // All filtering happens client-side — instant, no server round-trip
-  const filtered = useMemo(() => {
-    return people.filter(p => {
-      if (deferredSearch) {
-        const q = deferredSearch.toLowerCase()
-        if (!`${p.name} ${p.company} ${p.jobTitle} ${p.bio}`.toLowerCase().includes(q)) return false
-      }
-      if (deferredRoles.length && !deferredRoles.includes(p.role)) return false
-      if (deferredJobFunctions.length && !deferredJobFunctions.includes(getJobFnFromLib(p.jobTitle))) return false
-      if (deferredIndustries.length && !deferredIndustries.includes(getIndustryFromLib(p.company))) return false
-      if (deferredSizes.length && !deferredSizes.includes(p.companySize)) return false
-      if (deferredRevenues.length && !deferredRevenues.includes(p.annualRevenue)) return false
-      if (deferredSeeking.length) {
-        const their = parseArr(p.solutionsSeeking)
-        if (!deferredSeeking.some(s => their.includes(s))) return false
-      }
-      return true
-    })
-  }, [people, deferredSearch, deferredRoles, deferredJobFunctions, deferredIndustries, deferredSizes, deferredRevenues, deferredSeeking])
+  const guaranteed = useMemo(() => filterSponsorPortalAttendees(people, {
+    roles: deferredRoles,
+    jobFunctions: deferredJobFunctions,
+    industries: deferredIndustries,
+    sizes: deferredSizes,
+    revenues: deferredRevenues,
+    seeking: deferredSeeking,
+    search: deferredSearch,
+  }), [people, deferredSearch, deferredRoles, deferredJobFunctions, deferredIndustries, deferredSizes, deferredRevenues, deferredSeeking])
+  const filtered = guaranteed.results
+  // The engine only backfills when a chip filter is active, so similarCount > 0
+  // already implies one.
+  const showSimilarDivider = guaranteed.similarCount > 0 && guaranteed.strictCount < visibleCount
 
   const loading = queryLoading && people.length === 0
   const hasMore = visibleCount < filtered.length
@@ -482,7 +478,10 @@ export function SponsorBrowseView() {
             <div>
               <h1 className="font-bold text-gray-900">Browse Attendees & Speakers</h1>
               <p className="text-xs text-gray-400 mt-0.5">
-                {loading ? 'Loading...' : `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`}
+                {loading ? 'Loading...'
+                  : guaranteed.similarCount > 0 && guaranteed.strictCount > 0 ? `${guaranteed.strictCount} results · ${guaranteed.similarCount} similar`
+                  : guaranteed.similarCount > 0 ? `${guaranteed.similarCount} similar results`
+                  : `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`}
               </p>
             </div>
             <button
@@ -535,14 +534,27 @@ export function SponsorBrowseView() {
           ) : (
             <>
               <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
-                {filtered.slice(0, visibleCount).map(p => (
-                  <PersonCard
-                    key={p.id}
-                    p={p}
-                    isRequested={requested.has(p.id)}
-                    onRequestMeeting={onRequestMeeting}
-                    sponsorId={sponsorId}
-                  />
+                {filtered.slice(0, visibleCount).map((p, i) => (
+                  <Fragment key={p.id}>
+                    {showSimilarDivider && i === guaranteed.strictCount && (
+                      <div className="col-span-full">
+                        <div className="flex items-center gap-3">
+                          <div className="h-px flex-1 bg-gray-200" />
+                          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Similar matches</span>
+                          <div className="h-px flex-1 bg-gray-200" />
+                        </div>
+                        {guaranteed.strictCount === 0 && (
+                          <p className="text-sm text-gray-500 text-center mt-2">No exact matches for your filters — showing the closest results.</p>
+                        )}
+                      </div>
+                    )}
+                    <PersonCard
+                      p={p}
+                      isRequested={requested.has(p.id)}
+                      onRequestMeeting={onRequestMeeting}
+                      sponsorId={sponsorId}
+                    />
+                  </Fragment>
                 ))}
               </div>
 
