@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
 import { format } from 'date-fns'
 import { useHomeData } from '@/lib/hooks'
+import { sessionCategoryColor } from '@/lib/session-categories'
 
 
 interface ScheduleItem {
@@ -88,9 +89,8 @@ function WeatherTile({ venue, lat, lon, timezone }: { venue: string | null; lat:
 
   return (
     <div
-      className="relative overflow-hidden flex flex-col justify-between p-5 h-full"
+      className="relative overflow-hidden flex flex-col justify-between p-5 h-full rounded-2xl"
       style={{
-        borderRadius: '28px 28px 28px 8px',
         background: weather
           ? 'linear-gradient(135deg, #1a6cf5 0%, #38b2f7 60%, #7dd3fc 100%)'
           : 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)',
@@ -141,32 +141,31 @@ function LocationTile({ venue, startDate, endDate }: { venue: string | null; sta
       href={mapsUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="relative overflow-hidden flex flex-col justify-between p-5 h-full active:opacity-80 transition-opacity"
+      className="relative overflow-hidden flex flex-col justify-between p-5 h-full active:opacity-80 transition-opacity rounded-2xl"
       style={{
-        borderRadius: '8px 28px 8px 28px',
-        background: 'linear-gradient(160deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%)',
+        background: 'linear-gradient(160deg, #312e81 0%, #4338ca 60%, #4f46e5 100%)',
       }}
     >
       {/* Pin dot at top */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-red-400 shadow-lg shadow-red-400/50" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-danger shadow-lg shadow-danger/50" />
 
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-300/80 mb-3">Venue</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-200/80 mb-3">Venue</p>
         <p className="text-base font-bold text-white leading-snug">{line1}</p>
-        {line2 && <p className="text-xs text-indigo-200/70 mt-0.5">{line2}</p>}
+        {line2 && <p className="text-xs text-brand-100/70 mt-0.5">{line2}</p>}
       </div>
 
       <div>
         <div className="flex items-center gap-1.5 mt-3">
-          <svg className="w-3.5 h-3.5 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-3.5 h-3.5 text-brand-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <p className="text-xs font-semibold text-indigo-200">{dateRange}</p>
+          <p className="text-xs font-semibold text-brand-100">{dateRange}</p>
         </div>
         {/* Mini map grid decoration */}
         <div className="mt-3 grid grid-cols-4 gap-0.5 opacity-20">
           {[1, 0.3, 1, 1, 0.3, 1, 0.3, 1].map((o, i) => (
-            <div key={i} className="h-1.5 rounded-sm bg-indigo-300" style={{ opacity: o }} />
+            <div key={i} className="h-1.5 rounded-sm bg-brand-200" style={{ opacity: o }} />
           ))}
         </div>
       </div>
@@ -211,9 +210,8 @@ function WifiTile({ name, password }: { name: string | null; password: string | 
 
   return (
     <div
-      className="relative flex flex-col justify-between p-4 h-full"
+      className="relative flex flex-col justify-between p-4 h-full rounded-2xl"
       style={{
-        borderRadius: '28px 8px 28px 28px',
         background: 'linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%)',
       }}
     >
@@ -290,10 +288,9 @@ function WifiTile({ name, password }: { name: string | null; password: string | 
 function MeetingsTile({ meetingCount, sessionCount }: { meetingCount: number; sessionCount: number }) {
   return (
     <div
-      className="relative overflow-hidden flex items-center gap-5 px-5 py-4 h-full"
+      className="relative overflow-hidden flex items-center gap-5 px-5 py-4 h-full rounded-2xl"
       style={{
-        borderRadius: '12px 28px 12px 28px',
-        background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+        background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
       }}
     >
       {/* Overlapping circles decoration */}
@@ -301,16 +298,16 @@ function MeetingsTile({ meetingCount, sessionCount }: { meetingCount: number; se
       <div className="absolute -right-8 top-4 w-20 h-20 rounded-full bg-white/5" />
 
       <div className="flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-violet-200/80 mb-2">Your Meetings</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-100/80 mb-2">Your Meetings</p>
         <div className="flex items-baseline gap-3">
           <div>
             <span className="text-3xl font-black text-white">{meetingCount}</span>
-            <p className="text-[10px] text-violet-200 font-medium mt-0.5">1-on-1s booked</p>
+            <p className="text-[10px] text-brand-100 font-medium mt-0.5">1-on-1s booked</p>
           </div>
           <div className="w-px h-8 bg-white/20" />
           <div>
             <span className="text-3xl font-black text-white">{sessionCount}</span>
-            <p className="text-[10px] text-violet-200 font-medium mt-0.5">sessions saved</p>
+            <p className="text-[10px] text-brand-100 font-medium mt-0.5">sessions saved</p>
           </div>
         </div>
       </div>
@@ -334,15 +331,15 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
   }, [pct])
   useEffect(() => { setImgError(false) }, [image])
 
-  const barColor = pct === 100 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#f43f5e'
+  const barColor = pct === 100 ? '#34c759' : pct >= 60 ? '#ff9f0a' : '#ff3b30'
 
   return (
     <a href="/setup" className="relative w-full h-full block rounded-2xl overflow-hidden flex flex-col"
-      style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 100%)' }}>
+      style={{ background: 'linear-gradient(160deg, #312e81 0%, #4338ca 100%)' }}>
 
       {/* Top label */}
       <div className="px-3 pt-2 flex-shrink-0">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">My Profile</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-brand-200">My Profile</span>
       </div>
 
       {/* Avatar with progress ring */}
@@ -378,7 +375,7 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
                 style={{ width: 52, height: 52, borderRadius: '50%' }}
                 onError={() => setImgError(true)} />
             ) : (
-              <div className="flex items-center justify-center bg-slate-700"
+              <div className="flex items-center justify-center bg-white/10"
                 style={{ width: 52, height: 52, borderRadius: '50%' }}>
                 <span className="text-xl font-black text-white/50">{(name ?? '?')[0]}</span>
               </div>
@@ -386,14 +383,14 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
           </div>
         </div>
         <p className="text-lg font-black leading-none" style={{ color: barColor }}>{animatedPct}%</p>
-        <p className="text-[9px] font-semibold text-slate-500 leading-none">complete</p>
+        <p className="text-[9px] font-semibold text-white/50 leading-none">complete</p>
       </div>
 
       {/* CTA row */}
       <div className="mx-2.5 mb-2.5 flex items-center gap-1.5 rounded-lg px-2 py-1.5 flex-shrink-0"
         style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${barColor}33` }}>
         <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: barColor }} />
-        <p className="text-[9px] font-medium flex-1 truncate" style={{ color: pct === 100 ? '#10b981' : '#94a3b8' }}>
+        <p className="text-[9px] font-medium flex-1 truncate" style={{ color: pct === 100 ? '#34c759' : 'rgba(255,255,255,0.6)' }}>
           {pct === 100 ? 'Profile complete ✓' : `Missing: ${missingFields.join(' · ')}`}
         </p>
         <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
@@ -407,13 +404,14 @@ function ProfileTile({ name, image, pct, company, jobTitle, missingFields }: {
 
 // ─── What's Next tile ────────────────────────────────────────────────────────
 
-const TYPE_CONFIG: Record<ScheduleItem['type'], { label: string; color: string; bg: string; path: string }> = {
-  meeting:  { label: '1-1 Meeting', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  path: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-  keynote:  { label: 'Keynote',     color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  path: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z' },
-  talk:     { label: 'Talk',        color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', path: 'M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z' },
-  workshop: { label: 'Workshop',    color: '#34d399', bg: 'rgba(52,211,153,0.12)',  path: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
-  panel:    { label: 'Panel',       color: '#f472b6', bg: 'rgba(244,114,182,0.12)', path: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zM3 10a3 3 0 106 0 3 3 0 00-6 0z' },
-  break:    { label: 'Break',       color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', path: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+// Label + icon are tile-local; colours come from the shared session-category map.
+const TYPE_META: Record<ScheduleItem['type'], { label: string; path: string }> = {
+  meeting:  { label: '1-1 Meeting', path: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+  keynote:  { label: 'Keynote',     path: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z' },
+  talk:     { label: 'Talk',        path: 'M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z' },
+  workshop: { label: 'Workshop',    path: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
+  panel:    { label: 'Panel',       path: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zM3 10a3 3 0 106 0 3 3 0 00-6 0z' },
+  break:    { label: 'Break',       path: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
 }
 
 function WhatsNextTile({ items }: { items: ScheduleItem[] }) {
@@ -421,19 +419,19 @@ function WhatsNextTile({ items }: { items: ScheduleItem[] }) {
     <a
       href="/my-schedule"
       className="col-span-2 block rounded-2xl overflow-hidden active:opacity-80 transition-opacity"
-      style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}
+      style={{ background: 'linear-gradient(135deg, #312e81 0%, #4338ca 100%)' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-            <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="w-6 h-6 rounded-lg bg-white/15 flex items-center justify-center">
+            <svg className="w-3.5 h-3.5 text-brand-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <span className="text-xs font-bold uppercase tracking-widest text-slate-300">Up Next</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-white/80">Up Next</span>
         </div>
-        <span className="text-[10px] text-indigo-400 font-semibold">
+        <span className="text-[10px] text-brand-200 font-semibold">
           {items.length > 0 ? `${items.length} upcoming →` : 'View schedule →'}
         </span>
       </div>
@@ -441,17 +439,18 @@ function WhatsNextTile({ items }: { items: ScheduleItem[] }) {
       {items.length > 0 ? (
         <div className="px-4 pb-4 space-y-2">
           {items.map((item, i) => {
-            const cfg = TYPE_CONFIG[item.type] ?? TYPE_CONFIG.talk
+            const meta = TYPE_META[item.type] ?? TYPE_META.talk
+            const cfg = sessionCategoryColor(item.type)
             const starts = new Date(item.startsAt)
             const ends = new Date(item.endsAt)
             return (
               <div key={item.id}
                 className="flex items-center gap-3 rounded-xl px-3 py-2.5"
-                style={{ background: i === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)' }}>
+                style={{ background: i === 0 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)' }}>
                 {/* Time */}
                 <div className="flex-shrink-0 text-center w-10">
                   <p className="text-sm font-bold text-white leading-none">{format(starts, 'h:mm')}</p>
-                  <p className="text-[9px] text-slate-400 mt-0.5">{format(starts, 'a')}</p>
+                  <p className="text-[9px] text-white/60 mt-0.5">{format(starts, 'a')}</p>
                 </div>
                 <div className="w-px h-8 bg-white/10 flex-shrink-0" />
 
@@ -460,15 +459,15 @@ function WhatsNextTile({ items }: { items: ScheduleItem[] }) {
                   <img src={item.otherImage} alt="" loading="lazy" className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-white/20" />
                 ) : item.type === 'meeting' ? (
                   <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: cfg.bg }}>
+                    style={{ background: `${cfg.color}26` }}>
                     <span className="text-xs font-bold" style={{ color: cfg.color }}>{(item.otherName ?? '?')[0]}</span>
                   </div>
                 ) : (
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: cfg.bg }}>
+                    style={{ background: `${cfg.color}26` }}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                       style={{ color: cfg.color }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={cfg.path} />
+                      <path strokeLinecap="round" strokeLinejoin="round" d={meta.path} />
                     </svg>
                   </div>
                 )}
@@ -477,23 +476,23 @@ function WhatsNextTile({ items }: { items: ScheduleItem[] }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: cfg.color }}>
-                      {cfg.label}
+                      {meta.label}
                     </span>
                     {item.track && (
                       <>
                         <span className="text-white/20 text-[9px]">·</span>
-                        <span className="text-[9px] text-slate-500 truncate">{item.track}</span>
+                        <span className="text-[9px] text-white/50 truncate">{item.track}</span>
                       </>
                     )}
                   </div>
                   <p className="text-sm font-semibold text-white truncate leading-tight">{item.title}</p>
-                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                  <p className="text-[10px] text-white/60 truncate mt-0.5">
                     {format(starts, 'h:mm')}–{format(ends, 'h:mm a')}{item.location ? ` · ${item.location}` : ''}
                   </p>
                 </div>
 
                 {i === 0 && (
-                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-indigo-400" />
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-brand-200" />
                 )}
               </div>
             )
@@ -501,14 +500,14 @@ function WhatsNextTile({ items }: { items: ScheduleItem[] }) {
         </div>
       ) : (
         <div className="px-4 pb-5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-300">Nothing scheduled yet</p>
-            <p className="text-xs text-slate-500 mt-0.5">Book meetings & save sessions to see them here</p>
+            <p className="text-sm font-semibold text-white/80">Nothing scheduled yet</p>
+            <p className="text-xs text-white/50 mt-0.5">Book meetings & save sessions to see them here</p>
           </div>
         </div>
       )}
@@ -556,10 +555,10 @@ function SponsorCarouselTile({ sponsors }: { sponsors: Sponsor[] }) {
 
   return (
     <div className="col-span-2 rounded-2xl overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
+      style={{ background: 'linear-gradient(135deg, #312e81 0%, #4338ca 100%)' }}>
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Our Sponsors</span>
-        <span className="text-[10px] text-slate-500">{sponsors.length} sponsors</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-white/70">Our Sponsors</span>
+        <span className="text-[10px] text-white/50">{sponsors.length} sponsors</span>
       </div>
       <div
         ref={scrollRef}
@@ -602,7 +601,7 @@ function SpeakerCarouselTile({ speakers }: { speakers: Speaker[] }) {
 
   return (
     <a href="/speakers" className="w-full h-full block rounded-2xl overflow-hidden relative"
-      style={{ background: '#0f172a' }}>
+      style={{ background: '#312e81' }}>
 
       {/* Full-bleed photo */}
       {s.photoUrl ? (
@@ -610,7 +609,7 @@ function SpeakerCarouselTile({ speakers }: { speakers: Speaker[] }) {
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: 'center 20%' }} />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-800">
+        <div className="absolute inset-0 flex items-center justify-center bg-brand-800">
           <span className="text-5xl font-bold text-white/20">{s.name[0]}</span>
         </div>
       )}
@@ -673,19 +672,19 @@ export function HomeScreen(props: Props) {
 
   if (isLoading && !hookData) {
     return (
-      <div className="min-h-screen animate-pulse" style={{ background: '#f0ece4' }}>
+      <div className="min-h-screen animate-pulse bg-canvas">
         <div className="w-full md:max-w-2xl mx-auto">
-          <div className="bg-gray-300 h-64" style={{ borderRadius: '0 0 28px 28px' }} />
-          <div className="px-5 py-4 flex items-center justify-between border-b border-[#ede9e0]" style={{ background: '#f5f2ec' }}>
-            <div className="h-4 w-24 bg-gray-300 rounded" />
-            <div className="h-3 w-40 bg-gray-200 rounded" />
+          <div className="bg-fill-2 h-64 rounded-b-2xl" />
+          <div className="px-5 py-4 flex items-center justify-between border-b border-hairline bg-surface">
+            <div className="h-4 w-24 bg-fill-2 rounded" />
+            <div className="h-3 w-40 bg-fill rounded" />
           </div>
           <div className="px-4 pt-5 grid grid-cols-2 gap-3">
-            <div className="col-span-2 h-32 bg-gray-200 rounded-2xl" />
-            <div className="aspect-square bg-gray-200 rounded-2xl" />
-            <div className="aspect-square bg-gray-200 rounded-2xl" />
-            <div className="aspect-square bg-gray-200 rounded-2xl" />
-            <div className="aspect-square bg-gray-200 rounded-2xl" />
+            <div className="col-span-2 h-32 bg-fill-2 rounded-2xl" />
+            <div className="aspect-square bg-fill-2 rounded-2xl" />
+            <div className="aspect-square bg-fill-2 rounded-2xl" />
+            <div className="aspect-square bg-fill-2 rounded-2xl" />
+            <div className="aspect-square bg-fill-2 rounded-2xl" />
           </div>
         </div>
       </div>
@@ -693,12 +692,12 @@ export function HomeScreen(props: Props) {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#f0ece4' }}>
+    <div className="min-h-screen bg-canvas">
       {/* ── Outer shell — mobile full-width, desktop 2x wider ── */}
       <div className="w-full md:max-w-2xl mx-auto">
 
         {/* ── Full hero — image behind everything ── */}
-        <div className="relative overflow-hidden" style={{ borderRadius: '0 0 28px 28px' }}>
+        <div className="relative overflow-hidden rounded-b-2xl">
           {/*
             Phase 14 (2026-06-29): hot-linked fallback removed.
             The previous fallback URL (agcdn-1d97e.kxcdn.com) served an unrelated
@@ -725,7 +724,7 @@ export function HomeScreen(props: Props) {
             ) : (
               <div
                 className="absolute inset-0"
-                style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)' }}
+                style={{ background: 'linear-gradient(135deg, #4338ca 0%, #4f46e5 50%, #2563eb 100%)' }}
                 aria-hidden="true"
               />
             )}
@@ -751,10 +750,10 @@ export function HomeScreen(props: Props) {
             </h1>
             <a href="/speakers" className="w-full rounded-full px-5 py-3 flex items-center gap-3 active:scale-[0.98] transition-transform"
               style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)' }}>
-              <svg className="w-4 h-4 text-pink-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="w-4 h-4 text-brand flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <span className="text-gray-400 text-sm">Search speakers, sessions…</span>
+              <span className="text-ink-3 text-sm">Search speakers, sessions…</span>
             </a>
 
             {/* Spacer — image shows here */}
@@ -768,7 +767,7 @@ export function HomeScreen(props: Props) {
             <div className="flex gap-2 mt-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
               {QUICK_LINKS.map(({ label, href }) => (
                 <a key={label} href={href}
-                  className="flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold text-gray-800 active:scale-95 transition-transform"
+                  className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-semibold text-ink active:scale-95 transition-transform"
                   style={{ background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)' }}>
                   {label}
                 </a>
@@ -778,20 +777,20 @@ export function HomeScreen(props: Props) {
         </div>
 
         {/* ── Stats bar ── */}
-        <div className="border-t border-b border-[#ede9e0] px-5 py-4 flex items-center justify-between" style={{ background: '#f5f2ec' }}>
-          <span className="text-gray-900 font-semibold text-sm">Hi, {firstName || 'there'}</span>
-          <a href="/my-schedule" className="flex items-center gap-1.5 text-xs text-gray-500">
+        <div className="border-t border-b border-hairline px-5 py-4 flex items-center justify-between bg-surface">
+          <span className="text-ink font-semibold text-sm">Hi, {firstName || 'there'}</span>
+          <a href="/my-schedule" className="flex items-center gap-1.5 text-xs text-ink-2">
             <span>{meetingCount} meetings</span>
-            <span className="text-gray-300">•</span>
+            <span className="text-ink-3">•</span>
             <span>{sessionCount} sessions saved</span>
-            <svg className="w-3.5 h-3.5 text-gray-400 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg className="w-3.5 h-3.5 text-ink-3 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </a>
         </div>
 
         {/* ── Tiles ── */}
-        <div className="pt-5 pb-5" style={{ background: '#f0ece4' }}>
+        <div className="pt-5 pb-5 bg-canvas">
         <div className="px-4 grid grid-cols-2 gap-3">
 
         {/* What's Next */}

@@ -1,22 +1,12 @@
 import type { Config } from 'tailwindcss'
 
+// Shared design system — single source of truth (packages/ui/preset.cjs).
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const preset = require('../../packages/ui/preset.cjs')
+
 const config: Config = {
-  content: [
-    './app/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-  ],
-  theme: {
-    extend: {
-      colors: {
-        primary: {
-          DEFAULT: '#6366f1',
-          dark: '#4f46e5',
-          light: '#818cf8',
-        },
-      },
-    },
-  },
-  plugins: [],
+  presets: [preset],
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
 }
 
 export default config

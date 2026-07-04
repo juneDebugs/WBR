@@ -1,5 +1,5 @@
 'use client'
-import { Fragment, useState, useMemo, useCallback, memo, useDeferredValue } from 'react'
+import { Fragment, useState, useMemo, useCallback, memo, useDeferredValue, useEffect } from 'react'
 import { useUser, useAttendees, useSponsorData } from '@/lib/hooks'
 import { filterSponsorPortalAttendees } from '@conference/db/src/browse-taxonomy'
 
@@ -70,21 +70,6 @@ const SOLUTION_CATEGORIES: { label: string; items: string[] }[] = [
 
 const PAGE_SIZE = 48
 
-const CATEGORY_COLORS: Record<string, string> = {
-  'Marketing Solutions': '#f43f5e',
-  'Data, Analytics & AI': '#8b5cf6',
-  'Commerce Platforms': '#3b82f6',
-  'Web & Mobile': '#06b6d4',
-  'In-Store Solutions': '#f59e0b',
-  'Payments, Banking & Embedded Products': '#10b981',
-  'CRM & Customer Service': '#ec4899',
-  'Infrastructure & IT': '#6366f1',
-  'Supply Chain, Merchandising, Pricing & Planning': '#f97316',
-  'Professional Services': '#14b8a6',
-  'Back Office & HR': '#a855f7',
-}
-
-
 const INDUSTRIES = [
   'Fashion & Apparel', 'Beauty & Cosmetics', 'Skincare', 'Health & Wellness',
   'Food & Beverage', 'Home & Lifestyle', 'Jewelry & Accessories', 'Luxury', 'Pet', 'Kids & Baby',
@@ -108,9 +93,7 @@ function parseArr(val: string | null | undefined): string[] {
 
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-      active ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-200 hover:border-primary hover:text-primary'
-    }`}>{label}</button>
+    <button onClick={onClick} className={`chip ${active ? 'chip-active' : 'chip-inactive'}`}>{label}</button>
   )
 }
 
@@ -121,7 +104,7 @@ function FilterSection({ title, children }: { title: string; children: React.Rea
       <button onClick={() => setOpen(o => !o)}
         className="flex items-center justify-between w-full mb-2 group">
         <span className="text-sm font-bold text-primary">{title}</span>
-        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        <svg className={`w-4 h-4 text-ink-3 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -148,18 +131,18 @@ function SolutionOfferingsFilter({ seeking, toggle }: { seeking: string[]; toggl
               <button
                 onClick={() => setOpenCat(isOpen ? null : cat.label)}
                 className={`flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  isOpen ? 'bg-primary/10 text-primary' : count > 0 ? 'bg-primary/5 text-primary' : 'text-gray-600 hover:bg-gray-50'
+                  isOpen ? 'bg-primary/10 text-primary' : count > 0 ? 'bg-primary/5 text-primary' : 'text-ink-2 hover:bg-fill'
                 }`}
               >
                 <span className="flex items-center gap-2 truncate text-left">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: CATEGORY_COLORS[cat.label] ?? '#d1d5db' }} />
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-brand-300" />
                   {cat.label}
                 </span>
                 <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
                   {count > 0 && (
                     <span className="bg-primary text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{count}</span>
                   )}
-                  <svg className={`w-3 h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                  <svg className={`w-3 h-3 text-ink-3 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -172,11 +155,11 @@ function SolutionOfferingsFilter({ seeking, toggle }: { seeking: string[]; toggl
                       key={s}
                       onClick={() => toggle(s)}
                       className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors ${
-                        seeking.includes(s) ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'
+                        seeking.includes(s) ? 'bg-primary/10 text-primary font-medium' : 'text-ink-2 hover:bg-fill'
                       }`}
                     >
                       <span className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center ${
-                        seeking.includes(s) ? 'bg-primary border-primary' : 'border-gray-300'
+                        seeking.includes(s) ? 'bg-primary border-primary' : 'border-hairline'
                       }`}>
                         {seeking.includes(s) && (
                           <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -194,7 +177,7 @@ function SolutionOfferingsFilter({ seeking, toggle }: { seeking: string[]; toggl
         })}
       </div>
       {seeking.length > 0 && (
-        <p className="text-[10px] text-primary font-medium mt-2">{seeking.length} selected</p>
+        <p className="text-xs text-primary font-medium mt-2">{seeking.length} selected</p>
       )}
     </div>
   )
@@ -217,7 +200,7 @@ const PersonCard = memo(function PersonCard({
   return (
     <div className="card border-t-4 hover:shadow-md transition-shadow flex flex-col justify-between" style={{ borderColor }}>
       <div className="flex items-start gap-3 mb-3">
-        <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
+        <div className="w-12 h-12 rounded-xl bg-fill flex-shrink-0 overflow-hidden">
           {p.image ? (
             <img src={p.image} alt={p.name ?? ''} className="w-full h-full object-cover" />
           ) : (
@@ -228,56 +211,54 @@ const PersonCard = memo(function PersonCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-gray-900 text-sm">{p.name ?? '—'}</h3>
-            <span className={`badge ${
-              p.role === 'SPEAKER' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-            }`}>
+            <h3 className="font-semibold text-ink text-sm">{p.name ?? '—'}</h3>
+            <span className={`badge ${p.role === 'SPEAKER' ? 'badge-brand' : 'badge-neutral'}`}>
               {p.role.charAt(0) + p.role.slice(1).toLowerCase()}
             </span>
           </div>
           {p.jobTitle && (
-            <p className="text-xs text-gray-700 font-medium mt-0.5">{p.jobTitle}</p>
+            <p className="text-xs text-ink font-medium mt-0.5">{p.jobTitle}</p>
           )}
           {p.company && (
-            <p className="text-xs text-gray-400">{p.company}</p>
+            <p className="text-xs text-ink-3">{p.company}</p>
           )}
         </div>
       </div>
 
       {companyDesc && (
-        <div className="mb-3 rounded-2xl bg-gray-50 px-3.5 py-2.5">
-          <p className="text-[11px] leading-relaxed text-gray-500">{companyDesc}</p>
+        <div className="mb-3 rounded-2xl bg-fill px-3.5 py-2.5">
+          <p className="text-[11px] leading-relaxed text-ink-2">{companyDesc}</p>
         </div>
       )}
 
       <div className="flex flex-wrap gap-1.5 mb-3">
-        <span className="badge bg-violet-50 text-violet-700">{industry}</span>
-        <span className="badge bg-sky-50 text-sky-700">{jobFn}</span>
-        <span className="badge bg-gray-100 text-gray-600">{titleLevel}</span>
+        <span className="badge badge-brand">{industry}</span>
+        <span className="badge badge-neutral">{jobFn}</span>
+        <span className="badge badge-neutral">{titleLevel}</span>
         {p.annualRevenue && (
-          <span className="badge bg-emerald-50 text-emerald-700">{p.annualRevenue} ARR</span>
+          <span className="badge badge-success">{p.annualRevenue} ARR</span>
         )}
       </div>
 
-      {p.bio && <p className="text-xs text-gray-500 mb-3 line-clamp-2">{p.bio}</p>}
+      {p.bio && <p className="text-xs text-ink-2 mb-3 line-clamp-2">{p.bio}</p>}
       <div className="flex-1" />
 
       {theirOffering.length > 0 && (
         <div className="mb-2">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Offers</p>
+          <p className="section-title mb-1">Offers</p>
           <div className="flex flex-wrap gap-1">
             {theirOffering.slice(0, 4).map(t => <SolutionBadge key={t} label={t} />)}
-            {theirOffering.length > 4 && <span className="badge bg-gray-100 text-gray-500">+{theirOffering.length - 4}</span>}
+            {theirOffering.length > 4 && <span className="badge badge-neutral">+{theirOffering.length - 4}</span>}
           </div>
         </div>
       )}
 
       {theirSeeking.length > 0 && (
         <div className="mb-3 bg-primary/5 rounded-xl p-2.5">
-          <p className="text-[10px] font-bold text-primary uppercase tracking-wide mb-1.5">Looking For</p>
+          <p className="section-title mb-1.5">Looking For</p>
           <div className="flex flex-wrap gap-1">
             {theirSeeking.slice(0, 5).map(t => <SolutionBadge key={t} label={t} />)}
-            {theirSeeking.length > 5 && <span className="badge bg-gray-100 text-gray-500">+{theirSeeking.length - 5}</span>}
+            {theirSeeking.length > 5 && <span className="badge badge-neutral">+{theirSeeking.length - 5}</span>}
           </div>
         </div>
       )}
@@ -286,10 +267,10 @@ const PersonCard = memo(function PersonCard({
         <button
           onClick={() => isRequested ? null : onRequestMeeting(p.id)}
           disabled={isRequested}
-          className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
+          className={`w-full ${
             isRequested
-              ? 'bg-green-50 text-green-600 cursor-default'
-              : 'bg-primary text-white hover:bg-primary-dark active:scale-95'
+              ? 'inline-flex items-center justify-center min-h-[44px] rounded-xl bg-success-soft text-success-ink text-sm font-semibold cursor-default'
+              : 'btn-primary'
           }`}
         >
           {isRequested ? '✓ Requested' : 'Request Meeting'}
@@ -326,6 +307,18 @@ export function SponsorBrowseView() {
   const [message, setMessage] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+
+  // Close the request modal / mobile filter drawer on Escape (a11y).
+  useEffect(() => {
+    if (!requesting && !filterOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (requesting) { setRequesting(null); setMessage('') }
+      else if (filterOpen) setFilterOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [requesting, filterOpen])
 
   // Defer search so typing stays smooth while the list catches up
   const deferredSearch = useDeferredValue(search)
@@ -394,8 +387,8 @@ export function SponsorBrowseView() {
     <div className="space-y-5">
       {/* Search */}
       <div>
-        <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl bg-white focus-within:ring-2 focus-within:ring-primary/40">
-          <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="flex items-center gap-2 px-3 py-2 border border-hairline rounded-xl bg-surface focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary">
+          <svg className="w-3.5 h-3.5 text-ink-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -403,10 +396,10 @@ export function SponsorBrowseView() {
             placeholder="Search by name, company, or topic..."
             value={search}
             onChange={e => handleSearchChange(e.target.value)}
-            className="flex-1 text-sm focus:outline-none bg-transparent"
+            className="flex-1 text-sm focus:outline-none bg-transparent text-ink placeholder:text-ink-3"
           />
           {search && (
-            <button onClick={() => handleSearchChange('')} className="text-gray-300 hover:text-gray-500">
+            <button onClick={() => handleSearchChange('')} aria-label="Clear search" className="text-ink-3 hover:text-ink-2">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
               </svg>
@@ -433,7 +426,7 @@ export function SponsorBrowseView() {
       <SolutionOfferingsFilter seeking={seeking} toggle={(s: string) => toggle(s, seeking, setSeeking)} />
       {activeFilterCount > 0 && (
         <button onClick={clearAll}
-          className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+          className="text-xs text-ink-3 hover:text-danger transition-colors">
           Clear all filters
         </button>
       )}
@@ -443,9 +436,9 @@ export function SponsorBrowseView() {
   return (
     <div className="flex h-[calc(100vh-56px)]">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block w-72 xl:w-80 flex-shrink-0 border-r border-gray-100 bg-white overflow-y-auto">
+      <aside className="hidden lg:block w-72 xl:w-80 flex-shrink-0 border-r border-hairline bg-surface overflow-y-auto">
         <div className="p-5">
-          <h2 className="font-bold text-gray-900 text-sm mb-4">Filters</h2>
+          <h2 className="font-bold text-ink text-sm mb-4">Filters</h2>
           {filterContent}
         </div>
       </aside>
@@ -456,11 +449,11 @@ export function SponsorBrowseView() {
       )}
 
       {/* Mobile filter drawer */}
-      <div className={`fixed inset-y-0 left-0 w-80 max-w-[90vw] bg-white z-40 shadow-2xl overflow-y-auto transition-transform lg:hidden ${filterOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Filters</h2>
-          <button onClick={() => setFilterOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
-            <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className={`fixed inset-y-0 left-0 w-80 max-w-[90vw] bg-surface z-40 shadow-pop overflow-y-auto transition-transform lg:hidden ${filterOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-hairline">
+          <h2 className="font-bold text-ink">Filters</h2>
+          <button onClick={() => setFilterOpen(false)} aria-label="Close filters" className="icon-btn icon-btn-sm">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -476,8 +469,8 @@ export function SponsorBrowseView() {
           {/* Header row */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="font-bold text-gray-900">Browse Attendees & Speakers</h1>
-              <p className="text-xs text-gray-400 mt-0.5">
+              <h1 className="font-bold text-ink">Browse Attendees & Speakers</h1>
+              <p className="text-xs text-ink-3 mt-0.5">
                 {loading ? 'Loading...'
                   : guaranteed.similarCount > 0 && guaranteed.strictCount > 0 ? `${guaranteed.strictCount} results · ${guaranteed.similarCount} similar`
                   : guaranteed.similarCount > 0 ? `${guaranteed.similarCount} similar results`
@@ -486,14 +479,14 @@ export function SponsorBrowseView() {
             </div>
             <button
               onClick={() => setFilterOpen(true)}
-              className="lg:hidden flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 shadow-sm"
+              className="lg:hidden btn-secondary btn-sm"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
               Filters
               {activeFilterCount > 0 && (
-                <span className="bg-primary text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{activeFilterCount}</span>
+                <span className="bg-brand text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{activeFilterCount}</span>
               )}
             </button>
           </div>
@@ -519,7 +512,7 @@ export function SponsorBrowseView() {
               {seeking.map(v => (
                 <ActiveChip key={`seek-${v}`} label={`Seeks: ${v}`} onRemove={() => setSeeking(s => s.filter(x => x !== v))} />
               ))}
-              <button onClick={clearAll} className="text-xs text-gray-400 hover:text-red-500 px-2 py-1">
+              <button onClick={clearAll} className="text-xs text-ink-3 hover:text-danger px-2 py-1">
                 Clear all
               </button>
             </div>
@@ -530,12 +523,12 @@ export function SponsorBrowseView() {
             <div className="text-center py-16">
               {people.length === 0 ? (
                 <>
-                  <p className="text-gray-400 text-sm">Attendee data is unavailable right now.</p>
+                  <p className="text-ink-2 text-sm">Attendee data is unavailable right now.</p>
                   <button onClick={() => refetchAttendees()} className="mt-2 text-primary text-sm hover:underline">Try again</button>
                 </>
               ) : (
                 <>
-                  <p className="text-gray-400 text-sm">No results match your filters.</p>
+                  <p className="text-ink-2 text-sm">No results match your filters.</p>
                   <button onClick={clearAll} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
                 </>
               )}
@@ -548,12 +541,12 @@ export function SponsorBrowseView() {
                     {showSimilarDivider && i === guaranteed.strictCount && (
                       <div className="col-span-full">
                         <div className="flex items-center gap-3">
-                          <div className="h-px flex-1 bg-gray-200" />
-                          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Similar matches</span>
-                          <div className="h-px flex-1 bg-gray-200" />
+                          <div className="h-px flex-1 bg-hairline" />
+                          <span className="text-xs font-semibold uppercase tracking-wider text-ink-3">Similar matches</span>
+                          <div className="h-px flex-1 bg-hairline" />
                         </div>
                         {guaranteed.strictCount === 0 && (
-                          <p className="text-sm text-gray-500 text-center mt-2">No exact matches for your filters — showing the closest results.</p>
+                          <p className="text-sm text-ink-2 text-center mt-2">No exact matches for your filters — showing the closest results.</p>
                         )}
                       </div>
                     )}
@@ -572,7 +565,7 @@ export function SponsorBrowseView() {
                 <div className="flex justify-center mt-6">
                   <button
                     onClick={loadMore}
-                    className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
+                    className="btn-secondary"
                   >
                     Show more ({filtered.length - visibleCount} remaining)
                   </button>
@@ -585,10 +578,13 @@ export function SponsorBrowseView() {
 
       {/* Meeting request modal */}
       {requesting && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-5 shadow-xl">
-            <h2 className="font-bold text-gray-900 mb-1">Request a meeting</h2>
-            <p className="text-sm text-gray-500 mb-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4 animate-fade-in"
+          onClick={() => { setRequesting(null); setMessage('') }}>
+          <div role="dialog" aria-modal="true" aria-label="Request a meeting"
+            className="bg-surface rounded-2xl w-full max-w-md p-5 shadow-elevated animate-slide-up"
+            onClick={e => e.stopPropagation()}>
+            <h2 className="font-bold text-ink mb-1">Request a meeting</h2>
+            <p className="text-sm text-ink-2 mb-4">
               with {people.find(p => p.id === requesting)?.name ?? 'this attendee'}
             </p>
             <textarea
@@ -596,7 +592,7 @@ export function SponsorBrowseView() {
               onChange={e => setMessage(e.target.value)}
               placeholder="What would you like to discuss? (optional)"
               rows={3}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 mb-4 resize-none"
+              className="textarea resize-none mb-4"
             />
             <div className="flex gap-2">
               <button onClick={() => { setRequesting(null); setMessage('') }} className="btn-secondary flex-1">Cancel</button>
@@ -615,7 +611,7 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
       {label}
-      <button onClick={onRemove} className="ml-0.5 hover:text-primary-dark">
+      <button onClick={onRemove} aria-label={`Remove ${label} filter`} className="ml-0.5 hover:text-primary-dark">
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
         </svg>

@@ -90,12 +90,12 @@ const CATEGORY_BORDER_COLORS_LIGHT: Record<string, string> = {
 }
 
 export function getBorderColorForSeeking(seekingJson: string | null | undefined): string {
-  if (!seekingJson) return '#e5e7eb'
+  if (!seekingJson) return '#e5e5ea'
   let seeking: string[]
-  try { seeking = JSON.parse(seekingJson) } catch { return '#e5e7eb' }
-  if (seeking.length === 0) return '#e5e7eb'
+  try { seeking = JSON.parse(seekingJson) } catch { return '#e5e5ea' }
+  if (seeking.length === 0) return '#e5e5ea'
   const cat = getSolutionCategory(seeking[0])
-  return cat ? (CATEGORY_BORDER_COLORS_LIGHT[cat] ?? '#e5e7eb') : '#e5e7eb'
+  return cat ? (CATEGORY_BORDER_COLORS_LIGHT[cat] ?? '#e5e5ea') : '#e5e5ea'
 }
 
 // ── Industry ─────────────────────────────────────────────────────────────────

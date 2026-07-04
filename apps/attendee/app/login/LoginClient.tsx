@@ -41,7 +41,7 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, #1e1b4b 0%, #312e81 25%, #4338ca 50%, #6366f1 75%, #818cf8 100%)' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, #312e81 0%, #4338ca 35%, #6366f1 70%, #818cf8 100%)' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <img src="/icons/icon-192.png" alt="WBR" className="w-20 h-20 object-contain mx-auto mb-4" />
@@ -49,45 +49,45 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
           <p className="text-white/70 mt-2 text-sm">{loginSubtitle}</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow-xl">
+        <div className="bg-white rounded-2xl p-6 shadow-elevated">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">
+            <div className="bg-danger-soft border border-danger/20 text-danger-ink text-sm rounded-lg px-4 py-3 mb-4">
               {error}
             </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="label">Email</label>
               <input
                 name="email"
                 type="email"
                 required
                 placeholder="you@example.com"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="input"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="label">Password</label>
               <input
                 name="password"
                 type="password"
                 required
                 placeholder="••••••••"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="input"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-white font-semibold py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-60"
+              className="btn-primary w-full"
             >
               {loading ? 'Signing in...' : loginButtonText}
             </button>
           </form>
 
           <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-            <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-gray-400">or</span></div>
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-hairline" /></div>
+            <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-ink-3">or</span></div>
           </div>
 
           <button
@@ -95,7 +95,7 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
               const { signIn } = await import('next-auth/react')
               signIn('google', { callbackUrl: '/home' })
             }}
-            className="w-full flex items-center justify-center gap-3 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="btn-secondary w-full"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>

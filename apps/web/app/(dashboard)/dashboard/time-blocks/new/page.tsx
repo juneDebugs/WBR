@@ -51,7 +51,7 @@ export default function NewTimeBlockPage() {
             <div>
               <label className="form-label">Capacity</label>
               <input name="capacity" type="number" min="1" defaultValue="1" className="form-input w-24" />
-              <p className="text-xs text-gray-400 mt-1">Max number of meetings for this time slot</p>
+              <p className="text-xs text-ink-2 mt-1">Max number of meetings for this time slot</p>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">

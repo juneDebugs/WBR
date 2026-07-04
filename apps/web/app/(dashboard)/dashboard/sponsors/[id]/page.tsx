@@ -207,11 +207,11 @@ export default async function SponsorDetailPage({ params }: { params: Promise<{ 
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700">Scheduled Meetings</h2>
-                <span className="text-xs text-gray-400">{sponsor.meetings.length} total</span>
+                <span className="text-xs text-ink-2">{sponsor.meetings.length} total</span>
               </div>
 
               {sponsor.meetings.length === 0 ? (
-                <p className="text-center text-gray-400 text-sm py-10">No meetings scheduled yet.</p>
+                <p className="text-center text-ink-2 text-sm py-10">No meetings scheduled yet.</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
@@ -241,13 +241,13 @@ export default async function SponsorDetailPage({ params }: { params: Promise<{ 
                               </div>
                               <div>
                                 <p className="font-medium text-gray-900">{meeting.user.name ?? '—'}</p>
-                                {meeting.user.company && <p className="text-xs text-gray-400">{meeting.user.company}</p>}
+                                {meeting.user.company && <p className="text-xs text-ink-2">{meeting.user.company}</p>}
                               </div>
                             </div>
                           </td>
                           <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                             {format(meeting.timeBlock.startsAt, 'MMM d, h:mm a')}
-                            <span className="text-gray-400"> – {format(meeting.timeBlock.endsAt, 'h:mm a')}</span>
+                            <span className="text-ink-2"> – {format(meeting.timeBlock.endsAt, 'h:mm a')}</span>
                           </td>
                           <td className="px-4 py-3 text-gray-500 text-xs">{meeting.timeBlock.location ?? '—'}</td>
                           <td className="px-4 py-3">

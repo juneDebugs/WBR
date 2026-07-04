@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#6366f1',
+  themeColor: '#f5f5f7',
   viewportFit: 'cover',
 }
 
@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
       </head>
-      <body className="text-gray-900 antialiased" style={{ background: '#f0ece4' }}>
+      <body className="bg-canvas text-ink antialiased">
         {children}
       </body>
     </html>

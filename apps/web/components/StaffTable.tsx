@@ -17,10 +17,10 @@ const MIN_PASSWORD_LENGTH = 8
 const ROLES = ['STAFF', 'ORGANIZER']
 
 const roleColors: Record<string, string> = {
-  ORGANIZER: 'bg-purple-100 text-purple-700',
-  STAFF: 'bg-blue-100 text-blue-700',
-  SPEAKER: 'bg-green-100 text-green-700',
-  ATTENDEE: 'bg-gray-100 text-gray-600',
+  ORGANIZER: 'bg-brand-100 text-brand-700',
+  STAFF: 'bg-warning-soft text-warning-ink',
+  SPEAKER: 'bg-success-soft text-success-ink',
+  ATTENDEE: 'bg-fill text-ink-2',
 }
 
 // Same cache-override key as AccessClient/AttendeesTable: the params object for
@@ -267,10 +267,10 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
     <div className="max-w-5xl space-y-4">
       {/* Toolbar: count + Add Staff */}
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-gray-500 tabular-nums">{total.toLocaleString()} staff</p>
+        <p className="text-sm text-ink-2 tabular-nums">{total.toLocaleString()} staff</p>
         <button
           onClick={openAdd}
-          className="inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2"
+          className="btn-primary"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -280,10 +280,10 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
       </div>
 
       {/* Search + list card */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg bg-white focus-within:ring-2 focus-within:ring-primary/30 w-full max-w-sm">
-            <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <div className="bg-white border border-hairline rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-hairline">
+          <div className="flex items-center gap-2 px-3 py-2 border border-hairline rounded-lg bg-white focus-within:ring-2 focus-within:ring-primary/30 w-full max-w-sm">
+            <svg className="w-3.5 h-3.5 text-ink-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -295,7 +295,7 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
               className="flex-1 text-sm focus:outline-none bg-transparent"
             />
             {search && (
-              <button onClick={() => setSearch('')} className="text-gray-300 hover:text-gray-500" aria-label="Clear search">
+              <button onClick={() => setSearch('')} className="text-ink-3 hover:text-ink-2" aria-label="Clear search">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -305,9 +305,9 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
         </div>
 
         {actionErr && (
-          <div className="flex items-center justify-between gap-2 px-4 py-2 bg-red-50 border-b border-red-100" role="alert">
-            <p className="text-sm text-red-700">{actionErr}</p>
-            <button onClick={() => setActionErr('')} className="text-red-400 hover:text-red-600" aria-label="Dismiss error">
+          <div className="flex items-center justify-between gap-2 px-4 py-2 bg-danger-soft border-b border-danger/20" role="alert">
+            <p className="text-sm text-danger-ink">{actionErr}</p>
+            <button onClick={() => setActionErr('')} className="text-danger hover:text-danger-ink" aria-label="Dismiss error">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -317,7 +317,7 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
 
         <div className="divide-y divide-gray-100" aria-busy={isLoading}>
           {rows.length === 0 && (
-            <p className="text-sm text-gray-400 p-6">
+            <p className="text-sm text-ink-2 p-6">
               {isLoading
                 ? 'Loading staff…'
                 : debouncedSearch
@@ -328,30 +328,30 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
           {rows.map(user => {
             const subtitle = subtitleFor(user)
             return (
-              <div key={user.id} className="flex items-center gap-3 px-4 py-3 min-h-[44px] hover:bg-gray-50 transition-colors">
+              <div key={user.id} className="flex items-center gap-3 px-4 py-3 min-h-[44px] hover:bg-fill transition-colors">
                 {user.image ? (
                   <img src={user.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-500" aria-hidden="true">
+                  <div className="w-8 h-8 rounded-full bg-fill-2 flex items-center justify-center flex-shrink-0 text-xs font-bold text-ink-2" aria-hidden="true">
                     {/* `||` (not `??`) so an empty-string name/email falls through to '?'; charAt never throws. */}
                     {(user.name?.trim() || user.email?.trim() || '?').charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{user.name ?? '—'}</p>
-                  <p className="text-xs text-gray-400 truncate">{user.email ?? '—'}</p>
-                  {subtitle && <p className="text-xs text-gray-400 truncate">{subtitle}</p>}
+                  <p className="text-sm font-medium text-ink truncate">{user.name ?? '—'}</p>
+                  <p className="text-xs text-ink-2 truncate">{user.email ?? '—'}</p>
+                  {subtitle && <p className="text-xs text-ink-2 truncate">{subtitle}</p>}
                 </div>
 
                 {/* Password status */}
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${user.hasPassword ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${user.hasPassword ? 'bg-success-soft text-success-ink' : 'bg-fill text-ink-2'}`}>
                   {user.hasPassword ? 'Password set' : 'No password'}
                 </span>
 
                 {/* Credentials button */}
                 <button
                   onClick={() => openCred(user)}
-                  className="text-xs text-gray-500 hover:text-primary px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  className="text-xs text-ink-2 hover:text-primary px-2 py-1 rounded-lg hover:bg-fill transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                   title="Manage credentials"
                   aria-label={`Manage credentials for ${user.name ?? user.email ?? 'staff member'}`}
                 >
@@ -366,7 +366,7 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
                   disabled={saving === user.id}
                   onChange={e => changeRole(user.id, e.target.value)}
                   aria-label={`Role for ${user.name ?? user.email ?? 'staff member'}`}
-                  className={`text-xs font-medium px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${roleColors[user.role] ?? 'bg-gray-100 text-gray-600'}`}
+                  className={`text-xs font-medium px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${roleColors[user.role] ?? 'bg-fill text-ink-2'}`}
                 >
                   {/* A role outside ROLES (e.g. ADMIN) must still display truthfully,
                       not fall back to the browser default of the first option. */}
@@ -379,7 +379,7 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
                 </select>
 
                 {saving === user.id && (
-                  <svg className="w-4 h-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg className="w-4 h-4 animate-spin text-ink-2" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
@@ -391,25 +391,25 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <p className="text-xs text-gray-400 tabular-nums">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-hairline">
+            <p className="text-xs text-ink-2 tabular-nums">
               Showing {total === 0 ? 0 : page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total.toLocaleString()}
             </p>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage(p => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-hairline bg-white hover:bg-fill disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
-              <span className="px-2 text-xs text-gray-500 tabular-nums">
+              <span className="px-2 text-xs text-ink-2 tabular-nums">
                 Page {page + 1} of {totalPages}
               </span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-hairline bg-white hover:bg-fill disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Next
               </button>
@@ -432,12 +432,12 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
           >
             <div className="flex items-start justify-between mb-5">
               <div>
-                <h2 className="font-semibold text-gray-900 text-lg">Add Staff</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <h2 className="font-semibold text-ink text-lg">Add Staff</h2>
+                <p className="text-xs text-ink-2 mt-0.5">
                   If the email already exists their role is set to Staff. Otherwise a new account is created.
                 </p>
               </div>
-              <button onClick={closeAdd} className="text-gray-400 hover:text-gray-600" aria-label="Close">
+              <button onClick={closeAdd} className="text-ink-2 hover:text-ink-2" aria-label="Close">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -446,18 +446,18 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
 
             <form onSubmit={handleAdd} className="space-y-3">
               <div>
-                <label htmlFor="staff-add-name" className="block text-xs font-medium text-gray-600 mb-1">Full name</label>
+                <label htmlFor="staff-add-name" className="block text-xs font-medium text-ink-2 mb-1">Full name</label>
                 <input
                   id="staff-add-name"
                   type="text"
                   value={addName}
                   onChange={e => setAddName(e.target.value)}
                   placeholder="Optional"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
               <div>
-                <label htmlFor="staff-add-email" className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
+                <label htmlFor="staff-add-email" className="block text-xs font-medium text-ink-2 mb-1">Email *</label>
                 <input
                   id="staff-add-email"
                   type="email"
@@ -465,34 +465,34 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
                   value={addEmail}
                   onChange={e => setAddEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
               <div>
-                <label htmlFor="staff-add-password" className="block text-xs font-medium text-gray-600 mb-1">Password</label>
+                <label htmlFor="staff-add-password" className="block text-xs font-medium text-ink-2 mb-1">Password</label>
                 <input
                   id="staff-add-password"
                   type="password"
                   value={addPassword}
                   onChange={e => setAddPassword(e.target.value)}
                   placeholder={`Optional (min ${MIN_PASSWORD_LENGTH} chars)`}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">Leave blank to let them sign in without a password.</p>
+                <p className="text-caption text-ink-2 mt-1">Leave blank to let them sign in without a password.</p>
               </div>
-              {addErr && <p className="text-sm text-red-600" role="alert">{addErr}</p>}
+              {addErr && <p className="text-sm text-danger-ink" role="alert">{addErr}</p>}
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={closeAdd}
-                  className="min-h-[44px] px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addSaving}
-                  className="min-h-[44px] px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  className="btn-primary"
                 >
                   {addSaving ? 'Saving…' : 'Add Staff'}
                 </button>
@@ -516,10 +516,10 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
           >
             <div className="flex items-start justify-between mb-5">
               <div>
-                <h2 className="font-semibold text-gray-900 text-lg">Staff Credentials</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{credModal.name ?? credModal.email}</p>
+                <h2 className="font-semibold text-ink text-lg">Staff Credentials</h2>
+                <p className="text-xs text-ink-2 mt-0.5">{credModal.name ?? credModal.email}</p>
               </div>
-              <button onClick={closeCred} className="text-gray-400 hover:text-gray-600" aria-label="Close">
+              <button onClick={closeCred} className="text-ink-2 hover:text-ink-2" aria-label="Close">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -528,16 +528,16 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
 
             {/* Username row */}
             <div className="mb-4">
-              <p className="text-xs font-medium text-gray-500 mb-1">Username (Email)</p>
-              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <p className="text-xs font-medium text-ink-2 mb-1">Username (Email)</p>
+              <div className="flex items-center gap-2 px-3 py-2 bg-fill rounded-lg border border-hairline">
+                <svg className="w-4 h-4 text-ink-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                 </svg>
-                <span className="text-sm text-gray-800 font-mono flex-1">{credModal.email ?? '—'}</span>
+                <span className="text-sm text-ink font-mono flex-1">{credModal.email ?? '—'}</span>
                 <button
                   onClick={() => navigator.clipboard.writeText(credModal.email ?? '')}
-                  className="text-xs text-gray-400 hover:text-primary"
+                  className="text-xs text-ink-2 hover:text-primary"
                   title="Copy"
                   aria-label="Copy email"
                 >
@@ -551,22 +551,22 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
 
             {/* Current password status */}
             <div className="mb-4">
-              <p className="text-xs font-medium text-gray-500 mb-1">Password</p>
+              <p className="text-xs font-medium text-ink-2 mb-1">Password</p>
               {savedPassword ? (
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
-                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <div className="flex items-center gap-2 px-3 py-2 bg-success-soft rounded-lg border border-success/30">
+                  <svg className="w-4 h-4 text-success flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-sm font-mono text-green-800 flex-1">
+                  <span className="text-sm font-mono text-success-ink flex-1">
                     {showPassword ? savedPassword : '••••••••••'}
                   </span>
-                  <button onClick={() => setShowPassword(v => !v)} className="text-xs text-green-600 hover:text-green-800">
+                  <button onClick={() => setShowPassword(v => !v)} className="text-xs text-success-ink hover:text-success-ink">
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
                   <button
                     onClick={() => navigator.clipboard.writeText(savedPassword)}
-                    className="text-green-500 hover:text-green-700"
+                    className="text-success hover:text-success-ink"
                     title="Copy"
                     aria-label="Copy password"
                   >
@@ -577,12 +577,12 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
                   </button>
                 </div>
               ) : (
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${credModal.hasPassword ? 'bg-gray-50 border-gray-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                  <svg className={`w-4 h-4 flex-shrink-0 ${credModal.hasPassword ? 'text-gray-400' : 'text-yellow-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${credModal.hasPassword ? 'bg-fill border-hairline' : 'bg-warning-soft border-warning/30'}`}>
+                  <svg className={`w-4 h-4 flex-shrink-0 ${credModal.hasPassword ? 'text-ink-2' : 'text-warning'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                       d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  <span className={`text-sm flex-1 ${credModal.hasPassword ? 'text-gray-500' : 'text-yellow-700'}`}>
+                  <span className={`text-sm flex-1 ${credModal.hasPassword ? 'text-ink-2' : 'text-warning-ink'}`}>
                     {credModal.hasPassword ? 'Password is set (hashed — set a new one to view)' : 'No password — user logs in with any email'}
                   </span>
                 </div>
@@ -591,7 +591,7 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
 
             {/* Set / reset password */}
             <div className="mb-2">
-              <p className="text-xs font-medium text-gray-500 mb-1">
+              <p className="text-xs font-medium text-ink-2 mb-1">
                 {credModal.hasPassword ? 'Reset password' : 'Set password'}
               </p>
               <div className="flex gap-2">
@@ -603,12 +603,12 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSetPassword()}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 pr-10"
+                    className="w-full px-3 py-2 text-sm border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(v => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-2 hover:text-ink-2"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
@@ -629,19 +629,19 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
                 <button
                   onClick={handleSetPassword}
                   disabled={credSaving || !newPassword}
-                  className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+                  className="btn-primary btn-sm"
                 >
                   {credSaving ? '…' : credModal.hasPassword ? 'Reset' : 'Set'}
                 </button>
               </div>
-              {credErr && <p className="text-xs text-red-500 mt-1" role="alert">{credErr}</p>}
+              {credErr && <p className="text-xs text-danger mt-1" role="alert">{credErr}</p>}
             </div>
 
             {credModal.hasPassword && !savedPassword && (
               <button
                 onClick={handleClearPassword}
                 disabled={credSaving}
-                className="text-xs text-red-500 hover:text-red-700 mt-2"
+                className="text-xs text-danger hover:text-danger-ink mt-2"
               >
                 Remove password (restore open access)
               </button>

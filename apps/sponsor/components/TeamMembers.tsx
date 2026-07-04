@@ -42,8 +42,8 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
     <>
       <div className="card p-6 space-y-4">
         <div>
-          <h2 className="font-semibold text-gray-900">Your Team at WBR 2027</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Your dedicated WBR contacts — select a member to get in touch.</p>
+          <h2 className="font-semibold text-ink">Your Team at WBR 2027</h2>
+          <p className="text-xs text-ink-2 mt-0.5">Your dedicated WBR contacts — select a member to get in touch.</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {members.map(u => (
@@ -51,7 +51,7 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
               key={u.id}
               onClick={() => setSelected(u)}
               aria-haspopup="dialog"
-              className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors text-left w-full"
+              className="flex items-center gap-2.5 p-3 rounded-xl bg-fill hover:bg-fill-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors text-left w-full"
             >
               {u.image ? (
                 <img src={u.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
@@ -61,8 +61,8 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
                 </div>
               )}
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-gray-900 truncate">{u.name}</p>
-                <p className="text-xs text-gray-500 truncate">{u.jobTitle ?? roleLabel(u.role)}</p>
+                <p className="text-xs font-semibold text-ink truncate">{u.name}</p>
+                <p className="text-xs text-ink-2 truncate">{u.jobTitle ?? roleLabel(u.role)}</p>
               </div>
             </button>
           ))}
@@ -77,16 +77,16 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
             role="dialog"
             aria-modal="true"
             aria-label={selected.name ?? 'Team member'}
-            className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4"
+            className="relative bg-surface rounded-2xl shadow-elevated max-w-sm w-full p-6 space-y-4"
             onClick={e => e.stopPropagation()}
           >
             {/* Close button */}
             <button
               onClick={() => setSelected(null)}
               aria-label="Close"
-              className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
+              className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
             >
-              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <svg className="w-4 h-4 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -94,15 +94,15 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
             {/* Avatar */}
             <div className="flex flex-col items-center">
               {selected.image ? (
-                <img src={selected.image} alt="" className="w-20 h-20 rounded-full object-cover ring-4 ring-gray-100" />
+                <img src={selected.image} alt="" className="w-20 h-20 rounded-full object-cover ring-4 ring-fill" />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center ring-4 ring-gray-100" aria-hidden="true">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center ring-4 ring-fill" aria-hidden="true">
                   <span className="text-2xl font-bold text-primary">{selected.name?.[0] ?? '?'}</span>
                 </div>
               )}
-              <h3 className="text-lg font-bold text-gray-900 mt-3">{selected.name}</h3>
+              <h3 className="text-lg font-bold text-ink mt-3">{selected.name}</h3>
               {(selected.jobTitle || selected.company) && (
-                <p className="text-sm text-gray-500">{[selected.jobTitle, selected.company].filter(Boolean).join(' · ')}</p>
+                <p className="text-sm text-ink-2">{[selected.jobTitle, selected.company].filter(Boolean).join(' · ')}</p>
               )}
             </div>
 
@@ -116,8 +116,8 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
                     </svg>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-400">Role</p>
-                    <p className="text-sm font-medium text-gray-900">{roleLabel(selected.role)}</p>
+                    <p className="text-xs text-ink-3">Role</p>
+                    <p className="text-sm font-medium text-ink">{roleLabel(selected.role)}</p>
                   </div>
                 </div>
               )}
@@ -129,7 +129,7 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
                     </svg>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-400">Email</p>
+                    <p className="text-xs text-ink-3">Email</p>
                     <a href={`mailto:${selected.email}`} className="text-sm font-medium text-primary hover:underline truncate block">
                       {selected.email}
                     </a>

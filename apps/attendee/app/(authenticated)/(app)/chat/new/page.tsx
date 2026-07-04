@@ -17,10 +17,10 @@ export default async function NewMessagePage() {
   })
 
   return (
-    <div className="min-h-screen" style={{ background: '#f0ece4' }}>
-      <div className="px-4 pt-12 pb-3 flex items-center gap-4 border-b border-[#e5e1d9]">
-        <Link href="/chat">
-          <svg className="w-6 h-6 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div className="min-h-screen">
+      <div className="px-4 pt-3 pb-3 flex items-center gap-2 border-b border-hairline">
+        <Link href="/chat" className="icon-btn -ml-2 text-ink">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </Link>

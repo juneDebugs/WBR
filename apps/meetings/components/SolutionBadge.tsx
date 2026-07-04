@@ -3,14 +3,14 @@ import { SOLUTION_COLORS } from '@/lib/solutions'
 export function SolutionBadge({ label }: { label: string }) {
   const c = SOLUTION_COLORS[label]
   if (!c) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500">
-      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0" />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-footnote font-medium bg-fill text-ink-2">
+      <span className="w-1.5 h-1.5 rounded-full bg-ink-3 flex-shrink-0" />
       {label}
     </span>
   )
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-footnote font-medium"
       style={{
         background: `linear-gradient(to right, ${c.bgFrom}, ${c.bgTo})`,
         color: c.text,

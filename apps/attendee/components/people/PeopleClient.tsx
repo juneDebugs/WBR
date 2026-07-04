@@ -64,22 +64,22 @@ const GROUP_ORDER: Group[] = ['Fashion & Style', 'Beauty & Wellness', 'Home, Foo
 
 const GROUP_ICONS: Record<Group, React.ReactNode> = {
   'Fashion & Style': (
-    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l3.057-3 3.943 3v7.5c0 1.38-1.12 2.5-2.5 2.5S7 11.88 7 10.5V7H5V3zm4 0h2M16 3h3v4h-2v3.5c0 1.38-1.12 2.5-2.5 2.5S12 11.88 12 10.5V10" />
     </svg>
   ),
   'Beauty & Wellness': (
-    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
     </svg>
   ),
   'Home, Food & Lifestyle': (
-    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
     </svg>
   ),
   'Technology': (
-    <svg className="w-5 h-5 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
     </svg>
   ),
@@ -99,7 +99,7 @@ const PersonRow = memo(function PersonRow({ user, isFriend, pending, onSelect, o
   return (
     <div
       onClick={() => onSelect(user)}
-      className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-3 cursor-pointer active:bg-gray-50 transition-colors"
+      className="card flex items-center gap-3 cursor-pointer active:bg-fill transition-colors"
     >
       <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
         {user.image ? (
@@ -109,8 +109,8 @@ const PersonRow = memo(function PersonRow({ user, isFriend, pending, onSelect, o
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 text-sm truncate">{user.name ?? 'Unknown'}</p>
-        {user.jobTitle && <p className="text-xs text-gray-400 truncate">{user.jobTitle}</p>}
+        <p className="font-semibold text-ink text-sm truncate">{user.name ?? 'Unknown'}</p>
+        {user.jobTitle && <p className="text-xs text-ink-3 truncate">{user.jobTitle}</p>}
         {user.company && (
           user.website ? (
             <a href={user.website} target="_blank" rel="noopener noreferrer"
@@ -130,9 +130,7 @@ const PersonRow = memo(function PersonRow({ user, isFriend, pending, onSelect, o
       <button
         onClick={e => onToggleFriend(user.id, e)}
         disabled={pending}
-        className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-          isFriend ? 'bg-gray-100 text-gray-600' : 'bg-primary text-white'
-        }`}>
+        className={`flex-shrink-0 btn-sm ${isFriend ? 'btn-secondary' : 'btn-primary'}`}>
         {isFriend ? 'Added' : 'Add'}
       </button>
     </div>
@@ -404,12 +402,12 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
         >
           <div className="flex items-center gap-2">
             {GROUP_ICONS[group]}
-            <span className="text-base font-bold text-pink-500">{group}</span>
+            <span className="text-base font-bold text-brand">{group}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-400">{people.length}</span>
+            <span className="text-xs font-medium text-ink-3">{people.length}</span>
             <svg
-              className={`w-4 h-4 text-pink-400 transition-transform ${open ? 'rotate-180' : ''}`}
+              className={`w-4 h-4 text-brand-400 transition-transform ${open ? 'rotate-180' : ''}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -448,30 +446,30 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
 
       {/* Search */}
       <div className="relative mb-4">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder={tab === 'Messages' ? 'Search messages…' : 'Search people…'}
-          className="w-full pl-9 pr-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="input pl-9 bg-fill"
         />
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-4 overflow-x-auto">
+      <div className="flex border-b border-hairline mb-4 overflow-x-auto">
         {TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`flex-shrink-0 flex items-center gap-1 px-3 py-2.5 text-sm font-medium transition-colors ${
-              tab === t ? 'text-primary border-b-2 border-primary' : 'text-gray-500'
+              tab === t ? 'text-primary border-b-2 border-primary' : 'text-ink-2'
             }`}>
             {t}
             {t === 'Friends' && optimisticFriends.length > 0 && (
-              <span className="text-xs text-gray-400">({optimisticFriends.length})</span>
+              <span className="text-xs text-ink-3">({optimisticFriends.length})</span>
             )}
             {t === 'Messages' && conversations.length > 0 && (
-              <span className="text-xs text-gray-400">({conversations.length})</span>
+              <span className="text-xs text-ink-3">({conversations.length})</span>
             )}
           </button>
         ))}
@@ -482,14 +480,14 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
         <div className="space-y-1">
           {filteredConvos.length === 0 ? (
             <div className="text-center py-12">
-              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-12 h-12 rounded-full bg-fill flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
               </div>
-              <p className="text-sm font-semibold text-gray-700">No messages yet</p>
-              <p className="text-xs text-gray-400 mt-1">Tap a person to start a conversation.</p>
+              <p className="text-sm font-semibold text-ink">No messages yet</p>
+              <p className="text-xs text-ink-3 mt-1">Tap a person to start a conversation.</p>
             </div>
           ) : (
             filteredConvos.map(convo => {
@@ -498,27 +496,27 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
                 <button
                   key={convo.roomId}
                   onClick={() => person && setSelected(person)}
-                  className="w-full flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-3 active:bg-gray-50 transition-colors text-left"
+                  className="card w-full flex items-center gap-3 active:bg-fill transition-colors text-left"
                 >
-                  <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-fill flex-shrink-0 overflow-hidden flex items-center justify-center">
                     {convo.image ? (
                       <img src={convo.image} alt="" loading="lazy" className="w-12 h-12 object-cover" />
                     ) : (
-                      <span className="text-gray-600 font-bold text-lg">{convo.name[0]}</span>
+                      <span className="text-ink-2 font-bold text-lg">{convo.name[0]}</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm">{convo.name}</p>
+                    <p className="font-semibold text-ink text-sm">{convo.name}</p>
                     {convo.lastMessage ? (
-                      <p className="text-xs text-gray-500 truncate mt-0.5">
+                      <p className="text-xs text-ink-2 truncate mt-0.5">
                         {convo.lastMessageSenderId === currentUserId ? 'You: ' : ''}
                         {convo.lastMessage}
                       </p>
                     ) : (
-                      <p className="text-xs text-gray-400 italic mt-0.5">No messages yet</p>
+                      <p className="text-xs text-ink-3 italic mt-0.5">No messages yet</p>
                     )}
                   </div>
-                  <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 text-ink-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
@@ -542,7 +540,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
             />
           ))}
           {filteredPeople.length === 0 && (
-            <p className="text-center text-gray-400 py-12">
+            <p className="text-center text-ink-3 py-12">
               {search ? 'No results found.' : "No friends added yet. Discover people and hit Add."}
             </p>
           )}
@@ -555,7 +553,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
           {/* WBR module */}
           <div
             className="w-full flex items-center gap-3 rounded-2xl p-4 mb-5"
-            style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)' }}
           >
             <div className="flex-shrink-0 rounded-full p-[2px]" style={{ boxShadow: '0 0 8px 2px #f72585, 0 0 16px 4px #f72585', background: 'linear-gradient(135deg, #f72585, #ff85c1)' }}>
               {/*
@@ -585,7 +583,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
             </div>
           )}
           {filteredPeople.length === 0 && !searchLoading ? (
-            <p className="text-center text-gray-400 py-12">{search ? 'No results found.' : 'No other attendees yet.'}</p>
+            <p className="text-center text-ink-3 py-12">{search ? 'No results found.' : 'No other attendees yet.'}</p>
           ) : (
             <>
               {GROUP_ORDER.filter(g => grouped[g]?.length).map(g => (
@@ -616,7 +614,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%)' }}>
+              style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)' }}>
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -641,19 +639,19 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {globalLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : globalMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
-                    style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)' }}>
+                    style={{ background: 'linear-gradient(135deg, #4f46e5, #6366f1)' }}>
                     <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                         d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>
-                  <p className="text-sm font-semibold text-gray-700">Be the first to say hello!</p>
-                  <p className="text-xs text-gray-400 mt-1">Start the global conversation</p>
+                  <p className="text-sm font-semibold text-ink">Be the first to say hello!</p>
+                  <p className="text-xs text-ink-3 mt-1">Start the global conversation</p>
                 </div>
               ) : (
                 globalMessages.map(msg => {
@@ -661,25 +659,25 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
                   return (
                     <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
                       {!isMe && (
-                        <div className="w-6 h-6 rounded-full overflow-hidden bg-indigo-100 flex items-center justify-center flex-shrink-0 mb-0.5">
+                        <div className="w-6 h-6 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 mb-0.5">
                           {msg.sender.image ? (
                             <img src={msg.sender.image} alt="" loading="lazy" className="w-6 h-6 object-cover" />
                           ) : (
-                            <span className="text-indigo-700 font-bold text-[10px]">{(msg.sender.name ?? '?')[0]}</span>
+                            <span className="text-primary font-bold text-[10px]">{(msg.sender.name ?? '?')[0]}</span>
                           )}
                         </div>
                       )}
                       <div className="flex flex-col gap-0.5 max-w-[72%]">
                         {!isMe && (
-                          <Link href={`/people/${msg.senderId}`} className="text-[10px] text-gray-400 px-1 active:opacity-70">
+                          <Link href={`/people/${msg.senderId}`} className="text-[10px] text-ink-3 px-1 active:opacity-70">
                             {msg.sender.name}
                           </Link>
                         )}
                         <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
                           isMe
                             ? 'text-white rounded-br-sm'
-                            : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                        }`} style={isMe ? { background: 'linear-gradient(135deg, #7c3aed, #2563eb)' } : {}}>
+                            : 'bg-fill text-ink rounded-bl-sm'
+                        }`} style={isMe ? { background: 'linear-gradient(135deg, #4f46e5, #6366f1)' } : {}}>
                           {msg.content}
                         </div>
                       </div>
@@ -691,19 +689,19 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
             </div>
 
             {/* Input */}
-            <div className="flex items-center gap-2 px-3 py-3 border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+            <div className="flex items-center gap-2 px-3 py-3 border-t border-hairline flex-shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
               <input
                 value={globalInput}
                 onChange={e => setGlobalInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendGlobal() } }}
                 placeholder="Message everyone…"
-                className="flex-1 bg-gray-100 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="flex-1 bg-fill rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
               <button
                 onClick={sendGlobal}
                 disabled={!globalInput.trim() || globalSending}
                 className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-opacity"
-                style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)' }}
+                style={{ background: 'linear-gradient(135deg, #4f46e5, #6366f1)' }}
               >
                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -727,7 +725,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
             onClick={e => e.stopPropagation()}
           >
             {/* Chat header */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-shrink-0">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-hairline flex-shrink-0">
               <Link href={`/people/${selected.id}`} className="w-9 h-9 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 active:opacity-70">
                 {selected.image ? (
                   <img src={selected.image} alt="" loading="lazy" className="w-9 h-9 object-cover" />
@@ -736,7 +734,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
                 )}
               </Link>
               <div className="flex-1 min-w-0">
-                <Link href={`/people/${selected.id}`} className="font-semibold text-gray-900 text-sm leading-tight truncate block active:opacity-70">
+                <Link href={`/people/${selected.id}`} className="font-semibold text-ink text-sm leading-tight truncate block active:opacity-70">
                   {selected.name ?? 'Unknown'}
                 </Link>
                 {selected.company && (
@@ -757,18 +755,18 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
               </div>
               <Link
                 href={`/people/${selected.id}`}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
+                className="w-8 h-8 rounded-full bg-fill flex items-center justify-center flex-shrink-0 active:scale-95 transition-transform"
                 title="View Profile"
               >
-                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 text-ink-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </Link>
               <button
                 onClick={() => setSelected(null)}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0"
+                className="w-8 h-8 rounded-full bg-fill flex items-center justify-center flex-shrink-0"
               >
-                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 text-ink-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -782,14 +780,14 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
-                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-                    <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="w-12 h-12 rounded-full bg-fill flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                         d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>
-                  <p className="text-sm text-gray-500 font-medium">Say hello to {selected.name?.split(' ')[0]}</p>
-                  <p className="text-xs text-gray-400 mt-1">Start a conversation below</p>
+                  <p className="text-sm text-ink-2 font-medium">Say hello to {selected.name?.split(' ')[0]}</p>
+                  <p className="text-xs text-ink-3 mt-1">Start a conversation below</p>
                 </div>
               ) : (
                 messages.map(msg => {
@@ -806,7 +804,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
                         </div>
                       )}
                       <div className={`max-w-[72%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                        isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                        isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-fill text-ink rounded-bl-sm'
                       }`}>
                         {msg.content}
                       </div>
@@ -818,13 +816,13 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
             </div>
 
             {/* Input */}
-            <div className="flex items-center gap-2 px-3 py-3 border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+            <div className="flex items-center gap-2 px-3 py-3 border-t border-hairline flex-shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
               <input
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
                 placeholder="Message…"
-                className="flex-1 bg-gray-100 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="flex-1 bg-fill rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
               <button
                 onClick={sendMessage}

@@ -146,6 +146,18 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
   const showCapHitBanner = phase.kind === 'capHit'
 
   const isSending = phase.kind === 'sending'
+
+  // Close the modal (or the nested confirm) on Escape (a11y).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (confirmOpen) setConfirmOpen(false)
+      else if (!isSending) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [confirmOpen, isSending, onClose])
+
   const canSend =
     !isSending &&
     message.trim().length > 0 &&
@@ -205,12 +217,13 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
-        <div className="px-5 pt-5 pb-3 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">Draft intro to {attendee.name}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+      <div role="dialog" aria-modal="true" aria-label={`Draft intro to ${attendee.name}`}
+        className="w-full max-w-lg bg-surface rounded-2xl shadow-elevated flex flex-col max-h-[90vh] animate-slide-up">
+        <div className="px-5 pt-5 pb-3 border-b border-hairline">
+          <h2 className="text-base font-bold text-ink">Draft intro to {attendee.name}</h2>
           {(attendee.jobTitle || attendee.company) && (
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-ink-2 mt-0.5">
               {[attendee.jobTitle, attendee.company].filter(Boolean).join(' · ')}
             </p>
           )}
@@ -218,17 +231,17 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
 
         <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1">
           {phase.kind === 'loading' && (
-            <div className="text-sm text-gray-500 py-8 text-center">Drafting an intro…</div>
+            <div className="text-sm text-ink-2 py-8 text-center">Drafting an intro…</div>
           )}
 
           {showCapHitBanner && phase.kind === 'capHit' && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="rounded-xl border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning-ink">
               {CAP_HIT_COPY[phase.code]}
             </div>
           )}
 
           {showAiUnavailableBanner && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="rounded-xl border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning-ink">
               ⚠ AI draft unavailable — write your own message and send.
             </div>
           )}
@@ -237,13 +250,13 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
             phase.kind !== 'capHit' &&
             showLimitedDataBanner &&
             !showAiUnavailableBanner && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div className="rounded-xl border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning-ink">
                 ⚠ Limited data — Review carefully.
               </div>
             )}
 
           {showRemainingLine && (
-            <p className="text-[11px] text-gray-500">
+            <p className="text-[11px] text-ink-2">
               {remainingValue} AI draft{remainingValue === 1 ? '' : 's'} remaining today
             </p>
           )}
@@ -251,7 +264,7 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
           {phase.kind !== 'loading' && phase.kind !== 'capHit' && (
             <>
               {provenance && (
-                <p className="text-[11px] text-gray-500 italic">{provenance}</p>
+                <p className="text-[11px] text-ink-2 italic">{provenance}</p>
               )}
               <textarea
                 value={message}
@@ -263,26 +276,26 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
                 }
                 maxLength={MESSAGE_MAX_CHARS}
                 rows={8}
-                className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+                className="textarea resize-y"
               />
-              <p className="text-[11px] text-gray-400 text-right">
+              <p className="text-[11px] text-ink-3 text-right">
                 {message.length} / {MESSAGE_MAX_CHARS}
               </p>
             </>
           )}
 
           {phase.kind === 'sendError' && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="rounded-xl border border-danger/40 bg-danger-soft px-3 py-2 text-xs text-danger">
               {phase.message}
             </div>
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+        <div className="px-5 py-3 border-t border-hairline flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+            className="btn-secondary btn-sm"
             disabled={isSending}
           >
             Cancel
@@ -292,7 +305,7 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
               type="button"
               onClick={onSendClick}
               disabled={!canSend}
-              className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+              className="btn-primary btn-sm"
             >
               {isSending ? 'Sending…' : `Send intro to ${firstNameOf(attendee.name)}`}
             </button>
@@ -301,17 +314,18 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
       </div>
 
       {confirmOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 space-y-3">
-            <h3 className="text-sm font-bold text-gray-900">Limited data — Send anyway?</h3>
-            <p className="text-xs text-gray-600">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 animate-fade-in">
+          <div role="dialog" aria-modal="true" aria-label="Limited data — send anyway?"
+            className="w-full max-w-sm bg-surface rounded-2xl shadow-elevated p-5 space-y-3 animate-slide-up">
+            <h3 className="text-sm font-bold text-ink">Limited data — Send anyway?</h3>
+            <p className="text-xs text-ink-2">
               The AI had limited signals for this intro. Review the message before sending.
             </p>
             <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
-                className="px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                className="btn-secondary btn-sm"
               >
                 Cancel
               </button>
@@ -321,7 +335,7 @@ export function IntroDraftModal({ attendee, sponsor, idempotencyKey, onClose, on
                   setConfirmOpen(false)
                   actuallySend()
                 }}
-                className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90"
+                className="btn-primary btn-sm"
               >
                 Send anyway
               </button>

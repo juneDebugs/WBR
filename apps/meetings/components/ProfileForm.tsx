@@ -20,7 +20,7 @@ interface User {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="card p-6 space-y-5">
-      <h2 className="font-semibold text-gray-900 pb-3 border-b border-gray-100">{title}</h2>
+      <h2 className="font-semibold text-ink pb-3 border-b border-hairline">{title}</h2>
       {children}
     </div>
   )
@@ -29,8 +29,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</label>
-      {hint && <p className="text-xs text-gray-400 mb-1.5">{hint}</p>}
+      <label className="label">{label}</label>
+      {hint && <p className="text-xs text-ink-2 mb-1.5">{hint}</p>}
       {children}
     </div>
   )
@@ -44,15 +44,15 @@ function SolutionChips({ label, hint, value, onChange }: {
 
   return (
     <div>
-      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</label>
-      {hint && <p className="text-xs text-gray-400 mb-2">{hint}</p>}
+      <label className="label">{label}</label>
+      {hint && <p className="text-xs text-ink-2 mb-2">{hint}</p>}
       <div className="flex flex-wrap gap-2">
         {SOLUTIONS.map(s => {
           const active = value.includes(s)
           const colors = SOLUTION_COLORS[s]
           return (
             <button key={s} type="button" onClick={() => toggle(s)}
-              className="text-xs px-3 py-1.5 rounded-full border font-medium transition-all"
+              className="chip"
               style={active && colors
                 ? { background: `linear-gradient(135deg, ${colors.activeFrom}, ${colors.activeTo})`, color: '#fff', borderColor: 'transparent' }
                 : colors
@@ -121,21 +121,20 @@ export function ProfileForm({ user }: { user: User }) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
-          <p className="text-sm text-gray-500 mt-1">This information helps sponsors and attendees find and match with you</p>
+          <h1 className="text-title1 text-ink">My Profile</h1>
+          <p className="text-sm text-ink-2 mt-1">This information helps sponsors and attendees find and match with you</p>
         </div>
         <div className="flex items-center gap-3">
           {saved && (
-            <span className="text-sm text-emerald-600 font-medium flex items-center gap-1.5">
+            <span className="text-sm text-success-ink font-medium flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               Saved
             </span>
           )}
-          {error && <span className="text-sm text-red-600">{error}</span>}
-          <button type="submit" disabled={saving}
-            className="px-6 py-2 bg-primary text-white rounded-xl font-semibold text-sm hover:bg-primary/90 disabled:opacity-60 transition-colors">
+          {error && <span className="text-sm text-danger-ink">{error}</span>}
+          <button type="submit" disabled={saving} className="btn-primary btn-sm">
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
@@ -162,8 +161,8 @@ export function ProfileForm({ user }: { user: User }) {
           </div>
         </button>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-gray-900 text-lg">{user.name ?? 'No name'}</p>
-          <p className="text-sm text-gray-500 truncate">
+          <p className="font-bold text-ink text-lg">{user.name ?? 'No name'}</p>
+          <p className="text-sm text-ink-2 truncate">
             {form.jobTitle && form.company ? `${form.jobTitle} at ${form.company}` : form.company || form.jobTitle || user.email}
           </p>
           <button type="button" onClick={() => fileRef.current?.click()}
@@ -173,7 +172,7 @@ export function ProfileForm({ user }: { user: User }) {
         </div>
         {form.image && form.image !== user.image && (
           <button type="button" onClick={() => setForm(f => ({ ...f, image: user.image ?? '' }))}
-            className="text-xs text-gray-400 hover:text-red-500 flex-shrink-0">
+            className="text-xs text-ink-2 hover:text-danger flex-shrink-0">
             Undo
           </button>
         )}
@@ -183,23 +182,23 @@ export function ProfileForm({ user }: { user: User }) {
       <Section title="About You">
         <div className="grid sm:grid-cols-2 gap-4">
           <Field label="Company">
-            <input className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            <input className="input"
               value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
               placeholder="Your company name" />
           </Field>
           <Field label="Job Title">
-            <input className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            <input className="input"
               value={form.jobTitle} onChange={e => setForm(f => ({ ...f, jobTitle: e.target.value }))}
               placeholder="e.g. Head of eCommerce" />
           </Field>
         </div>
         <Field label="Bio" hint="A brief intro that helps others understand what you do and what you're looking for">
-          <textarea className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[100px] resize-y"
+          <textarea className="textarea min-h-[100px]"
             value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
             placeholder="Tell sponsors and attendees what you're working on and what you're here to learn…" />
         </Field>
         <Field label="Website">
-          <input className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          <input className="input"
             value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
             placeholder="https://yourcompany.com" />
         </Field>
@@ -207,17 +206,13 @@ export function ProfileForm({ user }: { user: User }) {
 
       {/* Company Details */}
       <Section title="Company Details">
-        <p className="text-xs text-gray-500 -mt-2">Helps sponsors understand if you're a fit for their solutions</p>
+        <p className="text-xs text-ink-2 -mt-2">Helps sponsors understand if you're a fit for their solutions</p>
         <Field label="Company Size">
           <div className="flex flex-wrap gap-2 mt-1">
             {COMPANY_SIZES.map(s => (
               <button key={s} type="button"
                 onClick={() => setForm(f => ({ ...f, companySize: f.companySize === s ? '' : s }))}
-                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-                  form.companySize === s
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-primary hover:text-primary'
-                }`}>
+                className={`chip ${form.companySize === s ? 'chip-active' : 'chip-inactive'}`}>
                 {COMPANY_SIZE_LABELS[s]}
               </button>
             ))}
@@ -228,11 +223,7 @@ export function ProfileForm({ user }: { user: User }) {
             {REVENUE_RANGES.map(r => (
               <button key={r} type="button"
                 onClick={() => setForm(f => ({ ...f, annualRevenue: f.annualRevenue === r ? '' : r }))}
-                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-                  form.annualRevenue === r
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-primary hover:text-primary'
-                }`}>
+                className={`chip ${form.annualRevenue === r ? 'chip-active' : 'chip-inactive'}`}>
                 {REVENUE_LABELS[r]}
               </button>
             ))}
@@ -255,9 +246,7 @@ export function ProfileForm({ user }: { user: User }) {
       {/* Save bottom */}
       <div className="flex justify-end pt-2 pb-8">
         <button type="submit" disabled={saving}
-          className={`px-8 py-2.5 rounded-xl font-semibold text-base transition-colors ${
-            saved ? 'bg-emerald-500 text-white' : 'bg-primary text-white hover:bg-primary/90'
-          } disabled:opacity-60`}>
+          className={`btn-primary ${saved ? 'bg-success hover:bg-success' : ''}`}>
           {saved ? '✓ Saved!' : saving ? 'Saving…' : 'Save All Changes'}
         </button>
       </div>

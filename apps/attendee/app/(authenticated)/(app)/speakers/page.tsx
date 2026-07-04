@@ -5,7 +5,7 @@ import { SpeakersClient } from '@/components/speakers/SpeakersClient'
 // The BackgroundPrefetch component in the layout pre-warms the cache.
 export default function SpeakersPage() {
   return (
-    <div className="min-h-screen" style={{ background: '#f0ece4' }}>
+    <div className="min-h-screen">
       <SpeakersClient speakers={[]} />
     </div>
   )

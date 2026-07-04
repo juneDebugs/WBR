@@ -89,8 +89,8 @@ export function MeetingActions({ meetingId, otherUserId, otherName, status, note
 
   if (status === 'CANCELLED') {
     return (
-      <div className="card border border-red-100 bg-red-50 text-center py-5">
-        <p className="text-sm text-red-500 font-semibold">This meeting has been cancelled</p>
+      <div className="card border border-danger/20 bg-danger-soft text-center py-5">
+        <p className="text-sm text-danger-ink font-semibold">This meeting has been cancelled</p>
       </div>
     )
   }
@@ -99,20 +99,18 @@ export function MeetingActions({ meetingId, otherUserId, otherName, status, note
     <div className="space-y-4">
       {/* Notes */}
       <div className="card">
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">My Notes</label>
+        <label className="block text-xs font-semibold text-ink-2 uppercase tracking-wide mb-2">My Notes</label>
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Prep notes, talking points, follow-ups…"
           rows={3}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          className="textarea"
         />
         <button
           onClick={saveNotes}
           disabled={notesSaving}
-          className={`mt-2 w-full py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 ${
-            notesSaved ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'
-          }`}
+          className={`btn-primary w-full mt-2 ${notesSaved ? 'bg-success' : ''}`}
         >
           {notesSaved ? '✓ Saved' : notesSaving ? 'Saving…' : 'Save Notes'}
         </button>
@@ -123,7 +121,7 @@ export function MeetingActions({ meetingId, otherUserId, otherName, status, note
         <button
           onClick={openDm}
           disabled={dmLoading}
-          className="flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+          className="btn-secondary"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -133,7 +131,7 @@ export function MeetingActions({ meetingId, otherUserId, otherName, status, note
         </button>
         <button
           onClick={downloadIcal}
-          className="flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          className="btn-secondary"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -146,7 +144,7 @@ export function MeetingActions({ meetingId, otherUserId, otherName, status, note
       <button
         onClick={cancelMeeting}
         disabled={cancelling}
-        className="w-full py-2.5 text-sm font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl border border-red-100 transition-colors disabled:opacity-60"
+        className="w-full py-2.5 text-sm font-semibold text-danger hover:text-danger-ink hover:bg-danger-soft rounded-xl border border-danger/20 transition-colors disabled:opacity-60"
       >
         {cancelling ? 'Cancelling…' : 'Cancel Meeting'}
       </button>

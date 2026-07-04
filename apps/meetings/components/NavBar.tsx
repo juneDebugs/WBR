@@ -25,13 +25,13 @@ export const NavBar = memo(function NavBar({ role }: Props) {
   const items = role === 'STAFF' ? [...NAV.slice(0, -1), STAFF_NAV, NAV[NAV.length - 1]] : NAV
 
   return (
-    <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
+    <header className="material-bar border-b sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
         {/* Logo */}
         <div className="flex items-center gap-3">
           <img src="/icons/logo.svg" alt="WBR" className="w-7 h-7 rounded-lg" />
-          <span className="font-bold text-gray-900 text-sm hidden sm:block">
-            WBR <span className="text-gray-400 font-normal">· Meeting Portal</span>
+          <span className="font-bold text-ink text-sm hidden sm:block">
+            WBR <span className="text-ink-3 font-normal">· Meeting Portal</span>
           </span>
         </div>
 
@@ -39,8 +39,8 @@ export const NavBar = memo(function NavBar({ role }: Props) {
         <nav className="flex items-center gap-0.5">
           {items.map(({ href, label, icon, exact }: any) => (
             <Link key={href} href={href}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                active(href, exact) ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+              className={`flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${
+                active(href, exact) ? 'bg-primary/10 text-primary' : 'text-ink-2 hover:bg-fill hover:text-ink'
               }`}>
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
@@ -53,10 +53,10 @@ export const NavBar = memo(function NavBar({ role }: Props) {
         {/* Right side */}
         <div className="flex items-center gap-2">
           {role === 'STAFF' && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700 hidden sm:flex">Staff</span>
+            <span className="badge badge-brand hidden sm:flex">Staff</span>
           )}
           <button onClick={() => signOut({ callbackUrl: '/login' })}
-            className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+            className="text-xs text-ink-2 hover:text-ink px-2 min-h-[44px] inline-flex items-center rounded-lg hover:bg-fill transition-colors">
             Sign out
           </button>
         </div>

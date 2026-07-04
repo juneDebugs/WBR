@@ -4,17 +4,14 @@ import { useRouter } from 'next/navigation'
 
 const slides = [
   {
-    src: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80',
     headline: 'Connect, Meet,\nBuild Relationships',
     subtitle: 'Schedule 1-on-1 meetings with sponsors and peers at WBR 2027',
   },
   {
-    src: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=1200&q=80',
     headline: 'Discover New\nOpportunities',
     subtitle: 'Network with industry leaders and explore partnership potential',
   },
   {
-    src: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=1200&q=80',
     headline: 'Make Every\nMinute Count',
     subtitle: 'Pre-schedule your meetings so you can focus on what matters',
   },
@@ -66,22 +63,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex bg-[#1a1a2e]">
       {/* Left panel — slideshow */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        {/* Phase 4: imagery rendering disabled to stop serving 428KB of hot-linked Unsplash
-            assets on first load. Block preserved (commented) for quick re-enablement.
-            Before re-enabling, see PRD §6 Phase 4 follow-up: prefer optimized local copies
-            (WebP, responsive sizes, lazy loading) over the original Unsplash hot-links. */}
-        {/*
-        {slides.map((slide, i) => (
-          <img
-            key={i}
-            src={slide.src}
-            alt={`Slide ${i + 1}`}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-              i === currentSlide ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
-        ))}
-        */}
+        {/* Phase 4: hot-linked Unsplash imagery removed (was 428KB on first load).
+            To reintroduce imagery, add optimized local copies (WebP, responsive
+            sizes, lazy loading) via next/image rather than remote hot-links. */}
         <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/30 to-[#1a1a2e]" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a2e] via-transparent to-transparent" />
         <div className="absolute bottom-16 left-10 right-10">
@@ -119,11 +103,11 @@ export default function LoginPage() {
           {/* Mobile header (hidden on desktop) */}
           <div className="lg:hidden text-center mb-8">
             <h1 className="text-2xl font-bold text-white">WBR 2027 Meetings</h1>
-            <p className="text-white/50 text-sm mt-1">Schedule 1-on-1 meetings at the conference</p>
+            <p className="text-white/70 text-sm mt-1">Schedule 1-on-1 meetings at the conference</p>
           </div>
 
           <h1 className="text-3xl font-bold text-white mb-2">Sign in</h1>
-          <p className="text-gray-400 text-sm mb-8">
+          <p className="text-white/70 text-sm mb-8">
             Enter your credentials to access the meeting portal
           </p>
 
@@ -154,7 +138,8 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 text-white/60 hover:text-white transition-colors"
               >
                 {showPassword ? (
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -180,7 +165,7 @@ export default function LoginPage() {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
-            <div className="relative flex justify-center"><span className="bg-[#1a1a2e] px-4 text-xs text-gray-500">Or sign in with</span></div>
+            <div className="relative flex justify-center"><span className="bg-[#1a1a2e] px-4 text-xs text-white/60">Or sign in with</span></div>
           </div>
 
           <button
@@ -188,7 +173,7 @@ export default function LoginPage() {
               const { signIn } = await import('next-auth/react')
               signIn('google', { callbackUrl: '/' })
             }}
-            className="w-full flex items-center justify-center gap-3 py-3.5 border border-white/10 rounded-xl text-sm font-medium text-gray-300 hover:bg-white/5 transition-colors"
+            className="w-full flex items-center justify-center gap-3 py-3.5 border border-white/10 rounded-xl text-sm font-medium text-white/90 hover:bg-white/5 transition-colors"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -201,10 +186,10 @@ export default function LoginPage() {
 
           {/* Demo accounts */}
           <div className="mt-8 border border-white/10 rounded-xl p-4">
-            <p className="text-xs font-semibold text-gray-400 mb-3">Demo accounts</p>
-            <div className="space-y-2 text-xs text-gray-500">
-              <p><span className="text-gray-400">Attendee:</span> steph@curry.com / stephcurry</p>
-              <p><span className="text-gray-400">Staff:</span> staff@wbr.com / staff123</p>
+            <p className="text-xs font-semibold text-white/70 mb-3">Demo accounts</p>
+            <div className="space-y-2 text-xs text-white/60">
+              <p><span className="text-white/80">Attendee:</span> steph@curry.com / stephcurry</p>
+              <p><span className="text-white/80">Staff:</span> staff@wbr.com / staff123</p>
             </div>
           </div>
         </div>

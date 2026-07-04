@@ -35,7 +35,7 @@ export const BottomNav = memo(function BottomNav() {
         return (
           <Link key={tab.href} href={tab.href} className={`tab-item ${active ? 'active' : ''}`} prefetch={true}>
             <div className={`relative p-1 rounded-xl transition-all ${active ? 'bg-primary/10' : ''}`}>
-              <svg className={`w-5 h-5 ${active ? 'text-primary' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={`w-5 h-5 ${active ? 'text-primary' : 'text-ink-3'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {tab.pathIdx >= 0 ? (
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={sw} d={ICON_PATHS[tab.pathIdx]} />
                 ) : (
@@ -46,7 +46,7 @@ export const BottomNav = memo(function BottomNav() {
                 )}
               </svg>
             </div>
-            <span className={`text-[10px] font-medium leading-none ${active ? 'text-primary' : 'text-gray-400'}`}>
+            <span className={`text-[10px] font-medium leading-none ${active ? 'text-primary' : 'text-ink-3'}`}>
               {tab.label}
             </span>
           </Link>

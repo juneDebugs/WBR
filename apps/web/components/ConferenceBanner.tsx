@@ -80,59 +80,59 @@ export function ConferenceBanner({ id, name, venue, startDate, endDate }: Props)
       {editing ? (
         <div className="space-y-2 mt-1">
           <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Name</label>
+            <label className="text-caption font-semibold text-ink-2 uppercase tracking-wide">Name</label>
             <input
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full mt-0.5 px-3 py-1.5 text-sm font-bold text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+              className="w-full mt-0.5 px-3 py-1.5 text-sm font-bold text-ink border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
             />
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Venue</label>
+            <label className="text-caption font-semibold text-ink-2 uppercase tracking-wide">Venue</label>
             <input
               value={form.venue}
               onChange={e => setForm(f => ({ ...f, venue: e.target.value }))}
-              className="w-full mt-0.5 px-3 py-1.5 text-sm text-gray-700 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+              className="w-full mt-0.5 px-3 py-1.5 text-sm text-ink border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
               placeholder="e.g. Convention Center, San Francisco"
             />
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Start Date</label>
+              <label className="text-caption font-semibold text-ink-2 uppercase tracking-wide">Start Date</label>
               <input
                 type="date"
                 value={form.startDate}
                 onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
-                className="w-full mt-0.5 px-3 py-1.5 text-sm text-gray-700 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+                className="w-full mt-0.5 px-3 py-1.5 text-sm text-ink border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
               />
             </div>
             <div className="flex-1">
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">End Date</label>
+              <label className="text-caption font-semibold text-ink-2 uppercase tracking-wide">End Date</label>
               <input
                 type="date"
                 value={form.endDate}
                 onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
-                className="w-full mt-0.5 px-3 py-1.5 text-sm text-gray-700 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
+                className="w-full mt-0.5 px-3 py-1.5 text-sm text-ink border border-hairline rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
               />
             </div>
           </div>
           <button
             onClick={save}
             disabled={saving || !form.name.trim()}
-            className="mt-1 px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            className="btn-primary btn-sm mt-1"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       ) : (
         <div>
-          <h2 className="text-lg font-bold text-gray-900">{current.name}</h2>
-          <div className="flex items-center gap-2 flex-wrap text-sm text-gray-600 mt-0.5">
+          <h2 className="text-lg font-bold text-ink">{current.name}</h2>
+          <div className="flex items-center gap-2 flex-wrap text-sm text-ink-2 mt-0.5">
             {current.venue && <span>{current.venue}</span>}
-            {current.venue && dateRange && <span className="text-gray-300">·</span>}
+            {current.venue && dateRange && <span className="text-ink-3">·</span>}
             {dateRange && (
               <span className="flex items-center gap-1">
-                <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 text-ink-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -140,7 +140,7 @@ export function ConferenceBanner({ id, name, venue, startDate, endDate }: Props)
               </span>
             )}
           </div>
-          {saved && <p className="text-xs text-green-600 mt-1 font-medium">✓ Saved</p>}
+          {saved && <p className="text-xs text-success-ink mt-1 font-medium">✓ Saved</p>}
         </div>
       )}
     </div>

@@ -47,12 +47,12 @@ export function AppSettingsForm({ conference }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Mobile App Home Screen</h2>
-          <p className="text-sm text-gray-500 mt-0.5">These settings control what attendees see on the mobile app home screen.</p>
+          <h2 className="text-lg font-semibold text-ink">Mobile App Home Screen</h2>
+          <p className="text-sm text-ink-2 mt-0.5">These settings control what attendees see on the mobile app home screen.</p>
         </div>
         <div className="flex items-center gap-3">
           {saved && (
-            <span className="text-sm text-emerald-600 font-medium flex items-center gap-1.5">
+            <span className="text-sm text-success-ink font-medium flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
@@ -70,8 +70,8 @@ export function AppSettingsForm({ conference }: Props) {
       </div>
 
       {/* Conference Name */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
-        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+      <div className="bg-white border border-hairline rounded-xl p-6 space-y-5">
+        <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
           <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
@@ -79,83 +79,83 @@ export function AppSettingsForm({ conference }: Props) {
         </h3>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Conference Title</label>
+          <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Conference Title</label>
           <input
             value={form.name}
             onChange={e => set('name', e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder="e.g. WBR 2027"
           />
-          <p className="text-xs text-gray-400 mt-1">Appears as the main title on the mobile app home screen.</p>
+          <p className="text-xs text-ink-2 mt-1">Appears as the main title on the mobile app home screen.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Start Date</label>
+            <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Start Date</label>
             <input
               type="date"
               value={form.startDate}
               onChange={e => set('startDate', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">End Date</label>
+            <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">End Date</label>
             <input
               type="date"
               value={form.endDate}
               onChange={e => set('endDate', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Venue</label>
+          <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Venue</label>
           <input
             value={form.venue}
             onChange={e => set('venue', e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder="e.g. Convention Center, San Francisco"
           />
-          <p className="text-xs text-gray-400 mt-1">Shown on the Venue tile and used for weather location.</p>
+          <p className="text-xs text-ink-2 mt-1">Shown on the Venue tile and used for weather location.</p>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Latitude</label>
+            <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Latitude</label>
             <input
               value={form.venueLat}
               onChange={e => set('venueLat', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               placeholder="e.g. 37.7749"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Longitude</label>
+            <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Longitude</label>
             <input
               value={form.venueLon}
               onChange={e => set('venueLon', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               placeholder="e.g. -122.4194"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Timezone</label>
+            <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Timezone</label>
             <input
               value={form.venueTimezone}
               onChange={e => set('venueTimezone', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               placeholder="e.g. America/Los_Angeles"
             />
           </div>
         </div>
-        <p className="text-xs text-gray-400">Coordinates power the Weather widget. Get them from Google Maps.</p>
+        <p className="text-xs text-ink-2">Coordinates power the Weather widget. Get them from Google Maps.</p>
       </div>
 
       {/* Hero Image */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
-        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+      <div className="bg-white border border-hairline rounded-xl p-6 space-y-5">
+        <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
           <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
@@ -163,18 +163,18 @@ export function AppSettingsForm({ conference }: Props) {
         </h3>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Hero Image URL</label>
+          <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Hero Image URL</label>
           <input
             value={form.heroImageUrl}
             onChange={e => set('heroImageUrl', e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder="https://example.com/hero.jpg"
           />
-          <p className="text-xs text-gray-400 mt-1">The large banner image at the top of the mobile app home screen.</p>
+          <p className="text-xs text-ink-2 mt-1">The large banner image at the top of the mobile app home screen.</p>
         </div>
 
         {form.heroImageUrl && (
-          <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+          <div className="rounded-xl overflow-hidden border border-hairline bg-fill">
             <img
               src={form.heroImageUrl}
               alt="Hero preview"
@@ -187,8 +187,8 @@ export function AppSettingsForm({ conference }: Props) {
       </div>
 
       {/* WiFi */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
-        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+      <div className="bg-white border border-hairline rounded-xl p-6 space-y-5">
+        <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
           <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0" />
           </svg>
@@ -197,68 +197,68 @@ export function AppSettingsForm({ conference }: Props) {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Network Name</label>
+            <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Network Name</label>
             <input
               value={form.wifiName}
               onChange={e => set('wifiName', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               placeholder="e.g. WBR_Guest"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Password</label>
+            <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Password</label>
             <input
               value={form.wifiPassword}
               onChange={e => set('wifiPassword', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               placeholder="e.g. Welcome2027!"
             />
           </div>
         </div>
-        <p className="text-xs text-gray-400">Shown on the WiFi tile on the mobile app. Attendees can tap to copy.</p>
+        <p className="text-xs text-ink-2">Shown on the WiFi tile on the mobile app. Attendees can tap to copy.</p>
       </div>
 
       {/* Login Page Text */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
-        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+      <div className="bg-white border border-hairline rounded-xl p-6 space-y-5">
+        <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
           <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
           </svg>
           Login Page Text
         </h3>
-        <p className="text-xs text-gray-400">Customize the text shown on the mobile app login screen.</p>
+        <p className="text-xs text-ink-2">Customize the text shown on the mobile app login screen.</p>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Login Title</label>
+          <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Login Title</label>
           <input
             value={form.loginTitle}
             onChange={e => set('loginTitle', e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder="e.g. eTail Palm Springs"
           />
-          <p className="text-xs text-gray-400 mt-1">The large heading on the login page.</p>
+          <p className="text-xs text-ink-2 mt-1">The large heading on the login page.</p>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Login Subtitle</label>
+          <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Login Subtitle</label>
           <input
             value={form.loginSubtitle}
             onChange={e => set('loginSubtitle', e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder="e.g. Your all-in-one conference companion"
           />
-          <p className="text-xs text-gray-400 mt-1">The subtitle text below the title.</p>
+          <p className="text-xs text-ink-2 mt-1">The subtitle text below the title.</p>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Login Button Text</label>
+          <label className="block text-xs font-semibold text-ink-2 uppercase mb-1.5">Login Button Text</label>
           <input
             value={form.loginButtonText}
             onChange={e => set('loginButtonText', e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full px-3 py-2.5 border border-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder="e.g. Enter Conference"
           />
-          <p className="text-xs text-gray-400 mt-1">The text on the sign-in button.</p>
+          <p className="text-xs text-ink-2 mt-1">The text on the sign-in button.</p>
         </div>
       </div>
     </div>

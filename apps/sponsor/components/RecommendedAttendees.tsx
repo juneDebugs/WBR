@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { getCompanyDescription, SOLUTION_COLORS } from '@/lib/solutions'
+import { getCompanyDescription } from '@/lib/solutions'
 import {
   canDraft,
   getCanDraftBlockers,
@@ -12,27 +12,7 @@ import {
 } from '@/lib/ai-intro'
 import { useAiQuota } from '@/lib/hooks'
 import { IntroDraftModal } from './IntroDraftModal'
-
-const FALLBACK_COLORS = [
-  { bg: '#fff1f2', text: '#e11d48' }, // rose
-  { bg: '#fff7ed', text: '#ea580c' }, // orange
-  { bg: '#fefce8', text: '#ca8a04' }, // yellow
-  { bg: '#f0fdfa', text: '#0d9488' }, // teal
-  { bg: '#ecfdf5', text: '#059669' }, // emerald
-  { bg: '#f0f9ff', text: '#0284c7' }, // sky
-  { bg: '#eef2ff', text: '#4f46e5' }, // indigo
-  { bg: '#f5f3ff', text: '#7c3aed' }, // violet
-  { bg: '#fdf4ff', text: '#c026d3' }, // fuchsia
-  { bg: '#ecfeff', text: '#0e7490' }, // cyan
-]
-
-function tagColor(tag: string): { bg: string; text: string } {
-  const c = SOLUTION_COLORS[tag]
-  if (c) return { bg: c.bgFrom, text: c.text }
-  let hash = 0
-  for (let i = 0; i < tag.length; i++) hash = ((hash << 5) - hash + tag.charCodeAt(i)) | 0
-  return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length]
-}
+import { SolutionBadge } from './SolutionBadge'
 
 // AI intro draft is a client-mirror feature flag; server-side gate on
 // the /api/recommendations/[attendeeId]/draft-intro route is authoritative.
@@ -127,8 +107,8 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
     <div>
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Recommended Attendees</h2>
-          <p className="text-sm text-gray-500 mt-0.5">People whose offerings &amp; interests align with your solutions</p>
+          <h2 className="text-lg font-bold text-ink">Recommended Attendees</h2>
+          <p className="text-sm text-ink-2 mt-0.5">People whose offerings &amp; interests align with your solutions</p>
         </div>
         <button
           onClick={() => router.push('/browse')}
@@ -172,7 +152,7 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
           return (
             <div
               key={a.id}
-              className="flex-shrink-0 w-56 bg-white border border-gray-100 rounded-2xl shadow-sm flex flex-col overflow-hidden hover:shadow-md transition-shadow"
+              className="card p-0 flex-shrink-0 w-56 flex flex-col overflow-hidden hover:shadow-elevated transition-shadow"
             >
               {/* Avatar + score */}
               <div className="relative px-4 pt-5 pb-2 flex flex-col items-center">
@@ -184,7 +164,7 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
                       <span className="text-xl font-bold text-primary">{(a.name ?? '?')[0]}</span>
                     </div>
                   )}
-                  <span className="absolute -top-1 left-12 whitespace-nowrap text-[11px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm bg-pink-500 text-white">
+                  <span className="absolute -top-1 left-12 whitespace-nowrap text-[11px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm badge-brand">
                     {a.matchScore}%
                   </span>
                 </div>
@@ -192,32 +172,23 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
 
               {/* Info */}
               <div className="px-4 pb-3 flex-1 flex flex-col">
-                <p className="font-bold text-gray-900 text-sm leading-snug truncate">{a.name}</p>
+                <p className="font-bold text-ink text-sm leading-snug truncate">{a.name}</p>
                 {(a.jobTitle || a.company) && (
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                  <p className="text-xs text-ink-2 truncate mt-0.5">
                     {[a.jobTitle, a.company].filter(Boolean).join(' · ')}
                   </p>
                 )}
 
                 {/* Company description */}
-                <p className="text-[10px] leading-snug text-gray-400 mt-1.5 line-clamp-2 min-h-[28px]">{getCompanyDescription(a.company)}</p>
+                <p className="text-[10px] leading-snug text-ink-3 mt-1.5 line-clamp-2 min-h-[28px]">{getCompanyDescription(a.company)}</p>
 
                 {/* Tags — at least 2, up to 4 */}
                 <div className="flex flex-wrap gap-1 mt-2.5 mb-2">
-                  {visibleTags.map(tag => {
-                    const tc = tagColor(tag)
-                    return (
-                      <span
-                        key={tag}
-                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full truncate max-w-[10rem]"
-                        style={{ background: tc.bg, color: tc.text }}
-                      >
-                        {tag}
-                      </span>
-                    )
-                  })}
+                  {visibleTags.map(tag => (
+                    <SolutionBadge key={tag} label={tag} />
+                  ))}
                   {extraCount > 0 && (
-                    <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                    <span className="badge badge-neutral">
                       +{extraCount}
                     </span>
                   )}
@@ -228,10 +199,10 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
                   <button
                     onClick={() => connect(a.id)}
                     disabled={isRequested || isLoading || !sponsorId}
-                    className={`w-full py-2 rounded-xl text-sm font-semibold transition-all ${
+                    className={`w-full ${
                       isRequested
-                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                        : 'bg-primary text-white hover:bg-primary/90 disabled:opacity-50'
+                        ? 'inline-flex items-center justify-center min-h-[44px] rounded-xl bg-success-soft text-success-ink border border-success/30 text-sm font-semibold'
+                        : 'btn-primary'
                     }`}
                   >
                     {isLoading

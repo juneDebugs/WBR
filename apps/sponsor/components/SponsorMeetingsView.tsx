@@ -7,12 +7,12 @@ type Tab = 'all' | 'inbound' | 'outbound' | 'confirmed'
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    PENDING: 'bg-amber-50 text-amber-700 border-amber-100',
-    APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    CONFIRMED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    REJECTED: 'bg-red-50 text-red-600 border-red-100',
+    PENDING: 'badge-warning',
+    APPROVED: 'badge-success',
+    CONFIRMED: 'badge-success',
+    REJECTED: 'badge-danger',
   }
-  return map[status] ?? 'bg-gray-50 text-gray-600 border-gray-100'
+  return map[status] ?? 'badge-neutral'
 }
 
 function formatTime(iso: string) {
@@ -30,8 +30,8 @@ const PersonRow = memo(function PersonRow({ person, status, timeBlock, message, 
 }) {
   return (
     <div className={`card p-5 ${
-      status === 'CONFIRMED' || status === 'APPROVED' ? 'border-l-4 border-emerald-400' :
-      status === 'PENDING' && direction === 'inbound' ? 'border-l-4 border-amber-400' : ''
+      status === 'CONFIRMED' || status === 'APPROVED' ? 'border-l-4 border-success' :
+      status === 'PENDING' && direction === 'inbound' ? 'border-l-4 border-warning' : ''
     }`}>
       <div className="flex items-start gap-4">
         {person?.image ? (
@@ -43,25 +43,23 @@ const PersonRow = memo(function PersonRow({ person, status, timeBlock, message, 
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-gray-900">{person?.name}</span>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadge(status)}`}>
+            <span className="font-semibold text-ink">{person?.name}</span>
+            <span className={`badge ${statusBadge(status)}`}>
               {status}
             </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              direction === 'inbound' ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600'
-            }`}>
+            <span className={`badge ${direction === 'inbound' ? 'badge-brand' : 'badge-neutral'}`}>
               {direction === 'inbound' ? '← Inbound' : '→ Sent'}
             </span>
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-ink-2 mt-0.5">
             {person?.jobTitle}{person?.company ? ` · ${person.company}` : ''}
           </p>
-          {person?.email && <p className="text-xs text-gray-400 mt-0.5">{person.email}</p>}
+          {person?.email && <p className="text-xs text-ink-3 mt-0.5">{person.email}</p>}
           {message && (
-            <p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded-lg px-3 py-2 italic">"{message}"</p>
+            <p className="text-sm text-ink-2 mt-2 bg-fill rounded-lg px-3 py-2 italic">"{message}"</p>
           )}
           {timeBlock && (
-            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+            <p className="text-xs text-ink-3 mt-2 flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -74,9 +72,9 @@ const PersonRow = memo(function PersonRow({ person, status, timeBlock, message, 
         {direction === 'inbound' && status === 'PENDING' && (
           <div className="flex gap-2 flex-shrink-0">
             <button onClick={onApprove} disabled={actionLoading}
-              className="btn-primary text-xs px-3 py-1.5">Approve</button>
+              className="btn-primary btn-sm">Approve</button>
             <button onClick={onDecline} disabled={actionLoading}
-              className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors">Decline</button>
+              className="btn-secondary btn-sm">Decline</button>
           </div>
         )}
       </div>
@@ -164,13 +162,13 @@ export function SponsorMeetingsView() {
                 </div>
               )}
               <div className="flex-1">
-                <p className="font-medium text-gray-900">{m.user.name}</p>
-                <p className="text-sm text-gray-500">{m.user.jobTitle}{m.user.company ? ` · ${m.user.company}` : ''}</p>
+                <p className="font-medium text-ink">{m.user.name}</p>
+                <p className="text-sm text-ink-2">{m.user.jobTitle}{m.user.company ? ` · ${m.user.company}` : ''}</p>
                 {m.timeBlock && (
-                  <p className="text-xs text-gray-400 mt-1">{formatTime(m.timeBlock.startsAt)}{m.timeBlock.location ? ` · ${m.timeBlock.location}` : ''}</p>
+                  <p className="text-xs text-ink-3 mt-1">{formatTime(m.timeBlock.startsAt)}{m.timeBlock.location ? ` · ${m.timeBlock.location}` : ''}</p>
                 )}
               </div>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Scheduled</span>
+              <span className="badge badge-brand">Scheduled</span>
             </div>
           </div>
         )),
@@ -195,7 +193,7 @@ export function SponsorMeetingsView() {
 
     if (items.length === 0) {
       return (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-ink-3">
           <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
@@ -211,21 +209,21 @@ export function SponsorMeetingsView() {
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Meetings</h1>
-          <p className="text-sm text-gray-500 mt-1">All meeting requests — inbound from attendees and sent by your team</p>
+          <h1 className="text-2xl font-bold text-ink">Meetings</h1>
+          <p className="text-sm text-ink-2 mt-1">All meeting requests — inbound from attendees and sent by your team</p>
         </div>
       </div>
 
-      <div className="flex gap-1 border-b border-gray-100">
+      <div className="flex gap-1 border-b border-hairline">
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
-              tab === t.key ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-gray-500 hover:text-gray-800'
+              tab === t.key ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-ink-2 hover:text-ink'
             }`}>
             {t.label}
             {t.count > 0 && (
               <span className={`text-xs rounded-full px-1.5 py-0.5 font-semibold ${
-                (t as any).dot ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                (t as any).dot ? 'bg-warning-soft text-warning-ink' : 'bg-fill text-ink-2'
               }`}>{t.count}</span>
             )}
           </button>
@@ -233,8 +231,17 @@ export function SponsorMeetingsView() {
       </div>
 
       {isLoading && !meetingsData ? (
-        <div className="text-center py-16 text-gray-400">
-          <p className="text-sm">Loading meetings...</p>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="card p-5 flex items-center gap-4">
+              <div className="skeleton w-12 h-12 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="skeleton h-4 w-40" />
+                <div className="skeleton h-3 w-56" />
+              </div>
+              <div className="skeleton h-6 w-20 rounded-full" />
+            </div>
+          ))}
         </div>
       ) : renderRequests()}
     </div>

@@ -194,7 +194,7 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
       {/* Toast */}
       {toast && (
         <div className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${
-          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-500 text-white'
+          toast.type === 'success' ? 'bg-success text-white' : 'bg-danger text-white'
         }`}>
           {toast.type === 'success'
             ? <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
@@ -209,18 +209,18 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={closeModal}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Modal header */}
-            <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+            <div className="px-6 pt-6 pb-4 border-b border-hairline">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-fill border border-hairline flex items-center justify-center flex-shrink-0">
                     {modal.logo}
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">{modal.formTitle}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{modal.formSubtitle}</p>
+                    <p className="font-semibold text-ink">{modal.formTitle}</p>
+                    <p className="text-xs text-ink-2 mt-0.5">{modal.formSubtitle}</p>
                   </div>
                 </div>
-                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                <button onClick={closeModal} aria-label="Close" className="text-ink-2 hover:text-ink transition-colors p-1">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
@@ -230,40 +230,40 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
               {/* Form fields */}
               {modal.formFields?.map(field => (
                 <div key={field.key}>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">{field.label}</label>
+                  <label className="block text-xs font-semibold text-ink mb-1.5">{field.label}</label>
                   <input
                     type={field.type}
                     value={formValues[field.key] ?? ''}
                     onChange={e => setFormValues(prev => ({ ...prev, [field.key]: e.target.value }))}
                     placeholder={field.placeholder}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+                    className="w-full px-3 py-2.5 rounded-xl border border-hairline text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
                   />
-                  {field.help && <p className="text-[11px] text-gray-400 mt-1">{field.help}</p>}
+                  {field.help && <p className="text-caption text-ink-2 mt-1">{field.help}</p>}
                 </div>
               ))}
 
               {/* Step-by-step guide */}
               {modal.formGuide && (
-                <div className="bg-gray-50 rounded-xl p-4 space-y-2.5">
-                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">How to get your credentials</p>
+                <div className="bg-fill rounded-xl p-4 space-y-2.5">
+                  <p className="text-caption font-bold text-ink-2 uppercase tracking-wide">How to get your credentials</p>
                   {modal.formGuide.map(g => (
                     <div key={g.step} className="flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 text-primary text-caption font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                         {g.step}
                       </div>
-                      <p className="text-xs text-gray-600 leading-snug">{g.text}</p>
+                      <p className="text-xs text-ink-2 leading-snug">{g.text}</p>
                     </div>
                   ))}
                 </div>
               )}
 
               {testResult && (
-                <p className="text-xs text-center text-red-500 bg-red-50 rounded-lg py-2 px-3">{testResult}</p>
+                <p className="text-xs text-center text-danger bg-danger-soft rounded-lg py-2 px-3">{testResult}</p>
               )}
             </div>
 
             <div className="px-6 pb-6 flex gap-2.5">
-              <button onClick={closeModal} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+              <button onClick={closeModal} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-hairline text-ink-2 hover:bg-fill transition-colors">
                 Cancel
               </button>
               <button
@@ -280,16 +280,16 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
       )}
 
       {/* Header */}
-      <div className="mb-6 bg-white border border-gray-200 rounded-xl px-6 py-5 flex items-center justify-between gap-6">
+      <div className="mb-6 bg-white border border-hairline rounded-xl px-6 py-5 flex items-center justify-between gap-6">
         <div>
-          <h2 className="font-semibold text-gray-900 text-base">Integrations</h2>
-          <p className="text-sm text-gray-500 mt-0.5 max-w-xl">
+          <h2 className="font-semibold text-ink text-base">Integrations</h2>
+          <p className="text-sm text-ink-2 mt-0.5 max-w-xl">
             Connect the tools your team already uses. Meeting confirmations, calendar invites, and notifications sync automatically.
           </p>
         </div>
         <div className="flex-shrink-0 text-right">
           <p className="text-2xl font-bold text-primary">{connectedCount}</p>
-          <p className="text-xs text-gray-400">of {INTEGRATIONS.filter(i => i.connectType !== 'coming_soon').length} connected</p>
+          <p className="text-xs text-ink-2">of {INTEGRATIONS.filter(i => i.connectType !== 'coming_soon').length} connected</p>
         </div>
       </div>
 
@@ -298,7 +298,7 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
         {CATEGORIES.map(cat => (
           <button key={cat} onClick={() => setActiveCategory(cat)}
             className={`text-xs font-semibold px-3.5 py-1.5 rounded-full transition-colors ${
-              activeCategory === cat ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300'
+              activeCategory === cat ? 'bg-primary text-white' : 'bg-white border border-hairline text-ink-2 hover:border-hairline'
             }`}>
             {cat}
           </button>
@@ -315,47 +315,47 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
 
           return (
             <div key={integration.provider}
-              className={`bg-white border rounded-2xl overflow-hidden flex flex-col transition-shadow ${isComingSoon ? 'border-gray-100 opacity-60' : 'border-gray-200 hover:shadow-md'}`}>
+              className={`bg-white border rounded-2xl overflow-hidden flex flex-col transition-shadow ${isComingSoon ? 'border-hairline opacity-60' : 'border-hairline hover:shadow-md'}`}>
               {/* Accent strip */}
               <div className="h-1" style={{
                 background: isConnected
                   ? `linear-gradient(90deg, ${integration.accentFrom}, ${integration.accentTo})`
-                  : isComingSoon ? '#f3f4f6' : '#e5e7eb',
+                  : isComingSoon ? '#f2f2f7' : '#e5e5ea',
               }} />
 
               <div className="p-5 flex flex-col flex-1">
                 {/* Logo + status */}
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl bg-fill border border-hairline flex items-center justify-center">
                     {integration.logo}
                   </div>
                   {isConnected ? (
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className="flex items-center gap-1 text-caption font-bold text-success-ink bg-success-soft px-2 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-success" />
                       Connected
                     </span>
                   ) : isComingSoon ? (
-                    <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                    <span className="text-caption font-semibold text-ink-2 bg-fill px-2 py-1 rounded-full">
                       Soon
                     </span>
                   ) : (
-                    <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                    <span className="text-caption font-semibold text-ink-2 bg-fill px-2 py-1 rounded-full">
                       {integration.category}
                     </span>
                   )}
                 </div>
 
-                <p className="font-semibold text-gray-900 text-sm">{integration.name}</p>
-                <p className="text-xs text-gray-400 mt-1 leading-relaxed flex-1">{integration.description}</p>
+                <p className="font-semibold text-ink text-sm">{integration.name}</p>
+                <p className="text-xs text-ink-2 mt-1 leading-relaxed flex-1">{integration.description}</p>
 
                 {isConnected && savedState?.accountLabel && (
                   <div className="mt-3 flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <p className="text-xs text-gray-500 truncate">{savedState.accountLabel}</p>
+                    <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                    <p className="text-xs text-ink-2 truncate">{savedState.accountLabel}</p>
                   </div>
                 )}
                 {isConnected && savedState?.connectedAt && (
-                  <p className="text-[10px] text-gray-400 mt-0.5 ml-3">
+                  <p className="text-caption text-ink-2 mt-0.5 ml-3">
                     Since {format(new Date(savedState.connectedAt), 'MMM d, yyyy')}
                   </p>
                 )}
@@ -364,11 +364,11 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
                 <div className="mt-4">
                   {isConnected ? (
                     <button onClick={() => disconnect(integration.provider)} disabled={isDisconnecting}
-                      className="w-full py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">
+                      className="w-full py-2 rounded-xl text-xs font-semibold border border-hairline text-ink-2 hover:border-danger/30 hover:text-danger hover:bg-danger-soft transition-colors disabled:opacity-50">
                       {isDisconnecting ? 'Disconnecting…' : 'Disconnect'}
                     </button>
                   ) : isComingSoon ? (
-                    <div className="w-full py-2 rounded-xl text-xs font-semibold text-center text-gray-400 bg-gray-50 border border-dashed border-gray-200">
+                    <div className="w-full py-2 rounded-xl text-xs font-semibold text-center text-ink-2 bg-fill border border-dashed border-hairline">
                       Coming soon
                     </div>
                   ) : (
@@ -385,9 +385,9 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
         })}
       </div>
 
-      <div className="mt-8 bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-6 text-center">
-        <p className="text-sm font-semibold text-gray-500">More integrations coming soon</p>
-        <p className="text-xs text-gray-400 mt-1">Google Calendar, Outlook Calendar, Slack, and more</p>
+      <div className="mt-8 bg-fill border border-dashed border-hairline rounded-2xl p-6 text-center">
+        <p className="text-sm font-semibold text-ink-2">More integrations coming soon</p>
+        <p className="text-xs text-ink-2 mt-1">Google Calendar, Outlook Calendar, Slack, and more</p>
       </div>
     </div>
   )
