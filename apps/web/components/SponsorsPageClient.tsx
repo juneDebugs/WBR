@@ -8,8 +8,8 @@ import Link from 'next/link'
 
 const TIER_STYLES: Record<string, string> = {
   PLATINUM: 'bg-slate-100 text-slate-700 border border-slate-300',
-  GOLD:     'bg-amber-100 text-amber-700 border border-amber-300',
-  SILVER:   'bg-gray-100 text-gray-600 border border-gray-300',
+  GOLD:     'bg-warning-soft text-warning-ink border border-warning/30',
+  SILVER:   'bg-fill text-ink-2 border border-hairline',
   BRONZE:   'bg-orange-100 text-orange-700 border border-orange-300',
 }
 
@@ -31,7 +31,7 @@ const TIER_LIST = ['PLATINUM', 'GOLD', 'SILVER', 'BRONZE']
 // Shared table header cell
 function TH({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide ${className}`}>
+    <th className={`text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide ${className}`}>
       {children}
     </th>
   )
@@ -41,16 +41,16 @@ function TH({ children, className = '' }: { children: React.ReactNode; className
 function SponsorCell({ name, logoUrl, website }: { name: string; logoUrl: string | null; website: string | null }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+      <div className="w-10 h-10 rounded-lg bg-fill flex items-center justify-center flex-shrink-0 overflow-hidden">
         <SponsorLogo
           name={name}
           logoUrl={logoUrl}
           className="w-full h-full object-contain p-1"
-          fallbackClassName="text-gray-500 font-bold text-sm"
+          fallbackClassName="text-ink-2 font-bold text-sm"
         />
       </div>
       <div className="min-w-0">
-        <p className="font-medium text-gray-900 truncate">{name}</p>
+        <p className="font-medium text-ink truncate">{name}</p>
         {website && (
           <a href={website} target="_blank" rel="noopener noreferrer"
             className="text-xs text-primary hover:underline truncate block">{website}</a>
@@ -65,7 +65,7 @@ function ContactCell({ contactName, contactEmail }: { contactName: string | null
   if (!contactName && !contactEmail) return <span className="text-ink-2">{'\u2014'}</span>
   return (
     <>
-      {contactName && <p className="font-medium text-gray-900">{contactName}</p>}
+      {contactName && <p className="font-medium text-ink">{contactName}</p>}
       {contactEmail && <p className="text-xs text-ink-2 mt-0.5">{contactEmail}</p>}
     </>
   )
@@ -115,16 +115,16 @@ export default function SponsorsPageClient() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between mb-4">
-          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-          <div className="h-8 w-28 bg-gray-200 rounded animate-pulse" />
+          <div className="h-4 w-24 bg-fill-2 rounded animate-pulse" />
+          <div className="h-8 w-28 bg-fill-2 rounded animate-pulse" />
         </div>
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
+          <div key={i} className="bg-white border border-hairline rounded-xl p-4">
             {[...Array(4)].map((_, j) => (
-              <div key={j} className="flex items-center gap-4 py-3 border-b border-gray-100 last:border-0">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg animate-pulse" />
-                <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
-                <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+              <div key={j} className="flex items-center gap-4 py-3 border-b border-hairline last:border-0">
+                <div className="w-10 h-10 bg-fill rounded-lg animate-pulse" />
+                <div className="h-4 w-32 bg-fill rounded animate-pulse" />
+                <div className="h-4 w-24 bg-fill rounded animate-pulse" />
               </div>
             ))}
           </div>
@@ -137,15 +137,15 @@ export default function SponsorsPageClient() {
     <>
       {/* Top bar */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">{sponsors.length} sponsors total</p>
+        <p className="text-sm text-ink-2">{sponsors.length} sponsors total</p>
         <Link href="/dashboard/sponsors/new" className="btn-primary text-sm">+ New Sponsor</Link>
       </div>
 
       {/* -- Section 1: Profile Onboarding -- */}
       <section>
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Profile Onboarding</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Track what each sponsor still needs to complete before the event.</p>
+          <h2 className="text-lg font-semibold text-ink">Profile Onboarding</h2>
+          <p className="text-sm text-ink-2 mt-0.5">Track what each sponsor still needs to complete before the event.</p>
         </div>
 
         {sponsors.length === 0 ? (
@@ -158,21 +158,21 @@ export default function SponsorsPageClient() {
               return (
                 <div key={tier}>
                   <TierHeader tier={tier} count={tierSponsors.length} />
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="bg-white border border-hairline rounded-xl overflow-hidden">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
+                      <thead className="bg-fill border-b border-hairline">
                         <tr>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ width: '22%' }}>Sponsor</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ width: '18%' }}>Contact</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ width: '140px' }}>Completion</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ width: '180px' }}>Missing</th>
-                          <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide text-center" style={{ width: '120px' }}>Remind</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ width: '80px' }}>Manage</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide" style={{ width: '22%' }}>Sponsor</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide" style={{ width: '18%' }}>Contact</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide" style={{ width: '140px' }}>Completion</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide" style={{ width: '180px' }}>Missing</th>
+                          <th className="px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide text-center" style={{ width: '120px' }}>Remind</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide" style={{ width: '80px' }}>Manage</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-hairline">
                         {tierSponsors.map((s: any) => (
-                          <tr key={s.id} className="hover:bg-gray-50">
+                          <tr key={s.id} className="hover:bg-fill">
                             <td className="px-4 py-3">
                               <SponsorCell name={s.name} logoUrl={s.logoUrl} website={s.website} />
                             </td>
@@ -181,20 +181,20 @@ export default function SponsorsPageClient() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="flex-1 h-1.5 bg-fill rounded-full overflow-hidden">
                                   <div className="h-full rounded-full" style={{
                                     width: `${s.pct}%`,
                                     background: s.pct === 100 ? '#10b981' : s.pct >= 60 ? '#f59e0b' : '#f43f5e',
                                   }} />
                                 </div>
                                 <span className={`text-xs font-semibold tabular-nums w-8 text-right ${
-                                  s.pct === 100 ? 'text-emerald-600' : s.pct >= 60 ? 'text-amber-600' : 'text-rose-500'
+                                  s.pct === 100 ? 'text-success-ink' : s.pct >= 60 ? 'text-warning-ink' : 'text-danger'
                                 }`}>{s.pct}%</span>
                               </div>
                             </td>
                             <td className="px-4 py-3">
                               {s.missing.length === 0 ? (
-                                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-success-ink">
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                   </svg>
@@ -203,7 +203,7 @@ export default function SponsorsPageClient() {
                               ) : (
                                 <div className="flex flex-wrap gap-1">
                                   {s.missing.map((label: string) => (
-                                    <span key={label} className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 text-[10px] font-medium border border-rose-100">
+                                    <span key={label} className="px-1.5 py-0.5 rounded bg-danger-soft text-danger-ink text-caption font-medium border border-danger/30">
                                       {label}
                                     </span>
                                   ))}
@@ -238,8 +238,8 @@ export default function SponsorsPageClient() {
       {/* -- Section 2: Meetings -- */}
       <section>
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Meetings</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Meetings scheduled per sponsor, grouped by tier.</p>
+          <h2 className="text-lg font-semibold text-ink">Meetings</h2>
+          <p className="text-sm text-ink-2 mt-0.5">Meetings scheduled per sponsor, grouped by tier.</p>
         </div>
 
         {sponsors.length === 0 ? (
@@ -249,7 +249,7 @@ export default function SponsorsPageClient() {
             {grouped.map(({ tier, sponsors: tierSponsors }: any) => (
               <div key={tier}>
                 <TierHeader tier={tier} count={tierSponsors.length} />
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div className="bg-white border border-hairline rounded-xl overflow-hidden">
                   <table className="w-full text-sm table-fixed">
                     <colgroup>
                       <col style={{ width: '22%' }} />
@@ -258,7 +258,7 @@ export default function SponsorsPageClient() {
                       <col style={{ width: '140px' }} />
                       <col style={{ width: '80px' }} />
                     </colgroup>
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-fill border-b border-hairline">
                       <tr>
                         <TH>Sponsor</TH>
                         <TH>Contact</TH>
@@ -267,12 +267,12 @@ export default function SponsorsPageClient() {
                         <th />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-hairline">
                       {tierSponsors.map((s: any) => {
                         const ratio = s._count.meetings > 0 ? s.committed / s._count.meetings : 0
                         const fracColor = s._count.meetings === 0 ? '#9ca3af' : ratio >= 0.8 ? '#16a34a' : ratio >= 0.5 ? '#d97706' : '#dc2626'
                         return (
-                          <tr key={s.id} className="hover:bg-gray-50">
+                          <tr key={s.id} className="hover:bg-fill">
                             <td className="px-4 py-3">
                               <SponsorCell name={s.name} logoUrl={s.logoUrl} website={s.website} />
                             </td>
@@ -280,12 +280,12 @@ export default function SponsorsPageClient() {
                               <ContactCell contactName={s.contactName} contactEmail={s.contactEmail} />
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`font-semibold ${s._count.meetings > 0 ? 'text-blue-600' : 'text-ink-2'}`}>
+                              <span className={`font-semibold ${s._count.meetings > 0 ? 'text-brand-700' : 'text-ink-2'}`}>
                                 {s._count.meetings}
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-gray-100">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-fill">
                                 <span className="text-ink-2 font-normal">1-1</span>
                                 <span className="font-bold" style={{ color: fracColor }}>{s.committed}/{s._count.meetings}</span>
                               </span>
