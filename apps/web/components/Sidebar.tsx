@@ -164,6 +164,15 @@ export function Sidebar() {
 
   return (
     <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col">
+      {/* Shared gradient for nav icons; userSpaceOnUse spans the 24x24 viewBox so thin paths still pick it up */}
+      <svg width="0" height="0" className="absolute" aria-hidden="true">
+        <defs>
+          <linearGradient id="nav-icon-gradient" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#3b82f6" />
+            <stop offset="100%" stopColor="#ec4899" />
+          </linearGradient>
+        </defs>
+      </svg>
       <div className="px-6 py-5 border-b border-gray-200">
         <div className="flex items-center gap-2">
           <img src="/icons/icon-192.png" alt="WBR" className="w-7 h-7 rounded-lg" />
@@ -194,7 +203,7 @@ export function Sidebar() {
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                   >
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="url(#nav-icon-gradient)">
                       {item.icon}
                     </svg>
                     {item.label}
