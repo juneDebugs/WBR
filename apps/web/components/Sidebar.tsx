@@ -158,21 +158,23 @@ const nav = [
   },
 ]
 
+// The blue→pink range is split into one contiguous segment per icon: each icon
+// fades vertically through its own slice, so the column reads as one continuous fade
+const navHrefs = nav.flatMap((section) => section.items.map((item) => item.href))
+
+function colorAt(t: number) {
+  const from = [59, 130, 246] // #3b82f6 blue
+  const to = [236, 72, 153] // #ec4899 pink
+  const [r, g, b] = from.map((c, i) => Math.round(c + (to[i] - c) * t))
+  return `rgb(${r}, ${g}, ${b})`
+}
+
 export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
 
   return (
     <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col">
-      {/* Shared gradient for nav icons; userSpaceOnUse spans the 24x24 viewBox so thin paths still pick it up */}
-      <svg width="0" height="0" className="absolute" aria-hidden="true">
-        <defs>
-          <linearGradient id="nav-icon-gradient" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#ec4899" />
-          </linearGradient>
-        </defs>
-      </svg>
       <div className="px-6 py-5 border-b border-gray-200">
         <div className="flex items-center gap-2">
           <img src="/icons/icon-192.png" alt="WBR" className="w-7 h-7 rounded-lg" />
@@ -193,6 +195,8 @@ export function Sidebar() {
                 const active = item.href === '/dashboard'
                   ? pathname === '/dashboard'
                   : pathname.startsWith(item.href)
+                const idx = navHrefs.indexOf(item.href)
+                const gradId = `nav-grad-${idx}`
                 return (
                   <Link
                     key={item.href}
@@ -203,7 +207,13 @@ export function Sidebar() {
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                   >
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="url(#nav-icon-gradient)">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke={`url(#${gradId})`}>
+                      <defs>
+                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="24" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor={colorAt(idx / navHrefs.length)} />
+                          <stop offset="100%" stopColor={colorAt((idx + 1) / navHrefs.length)} />
+                        </linearGradient>
+                      </defs>
                       {item.icon}
                     </svg>
                     {item.label}
