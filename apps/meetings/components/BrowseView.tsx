@@ -21,8 +21,8 @@ function safeParse(raw: string | null): string[] {
 
 export function BrowseView({ mode }: Props) {
   // TanStack Query: fetch once, cache for 5 min — no server round-trip on navigation
-  const { data: rawSponsors = [], isLoading: sponsorsLoading } = useBrowseSponsors()
-  const { data: rawPeople = [], isLoading: peopleLoading } = useBrowsePeople()
+  const { data: rawSponsors = [], isLoading: sponsorsLoading, refetch: refetchSponsors } = useBrowseSponsors()
+  const { data: rawPeople = [], isLoading: peopleLoading, refetch: refetchPeople } = useBrowsePeople()
   const { data: requests } = useBrowseRequests()
 
   // Pre-parse JSON solutions once instead of on every filter evaluation
@@ -282,8 +282,17 @@ export function BrowseView({ mode }: Props) {
           {/* Grid */}
           {totalFiltered === 0 ? (
             <div className="text-center py-16">
-              <p className="text-gray-400 text-sm">No results match your filters.</p>
-              <button onClick={() => { handleFiltersChange(EMPTY_FILTERS); handleCategoryChange(null) }} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
+              {(isSponsorsView ? sponsors.length : people.length) === 0 ? (
+                <>
+                  <p className="text-gray-400 text-sm">{isSponsorsView ? 'Solution provider' : 'People'} data is unavailable right now.</p>
+                  <button onClick={() => { refetchSponsors(); refetchPeople() }} className="mt-2 text-primary text-sm hover:underline">Try again</button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-400 text-sm">No results match your filters.</p>
+                  <button onClick={() => { handleFiltersChange(EMPTY_FILTERS); handleCategoryChange(null) }} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
+                </>
+              )}
             </div>
           ) : (
             <>

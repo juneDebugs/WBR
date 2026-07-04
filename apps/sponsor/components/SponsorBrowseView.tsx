@@ -303,7 +303,7 @@ const PersonCard = memo(function PersonCard({
 export function SponsorBrowseView() {
   const { sponsorId, isStaff } = useUser()
   // TanStack Query: fetch attendee list once, cache for 5 min — no server round-trip on navigation
-  const { data: people = [], isLoading: queryLoading } = useAttendees()
+  const { data: people = [], isLoading: queryLoading, refetch: refetchAttendees } = useAttendees()
   const { data: sponsorData } = useSponsorData()
 
   const [search, setSearch] = useState('')
@@ -528,8 +528,17 @@ export function SponsorBrowseView() {
           {/* Grid */}
           {filtered.length === 0 && !loading ? (
             <div className="text-center py-16">
-              <p className="text-gray-400 text-sm">No results match your filters.</p>
-              <button onClick={clearAll} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
+              {people.length === 0 ? (
+                <>
+                  <p className="text-gray-400 text-sm">Attendee data is unavailable right now.</p>
+                  <button onClick={() => refetchAttendees()} className="mt-2 text-primary text-sm hover:underline">Try again</button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-400 text-sm">No results match your filters.</p>
+                  <button onClick={clearAll} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
+                </>
+              )}
             </div>
           ) : (
             <>

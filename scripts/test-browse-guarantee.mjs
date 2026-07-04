@@ -12,20 +12,28 @@
 // the same shared filter functions (packages/db/src/browse-taxonomy.ts) the
 // components use.
 //
-//   node scripts/test-browse-guarantee.mjs [--db path/to.db] [--quick]
+//   node scripts/test-browse-guarantee.mjs [--db path/to.db] [--remote] [--quick]
 //
-// Default DB: packages/db/prisma/dev.db (read-only). Exits non-zero on failure.
+// Default DB: packages/db/prisma/dev.db (read-only). --remote loads the pools
+// from the production Turso database instead (credentials read from
+// apps/sponsor/.env.local), so the guarantee is proven against the exact data
+// the deployed portals serve. Exits non-zero on failure.
 
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DatabaseSync } from 'node:sqlite'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const dbFlag = args.indexOf('--db')
 const DB_PATH = dbFlag >= 0 ? args[dbFlag + 1] : join(ROOT, 'packages/db/prisma/dev.db')
+const REMOTE = args.includes('--remote')
 const QUICK = args.includes('--quick')
+
+// The user-facing acceptance criterion: every chip-filter combination returns
+// at least this many results in BOTH portals (pool permitting). The design
+// floors (MEETINGS_MIN_RESULTS = 8, SPONSOR_MIN_RESULTS = 20) sit above it.
+const ACCEPTANCE_FLOOR = 7
 
 const {
   filterMeetingsPeople,
@@ -84,7 +92,24 @@ const M_CATEGORIES = [null, ...extractArrayLiteral(meetingsLibSrc, 'PEOPLE_CATEG
 
 // ─── Candidate pools (replicating the API queries) ───────────────────────────
 
-const db = new DatabaseSync(DB_PATH, { readOnly: true })
+const POOL_QUERIES = {
+  // meetings /api/browse/people: role=ATTENDEE, sponsorId null, name asc, take 500
+  meetingsPeople: `
+    SELECT id, name, email, company, jobTitle, role, bio, companySize, annualRevenue,
+           solutionsOffering, solutionsSeeking
+    FROM User WHERE role = 'ATTENDEE' AND sponsorId IS NULL
+    ORDER BY name ASC LIMIT 500`,
+  // meetings /api/browse/sponsors: all sponsors, tier asc then name asc
+  meetingsSponsors: `
+    SELECT id, name, tier, companySize, annualRevenue, solutionsOffering, solutionsSeeking
+    FROM Sponsor ORDER BY tier ASC, name ASC`,
+  // sponsor /api/attendees: role in (ATTENDEE, SPEAKER), name asc, no cap
+  sponsorAttendees: `
+    SELECT id, name, company, jobTitle, bio, role, companySize, annualRevenue,
+           solutionsOffering, solutionsSeeking, sponsorId
+    FROM User WHERE role IN ('ATTENDEE', 'SPEAKER')
+    ORDER BY name ASC`,
+}
 
 function preparse(rows) {
   for (const r of rows) {
@@ -94,30 +119,47 @@ function preparse(rows) {
   return rows
 }
 
-// meetings /api/browse/people: role=ATTENDEE, sponsorId null, name asc, take 500
-const meetingsPeople = preparse(db.prepare(`
-  SELECT id, name, email, company, jobTitle, role, bio, companySize, annualRevenue,
-         solutionsOffering, solutionsSeeking
-  FROM User WHERE role = 'ATTENDEE' AND sponsorId IS NULL
-  ORDER BY name ASC LIMIT 500
-`).all())
+async function loadLocalPools() {
+  const { DatabaseSync } = await import('node:sqlite')
+  const db = new DatabaseSync(DB_PATH, { readOnly: true })
+  const pools = Object.fromEntries(
+    Object.entries(POOL_QUERIES).map(([k, sql]) => [k, preparse(db.prepare(sql).all())]),
+  )
+  db.close()
+  return pools
+}
 
-// meetings /api/browse/sponsors: all sponsors, tier asc then name asc
-const meetingsSponsors = preparse(db.prepare(`
-  SELECT id, name, tier, companySize, annualRevenue, solutionsOffering, solutionsSeeking
-  FROM Sponsor ORDER BY tier ASC, name ASC
-`).all())
+async function loadRemotePools() {
+  const env = readFileSync(join(ROOT, 'apps/sponsor/.env.local'), 'utf8')
+  const url = env.match(/TURSO_DATABASE_URL=(.+)/)?.[1]?.trim().replace('libsql://', 'https://')
+  const token = env.match(/TURSO_AUTH_TOKEN=(.+)/)?.[1]?.trim()
+  if (!url || !token) throw new Error('No Turso credentials in apps/sponsor/.env.local')
 
-// sponsor /api/attendees: role in (ATTENDEE, SPEAKER), name asc, no cap
-const sponsorAttendees = preparse(db.prepare(`
-  SELECT id, name, company, jobTitle, bio, role, companySize, annualRevenue,
-         solutionsOffering, solutionsSeeking, sponsorId
-  FROM User WHERE role IN ('ATTENDEE', 'SPEAKER')
-  ORDER BY name ASC
-`).all())
+  async function q(sql) {
+    const res = await fetch(`${url}/v2/pipeline`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ requests: [{ type: 'execute', stmt: { sql } }, { type: 'close' }] }),
+    })
+    if (!res.ok) throw new Error(`Turso HTTP ${res.status}: ${await res.text()}`)
+    const r = (await res.json()).results[0]
+    if (r.type !== 'ok') throw new Error(`Turso query failed: ${JSON.stringify(r)}`)
+    const cols = r.response.result.cols.map(c => c.name)
+    return r.response.result.rows.map(row =>
+      Object.fromEntries(row.map((cell, i) => [cols[i], cell.value ?? null])),
+    )
+  }
 
-db.close()
+  const pools = {}
+  for (const [k, sql] of Object.entries(POOL_QUERIES)) pools[k] = preparse(await q(sql))
+  return pools
+}
 
+const { meetingsPeople, meetingsSponsors, sponsorAttendees } = REMOTE
+  ? await loadRemotePools()
+  : await loadLocalPools()
+
+console.log(`Data source: ${REMOTE ? 'REMOTE Turso (production data)' : DB_PATH}`)
 console.log(`Pools: meetings people=${meetingsPeople.length}, sponsors=${meetingsSponsors.length}, sponsor-portal attendees=${sponsorAttendees.length}`)
 console.log(`Chips: meetings solutions=${M_SOLUTIONS.length}, sponsor solutions=${S_SOLUTIONS.length}`)
 
@@ -134,6 +176,11 @@ function assertCombo(desc, result, minTarget, poolSize) {
   if (result.results.length < floor) {
     failures++
     if (failures <= 25) console.error(`  ✗ ${desc} → ${result.results.length} results (need ≥ ${floor})`)
+  }
+  const acceptance = Math.min(ACCEPTANCE_FLOOR, poolSize)
+  if (result.results.length < acceptance) {
+    failures++
+    if (failures <= 25) console.error(`  ✗ ${desc} → ${result.results.length} results (acceptance floor ${acceptance})`)
   }
   if (result.strictCount === 0) strictZeroCombos++
   if (result.results.length < worst.count) worst = { count: result.results.length, desc }
@@ -220,6 +267,45 @@ for (let i = 0; i < S_DIMS.length; i++) {
   }
 }
 
+// The exact combination from the 2026-07-03 bug report screenshot: it returned
+// 0 results on pre-fix code because companySize is NULL for most production
+// rows, so the SMB chip could never exact-match anything.
+console.log('[Sponsor portal] reported combo + exhaustive 3-dimension categorical sweeps')
+{
+  const r = runSponsor(
+    { roles: ['ATTENDEE'], jobFunctions: ['Strategy/Innovation'], industries: ['Skincare'], sizes: ['SMB'] },
+    'REPORTED: Attendee + Strategy/Innovation + Skincare + SMB',
+  )
+  console.log(`  reported combo → ${r.results.length} results (${r.strictCount} exact, ${r.similarCount} similar)`)
+}
+
+// Every 3-dimension combination across the categorical dims. Solutions chips
+// are excluded here (their singles, pairs, and random higher-order combos are
+// covered above; a full 3-dim product with 83 chips would explode the space).
+{
+  const catDims = S_DIMS.filter(([d]) => d !== 'seeking')
+  const step = QUICK ? 2 : 1
+  for (let i = 0; i < catDims.length; i++) {
+    for (let j = i + 1; j < catDims.length; j++) {
+      for (let k = j + 1; k < catDims.length; k++) {
+        const [dA, cA] = catDims[i]
+        const [dB, cB] = catDims[j]
+        const [dC, cC] = catDims[k]
+        for (let a = 0; a < cA.length; a += step) {
+          for (let b = 0; b < cB.length; b += step) {
+            for (let c = 0; c < cC.length; c += step) {
+              runSponsor(
+                { [dA]: [cA[a]], [dB]: [cB[b]], [dC]: [cC[c]] },
+                `${dA}=[${cA[a]}] + ${dB}=[${cB[b]}] + ${dC}=[${cC[c]}]`,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 // ─── Meetings portal, People tab: any combination ≥ 8 in every category ──────
 
 console.log('[Meetings People tab] singles + pairs across every category scope')
@@ -289,6 +375,41 @@ for (const category of M_CATEGORIES) {
       parts.push(`${dim}=[${sel.join('|')}]`)
     }
     runMeetingsPeople(overrides, category, `random ${parts.join(' + ')}`)
+  }
+}
+
+// Mirror of the reported sponsor-portal combo on the meetings side, across
+// every category scope, plus exhaustive 3-dimension categorical sweeps.
+console.log('[Meetings People tab] reported-style combo + 3-dimension categorical sweeps')
+for (const category of M_CATEGORIES) {
+  runMeetingsPeople(
+    { industries: ['Skincare'], jobFunctions: ['Strategy/Innovation'], companySizes: ['SMB'], solutionsOffering: ['Email Marketing'] },
+    category,
+    'REPORTED-style: Skincare + Strategy/Innovation + SMB + Email Marketing',
+  )
+}
+{
+  const catDims = M_DIMS.filter(([d]) => d !== 'solutionsOffering')
+  const step = QUICK ? 2 : 1
+  for (let i = 0; i < catDims.length; i++) {
+    for (let j = i + 1; j < catDims.length; j++) {
+      for (let k = j + 1; k < catDims.length; k++) {
+        const [dA, cA] = catDims[i]
+        const [dB, cB] = catDims[j]
+        const [dC, cC] = catDims[k]
+        for (let a = 0; a < cA.length; a += step) {
+          for (let b = 0; b < cB.length; b += step) {
+            for (let c = 0; c < cC.length; c += step) {
+              runMeetingsPeople(
+                { [dA]: [cA[a]], [dB]: [cB[b]], [dC]: [cC[c]] },
+                null,
+                `${dA}=[${cA[a]}] + ${dB}=[${cB[b]}] + ${dC}=[${cC[c]}]`,
+              )
+            }
+          }
+        }
+      }
+    }
   }
 }
 
