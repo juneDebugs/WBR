@@ -20,6 +20,7 @@
     "db:seed": "pnpm --filter @conference/db db:seed",
     "db:studio": "pnpm --filter @conference/db db:studio",
     "test:browse": "node scripts/test-browse-taxonomy.mjs && node scripts/test-browse-guarantee.mjs",
+    "test:access": "node scripts/test-access-counts.mjs",
     "smoketest:browse": "node scripts/smoketest-browse-api.mjs"
   },
   "devDependencies": {

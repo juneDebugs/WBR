@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { fetchAccessData } from '@/lib/access-query'
+import { fetchStaffPage } from '@/lib/staff-query'
 
 const ADMIN_ROLES = new Set(['STAFF', 'ORGANIZER', 'ADMIN'])
 
@@ -15,8 +15,7 @@ export async function GET(request: NextRequest) {
   const pageRaw = searchParams.get('page')
   const page = pageRaw !== null ? Number(pageRaw) : 0
   const q = searchParams.get('q') ?? ''
-  const scope = searchParams.get('scope') ?? 'all'
 
-  const result = await fetchAccessData({ page, q, scope })
+  const result = await fetchStaffPage({ page, q })
   return NextResponse.json(result)
 }

@@ -40,8 +40,12 @@ export function normalizeAttendeesParams(raw: AttendeesQueryParams): {
   return { page, q, role }
 }
 
-export async function fetchAttendeesPage(raw: AttendeesQueryParams = {}): Promise<AttendeesPage> {
-  const { page, q, role } = normalizeAttendeesParams(raw)
+// Single source of truth for what counts as a row in the Attendees section.
+// Every surface that reports an attendee number (the Attendees table, the
+// Access & Roles stat cards) must build its filter here so the totals can
+// never diverge.
+export function buildAttendeesWhere(raw: AttendeesQueryParams = {}): Prisma.UserWhereInput {
+  const { q, role } = normalizeAttendeesParams(raw)
 
   const where: Prisma.UserWhereInput = {
     role: role ? { equals: role } : { in: ['ATTENDEE', 'SPEAKER'] },
@@ -59,6 +63,17 @@ export async function fetchAttendeesPage(raw: AttendeesQueryParams = {}): Promis
       { jobTitle: { contains: q } },
     ]
   }
+
+  return where
+}
+
+export async function countAttendees(raw: AttendeesQueryParams = {}): Promise<number> {
+  return prisma.user.count({ where: buildAttendeesWhere(raw) })
+}
+
+export async function fetchAttendeesPage(raw: AttendeesQueryParams = {}): Promise<AttendeesPage> {
+  const { page } = normalizeAttendeesParams(raw)
+  const where = buildAttendeesWhere(raw)
 
   const [rows, total] = await Promise.all([
     prisma.user.findMany({
