@@ -230,7 +230,7 @@ function StaffDashboard({ data, confirmRate }: { data: any; confirmRate: number 
 function UserDashboard({ data, isSponsor }: { data: any; isSponsor: boolean }) {
   const {
     totalRequests, pendingRequests, confirmedRequests, userName,
-    myRequests, inboundRequests, profileUser, myMeetings, sponsorWithTeam,
+    myRequests, inboundRequests, profileUser, myMeetings, staff,
   } = data
 
   // Profile completeness
@@ -391,10 +391,8 @@ function UserDashboard({ data, isSponsor }: { data: any; isSponsor: boolean }) {
         </div>
       )}
 
-      {/* Team reps */}
-      {sponsorWithTeam?.users && sponsorWithTeam.users.length > 0 && (
-        <TeamMembers members={sponsorWithTeam.users} />
-      )}
+      {/* WBR staff roster — same module as the sponsor app dashboard */}
+      {staff && staff.length > 0 && <TeamMembers members={staff} />}
 
       {/* No profile CTA */}
       {profilePct < 50 && (
