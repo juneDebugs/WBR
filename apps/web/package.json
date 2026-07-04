@@ -14,6 +14,8 @@
     "@auth/prisma-adapter": "^1.6.0",
     "@conference/db": "workspace:*",
     "@conference/types": "workspace:*",
+    "@libsql/client": "^0.8.0",
+    "@prisma/adapter-libsql": "^5.22.0",
     "@prisma/client": "^5.19.0",
     "@tanstack/react-query": "^5.100.9",
     "@types/nodemailer": "^8.0.0",
