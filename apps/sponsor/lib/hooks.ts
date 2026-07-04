@@ -54,6 +54,7 @@ export function useMeetingsData() {
 export function useSponsorData() {
   return useQuery<{
     sponsor: any
+    staff: any[]
     stats: { pendingCount: number; confirmedCount: number; totalMeetings: number } | null
     conflicts: any[]
     requestedIds: string[]
