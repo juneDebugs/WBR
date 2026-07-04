@@ -1,4 +1,22 @@
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
+import { staffRosterWhere, STAFF_ROSTER_ORDER_BY } from '@conference/db/src/staff-roster'
+
+// ── WBR staff roster ("Your Team at WBR 2027") ───────────────────────
+// The same list the Admin app's Staff page shows — membership semantics live
+// in the shared packages/db/src/staff-roster.ts. Identical for every user, so
+// cached; mirrors getCachedStaff in apps/sponsor/lib/server-data.ts.
+// scripts/test-meetings-team.mjs guards the mapping end-to-end.
+const getCachedStaff = unstable_cache(
+  async () =>
+    prisma.user.findMany({
+      where: staffRosterWhere(),
+      orderBy: STAFF_ROSTER_ORDER_BY,
+      select: { id: true, name: true, image: true, jobTitle: true, company: true, email: true, role: true },
+    }),
+  ['meetings-staff'],
+  { revalidate: 60, tags: ['staff'] },
+)
 
 export async function getDashboardData(userId: string, sponsorId: string | null, role: string) {
   const isStaff = role === 'STAFF'
@@ -42,7 +60,7 @@ export async function getDashboardData(userId: string, sponsorId: string | null,
     inboundByUser, inboundBySponsor,
     profileUser,
     meetingsAsRequester, meetingsAsTarget,
-    sponsorWithTeam,
+    staff,
   ] = await Promise.all([
     prisma.meetingRequest.groupBy({ by: ['status'], where: { requesterId: userId }, _count: true }),
     prisma.meetingRequest.groupBy({ by: ['status'], where: { targetUserId: userId }, _count: true }),
@@ -99,12 +117,7 @@ export async function getDashboardData(userId: string, sponsorId: string | null,
         timeBlock: true,
       },
     }),
-    sponsorId
-      ? prisma.sponsor.findUnique({
-          where: { id: sponsorId },
-          include: { users: { select: { id: true, name: true, image: true, jobTitle: true, email: true, role: true } } },
-        })
-      : Promise.resolve(null),
+    getCachedStaff(),
   ])
 
   const countMap: Record<string, number> = {}
@@ -138,6 +151,6 @@ export async function getDashboardData(userId: string, sponsorId: string | null,
     inboundRequests,
     profileUser,
     myMeetings,
-    sponsorWithTeam,
+    staff,
   }
 }

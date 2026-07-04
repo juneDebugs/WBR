@@ -25,6 +25,8 @@
     "test:roles:api": "node scripts/test-role-permissions-api.mjs",
     "test:sponsor-team": "node scripts/test-sponsor-team.mjs",
     "e2e:sponsor-team": "node scripts/e2e-sponsor-team.mjs",
+    "test:meetings-team": "node scripts/test-meetings-team.mjs",
+    "e2e:meetings-team": "node scripts/e2e-meetings-team.mjs",
     "smoketest:browse": "node scripts/smoketest-browse-api.mjs"
   },
   "devDependencies": {
