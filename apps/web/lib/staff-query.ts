@@ -1,4 +1,5 @@
 import { prisma, type Prisma } from '@conference/db'
+import { staffRosterWhere, STAFF_ROSTER_ORDER_BY } from '@conference/db/src/staff-roster'
 
 export const STAFF_PAGE_SIZE = 50
 
@@ -39,10 +40,12 @@ export function normalizeStaffParams(raw: StaffQueryParams): { page: number; q: 
 // reports a staff number — the Staff section list *and* the Access & Roles
 // "Staff" stat card — builds its filter here, so the tile can never diverge
 // from the list it links to. Mirrors buildAttendeesWhere in attendees-query.ts.
+// Membership semantics live in the shared packages/db/src/staff-roster.ts so
+// the sponsor app's "Your Team at WBR" section maps the identical list.
 export function buildStaffWhere(raw: StaffQueryParams = {}): Prisma.UserWhereInput {
   const { q } = normalizeStaffParams(raw)
 
-  const where: Prisma.UserWhereInput = { role: 'STAFF' }
+  const where: Prisma.UserWhereInput = staffRosterWhere()
 
   if (q) {
     // SQLite LIKE (Prisma `contains`) is ASCII case-insensitive by default;
@@ -69,7 +72,7 @@ export async function fetchStaffPage(raw: StaffQueryParams = {}): Promise<StaffP
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
-      orderBy: { name: 'asc' },
+      orderBy: STAFF_ROSTER_ORDER_BY,
       skip: page * STAFF_PAGE_SIZE,
       take: STAFF_PAGE_SIZE,
       select: {

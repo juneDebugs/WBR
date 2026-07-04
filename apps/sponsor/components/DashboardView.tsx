@@ -55,6 +55,7 @@ export function DashboardView() {
   const { data: allAttendees } = useAttendees()
 
   const sponsor = sponsorData?.sponsor
+  const wbrTeam = sponsorData?.staff ?? []
   const stats = sponsorData?.stats
   const conflicts = sponsorData?.conflicts ?? []
 
@@ -229,7 +230,7 @@ export function DashboardView() {
         </div>
       )}
 
-      {sponsor?.users?.length > 0 && <TeamMembers members={sponsor.users} />}
+      {wbrTeam.length > 0 && <TeamMembers members={wbrTeam} />}
     </div>
   )
 }
