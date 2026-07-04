@@ -9,9 +9,11 @@ export async function GET() {
     nextPhase: process.env.NEXT_PHASE ?? 'none',
   }
 
-  // Dynamically import to catch module-level errors
+  // Dynamically import to catch module-level errors. Must be an ESM import:
+  // webpack's require() interop on this transpiled package yields undefined
+  // exports, which masks the real connection state.
   try {
-    const { prisma, dbConnectionMode } = require('@conference/db')
+    const { prisma, dbConnectionMode } = await import('@conference/db')
     checks.connectionMode = dbConnectionMode
 
     const userCount = await prisma.user.count()
