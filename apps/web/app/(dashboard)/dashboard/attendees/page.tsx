@@ -1,8 +1,12 @@
 import { AdminHeader } from '@/components/AdminHeader'
 import { AttendeesTable } from '@/components/AttendeesTable'
 import { fetchAttendeesPage } from '@/lib/attendees-query'
+import { permissionDenied } from '@/lib/require-permission'
 
 export default async function AttendeesPage() {
+  const denied = await permissionDenied('attendees', 'Attendees')
+  if (denied) return denied
+
   const firstPage = await fetchAttendeesPage({ page: 0 })
   return (
     <>

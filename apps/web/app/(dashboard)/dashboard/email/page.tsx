@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { EmailPageClient } from '@/components/EmailPageClient'
+import { permissionDenied } from '@/lib/require-permission'
 
 const USER_CHECKLIST: { key: string; label: string; check: (u: any) => boolean }[] = [
   { key: 'name',      label: 'Full name',        check: u => !!u.name },
@@ -51,6 +52,9 @@ const getCachedEmailData = unstable_cache(
 )
 
 export default async function EmailPage() {
+  const denied = await permissionDenied('email', 'Email')
+  if (denied) return denied
+
   const data = await getCachedEmailData()
   return (
     <>

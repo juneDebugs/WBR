@@ -6,6 +6,7 @@ import { SponsorLogo } from '@/components/SponsorLogo'
 import { TimeBlockSearch } from '@/components/TimeBlockSearch'
 import { TimeBlockGroup } from '@/components/TimeBlockGroup'
 import { format } from 'date-fns'
+import { permissionDenied } from '@/lib/require-permission'
 
 import Link from 'next/link'
 const ROLE_STYLES: Record<string, string> = {
@@ -68,6 +69,9 @@ const getCachedTimeBlocksData = unstable_cache(
 )
 
 export default async function TimeBlocksPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const denied = await permissionDenied('timeBlocks', 'Time Blocks')
+  if (denied) return denied
+
   const params = await searchParams
   const q = params.q?.toLowerCase().trim() ?? ''
 

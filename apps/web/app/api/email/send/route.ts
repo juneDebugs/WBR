@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 import * as nodemailer from 'nodemailer'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
+import { roleHasPermission } from '@/lib/api-permission'
 
 async function getTransporter() {
   // Try Gmail first, then Outlook
@@ -36,6 +37,9 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const role = (session.user as any).role
   if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  if (!(await roleHasPermission(role, 'email'))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

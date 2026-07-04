@@ -1,8 +1,10 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { AdminHeader } from '@/components/AdminHeader'
-import { StaffTable } from '@/components/StaffTable'
+import { StaffTabsShell } from '@/components/StaffTabsShell'
 import { fetchStaffPage } from '@/lib/staff-query'
+import { getRoleConfigs } from '@/lib/role-permissions-server'
+import { permissionDenied } from '@/lib/require-permission'
 
 const ADMIN_ROLES = ['STAFF', 'ORGANIZER', 'ADMIN']
 
@@ -29,12 +31,20 @@ export default async function StaffPage() {
     )
   }
 
-  const initialData = await fetchStaffPage({ page: 0 })
+  const denied = await permissionDenied('staff', 'Staff')
+  if (denied) return denied
+
+  const [initialData, initialRoles] = await Promise.all([
+    fetchStaffPage({ page: 0 }),
+    getRoleConfigs(),
+  ])
+  // Editing role settings/permissions is Organizer-only; STAFF/ADMIN view read-only.
+  const canEditRoles = role === 'ORGANIZER'
   return (
     <>
       <AdminHeader title="Staff" />
       <main className="flex-1 p-6">
-        <StaffTable initialData={initialData} />
+        <StaffTabsShell initialData={initialData} initialRoles={initialRoles} canEditRoles={canEditRoles} />
       </main>
     </>
   )

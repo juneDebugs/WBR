@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { CalendarPageClient } from '@/components/CalendarPageClient'
+import { permissionDenied } from '@/lib/require-permission'
 
 function toISO(d: Date | string): string {
   return typeof d === 'string' ? d : d.toISOString()
@@ -31,6 +32,9 @@ const getCachedCalendarData = unstable_cache(
 )
 
 export default async function CalendarPage() {
+  const denied = await permissionDenied('calendar', 'Calendar')
+  if (denied) return denied
+
   const data = await getCachedCalendarData()
   return (
     <>

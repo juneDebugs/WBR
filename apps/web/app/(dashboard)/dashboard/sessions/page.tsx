@@ -1,7 +1,11 @@
 import { AdminHeader } from '@/components/AdminHeader'
 import SessionsPageClient from '@/components/SessionsPageClient'
+import { permissionDenied } from '@/lib/require-permission'
 
-export default function SessionsPage() {
+export default async function SessionsPage() {
+  const denied = await permissionDenied('agenda', 'Agenda')
+  if (denied) return denied
+
   return (
     <>
       <AdminHeader title="Agenda" />

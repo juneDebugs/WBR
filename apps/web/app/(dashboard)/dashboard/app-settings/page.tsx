@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AppSettingsPageClient } from '@/components/AppSettingsPageClient'
+import { permissionDenied } from '@/lib/require-permission'
 
 const getCachedConference = unstable_cache(
   async () => {
@@ -21,6 +22,8 @@ const getCachedConference = unstable_cache(
 )
 
 export default async function AppSettingsPage() {
+  const denied = await permissionDenied('appSettings', 'App Settings')
+  if (denied) return denied
   const data = await getCachedConference()
   return (
     <>

@@ -3,12 +3,16 @@ import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
+import { roleHasPermission } from '@/lib/api-permission'
 
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const role = (session.user as any).role
   if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  if (!(await roleHasPermission(role, 'appSettings'))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

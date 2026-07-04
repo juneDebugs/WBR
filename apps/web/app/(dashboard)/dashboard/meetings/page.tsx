@@ -1,7 +1,11 @@
 import { AdminHeader } from '@/components/AdminHeader'
 import MeetingsPageClient from '@/components/MeetingsPageClient'
+import { permissionDenied } from '@/lib/require-permission'
 
 export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; status?: string; type?: string }> }) {
+  const denied = await permissionDenied('meetings', 'Meetings')
+  if (denied) return denied
+
   const params = await searchParams
   return (
     <>

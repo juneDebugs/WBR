@@ -533,3 +533,16 @@ model Integration {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
+
+// ─── Role settings & permissions ───────────────────────────────────────────────
+// One row per manageable admin role (STAFF | ORGANIZER). `permissions` is a JSON
+// array of permission keys (see apps/web/lib/permissions.ts). The app also
+// creates this table defensively at runtime via CREATE TABLE IF NOT EXISTS, so
+// it works before this model is pushed to Turso; the column shape here matches
+// that DDL exactly so `prisma db push` stays a no-op.
+model RolePermission {
+  role        String   @id // STAFF | ORGANIZER
+  description String
+  permissions String   // JSON array of permission keys
+  updatedAt   DateTime @updatedAt
+}

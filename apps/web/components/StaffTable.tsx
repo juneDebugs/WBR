@@ -10,7 +10,11 @@ const PAGE_SIZE = 50
 const SEARCH_DEBOUNCE_MS = 250
 const MIN_PASSWORD_LENGTH = 8
 
-const ROLES = ['ATTENDEE', 'SPEAKER', 'STAFF', 'ORGANIZER']
+// A staff member is only ever Staff or Organizer. Attendee/Speaker are managed
+// on the Access page, not here — offering them as a demotion target on the
+// Staff directory never made sense. The out-of-list fallback in the <select>
+// below still renders any legacy role truthfully.
+const ROLES = ['STAFF', 'ORGANIZER']
 
 const roleColors: Record<string, string> = {
   ORGANIZER: 'bg-purple-100 text-purple-700',

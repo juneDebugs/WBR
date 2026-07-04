@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
+import { roleHasPermission } from '@/lib/api-permission'
 
 function csv(rows: string[][]): string {
   return rows.map(row =>
@@ -17,6 +18,9 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const role = (session.user as any).role
   if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  if (!(await roleHasPermission(role, 'export'))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

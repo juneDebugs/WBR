@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { ChatPageClient } from '@/components/ChatPageClient'
+import { permissionDenied } from '@/lib/require-permission'
 
 const GENERAL_ROOM_ID = 'room-general'
 
@@ -48,6 +49,9 @@ const getCachedChatData = unstable_cache(
 )
 
 export default async function ChatPage() {
+  const denied = await permissionDenied('chat', 'Chat')
+  if (denied) return denied
+
   const data = await getCachedChatData()
   return (
     <>

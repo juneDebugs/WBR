@@ -1,7 +1,11 @@
 import { AdminHeader } from '@/components/AdminHeader'
 import SponsorsPageClient from '@/components/SponsorsPageClient'
+import { permissionDenied } from '@/lib/require-permission'
 
-export default function SponsorsPage() {
+export default async function SponsorsPage() {
+  const denied = await permissionDenied('sponsors', 'Sponsors')
+  if (denied) return denied
+
   return (
     <>
       <AdminHeader title="Sponsors" />

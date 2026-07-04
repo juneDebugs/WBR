@@ -3,10 +3,14 @@ import { authOptions } from '@/lib/auth'
 import { AdminHeader } from '@/components/AdminHeader'
 import { AccessClient } from '@/components/AccessClient'
 import { fetchAccessData } from '@/lib/access-query'
+import { permissionDenied } from '@/lib/require-permission'
 
 const ADMIN_ROLES = ['STAFF', 'ORGANIZER', 'ADMIN']
 
 export default async function AccessPage() {
+  // Per-role permission gate (a STAFF role may be configured without Access).
+  const denied = await permissionDenied('access', 'Access & Roles')
+  if (denied) return denied
   // The user directory (emails, roles, password status) is admin-only. The
   // web app's own login already restricts to admin roles, but a token minted
   // by a sibling app on the same host would satisfy middleware's presence

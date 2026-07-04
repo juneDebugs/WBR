@@ -29,6 +29,12 @@ The split exists because the four user-facing surfaces have meaningfully differe
 
 See full rationale in [`adr/0001-monorepo-of-four-nextjs-apps.md`](adr/0001-monorepo-of-four-nextjs-apps.md) and the deployment-topology section of [`architecture.md`](architecture.md#deployment-topology).
 
+### Configurable role permissions for the admin dashboard (2026-07-04)
+
+The admin app previously treated `STAFF`, `ORGANIZER`, and `ADMIN` identically — every admin-role gate was a flat `['STAFF','ORGANIZER','ADMIN'].includes(role)` check, so a Staff member had the same reach as an Organizer. The Staff page now exposes a **Roles & Permissions** editor (Organizer-only; read-only for everyone else) that maps each of the two managed roles (Staff, Organizer) to a set of permission keys — one per sidebar nav destination, grouped by the 5 sidebar sections. The signed-in role's permissions drive both the Sidebar (hidden sections) and a server page guard (`lib/require-permission.tsx`) on the Administration pages.
+
+Key decisions: (1) permissions gate **nav destinations**, mirroring the sidebar grouping, because that is the unit users reason about; (2) the permission list is a client-safe pure module (`lib/permissions.ts`) with an anti-lockout invariant — `ORGANIZER` always retains `staff`, enforced server-side in `normalizePermissions`, so no payload can lock admins out of the role manager; (3) persistence uses a `RolePermission` table created via a defensive `CREATE TABLE IF NOT EXISTS` (raw SQL, matching the Prisma model) so it works on Turso without a manual `prisma db push`, consistent with the repo's no-migration-history posture (see [`adr/0003-turso-libsql-data-layer.md`](adr/0003-turso-libsql-data-layer.md)); (4) the Staff page role dropdown was narrowed from four roles to **Staff & Organizer** — Attendee/Speaker are managed on the Access page. Editing is Organizer-only at the API (`PUT /api/roles` → 403 for Staff). Tests: `pnpm test:roles` (unit), `pnpm test:roles:api` (HTTP), and `scripts/e2e-roles.mjs` (browser).
+
 ### NextAuth + JWT sessions + scrypt password hashing
 
 All four apps use NextAuth v4.24 with the `jwt` session strategy. Passwords are hashed with Node's built-in `scrypt` (cost `N=2048`); stored hashes encode the cost factor inline as `<hex-hash>.<salt>.<N>` so legacy hashes (without a cost field) still verify against the fallback `N=16384`.

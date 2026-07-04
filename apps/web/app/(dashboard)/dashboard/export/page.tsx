@@ -1,7 +1,10 @@
 import { AdminHeader } from '@/components/AdminHeader'
 import { ExportClient } from '@/components/ExportClient'
+import { permissionDenied } from '@/lib/require-permission'
 
-export default function ExportPage() {
+export default async function ExportPage() {
+  const denied = await permissionDenied('export', 'Export')
+  if (denied) return denied
   return (
     <>
       <AdminHeader title="Export" />

@@ -3,6 +3,7 @@ import { prisma } from '@conference/db'
 import { unstable_cache } from 'next/cache'
 import { AdminHeader } from '@/components/AdminHeader'
 import { IntegrationsClient } from '@/components/IntegrationsClient'
+import { permissionDenied } from '@/lib/require-permission'
 
 const getCachedIntegrations = unstable_cache(
   async () => prisma.integration.findMany(),
@@ -11,6 +12,8 @@ const getCachedIntegrations = unstable_cache(
 )
 
 export default async function IntegrationsPage({ searchParams }: { searchParams: Promise<{ connected?: string; error?: string }> }) {
+  const denied = await permissionDenied('integrations', 'Integrations')
+  if (denied) return denied
   const [saved, params] = await Promise.all([
     getCachedIntegrations(),
     searchParams,

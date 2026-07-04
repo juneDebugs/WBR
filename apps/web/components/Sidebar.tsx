@@ -169,9 +169,19 @@ function colorAt(t: number) {
   return `rgb(${r}, ${g}, ${b})`
 }
 
-export function Sidebar() {
+export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
   const pathname = usePathname()
   const { data: session } = useSession()
+
+  // When the server passes an allow-list, hide destinations the role can't
+  // reach and drop sections left with no visible items. Overview is always in
+  // the list. No prop (older callers / tests) => show everything.
+  const allow = allowedHrefs ? new Set(allowedHrefs) : null
+  const sections = allow
+    ? nav
+        .map(section => ({ ...section, items: section.items.filter(item => allow.has(item.href)) }))
+        .filter(section => section.items.length > 0)
+    : nav
 
   return (
     <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col">
@@ -183,7 +193,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-        {nav.map((section, i) => (
+        {sections.map((section, i) => (
           <div key={section.title ?? i}>
             {section.title && (
               <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
