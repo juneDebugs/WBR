@@ -11,6 +11,8 @@ function parseArr(val: string | null | undefined): string[] {
   try { return JSON.parse(val) } catch { return [] }
 }
 
+const ARRAY_FIELDS = new Set(['solutionsOffering', 'solutionsSeeking', 'targetIndustries'])
+
 function completeness(sponsor: any): { score: number; missing: string[] } {
   const fields: [string, string][] = [
     ['tagline', 'Tagline'], ['description', 'Description'], ['logoUrl', 'Logo'],
@@ -21,7 +23,9 @@ function completeness(sponsor: any): { score: number; missing: string[] } {
     ['solutionsOffering', 'Solutions offering'], ['solutionsSeeking', 'Solutions seeking'],
     ['targetIndustries', 'Target industries'],
   ]
-  const missing = fields.filter(([k]) => !sponsor[k]).map(([, label]) => label)
+  const missing = fields
+    .filter(([k]) => ARRAY_FIELDS.has(k) ? parseArr(sponsor[k]).length === 0 : !sponsor[k])
+    .map(([, label]) => label)
   const score = Math.round(((fields.length - missing.length) / fields.length) * 100)
   return { score, missing }
 }
