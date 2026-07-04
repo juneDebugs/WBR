@@ -33,7 +33,7 @@ const QUICK = args.includes('--quick')
 // The user-facing acceptance criterion: every chip-filter combination returns
 // at least this many results in BOTH portals (pool permitting). The design
 // floors (MEETINGS_MIN_RESULTS = 8, SPONSOR_MIN_RESULTS = 20) sit above it.
-const ACCEPTANCE_FLOOR = 7
+const ACCEPTANCE_FLOOR = 8
 
 const {
   filterMeetingsPeople,

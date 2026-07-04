@@ -37,7 +37,7 @@ try {
   }
 }
 
-const MIN = 7
+const MIN = 8
 const SPONSOR_BASE = process.env.SMOKE_SPONSOR_URL ?? 'http://localhost:3003'
 const MEETINGS_BASE = process.env.SMOKE_MEETINGS_URL ?? 'http://localhost:3002'
 const SPONSOR_LOGIN = { email: process.env.SMOKE_EMAIL ?? 'sponsor@shopify.com', password: process.env.SMOKE_PASSWORD ?? 'sponsor123' }
@@ -162,17 +162,18 @@ async function run() {
   const ctx = await browser.newContext({ viewport: { width: 1680, height: 1050 } })
   const page = await ctx.newPage()
 
-  // ── Sponsor portal: the exact combination from the bug report ──
-  console.log('\n[Sponsor portal] Attendee + Strategy/Innovation + Skincare + SMB (reported combo)')
+  // ── Sponsor portal: the exact 5-chip combination from the bug report ──
+  console.log('\n[Sponsor portal] Attendee + Marketing + Skincare + Startup + $10M-$50M (reported combo)')
   await login(page, SPONSOR_BASE, SPONSOR_LOGIN)
   await page.goto(`${SPONSOR_BASE}/browse`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
   await page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
   await page.screenshot({ path: join(SHOT_DIR, 'sponsor-browse-landing.png') }).catch(() => {})
   await page.locator('.grid > *').first().waitFor({ timeout: 90_000 })
   await clickChip(page, 'ATTENDEE')
-  await clickChip(page, 'Strategy/Innovation')
+  await clickChip(page, 'Marketing')
   await clickChip(page, 'Skincare')
-  await clickChip(page, 'SMB (51-500)')
+  await clickChip(page, 'Startup (1-50)')
+  await clickChip(page, '$10M-$50M')
   let r = await readResults(page)
   console.log(`  header: "${r.header}", cards rendered: ${r.cards}, divider: ${r.divider > 0 ? 'shown' : 'absent'}`)
   check(`≥ ${MIN} cards rendered`, r.cards >= MIN, `got ${r.cards}`)
