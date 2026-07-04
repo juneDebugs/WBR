@@ -88,28 +88,28 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId, 
   })), [messages])
 
   return (
-    <div className="flex flex-col bg-gray-50" style={{ height: '100dvh' }}>
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-4 flex items-center gap-3 flex-shrink-0"
-        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: '0.75rem' }}>
-        <button onClick={() => router.back()} className="text-primary p-1 -ml-1">
+    <div className="flex flex-col bg-canvas" style={{ height: '100dvh' }}>
+      {/* Header — body already applies safe-area-inset-top */}
+      <div className="bg-surface border-b border-hairline px-4 flex items-center gap-2 flex-shrink-0"
+        style={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}>
+        <button onClick={() => router.back()} className="icon-btn -ml-2 text-primary">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         {otherUserId ? (
-          <Link href={`/people/${otherUserId}`} className="font-semibold text-gray-900 text-base active:opacity-70">
+          <Link href={`/people/${otherUserId}`} className="font-semibold text-ink text-base active:opacity-70">
             {displayName}
           </Link>
         ) : (
-          <h1 className="font-semibold text-gray-900 text-base">{displayName}</h1>
+          <h1 className="font-semibold text-ink text-base">{displayName}</h1>
         )}
       </div>
 
       {/* Messages — scrollable middle */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
         {grouped.length === 0 && (
-          <p className="text-center text-gray-400 text-sm mt-16">No messages yet. Say hello!</p>
+          <p className="text-center text-ink-3 text-sm mt-16">No messages yet. Say hello!</p>
         )}
         {grouped.map((msg) => {
           const isMe = msg.sender.id === currentUserId
@@ -125,22 +125,22 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId, 
                         <span className="text-primary text-xs font-bold">{(msg.sender.name ?? '?')[0]}</span>
                       )}
                     </div>
-                    <span className="text-xs font-semibold text-gray-600">{msg.sender.name}</span>
+                    <span className="text-xs font-semibold text-ink-2">{msg.sender.name}</span>
                   </Link>
-                  <span className="text-xs text-gray-400">{format(new Date(msg.createdAt), 'h:mm a')}</span>
+                  <span className="text-xs text-ink-3">{format(new Date(msg.createdAt), 'h:mm a')}</span>
                 </div>
               )}
               <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   isMe
                     ? 'bg-primary text-white rounded-br-sm'
-                    : 'bg-white border border-gray-100 text-gray-900 rounded-bl-sm shadow-sm'
+                    : 'bg-surface border border-hairline text-ink rounded-bl-sm shadow-card'
                 } ${msg.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
                   {msg.content}
                 </div>
               </div>
               {isMe && msg.showHeader && (
-                <p className="text-right text-[10px] text-gray-400 mt-0.5 mr-1">
+                <p className="text-right text-[10px] text-ink-3 mt-0.5 mr-1">
                   {format(new Date(msg.createdAt), 'h:mm a')}
                 </p>
               )}
@@ -151,7 +151,7 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId, 
       </div>
 
       {/* Input — pinned to bottom, moves up with keyboard */}
-      <div className="bg-white border-t border-gray-100 px-3 py-2 flex-shrink-0"
+      <div className="bg-surface border-t border-hairline px-3 py-2 flex-shrink-0"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         <form onSubmit={sendMessage} className="flex items-center gap-2">
           <input
@@ -159,7 +159,7 @@ export function ChatView({ roomId, displayName, initialMessages, currentUserId, 
             onChange={e => setInput(e.target.value)}
             placeholder="Message…"
             autoComplete="off"
-            className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="flex-1 bg-fill rounded-full px-4 py-2.5 text-sm text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           <button
             type="submit"

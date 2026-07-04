@@ -87,28 +87,28 @@ export function ExportClient() {
 
   return (
     <div className="max-w-2xl space-y-4">
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-ink-2">
         Download conference data as CSV files, ready to open in Excel, Google Sheets, or any spreadsheet app.
       </p>
 
-      <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+      <div className="bg-white border border-hairline rounded-xl divide-y divide-hairline">
         {EXPORTS.map(({ type, label, description, icon }) => (
           <div key={type} className="flex items-center gap-4 px-5 py-4">
-            <div className="w-9 h-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
-              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-9 h-9 rounded-lg bg-fill border border-hairline flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-ink-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {icon}
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900">{label}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{description}</p>
+              <p className="text-sm font-medium text-ink">{label}</p>
+              <p className="text-xs text-ink-2 mt-0.5">{description}</p>
             </div>
             <button
               onClick={() => handleExport(type, label)}
               disabled={loading === type}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 done === type
-                  ? 'bg-green-50 text-green-600 border border-green-200'
+                  ? 'bg-success-soft text-success-ink border border-success/30'
                   : 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20'
               } disabled:opacity-50`}
             >

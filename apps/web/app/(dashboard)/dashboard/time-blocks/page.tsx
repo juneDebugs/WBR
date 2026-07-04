@@ -10,17 +10,17 @@ import { permissionDenied } from '@/lib/require-permission'
 
 import Link from 'next/link'
 const ROLE_STYLES: Record<string, string> = {
-  ATTENDEE: 'bg-blue-100 text-blue-700',
-  SPEAKER:  'bg-purple-100 text-purple-700',
-  SPONSOR:  'bg-amber-100 text-amber-700',
-  STAFF:    'bg-green-100 text-green-700',
+  ATTENDEE: 'bg-brand-50 text-brand-700',
+  SPEAKER:  'bg-brand-100 text-brand-800',
+  SPONSOR:  'bg-warning-soft text-warning-ink',
+  STAFF:    'bg-success-soft text-success-ink',
 }
 
 const TIER_STYLES: Record<string, string> = {
-  PLATINUM: 'bg-slate-100 text-slate-700',
-  GOLD:     'bg-amber-100 text-amber-700',
-  SILVER:   'bg-gray-100 text-gray-600',
-  BRONZE:   'bg-orange-100 text-orange-700',
+  PLATINUM: 'bg-fill-2 text-ink',
+  GOLD:     'bg-warning-soft text-warning-ink',
+  SILVER:   'bg-fill text-ink-2',
+  BRONZE:   'bg-danger-soft text-danger-ink',
 }
 
 const getCachedTimeBlocksData = unstable_cache(
@@ -116,15 +116,15 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: P
 
           {/* ── Sponsors ── */}
           {filteredSponsors.length > 0 && (
-            <TimeBlockGroup label="Sponsors" count={filteredSponsors.length} badgeClass="bg-amber-100 text-amber-700">
+            <TimeBlockGroup label="Sponsors" count={filteredSponsors.length} badgeClass="bg-warning-soft text-warning-ink">
               {filteredSponsors.map(sponsor => (
-                  <div key={sponsor.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
-                      <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                        <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} className="w-full h-full object-contain p-0.5" fallbackClassName="text-gray-500 font-bold text-xs" />
+                  <div key={sponsor.id} className="bg-white border border-hairline rounded-xl overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-hairline bg-fill">
+                      <div className="w-8 h-8 rounded-lg bg-white border border-hairline flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <SponsorLogo name={sponsor.name} logoUrl={sponsor.logoUrl} className="w-full h-full object-contain p-0.5" fallbackClassName="text-ink-2 font-bold text-xs" />
                       </div>
-                      <p className="font-semibold text-gray-900 text-sm">{sponsor.name}</p>
-                      <span className={`ml-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${TIER_STYLES[sponsor.tier]}`}>
+                      <p className="font-semibold text-ink text-sm">{sponsor.name}</p>
+                      <span className={`ml-1 text-caption font-bold px-2 py-0.5 rounded-full ${TIER_STYLES[sponsor.tier]}`}>
                         {sponsor.tier}
                       </span>
                       <Link href={`/dashboard/sponsors/${sponsor.id}`} className="ml-auto text-xs text-primary hover:underline">
@@ -132,28 +132,28 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: P
                       </Link>
                     </div>
                     {sponsor.meetings.length === 0 ? (
-                      <p className="text-xs text-gray-400 px-4 py-3 italic">No meetings scheduled</p>
+                      <p className="text-xs text-ink-2 px-4 py-3 italic">No meetings scheduled</p>
                     ) : (
                       <table className="w-full text-sm">
-                        <thead className="border-b border-gray-100">
+                        <thead className="border-b border-hairline">
                           <tr>
-                            <th className="text-left px-4 py-2 text-xs font-semibold text-gray-400">Sponsor Rep</th>
-                            <th className="text-left px-4 py-2 text-xs font-semibold text-gray-400">Attendee</th>
-                            <th className="text-left px-4 py-2 text-xs font-semibold text-gray-400">Time</th>
-                            <th className="text-left px-4 py-2 text-xs font-semibold text-gray-400">Location</th>
+                            <th className="text-left px-4 py-2 text-xs font-semibold text-ink-2">Sponsor Rep</th>
+                            <th className="text-left px-4 py-2 text-xs font-semibold text-ink-2">Attendee</th>
+                            <th className="text-left px-4 py-2 text-xs font-semibold text-ink-2">Time</th>
+                            <th className="text-left px-4 py-2 text-xs font-semibold text-ink-2">Location</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-hairline">
                           {sponsor.meetings.map(m => {
                             const rep = sponsor.users.find((u: any) => u.id === m.repId)
                             return (
-                              <tr key={m.id} className="hover:bg-gray-50">
+                              <tr key={m.id} className="hover:bg-fill">
                                 <td className="px-4 py-2.5 text-primary font-medium text-xs">{rep?.name ?? '—'}</td>
-                                <td className="px-4 py-2.5 text-gray-900 font-medium">{m.user.name ?? m.user.email ?? '—'}</td>
-                                <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap text-xs">
+                                <td className="px-4 py-2.5 text-ink font-medium">{m.user.name ?? m.user.email ?? '—'}</td>
+                                <td className="px-4 py-2.5 text-ink-2 whitespace-nowrap text-xs">
                                   {format(m.timeBlock.startsAt, 'EEE MMM d, h:mm a')} – {format(m.timeBlock.endsAt, 'h:mm a')}
                                 </td>
-                                <td className="px-4 py-2.5 text-gray-400 text-xs">{m.timeBlock.location ?? '—'}</td>
+                                <td className="px-4 py-2.5 text-ink-2 text-xs">{m.timeBlock.location ?? '—'}</td>
                               </tr>
                             )
                           })}
@@ -177,55 +177,55 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: P
                   const totalItems = allMeetings.length + user.blackoutTimes.length
 
                   return (
-                    <div key={user.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
-                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-200 flex items-center justify-center flex-shrink-0">
+                    <div key={user.id} className="bg-white border border-hairline rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-3 px-4 py-3 border-b border-hairline bg-fill">
+                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-fill-2 flex items-center justify-center flex-shrink-0">
                           {user.image ? (
                             <img src={user.image} alt={user.name ?? ''} className="w-full h-full object-cover" />
                           ) : (
-                            <span className="text-gray-500 text-xs font-bold">{(user.name ?? '?')[0]}</span>
+                            <span className="text-ink-2 text-xs font-bold">{(user.name ?? '?')[0]}</span>
                           )}
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900 text-sm">{user.name ?? '—'}</p>
-                          {user.email && <p className="text-xs text-gray-400">{user.email}</p>}
+                          <p className="font-semibold text-ink text-sm">{user.name ?? '—'}</p>
+                          {user.email && <p className="text-xs text-ink-2">{user.email}</p>}
                         </div>
                         <Link href={`/dashboard/attendees/${user.id}`} className="ml-auto text-xs text-primary hover:underline">
                           Profile
                         </Link>
                       </div>
                       {totalItems === 0 ? (
-                        <p className="text-xs text-gray-400 px-4 py-3 italic">No time blocks assigned</p>
+                        <p className="text-xs text-ink-2 px-4 py-3 italic">No time blocks assigned</p>
                       ) : (
                         <table className="w-full text-sm">
-                          <thead className="border-b border-gray-100">
+                          <thead className="border-b border-hairline">
                             <tr>
-                              <th className="text-left px-4 py-2 text-xs font-semibold text-gray-400">Type</th>
-                              <th className="text-left px-4 py-2 text-xs font-semibold text-gray-400">Time</th>
-                              <th className="text-left px-4 py-2 text-xs font-semibold text-gray-400">Location / Reason</th>
+                              <th className="text-left px-4 py-2 text-xs font-semibold text-ink-2">Type</th>
+                              <th className="text-left px-4 py-2 text-xs font-semibold text-ink-2">Time</th>
+                              <th className="text-left px-4 py-2 text-xs font-semibold text-ink-2">Location / Reason</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-50">
+                          <tbody className="divide-y divide-hairline">
                             {allMeetings.map(tb => (
-                              <tr key={tb.id} className="hover:bg-gray-50">
+                              <tr key={tb.id} className="hover:bg-fill">
                                 <td className="px-4 py-2.5">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600">Meeting</span>
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-caption font-semibold bg-brand-50 text-brand-700">Meeting</span>
                                 </td>
-                                <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap text-xs">
+                                <td className="px-4 py-2.5 text-ink-2 whitespace-nowrap text-xs">
                                   {format(tb.startsAt, 'EEE MMM d, h:mm a')} – {format(tb.endsAt, 'h:mm a')}
                                 </td>
-                                <td className="px-4 py-2.5 text-gray-400 text-xs">{tb.location ?? '—'}</td>
+                                <td className="px-4 py-2.5 text-ink-2 text-xs">{tb.location ?? '—'}</td>
                               </tr>
                             ))}
                             {user.blackoutTimes.map(bt => (
-                              <tr key={bt.id} className="hover:bg-gray-50">
+                              <tr key={bt.id} className="hover:bg-fill">
                                 <td className="px-4 py-2.5">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600">Blackout</span>
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-caption font-semibold bg-danger-soft text-danger-ink">Blackout</span>
                                 </td>
-                                <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap text-xs">
+                                <td className="px-4 py-2.5 text-ink-2 whitespace-nowrap text-xs">
                                   {format(bt.startsAt, 'EEE MMM d, h:mm a')} – {format(bt.endsAt, 'h:mm a')}
                                 </td>
-                                <td className="px-4 py-2.5 text-gray-400 text-xs">{bt.reason ?? '—'}</td>
+                                <td className="px-4 py-2.5 text-ink-2 text-xs">{bt.reason ?? '—'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -238,9 +238,9 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: P
           ))}
 
           {sections.length === 0 && filteredSponsors.length === 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-              <p className="font-medium text-gray-700">{q ? `No results for "${params.q}"` : 'No time blocks assigned yet'}</p>
-              <p className="text-sm text-gray-400 mt-1">{q ? 'Try a different name or sponsor.' : 'Create time blocks and assign them via attendee profiles or sponsor meetings.'}</p>
+            <div className="bg-white border border-hairline rounded-xl p-12 text-center">
+              <p className="font-medium text-ink">{q ? `No results for "${params.q}"` : 'No time blocks assigned yet'}</p>
+              <p className="text-sm text-ink-2 mt-1">{q ? 'Try a different name or sponsor.' : 'Create time blocks and assign them via attendee profiles or sponsor meetings.'}</p>
             </div>
           )}
         </div>

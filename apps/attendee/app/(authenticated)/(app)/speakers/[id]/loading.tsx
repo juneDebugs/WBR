@@ -1,8 +1,8 @@
 export default function SpeakerDetailLoading() {
   return (
-    <div className="min-h-screen animate-pulse" style={{ background: '#f0ece4' }}>
+    <div className="min-h-screen animate-pulse">
       {/* Hero */}
-      <div className="relative px-4 pt-14 pb-8 bg-gray-300">
+      <div className="relative px-4 pt-14 pb-8 bg-fill-2">
         <div className="flex flex-col items-center mt-6">
           <div className="w-24 h-24 rounded-3xl bg-white/30" />
           <div className="h-6 w-40 bg-white/30 rounded mt-4" />
@@ -13,11 +13,11 @@ export default function SpeakerDetailLoading() {
       {/* Body */}
       <div className="px-4 -mt-4 pb-28">
         <div className="bg-white rounded-2xl p-5 mb-4 mt-8">
-          <div className="h-3 w-12 bg-gray-200 rounded mb-3" />
+          <div className="h-3 w-12 bg-fill-2 rounded mb-3" />
           <div className="space-y-2">
-            <div className="h-3 bg-gray-200 rounded w-full" />
-            <div className="h-3 bg-gray-200 rounded w-5/6" />
-            <div className="h-3 bg-gray-200 rounded w-3/4" />
+            <div className="h-3 bg-fill-2 rounded w-full" />
+            <div className="h-3 bg-fill-2 rounded w-5/6" />
+            <div className="h-3 bg-fill-2 rounded w-3/4" />
           </div>
         </div>
         <div className="space-y-2">

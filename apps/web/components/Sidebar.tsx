@@ -158,17 +158,6 @@ const nav = [
   },
 ]
 
-// The blue→pink range is split into one contiguous segment per icon: each icon
-// fades vertically through its own slice, so the column reads as one continuous fade
-const navHrefs = nav.flatMap((section) => section.items.map((item) => item.href))
-
-function colorAt(t: number) {
-  const from = [59, 130, 246] // #3b82f6 blue
-  const to = [236, 72, 153] // #ec4899 pink
-  const [r, g, b] = from.map((c, i) => Math.round(c + (to[i] - c) * t))
-  return `rgb(${r}, ${g}, ${b})`
-}
-
 export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
   const pathname = usePathname()
   const { data: session } = useSession()
@@ -184,11 +173,11 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
     : nav
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col">
-      <div className="px-6 py-5 border-b border-gray-200">
+    <aside className="w-56 flex-shrink-0 bg-surface border-r border-hairline h-screen sticky top-0 flex flex-col">
+      <div className="px-6 py-5 border-b border-hairline">
         <div className="flex items-center gap-2">
           <img src="/icons/icon-192.png" alt="WBR" className="w-7 h-7 rounded-lg" />
-          <span className="font-semibold text-gray-900 text-sm">WBR Admin</span>
+          <span className="font-semibold text-ink text-sm">WBR Admin</span>
         </div>
       </div>
 
@@ -196,7 +185,7 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
         {sections.map((section, i) => (
           <div key={section.title ?? i}>
             {section.title && (
-              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+              <p className="px-3 pb-1 text-caption font-semibold uppercase tracking-wider text-ink-2">
                 {section.title}
               </p>
             )}
@@ -205,8 +194,6 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
                 const active = item.href === '/dashboard'
                   ? pathname === '/dashboard'
                   : pathname.startsWith(item.href)
-                const idx = navHrefs.indexOf(item.href)
-                const gradId = `nav-grad-${idx}`
                 return (
                   <Link
                     key={item.href}
@@ -214,16 +201,15 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
                     className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
                       active
                         ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        : 'text-ink-2 hover:bg-fill hover:text-ink'
                     }`}
                   >
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke={`url(#${gradId})`}>
-                      <defs>
-                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="24" gradientUnits="userSpaceOnUse">
-                          <stop offset="0%" stopColor={colorAt(idx / navHrefs.length)} />
-                          <stop offset="100%" stopColor={colorAt((idx + 1) / navHrefs.length)} />
-                        </linearGradient>
-                      </defs>
+                    <svg
+                      className={`w-4 h-4 flex-shrink-0 ${active ? 'text-primary' : 'text-ink-3'}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
                       {item.icon}
                     </svg>
                     {item.label}
@@ -236,7 +222,7 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
       </nav>
 
       {/* Profile + sign out */}
-      <div className="px-3 py-3 border-t border-gray-200">
+      <div className="px-3 py-3 border-t border-hairline">
         <div className="flex items-center gap-2.5 px-2 py-2">
           {session?.user?.image ? (
             <Image
@@ -254,13 +240,13 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-900 truncate">{session?.user?.name ?? 'Admin'}</p>
-            <p className="text-[10px] text-gray-400 truncate">{session?.user?.email ?? ''}</p>
+            <p className="text-xs font-medium text-ink truncate">{session?.user?.name ?? 'Admin'}</p>
+            <p className="text-caption text-ink-3 truncate">{session?.user?.email ?? ''}</p>
           </div>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
-          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-ink-2 hover:bg-fill hover:text-ink transition-colors"
         >
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}

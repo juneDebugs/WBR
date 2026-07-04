@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { format } from 'date-fns'
 import type { SessionWithSpeaker } from '@conference/db'
+import { sessionCategoryColor } from '@/lib/session-categories'
+import { avatarGradient } from '@/lib/avatar-gradients'
 
 // ─── Photo helpers (shared logic with SpeakersClient) ─────────────────────────
 
@@ -31,35 +33,15 @@ function optimizePhoto(url: string | null, width: number): string | null {
   return optimized
 }
 
-const AVATAR_GRADIENTS: [string, string][] = [
-  ['#7c3aed', '#6366f1'],
-  ['#6366f1', '#3b82f6'],
-  ['#ec4899', '#f43f5e'],
-  ['#f59e0b', '#f97316'],
-  ['#14b8a6', '#06b6d4'],
-  ['#10b981', '#14b8a6'],
-  ['#d946ef', '#ec4899'],
-  ['#38bdf8', '#818cf8'],
-]
-
-function hash(s: string) {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return h
-}
-
-function avatarGradient(name: string) {
-  return AVATAR_GRADIENTS[hash(name) % AVATAR_GRADIENTS.length]
-}
-
 // ─── Session type config ──────────────────────────────────────────────────────
+// Colours come from the shared session-category map; only label + icon are local.
 
-const typeConfig: Record<string, { color: string; color2: string; tint: string; label: string; icon: string }> = {
-  KEYNOTE:  { color: '#f59e0b', color2: '#f97316', tint: 'rgba(245,158,11,0.08)',  label: 'Keynote',         icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z' },
-  TALK:     { color: '#007aff', color2: '#5856d6', tint: 'rgba(0,122,255,0.06)',   label: 'Session',         icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z' },
-  WORKSHOP: { color: '#34c759', color2: '#30d158', tint: 'rgba(52,199,89,0.06)',   label: 'Workshop',        icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z' },
-  PANEL:    { color: '#ff2d55', color2: '#af52de', tint: 'rgba(255,45,85,0.06)',   label: 'Fireside Chat',   icon: 'M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z' },
-  BREAK:    { color: '#8e8e93', color2: '#8e8e93', tint: 'rgba(142,142,147,0.08)', label: 'Break',           icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+const typeMeta: Record<string, { label: string; icon: string }> = {
+  KEYNOTE:  { label: 'Keynote',       icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z' },
+  TALK:     { label: 'Session',       icon: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z' },
+  WORKSHOP: { label: 'Workshop',      icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+  PANEL:    { label: 'Fireside Chat', icon: 'M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z' },
+  BREAK:    { label: 'Break',         icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
 }
 
 interface Props {
@@ -77,7 +59,8 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
   const [loading, setLoading] = useState(false)
   const isBreak = session.type === 'BREAK'
   const isKeynote = session.type === 'KEYNOTE'
-  const config = typeConfig[session.type] ?? typeConfig.TALK
+  const meta = typeMeta[session.type] ?? typeMeta.TALK
+  const config = { ...sessionCategoryColor(session.type), ...meta }
 
   async function toggleBookmark(e: React.MouseEvent) {
     e.preventDefault()
@@ -107,8 +90,8 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
             <path strokeLinecap="round" strokeLinejoin="round" d={config.icon} />
           </svg>
         </div>
-        <span className="text-[13px] text-gray-400 flex-1">{session.title}</span>
-        <span className="text-[12px] text-gray-300">{format(session.startsAt, 'h:mm a')}</span>
+        <span className="text-[13px] text-ink-3 flex-1">{session.title}</span>
+        <span className="text-[12px] text-ink-3">{format(session.startsAt, 'h:mm a')}</span>
       </div>
     )
   }
@@ -118,9 +101,9 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
       href={`/schedule/${session.id}`}
       className="block active:scale-[0.98] transition-all overflow-hidden relative"
       style={{
-        background: hasConflict ? '#fff5f5' : config.tint,
+        background: hasConflict ? '#ffeceb' : config.tint,
         borderRadius: 16,
-        border: hasConflict ? '1px solid #fed7d7' : `1px solid ${config.color}18`,
+        border: hasConflict ? '1px solid rgba(255,59,48,0.3)' : `1px solid ${config.color}18`,
         boxShadow: hasConflict ? undefined : `0 0 0 0.5px ${config.color}20, 0 1px 8px ${config.color}12`,
       }}
     >
@@ -136,10 +119,10 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
 
       {hasConflict && (
         <div className="flex items-center gap-1.5 pl-5 pr-4 pt-3 pb-0">
-          <svg className="w-3 h-3 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="w-3 h-3 text-danger flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01" />
           </svg>
-          <p className="text-[11px] font-medium text-red-400">Scheduling conflict</p>
+          <p className="text-[11px] font-medium text-danger-ink">Scheduling conflict</p>
         </div>
       )}
 
@@ -158,7 +141,7 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
                 </svg>
                 {config.label}
               </span>
-              <span className="text-[11px] font-medium text-gray-400">
+              <span className="text-[11px] font-medium text-ink-3">
                 {format(session.startsAt, 'h:mm')}–{format(session.endsAt, 'h:mm a')}
               </span>
             </div>
@@ -166,17 +149,17 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
               onClick={toggleBookmark}
               disabled={loading}
               className="flex-shrink-0 p-1.5 -mr-1 rounded-full transition-all"
-              style={{ background: bookmarked ? 'rgba(255,45,85,0.1)' : 'transparent' }}
+              style={{ background: bookmarked ? 'rgba(99,102,241,0.1)' : 'transparent' }}
               aria-label={bookmarked ? 'Remove from schedule' : 'Save to schedule'}
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill={bookmarked ? '#ff2d55' : 'none'} stroke={bookmarked ? '#ff2d55' : '#c7c7cc'} strokeWidth={2}>
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill={bookmarked ? '#6366f1' : 'none'} stroke={bookmarked ? '#6366f1' : '#8e8e93'} strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
             </button>
           </div>
 
           {/* Title – larger for keynotes */}
-          <h3 className="text-[17px] font-bold text-gray-900 leading-snug mb-2">{session.title}</h3>
+          <h3 className="text-[17px] font-bold text-ink leading-snug mb-2">{session.title}</h3>
 
           {/* Speaker row */}
           {session.speaker && (
@@ -203,9 +186,9 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
                 })()
               )}
               <div>
-                <p className="text-[14px] font-semibold text-gray-800">{session.speaker.name}</p>
+                <p className="text-[14px] font-semibold text-ink">{session.speaker.name}</p>
                 {session.speaker.company && (
-                  <p className="text-[12px] text-gray-400">{session.speaker.company}</p>
+                  <p className="text-[12px] text-ink-3">{session.speaker.company}</p>
                 )}
               </div>
             </div>
@@ -213,7 +196,7 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
 
           {/* Description – show more lines for keynotes */}
           {session.description && (
-            <p className="text-[12px] leading-relaxed text-gray-500 mt-1 line-clamp-3">{session.description}</p>
+            <p className="text-[12px] leading-relaxed text-ink-2 mt-1 line-clamp-3">{session.description}</p>
           )}
 
           {/* Room + availability */}
@@ -224,22 +207,22 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span className="text-[12px] text-gray-400">{session.room}</span>
+                <span className="text-[12px] text-ink-3">{session.room}</span>
               </div>
             )}
             {!saved && (
               <div className="flex items-center gap-1.5">
                 {conflictingBookmark ? (
                   <>
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#ff9500' }} />
-                    <span className="text-[11px] text-amber-500 font-medium truncate">
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#ff9f0a' }} />
+                    <span className="text-[11px] text-warning-ink font-medium truncate">
                       Busy · {conflictingBookmark}
                     </span>
                   </>
                 ) : (
                   <>
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#34c759' }} />
-                    <span className="text-[11px] text-emerald-500 font-medium">Free</span>
+                    <span className="text-[11px] text-success-ink font-medium">Free</span>
                   </>
                 )}
               </div>
@@ -290,19 +273,19 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
               >
                 {config.label}
               </span>
-              <span className="text-[11px] font-medium text-gray-400">
+              <span className="text-[11px] font-medium text-ink-3">
                 {format(session.startsAt, 'h:mm')}–{format(session.endsAt, 'h:mm a')}
               </span>
             </div>
 
             {/* Title */}
-            <h3 className="text-[15px] font-semibold text-gray-900 leading-snug line-clamp-2">{session.title}</h3>
+            <h3 className="text-[15px] font-semibold text-ink leading-snug line-clamp-2">{session.title}</h3>
 
             {/* Speaker */}
             {session.speaker && (
-              <p className="text-[13px] text-gray-500 mt-1">
+              <p className="text-[13px] text-ink-2 mt-1">
                 {session.speaker.name}
-                {session.speaker.company && <span className="text-gray-300"> · {session.speaker.company}</span>}
+                {session.speaker.company && <span className="text-ink-3"> · {session.speaker.company}</span>}
               </p>
             )}
 
@@ -313,7 +296,7 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span className="text-[12px] text-gray-400">{session.room}</span>
+                <span className="text-[12px] text-ink-3">{session.room}</span>
               </div>
             )}
 
@@ -322,15 +305,15 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
               <div className="flex items-center gap-1.5 mt-2">
                 {conflictingBookmark ? (
                   <>
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#ff9500' }} />
-                    <span className="text-[11px] text-amber-500 font-medium truncate">
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#ff9f0a' }} />
+                    <span className="text-[11px] text-warning-ink font-medium truncate">
                       Busy · {conflictingBookmark}
                     </span>
                   </>
                 ) : (
                   <>
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#34c759' }} />
-                    <span className="text-[11px] text-emerald-500 font-medium">Free</span>
+                    <span className="text-[11px] text-success-ink font-medium">Free</span>
                   </>
                 )}
               </div>
@@ -338,7 +321,7 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
 
             {/* About this session */}
             {session.description && (
-              <p className="text-[12px] leading-relaxed text-gray-400 mt-2 line-clamp-2">{session.description}</p>
+              <p className="text-[12px] leading-relaxed text-ink-3 mt-2 line-clamp-2">{session.description}</p>
             )}
           </div>
 
@@ -347,10 +330,10 @@ export function SessionCard({ session, saved = false, hasConflict = false, confl
             onClick={toggleBookmark}
             disabled={loading}
             className="flex-shrink-0 self-start p-1.5 -mr-1 rounded-full transition-all"
-            style={{ background: bookmarked ? 'rgba(255,45,85,0.1)' : 'transparent' }}
+            style={{ background: bookmarked ? 'rgba(99,102,241,0.1)' : 'transparent' }}
             aria-label={bookmarked ? 'Remove from schedule' : 'Save to schedule'}
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill={bookmarked ? '#ff2d55' : 'none'} stroke={bookmarked ? '#ff2d55' : '#c7c7cc'} strokeWidth={2}>
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill={bookmarked ? '#6366f1' : 'none'} stroke={bookmarked ? '#6366f1' : '#8e8e93'} strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
             </svg>
           </button>

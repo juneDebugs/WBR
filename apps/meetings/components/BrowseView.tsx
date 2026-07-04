@@ -139,12 +139,12 @@ export function BrowseView({ mode }: Props) {
     gridCards.splice(dividerIndex, 0, (
       <div key="similar-divider" className="col-span-full">
         <div className="flex items-center gap-3 my-2">
-          <div className="h-px flex-1 bg-gray-200" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Similar matches</span>
-          <div className="h-px flex-1 bg-gray-200" />
+          <div className="h-px flex-1 bg-hairline" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-ink-3">Similar matches</span>
+          <div className="h-px flex-1 bg-hairline" />
         </div>
         {strictShown === 0 && (
-          <p className="text-sm text-gray-500 text-center">No exact matches for your filters — showing the closest results.</p>
+          <p className="text-sm text-ink-2 text-center">No exact matches for your filters — showing the closest results.</p>
         )}
       </div>
     ))
@@ -159,9 +159,9 @@ export function BrowseView({ mode }: Props) {
   return (
     <div className="flex h-[calc(100vh-56px)]">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block w-72 xl:w-80 flex-shrink-0 border-r border-gray-100 bg-white overflow-y-auto">
+      <aside className="hidden lg:block w-72 xl:w-80 flex-shrink-0 border-r border-hairline bg-surface overflow-y-auto">
         <div className="p-5">
-          <h2 className="font-bold text-gray-900 text-sm mb-4">Filters</h2>
+          <h2 className="font-bold text-ink text-sm mb-4">Filters</h2>
           <FilterPanel filters={filters} onChange={handleFiltersChange} mode={mode === 'sponsor-browsing-people' ? mode : browseTab === 'people' ? 'sponsor-browsing-people' : mode} />
         </div>
       </aside>
@@ -172,11 +172,11 @@ export function BrowseView({ mode }: Props) {
       )}
 
       {/* Mobile filter drawer */}
-      <div className={`fixed inset-y-0 left-0 w-80 max-w-[90vw] bg-white z-40 shadow-2xl overflow-y-auto transition-transform lg:hidden ${filterOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Filters</h2>
-          <button onClick={() => setFilterOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
-            <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className={`fixed inset-y-0 left-0 w-80 max-w-[90vw] bg-surface z-40 shadow-elevated overflow-y-auto transition-transform lg:hidden ${filterOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-hairline">
+          <h2 className="font-bold text-ink">Filters</h2>
+          <button onClick={() => setFilterOpen(false)} className="icon-btn" aria-label="Close filters">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -193,16 +193,16 @@ export function BrowseView({ mode }: Props) {
           {/* Header row */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="font-bold text-gray-900">
+              <h1 className="text-title3 text-ink">
                 {mode === 'sponsor-browsing-people'
                   ? 'Browse Attendees & Speakers'
                   : browseTab === 'sponsors' ? 'Solution Providers' : 'People'}
               </h1>
-              <p className="text-xs text-gray-400 mt-0.5">{loading ? 'Loading...' : resultsLabel}</p>
+              <p className="text-footnote text-ink-2 mt-0.5">{loading ? 'Loading...' : resultsLabel}</p>
             </div>
             <button
               onClick={() => setFilterOpen(true)}
-              className="lg:hidden flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 shadow-sm"
+              className="lg:hidden btn-secondary btn-sm"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -216,19 +216,19 @@ export function BrowseView({ mode }: Props) {
 
           {/* Sponsors / People tab switcher (attendee mode only) */}
           {mode === 'attendee-browsing-sponsors' && (
-            <div className="flex gap-1 mb-4 p-1 bg-gray-100 rounded-xl w-fit">
+            <div className="flex gap-1 mb-4 p-1 bg-fill rounded-xl w-fit">
               <button
                 onClick={() => handleTabChange('sponsors')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  browseTab === 'sponsors' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                className={`inline-flex items-center px-4 min-h-[40px] rounded-lg text-sm font-medium transition-colors ${
+                  browseTab === 'sponsors' ? 'bg-surface text-ink shadow-card' : 'text-ink-2 hover:text-ink'
                 }`}
               >
                 Solution Providers
               </button>
               <button
                 onClick={() => handleTabChange('people')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  browseTab === 'people' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                className={`inline-flex items-center px-4 min-h-[40px] rounded-lg text-sm font-medium transition-colors ${
+                  browseTab === 'people' ? 'bg-surface text-ink shadow-card' : 'text-ink-2 hover:text-ink'
                 }`}
               >
                 People
@@ -273,7 +273,7 @@ export function BrowseView({ mode }: Props) {
               {filters.solutionsSeeking.map(v => (
                 <ActiveChip key={`seek-${v}`} label={`Seeks: ${v}`} onRemove={() => handleFiltersChange({ ...filters, solutionsSeeking: filters.solutionsSeeking.filter(x => x !== v) })} />
               ))}
-              <button onClick={() => handleFiltersChange(EMPTY_FILTERS)} className="text-xs text-gray-400 hover:text-red-500 px-2 py-1">
+              <button onClick={() => handleFiltersChange(EMPTY_FILTERS)} className="text-xs text-ink-2 hover:text-danger px-2 py-1">
                 Clear all
               </button>
             </div>
@@ -284,12 +284,12 @@ export function BrowseView({ mode }: Props) {
             <div className="text-center py-16">
               {(isSponsorsView ? sponsors.length : people.length) === 0 ? (
                 <>
-                  <p className="text-gray-400 text-sm">{isSponsorsView ? 'Solution provider' : 'People'} data is unavailable right now.</p>
+                  <p className="text-ink-2 text-sm">{isSponsorsView ? 'Solution provider' : 'People'} data is unavailable right now.</p>
                   <button onClick={() => { refetchSponsors(); refetchPeople() }} className="mt-2 text-primary text-sm hover:underline">Try again</button>
                 </>
               ) : (
                 <>
-                  <p className="text-gray-400 text-sm">No results match your filters.</p>
+                  <p className="text-ink-2 text-sm">No results match your filters.</p>
                   <button onClick={() => { handleFiltersChange(EMPTY_FILTERS); handleCategoryChange(null) }} className="mt-2 text-primary text-sm hover:underline">Clear filters</button>
                 </>
               )}
@@ -305,7 +305,7 @@ export function BrowseView({ mode }: Props) {
                 <div className="flex justify-center mt-6">
                   <button
                     onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-                    className="px-6 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors shadow-sm"
+                    className="btn-secondary"
                   >
                     Show more ({filteredPeople.results.length - visibleCount} remaining)
                   </button>
@@ -323,21 +323,19 @@ function CategoryTab({ label, count, active, onClick }: { label: string; count: 
   return (
     <button
       onClick={onClick}
-      className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-        active ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-primary hover:text-primary'
-      }`}
+      className={`chip flex-shrink-0 ${active ? 'chip-active' : 'chip-inactive'}`}
     >
       {label}
-      <span className={`ml-1.5 text-xs ${active ? 'text-white/70' : 'text-gray-400'}`}>{count}</span>
+      <span className={`ml-1 text-xs ${active ? 'text-white/70' : 'text-ink-3'}`}>{count}</span>
     </button>
   )
 }
 
 function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+    <span className="chip chip-active">
       {label}
-      <button onClick={onRemove} className="ml-0.5 hover:text-primary-dark">
+      <button onClick={onRemove} aria-label={`Remove ${label}`} className="ml-0.5 hover:opacity-80">
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
         </svg>

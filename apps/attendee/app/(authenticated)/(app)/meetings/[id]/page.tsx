@@ -8,9 +8,9 @@ import { notFound } from 'next/navigation'
 import { MeetingActions } from '@/components/meetings/MeetingActions'
 
 const statusColors: Record<string, string> = {
-  CONFIRMED: 'bg-green-100 text-green-700',
-  PENDING: 'bg-yellow-100 text-yellow-700',
-  CANCELLED: 'bg-red-100 text-red-500',
+  CONFIRMED: 'badge-success',
+  PENDING: 'badge-warning',
+  CANCELLED: 'badge-danger',
 }
 
 type MeetingDetail = {
@@ -26,21 +26,21 @@ type MeetingDetail = {
 function DetailSkeleton() {
   return (
     <div className="page-container space-y-4 animate-pulse">
-      <div className="h-4 w-20 bg-gray-200 rounded" />
+      <div className="h-4 w-20 bg-fill-2 rounded" />
       <div className="card">
-        <div className="h-6 w-32 bg-gray-200 rounded mb-4" />
+        <div className="h-6 w-32 bg-fill-2 rounded mb-4" />
         <div className="space-y-3">
-          <div className="h-12 bg-gray-200 rounded" />
-          <div className="h-12 bg-gray-200 rounded" />
+          <div className="h-12 bg-fill-2 rounded" />
+          <div className="h-12 bg-fill-2 rounded" />
         </div>
       </div>
       <div className="card">
-        <div className="h-4 w-24 bg-gray-200 rounded mb-3" />
+        <div className="h-4 w-24 bg-fill-2 rounded mb-3" />
         <div className="flex gap-4">
-          <div className="w-14 h-14 bg-gray-200 rounded-full" />
+          <div className="w-14 h-14 bg-fill-2 rounded-full" />
           <div className="flex-1 space-y-2">
-            <div className="h-5 w-32 bg-gray-200 rounded" />
-            <div className="h-4 w-24 bg-gray-200 rounded" />
+            <div className="h-5 w-32 bg-fill-2 rounded" />
+            <div className="h-4 w-24 bg-fill-2 rounded" />
           </div>
         </div>
       </div>
@@ -81,8 +81,8 @@ export default function MeetingDetailPage() {
       {/* Meeting info */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-bold text-gray-900">1-1 Meeting</h1>
-          <span className={`badge ${statusColors[meeting.status] ?? 'bg-gray-100 text-gray-500'}`}>
+          <h1 className="text-lg font-bold text-ink">1-1 Meeting</h1>
+          <span className={`badge ${statusColors[meeting.status] ?? 'badge-neutral'}`}>
             {meeting.status.charAt(0) + meeting.status.slice(1).toLowerCase()}
           </span>
         </div>
@@ -96,11 +96,11 @@ export default function MeetingDetailPage() {
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Date & Time</p>
-              <p className="text-sm text-gray-900 font-semibold mt-0.5">
+              <p className="text-xs text-ink-2 font-medium uppercase tracking-wide">Date & Time</p>
+              <p className="text-sm text-ink font-semibold mt-0.5">
                 {format(new Date(meeting.startsAt), 'EEEE, MMMM d, yyyy')}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-ink-2">
                 {format(new Date(meeting.startsAt), 'h:mm a')} – {format(new Date(meeting.endsAt), 'h:mm a')}
               </p>
             </div>
@@ -115,8 +115,8 @@ export default function MeetingDetailPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Location</p>
-                <p className="text-sm text-gray-900 font-semibold mt-0.5">{meeting.location}</p>
+                <p className="text-xs text-ink-2 font-medium uppercase tracking-wide">Location</p>
+                <p className="text-sm text-ink font-semibold mt-0.5">{meeting.location}</p>
               </div>
             </div>
           )}
@@ -125,7 +125,7 @@ export default function MeetingDetailPage() {
 
       {/* Meeting partner */}
       <div className="card">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Meeting With</h2>
+        <h2 className="text-xs font-semibold text-ink-2 uppercase tracking-wide mb-3">Meeting With</h2>
         <div className="flex items-start gap-4">
           <div className="w-14 h-14 rounded-full flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
             {other.image
@@ -133,10 +133,10 @@ export default function MeetingDetailPage() {
               : <span className="text-primary font-bold text-xl">{(other.name ?? '?')[0]}</span>}
           </div>
           <div>
-            <h3 className="font-bold text-gray-900">{other.name ?? 'Unknown'}</h3>
-            {other.jobTitle && <p className="text-sm text-gray-600">{other.jobTitle}</p>}
+            <h3 className="font-bold text-ink">{other.name ?? 'Unknown'}</h3>
+            {other.jobTitle && <p className="text-sm text-ink-2">{other.jobTitle}</p>}
             {other.company && <p className="text-sm text-primary font-medium">{other.company}</p>}
-            {other.bio && <p className="text-sm text-gray-500 mt-2 leading-relaxed line-clamp-3">{other.bio}</p>}
+            {other.bio && <p className="text-sm text-ink-2 mt-2 leading-relaxed line-clamp-3">{other.bio}</p>}
           </div>
         </div>
       </div>

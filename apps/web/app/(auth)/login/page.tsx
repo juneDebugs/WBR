@@ -37,27 +37,27 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#f0f0f5]">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-canvas">
       {/* macOS-style mesh gradient background */}
       <div className="absolute inset-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-[#c7b4f7] opacity-40 blur-[120px]" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-[#7eb8f7] opacity-40 blur-[120px]" />
-        <div className="absolute top-[30%] right-[20%] w-[40%] h-[40%] rounded-full bg-[#f7b4d4] opacity-30 blur-[100px]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-brand-300 opacity-40 blur-[120px]" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-brand-400 opacity-40 blur-[120px]" />
+        <div className="absolute top-[30%] right-[20%] w-[40%] h-[40%] rounded-full bg-brand-200 opacity-30 blur-[100px]" />
       </div>
 
       <div className="relative w-full max-w-[380px] mx-4">
         {/* Frosted glass card */}
-        <div className="backdrop-blur-2xl bg-white/70 rounded-2xl shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_8px_40px_rgba(0,0,0,0.12)] p-8">
+        <div className="glass-card p-8">
 
           {/* Header */}
           <div className="text-center mb-7">
             <img src="/icons/icon-192.png" alt="WBR" className="w-16 h-16 object-contain mx-auto mb-4" />
-            <h1 className="text-[20px] font-semibold text-gray-900 tracking-tight">WBR Admin</h1>
-            <p className="text-[13px] text-gray-400 mt-1">Organizer access only</p>
+            <h1 className="text-title3 font-semibold text-ink tracking-tight">WBR Admin</h1>
+            <p className="text-footnote text-ink-2 mt-1">Organizer access only</p>
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50/80 backdrop-blur border border-red-200/60 text-red-600 text-[13px] rounded-xl px-3.5 py-2.5 mb-5">
+            <div className="flex items-center gap-2 bg-danger-soft/80 backdrop-blur border border-danger/30 text-danger-ink text-footnote rounded-xl px-3.5 py-2.5 mb-5">
               <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -67,29 +67,30 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
             <div>
-              <label className="block text-[13px] font-medium text-gray-500 mb-1.5">Email</label>
+              <label className="block text-footnote font-medium text-ink-2 mb-1.5">Email</label>
               <input
                 name="email"
                 type="email"
                 required
                 placeholder="organizer@example.com"
-                className="w-full px-3.5 py-2.5 bg-white/60 backdrop-blur border border-gray-200/80 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-[#6366f1]/30 focus:border-[#6366f1]/40 transition-all"
+                className="input"
               />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-gray-500 mb-1.5">Password</label>
+              <label className="block text-footnote font-medium text-ink-2 mb-1.5">Password</label>
               <div className="relative">
                 <input
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="Enter your password"
-                  className="w-full px-3.5 py-2.5 bg-white/60 backdrop-blur border border-gray-200/80 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-[#6366f1]/30 focus:border-[#6366f1]/40 transition-all pr-10"
+                  className="input pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink-2 transition-colors"
                 >
                   {showPassword ? (
                     <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -108,7 +109,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-b from-[#6e6ce8] to-[#5754d4] text-white font-medium text-[14px] py-2.5 rounded-xl hover:from-[#6260e0] hover:to-[#4f4cc8] active:from-[#5a58d8] active:to-[#4946c0] transition-all disabled:opacity-50 shadow-[0_1px_3px_rgba(99,102,241,0.4),inset_0_1px_0_rgba(255,255,255,0.15)]"
+              className="btn-primary w-full"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -123,8 +124,8 @@ export default function LoginPage() {
           </form>
 
           <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200/60" /></div>
-            <div className="relative flex justify-center"><span className="bg-white/70 backdrop-blur px-3 text-[11px] text-gray-400 uppercase tracking-wider">or</span></div>
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-hairline/60" /></div>
+            <div className="relative flex justify-center"><span className="bg-white/70 backdrop-blur px-3 text-caption text-ink-2 uppercase tracking-wider">or</span></div>
           </div>
 
           <button
@@ -132,7 +133,7 @@ export default function LoginPage() {
               const { signIn } = await import('next-auth/react')
               signIn('google', { callbackUrl: '/dashboard' })
             }}
-            className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-white/60 backdrop-blur border border-gray-200/80 rounded-xl text-[14px] font-medium text-gray-600 hover:bg-white/90 hover:border-gray-300/80 active:bg-gray-50/80 transition-all"
+            className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-white/60 backdrop-blur border border-hairline/80 rounded-xl text-sm font-medium text-ink-2 hover:bg-white/90 hover:border-hairline/80 active:bg-fill/80 transition-all"
           >
             <svg className="w-[16px] h-[16px]" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -144,15 +145,15 @@ export default function LoginPage() {
           </button>
 
           {/* Demo accounts */}
-          <div className="mt-5 bg-gray-100/50 backdrop-blur rounded-xl p-3.5 text-[12px] text-gray-400 space-y-1">
-            <p className="font-medium text-gray-500 mb-1.5">Demo accounts</p>
-            <p><span className="text-gray-400">Admin:</span> <span className="text-gray-500">june@tailor.tech / admin123</span></p>
-            <p><span className="text-gray-400">Staff:</span> <span className="text-gray-500">staff@wbr.com / staff123</span></p>
+          <div className="mt-5 bg-fill/50 backdrop-blur rounded-xl p-3.5 text-caption text-ink-2 space-y-1">
+            <p className="font-medium text-ink-2 mb-1.5">Demo accounts</p>
+            <p><span className="text-ink-2">Admin:</span> <span className="text-ink-2">june@tailor.tech / admin123</span></p>
+            <p><span className="text-ink-2">Staff:</span> <span className="text-ink-2">staff@wbr.com / staff123</span></p>
           </div>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[11px] text-gray-400 mt-5">WBR 2027 Conference</p>
+        <p className="text-center text-caption text-ink-2 mt-5">WBR 2027 Conference</p>
       </div>
     </div>
   )

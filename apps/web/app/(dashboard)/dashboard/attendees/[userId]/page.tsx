@@ -127,9 +127,9 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
   const addVendorMeetingBound = addVendorMeeting.bind(null, userId)
 
   const statusColors: Record<string, string> = {
-    CONFIRMED: 'bg-green-100 text-green-700',
-    PENDING: 'bg-yellow-100 text-yellow-700',
-    CANCELLED: 'bg-red-100 text-red-500',
+    CONFIRMED: 'bg-success-soft text-success-ink',
+    PENDING: 'bg-warning-soft text-warning-ink',
+    CANCELLED: 'bg-danger-soft text-danger-ink',
   }
 
   const solutionsOffering = parseArr(user.solutionsOffering)
@@ -144,18 +144,18 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
         </Link>
 
         {/* Profile card */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+        <div className="bg-white border border-hairline rounded-xl p-6 mb-6">
           <div className="flex items-start gap-4">
             {user.image ? (
               <img src={user.image} alt="" className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                <span className="text-gray-500 text-xl font-semibold">{(user.name ?? '?')[0]}</span>
+              <div className="w-16 h-16 rounded-full bg-fill-2 flex items-center justify-center flex-shrink-0">
+                <span className="text-ink-2 text-xl font-semibold">{(user.name ?? '?')[0]}</span>
               </div>
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">{user.name ?? '—'}</h2>
+                <h2 className="text-lg font-semibold text-ink">{user.name ?? '—'}</h2>
                 <AttendeeProfileEditor user={{
                   id: user.id, name: user.name, email: user.email, image: user.image,
                   bio: user.bio, company: user.company, jobTitle: user.jobTitle, role: user.role,
@@ -163,23 +163,23 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
                   solutionsOffering: user.solutionsOffering, solutionsSeeking: user.solutionsSeeking,
                 }} />
               </div>
-              <p className="text-sm text-gray-500">{user.email ?? '—'}</p>
+              <p className="text-sm text-ink-2">{user.email ?? '—'}</p>
               {(user.jobTitle || user.company) && (
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-ink-2 mt-1">
                   {[user.jobTitle, user.company].filter(Boolean).join(' · ')}
                 </p>
               )}
               <div className="flex items-center gap-2 mt-2">
-                <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-fill text-ink-2">
                   {user.role}
                 </span>
                 {user.companySize && (
-                  <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                  <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-brand-50 text-brand-700">
                     {COMPANY_SIZE_LABELS[user.companySize] ?? user.companySize}
                   </span>
                 )}
                 {user.annualRevenue && (
-                  <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
+                  <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-ink">
                     {REVENUE_LABELS[user.annualRevenue] ?? user.annualRevenue}
                   </span>
                 )}
@@ -189,16 +189,16 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
 
           {/* Bio */}
           {user.bio && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Bio</p>
-              <p className="text-sm text-gray-700">{user.bio}</p>
+            <div className="mt-4 pt-4 border-t border-hairline">
+              <p className="text-xs font-semibold text-ink-2 uppercase mb-1">Bio</p>
+              <p className="text-sm text-ink">{user.bio}</p>
             </div>
           )}
 
           {/* Website */}
           {user.website && (
             <div className="mt-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Website</p>
+              <p className="text-xs font-semibold text-ink-2 uppercase mb-1">Website</p>
               <a href={user.website} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
                 {user.website}
               </a>
@@ -207,10 +207,10 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
 
           {/* Solutions */}
           {(solutionsOffering.length > 0 || solutionsSeeking.length > 0) && (
-            <div className="mt-4 pt-4 border-t border-gray-100 grid md:grid-cols-2 gap-4">
+            <div className="mt-4 pt-4 border-t border-hairline grid md:grid-cols-2 gap-4">
               {solutionsOffering.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Solutions Offering</p>
+                  <p className="text-xs font-semibold text-ink-2 uppercase mb-2">Solutions Offering</p>
                   <div className="flex flex-wrap gap-1.5">
                     {solutionsOffering.map(s => (
                       <span key={s} className="text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full">{s}</span>
@@ -220,10 +220,10 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
               )}
               {solutionsSeeking.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Solutions Seeking</p>
+                  <p className="text-xs font-semibold text-ink-2 uppercase mb-2">Solutions Seeking</p>
                   <div className="flex flex-wrap gap-1.5">
                     {solutionsSeeking.map(s => (
-                      <span key={s} className="text-xs bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full">{s}</span>
+                      <span key={s} className="text-xs bg-warning-soft text-warning-ink border border-warning/30 px-2 py-0.5 rounded-full">{s}</span>
                     ))}
                   </div>
                 </div>
@@ -234,26 +234,26 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Blackout times */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-800 text-sm">Blackout Times</h3>
-              <span className="text-xs text-gray-400">{blackouts.length} entries</span>
+          <div className="bg-white border border-hairline rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-hairline flex items-center justify-between">
+              <h3 className="font-semibold text-ink text-sm">Blackout Times</h3>
+              <span className="text-xs text-ink-2">{blackouts.length} entries</span>
             </div>
 
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-hairline">
               {blackouts.map((b) => {
                 const deleteAction = deleteBlackout.bind(null, b.id)
                 return (
                   <div key={b.id} className="px-4 py-3 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-medium text-gray-800">
+                      <p className="text-xs font-medium text-ink">
                         {format(b.startsAt, 'MMM d, h:mm a')} – {format(b.endsAt, 'h:mm a')}
                       </p>
-                      {b.reason && <p className="text-xs text-gray-400 mt-0.5">{b.reason}</p>}
+                      {b.reason && <p className="text-xs text-ink-2 mt-0.5">{b.reason}</p>}
                     </div>
                     <form action={deleteAction}>
                       <button type="submit"
-                        className="text-xs text-red-500 hover:text-red-700 hover:underline whitespace-nowrap">
+                        className="text-xs text-danger hover:text-danger-ink hover:underline whitespace-nowrap">
                         Delete
                       </button>
                     </form>
@@ -261,30 +261,30 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
                 )
               })}
               {blackouts.length === 0 && (
-                <p className="px-4 py-4 text-xs text-gray-400">No blackout times set.</p>
+                <p className="px-4 py-4 text-xs text-ink-2">No blackout times set.</p>
               )}
             </div>
 
             {/* Add blackout form */}
-            <div className="px-4 py-4 border-t border-gray-100 bg-gray-50">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Add Blackout</p>
+            <div className="px-4 py-4 border-t border-hairline bg-fill">
+              <p className="text-xs font-semibold text-ink-2 uppercase tracking-wide mb-3">Add Blackout</p>
               <form action={addBlackoutBound} className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">Start *</label>
+                    <label className="text-xs text-ink-2 block mb-1">Start *</label>
                     <input type="datetime-local" name="startsAt" required
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      className="w-full text-xs border border-hairline rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">End *</label>
+                    <label className="text-xs text-ink-2 block mb-1">End *</label>
                     <input type="datetime-local" name="endsAt" required
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      className="w-full text-xs border border-hairline rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Reason</label>
+                  <label className="text-xs text-ink-2 block mb-1">Reason</label>
                   <input type="text" name="reason" placeholder="Optional reason"
-                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                    className="w-full text-xs border border-hairline rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50" />
                 </div>
                 <div className="flex justify-end">
                   <button type="submit" className="btn-primary text-xs">Add Blackout</button>
@@ -294,32 +294,32 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
           </div>
 
           {/* Vendor meetings */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-800 text-sm">Vendor Meetings</h3>
-              <span className="text-xs text-gray-400">{meetings.length} meetings</span>
+          <div className="bg-white border border-hairline rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-hairline flex items-center justify-between">
+              <h3 className="font-semibold text-ink text-sm">Vendor Meetings</h3>
+              <span className="text-xs text-ink-2">{meetings.length} meetings</span>
             </div>
 
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-hairline">
               {meetings.map((m) => {
                 const other = m.attendeeAId === userId ? m.attendeeB : m.attendeeA
                 const deleteMeetingAction = deleteMeeting.bind(null, m.id, userId)
                 return (
                   <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-medium text-gray-800">{other.name ?? '—'}</p>
-                      {other.company && <p className="text-xs text-gray-400">{other.company}</p>}
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-xs font-medium text-ink">{other.name ?? '—'}</p>
+                      {other.company && <p className="text-xs text-ink-2">{other.company}</p>}
+                      <p className="text-xs text-ink-2 mt-0.5">
                         {format(m.timeBlock.startsAt, 'MMM d, h:mm a')} – {format(m.timeBlock.endsAt, 'h:mm a')}
                       </p>
-                      {m.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{m.notes}</p>}
-                      <span className={`inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${statusColors[m.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                      {m.notes && <p className="text-xs text-ink-2 mt-0.5 italic">{m.notes}</p>}
+                      <span className={`inline-block mt-1 text-caption font-medium px-1.5 py-0.5 rounded-full ${statusColors[m.status] ?? 'bg-fill text-ink-2'}`}>
                         {m.status}
                       </span>
                     </div>
                     <form action={deleteMeetingAction}>
                       <button type="submit"
-                        className="text-xs text-red-500 hover:text-red-700 hover:underline whitespace-nowrap">
+                        className="text-xs text-danger hover:text-danger-ink hover:underline whitespace-nowrap">
                         Delete
                       </button>
                     </form>
@@ -327,18 +327,18 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
                 )
               })}
               {meetings.length === 0 && (
-                <p className="px-4 py-4 text-xs text-gray-400">No vendor meetings scheduled.</p>
+                <p className="px-4 py-4 text-xs text-ink-2">No vendor meetings scheduled.</p>
               )}
             </div>
 
             {/* Add vendor meeting form */}
-            <div className="px-4 py-4 border-t border-gray-100 bg-gray-50">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Schedule Meeting</p>
+            <div className="px-4 py-4 border-t border-hairline bg-fill">
+              <p className="text-xs font-semibold text-ink-2 uppercase tracking-wide mb-3">Schedule Meeting</p>
               <form action={addVendorMeetingBound} className="space-y-2">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Vendor / Rep *</label>
+                  <label className="text-xs text-ink-2 block mb-1">Vendor / Rep *</label>
                   <select name="vendorUserId" required
-                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50">
+                    className="w-full text-xs border border-hairline rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50">
                     <option value="">— Select person —</option>
                     {allUsers.map(u => (
                       <option key={u.id} value={u.id}>
@@ -348,9 +348,9 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Time Block *</label>
+                  <label className="text-xs text-ink-2 block mb-1">Time Block *</label>
                   <select name="timeBlockId" required
-                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50">
+                    className="w-full text-xs border border-hairline rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50">
                     <option value="">— Select time block —</option>
                     {timeBlocks.map(tb => (
                       <option key={tb.id} value={tb.id}>
@@ -361,9 +361,9 @@ export default async function AttendeeProfilePage({ params }: { params: Promise<
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                  <label className="text-xs text-ink-2 block mb-1">Notes</label>
                   <textarea name="notes" rows={2} placeholder="Optional notes"
-                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none" />
+                    className="w-full text-xs border border-hairline rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none" />
                 </div>
                 <div className="flex justify-end">
                   <button type="submit" className="btn-primary text-xs">Schedule</button>

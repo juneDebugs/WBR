@@ -26,7 +26,7 @@ function parseArr(v: string | null | undefined): string[] {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="card p-6 space-y-5">
-      <h2 className="font-semibold text-gray-900 pb-3 border-b border-gray-100">{title}</h2>
+      <h2 className="font-semibold text-ink pb-3 border-b border-hairline">{title}</h2>
       {children}
     </div>
   )
@@ -36,7 +36,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return (
     <div>
       <label className="label">{label}</label>
-      {hint && <p className="text-xs text-gray-400 mb-1.5">{hint}</p>}
+      {hint && <p className="text-xs text-ink-3 mb-1.5">{hint}</p>}
       {children}
     </div>
   )
@@ -53,11 +53,7 @@ function MultiChips({ label, options, value, onChange }: {
       <div className="flex flex-wrap gap-2 mt-1">
         {options.map(o => (
           <button key={o} type="button" onClick={() => toggle(o)}
-            className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-              value.includes(o)
-                ? 'bg-primary text-white border-primary'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-primary hover:text-primary'
-            }`}>
+            className={`chip ${value.includes(o) ? 'chip-active' : 'chip-inactive'}`}>
             {o}
           </button>
         ))}
@@ -86,13 +82,13 @@ function LogoUploader({ value, onChange }: { value: string; onChange: (v: string
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 text-xs">
+      <div className="flex gap-2">
         <button type="button" onClick={() => setMode('url')}
-          className={`px-3 py-1.5 rounded-full border font-medium transition-colors ${mode === 'url' ? 'bg-primary text-white border-primary' : 'text-gray-600 border-gray-200 hover:border-primary'}`}>
+          className={`chip ${mode === 'url' ? 'chip-active' : 'chip-inactive'}`}>
           URL
         </button>
         <button type="button" onClick={() => setMode('upload')}
-          className={`px-3 py-1.5 rounded-full border font-medium transition-colors ${mode === 'upload' ? 'bg-primary text-white border-primary' : 'text-gray-600 border-gray-200 hover:border-primary'}`}>
+          className={`chip ${mode === 'upload' ? 'chip-active' : 'chip-inactive'}`}>
           Upload file
         </button>
       </div>
@@ -106,7 +102,7 @@ function LogoUploader({ value, onChange }: { value: string; onChange: (v: string
             className="hidden" onChange={handleFile} />
           <button type="button" onClick={() => fileRef.current?.click()}
             disabled={uploading}
-            className="btn-secondary text-sm px-4 py-2 flex items-center gap-2">
+            className="btn-secondary btn-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
@@ -116,19 +112,20 @@ function LogoUploader({ value, onChange }: { value: string; onChange: (v: string
       )}
 
       {value && (
-        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+        <div className="flex items-center gap-3 p-3 bg-fill rounded-xl">
           <img
             src={value}
             alt="Logo preview"
-            className="w-14 h-14 object-contain rounded-lg border border-gray-100 bg-white"
+            className="w-14 h-14 object-contain rounded-lg border border-hairline bg-surface"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
-          <div className="text-xs text-gray-500">
-            <p className="font-medium text-gray-700">Logo preview</p>
+          <div className="text-xs text-ink-2">
+            <p className="font-medium text-ink">Logo preview</p>
             <p className="truncate max-w-[200px]">{value.startsWith('data:') ? 'Uploaded file' : value}</p>
           </div>
           <button type="button" onClick={() => onChange('')}
-            className="ml-auto text-gray-400 hover:text-red-500">
+            aria-label="Remove logo"
+            className="ml-auto icon-btn icon-btn-sm text-ink-3 hover:text-danger">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -152,11 +149,11 @@ function TeammateManager({ teammates, available, onAdd, onRemove }: {
     <div className="space-y-4">
       {/* Current teammates */}
       {teammates.length === 0 ? (
-        <p className="text-sm text-gray-400">No teammates added yet.</p>
+        <p className="text-sm text-ink-3">No teammates added yet.</p>
       ) : (
         <div className="space-y-2">
           {teammates.map(t => (
-            <div key={t.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+            <div key={t.id} className="flex items-center gap-3 p-3 bg-fill rounded-xl">
               {t.image ? (
                 <img src={t.image} alt="" loading="lazy" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
               ) : (
@@ -165,11 +162,11 @@ function TeammateManager({ teammates, available, onAdd, onRemove }: {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{t.name}</p>
-                <p className="text-xs text-gray-500 truncate">{t.jobTitle} · {t.email}</p>
+                <p className="text-sm font-medium text-ink truncate">{t.name}</p>
+                <p className="text-xs text-ink-2 truncate">{t.jobTitle} · {t.email}</p>
               </div>
               <button type="button" onClick={() => onRemove(t.id)}
-                className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0">
+                className="text-xs text-danger hover:text-danger px-2 py-1 rounded-lg hover:bg-danger-soft transition-colors flex-shrink-0">
                 Remove
               </button>
             </div>
@@ -179,16 +176,16 @@ function TeammateManager({ teammates, available, onAdd, onRemove }: {
 
       {/* Add teammates */}
       <div>
-        <p className="text-xs font-medium text-gray-700 mb-2">Add a teammate</p>
-        <input className="input text-sm mb-2" placeholder="Search by name or email…"
+        <p className="text-xs font-medium text-ink mb-2">Add a teammate</p>
+        <input className="input mb-2" placeholder="Search by name or email…"
           value={search} onChange={e => setSearch(e.target.value)} />
         {search && (
-          <div className="border border-gray-100 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+          <div className="border border-hairline rounded-xl overflow-hidden max-h-48 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="text-sm text-gray-400 p-3">No users found</p>
+              <p className="text-sm text-ink-3 p-3">No users found</p>
             ) : filtered.map(u => (
               <button key={u.id} type="button" onClick={() => { onAdd(u.id); setSearch('') }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left border-b border-gray-50 last:border-0">
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-fill transition-colors text-left border-b border-hairline last:border-0">
                 {u.image ? (
                   <img src={u.image} alt="" loading="lazy" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                 ) : (
@@ -197,8 +194,8 @@ function TeammateManager({ teammates, available, onAdd, onRemove }: {
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{u.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{u.jobTitle} · {u.email}</p>
+                  <p className="text-sm font-medium text-ink truncate">{u.name}</p>
+                  <p className="text-xs text-ink-2 truncate">{u.jobTitle} · {u.email}</p>
                 </div>
                 <svg className="w-4 h-4 text-primary ml-auto flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -309,20 +306,20 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sponsor Profile</h1>
-          <p className="text-sm text-gray-500 mt-1">Changes sync instantly to all WBR 2027 apps</p>
+          <h1 className="text-2xl font-bold text-ink">Sponsor Profile</h1>
+          <p className="text-sm text-ink-2 mt-1">Changes sync instantly to all WBR 2027 apps</p>
         </div>
         <div className="flex items-center gap-3">
           {saved && (
-            <span className="text-sm text-emerald-600 font-medium flex items-center gap-1.5">
+            <span className="text-sm text-success-ink font-medium flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               Saved & synced
             </span>
           )}
-          {error && <span className="text-sm text-red-600">{error}</span>}
-          <button type="submit" disabled={saving} className="btn-primary px-6 py-2">
+          {error && <span className="text-sm text-danger">{error}</span>}
+          <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
@@ -330,16 +327,16 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
 
       {/* Live preview banner */}
       {(logoUrl || name) && (
-        <div className="card overflow-hidden">
+        <div className="card p-0 overflow-hidden">
           {heroImageUrl && (
-            <div className="h-36 bg-gray-100 overflow-hidden">
+            <div className="h-36 bg-fill overflow-hidden">
               <img src={heroImageUrl} alt="Hero" loading="lazy" className="w-full h-full object-cover"
                 onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }} />
             </div>
           )}
           <div className="p-4 flex items-center gap-4">
             {logoUrl ? (
-              <img src={logoUrl} alt="Logo" loading="lazy" className="w-14 h-14 object-contain rounded-xl border border-gray-100 bg-white p-1"
+              <img src={logoUrl} alt="Logo" loading="lazy" className="w-14 h-14 object-contain rounded-xl border border-hairline bg-surface p-1"
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
             ) : (
               <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -347,8 +344,8 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
               </div>
             )}
             <div>
-              <p className="font-bold text-gray-900 text-lg">{name}</p>
-              {tagline && <p className="text-sm text-gray-500">{tagline}</p>}
+              <p className="font-bold text-ink text-lg">{name}</p>
+              {tagline && <p className="text-sm text-ink-2">{tagline}</p>}
             </div>
           </div>
         </div>
@@ -365,7 +362,7 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
             placeholder="The commerce platform powering millions of businesses" maxLength={120} />
         </Field>
         <Field label="Company Description" hint="Shown on your sponsor card and profile across all apps">
-          <textarea className="input min-h-[120px] resize-y" value={description}
+          <textarea className="textarea min-h-[120px]" value={description}
             onChange={e => setDescription(e.target.value)}
             placeholder="We help DTC brands grow through…" />
         </Field>
@@ -452,7 +449,7 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
 
       {/* Target audience */}
       <Section title="Ideal Customer Profile">
-        <p className="text-xs text-gray-500 -mt-2">Who you want to meet at WBR 2027 — used to match you with relevant attendees</p>
+        <p className="text-xs text-ink-2 -mt-2">Who you want to meet at WBR 2027 — used to match you with relevant attendees</p>
         <MultiChips label="Solutions They're Looking For" options={SOLUTIONS}
           value={solutionsSeeking} onChange={setSolutionsSeeking} />
         <MultiChips label="Industries" options={INDUSTRIES}
@@ -465,7 +462,7 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
 
       {/* Teammates */}
       <Section title="Team at WBR 2027">
-        <p className="text-xs text-gray-500 -mt-2">
+        <p className="text-xs text-ink-2 -mt-2">
           Teammates appear on your sponsor card in the meeting portal and attendee app.
           Adding someone links their account to your company.
         </p>

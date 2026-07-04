@@ -43,7 +43,7 @@ export function ChatPageClient({ initialData }: { initialData?: any }) {
         recentMessages={data.recentMessages}
       />
 
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+      <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest mb-3">
         Direct Messages — {data.rooms.length} conversation{data.rooms.length !== 1 ? 's' : ''}
       </p>
       <DMRoomsClient rooms={data.rooms} />

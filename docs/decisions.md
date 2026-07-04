@@ -218,6 +218,39 @@ Detailed escalation context lives in the engineer-of-record's local handoff doc 
 
 ---
 
+## Unified HIG design system across all four apps (2026-07-04)
+
+The four apps had drifted into four near-identical-but-forked styling setups: each
+`tailwind.config.ts` redefined the brand color (with divergent `primary-light`
+values — `#818cf8` vs `#a5b4fc`), each `globals.css` re-declared overlapping component
+classes with `@apply`, "Inter" was declared in every config but **never actually loaded**
+(so everything silently fell back to system fonts), and pages had accreted parallel
+color systems (an Apple-blue `#007AFF`/`#FF3B30` set in web speakers, a blue→pink
+gradient nav, four un-tokenized beiges + an iOS palette in attendee, four conflicting
+meeting-status color maps, ~45 raw hexes in one sponsor view).
+
+Decision: a **single source of truth** — [`packages/ui/preset.cjs`](../packages/ui/preset.cjs),
+a Tailwind **preset** that every app's `tailwind.config.ts` `require()`s by relative
+path. It defines the token scale (Apple-grounded neutrals: `#f5f5f7` canvas, `#1d1d1f`
+ink ramp, `#e5e5ea` hairline; the brand indigo ramp anchored on the pre-existing
+`#6366f1`; Apple system-color status set) and injects the shared base + component layers
+(`.card`, `.btn-*`, `.input`, `.badge*`, `.chip*`, `.tab-bar`, `.section-title`,
+`:focus-visible` rings, `prefers-reduced-motion`). The full spec is
+[`docs/design-system.md`](design-system.md).
+
+Delivery is **build-time only** (a preset read by PostCSS) — so it needs no
+`transpilePackages`, no workspace symlink, and ships **no runtime JS**. The HIG-correct
+font choice is the **system stack** (SF Pro on Apple devices), which is also a zero-byte
+download — resolving the never-loaded-Inter gap for free. Net performance impact measured
+against a pre-change baseline: shared First Load JS unchanged (102/104/102/102 kB) and the
+largest per-route First-Load delta across all four apps is **+0.0 kB**. Guarded by
+`scripts/test-design-system.mjs` (alias `pnpm test:design`), which asserts every app wires
+the preset, the preset exposes the expected token + component surface, and no app
+reintroduces the retired rogue-color systems. No separate ADR filed — this is a
+styling-layer convergence, not an architectural boundary change.
+
+---
+
 ## Cross-references
 
 - [Architecture](architecture.md) — cross-cutting current-state architecture.

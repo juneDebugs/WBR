@@ -51,7 +51,7 @@ function ChipPicker({ selected, onChange }: { selected: string[]; onChange: (v: 
           className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
             selected.includes(s)
               ? 'bg-primary text-white border-primary'
-              : 'bg-white text-gray-500 border-gray-200 hover:border-primary/50'
+              : 'bg-white text-ink-2 border-hairline hover:border-primary/50'
           }`}
         >{s}</button>
       ))}
@@ -153,86 +153,86 @@ export function AttendeeProfileEditor({ user }: { user: UserData }) {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6 mt-4">
+    <div className="bg-white border border-hairline rounded-xl p-6 mt-4">
       <div className="flex items-center justify-between mb-5">
-        <h3 className="font-bold text-gray-900">Edit Profile</h3>
-        <button onClick={() => setEditing(false)} className="text-gray-400 hover:text-gray-600">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <h3 className="font-bold text-ink">Edit Profile</h3>
+        <button onClick={() => setEditing(false)} className="text-ink-2 hover:text-ink-2" aria-label="Close editor">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200/60 text-red-600 text-xs">{error}</div>
+        <div className="mb-4 px-3 py-2 rounded-lg bg-danger-soft border border-danger/20 text-danger-ink text-xs">{error}</div>
       )}
 
       <form onSubmit={handleSave} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Name</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Name</label>
             <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
               className="form-input" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Email</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Email</label>
             <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
               className="form-input" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Profile Image URL</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Profile Image URL</label>
             <input type="url" value={form.image} onChange={e => set('image', e.target.value)}
               placeholder="https://..." className="form-input" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Role</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Role</label>
             <select value={form.role} onChange={e => set('role', e.target.value)} className="form-input">
               {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Company</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Company</label>
             <input type="text" value={form.company} onChange={e => set('company', e.target.value)}
               className="form-input" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Job Title</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Job Title</label>
             <input type="text" value={form.jobTitle} onChange={e => set('jobTitle', e.target.value)}
               className="form-input" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Company Size</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Company Size</label>
             <select value={form.companySize} onChange={e => set('companySize', e.target.value)} className="form-input">
               {COMPANY_SIZES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Annual Revenue</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Annual Revenue</label>
             <select value={form.annualRevenue} onChange={e => set('annualRevenue', e.target.value)} className="form-input">
               {REVENUE_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Website</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Website</label>
             <input type="url" value={form.website} onChange={e => set('website', e.target.value)}
               placeholder="https://..." className="form-input" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Reset Password</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Reset Password</label>
             <input type="password" value={form.password} onChange={e => set('password', e.target.value)}
               placeholder="Leave blank to keep current" minLength={6} className="form-input" />
           </div>
           <div className="col-span-2">
-            <label className="text-xs font-medium text-gray-600 block mb-1">Bio</label>
+            <label className="text-xs font-medium text-ink-2 block mb-1">Bio</label>
             <textarea value={form.bio} onChange={e => set('bio', e.target.value)} rows={3}
               className="form-input resize-none" />
           </div>
           <div className="col-span-2">
-            <label className="text-xs font-medium text-gray-600 block mb-2">Solutions Offering</label>
+            <label className="text-xs font-medium text-ink-2 block mb-2">Solutions Offering</label>
             <ChipPicker selected={offering} onChange={setOffering} />
           </div>
           <div className="col-span-2">
-            <label className="text-xs font-medium text-gray-600 block mb-2">Solutions Seeking</label>
+            <label className="text-xs font-medium text-ink-2 block mb-2">Solutions Seeking</label>
             <ChipPicker selected={seeking} onChange={setSeeking} />
           </div>
         </div>

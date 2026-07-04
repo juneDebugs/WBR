@@ -77,7 +77,7 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
             role="dialog"
             aria-modal="true"
             aria-label={selected.name ?? 'Team member'}
-            className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4"
+            className="relative bg-surface rounded-2xl shadow-elevated max-w-sm w-full p-6 space-y-4"
             onClick={e => e.stopPropagation()}
           >
             {/* Close button */}
@@ -86,7 +86,7 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
               aria-label="Close"
               className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
             >
-              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <svg className="w-4 h-4 text-ink-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -116,7 +116,7 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
                     </svg>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-400">Role</p>
+                    <p className="text-xs text-ink-2">Role</p>
                     <p className="text-sm font-medium text-gray-900">{roleLabel(selected.role)}</p>
                   </div>
                 </div>
@@ -129,7 +129,7 @@ export function TeamMembers({ members }: { members: TeamMember[] }) {
                     </svg>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-400">Email</p>
+                    <p className="text-xs text-ink-2">Email</p>
                     <a href={`mailto:${selected.email}`} className="text-sm font-medium text-primary hover:underline truncate block">
                       {selected.email}
                     </a>

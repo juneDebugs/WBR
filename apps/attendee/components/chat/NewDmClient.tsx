@@ -28,9 +28,9 @@ export function NewDmClient({ users }: { users: User[] }) {
 
   return (
     <div>
-      <div className="px-4 py-3 border-b border-gray-100">
-        <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
-          <span className="text-sm font-medium text-gray-500">To:</span>
+      <div className="px-4 py-3 border-b border-hairline">
+        <div className="flex items-center gap-2 bg-fill rounded-xl px-3 py-2">
+          <span className="text-sm font-medium text-ink-2">To:</span>
           <input
             autoFocus
             value={search}
@@ -41,21 +41,21 @@ export function NewDmClient({ users }: { users: User[] }) {
         </div>
       </div>
 
-      <div className="divide-y divide-gray-50">
+      <div className="divide-y divide-hairline">
         {filtered.map(user => (
           <button key={user.id} onClick={() => startDm(user.id)}
             disabled={loading === user.id}
-            className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 transition-colors text-left">
-            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+            className="w-full flex items-center gap-3 px-4 py-3 active:bg-fill transition-colors text-left">
+            <div className="w-12 h-12 rounded-full bg-fill flex items-center justify-center flex-shrink-0">
               {user.image ? (
                 <img src={user.image} alt="" loading="lazy" className="w-12 h-12 rounded-full object-cover" />
               ) : (
-                <span className="text-gray-600 font-bold text-lg">{(user.name ?? '?')[0]}</span>
+                <span className="text-ink-2 font-bold text-lg">{(user.name ?? '?')[0]}</span>
               )}
             </div>
             <div>
-              <p className="font-semibold text-gray-900 text-sm">{user.name ?? 'Unknown'}</p>
-              {user.company && <p className="text-xs text-gray-400">{user.company}</p>}
+              <p className="font-semibold text-ink text-sm">{user.name ?? 'Unknown'}</p>
+              {user.company && <p className="text-xs text-ink-2">{user.company}</p>}
             </div>
             {loading === user.id && (
               <div className="ml-auto w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />

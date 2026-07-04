@@ -37,7 +37,7 @@ export default function MeetingsClient() {
       return (
         <div className="page-container">
           <h1 className="text-2xl font-bold mb-2">Meetings</h1>
-          <p className="text-sm text-gray-500">Your account isn't linked to a sponsor yet. Contact the organiser.</p>
+          <p className="text-sm text-ink-2">Your account isn't linked to a sponsor yet. Contact the organiser.</p>
         </div>
       )
     }

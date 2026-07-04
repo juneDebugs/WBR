@@ -39,21 +39,21 @@ export function AutoScheduleButton({ approvedCount }: Props) {
   return (
     <div className="flex items-center gap-2">
       {result && (
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-ink-2">
           ✓ {result.scheduled} scheduled{result.skipped > 0 ? `, ${result.skipped} skipped (no availability)` : ''}
         </span>
       )}
       {error && (
-        <span className="text-xs text-red-500">{error}</span>
+        <span className="text-xs text-danger">{error}</span>
       )}
       {!approvedCount && !result && (
-        <span className="text-xs text-gray-400">Approve requests first to enable auto-scheduling</span>
+        <span className="text-xs text-ink-2">Approve requests first to enable auto-scheduling</span>
       )}
       <button
         onClick={run}
         disabled={loading || !approvedCount}
         title={!approvedCount ? 'No approved requests to schedule' : undefined}
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className="btn-primary btn-sm"
       >
         {loading ? (
           <>

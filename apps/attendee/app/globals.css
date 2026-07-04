@@ -2,82 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
-  }
+/*
+ * Design tokens + shared component classes (.card, .btn-*, .tab-bar, .tab-item,
+ * .page-container, .glass-card, .badge*, .chip*, focus-visible, reduced-motion, …)
+ * come from the shared Tailwind preset: packages/ui/preset.cjs — see
+ * docs/design-system.md. Only PWA / app-specific rules live below.
+ */
 
+@layer base {
   * {
-    -webkit-tap-highlight-color: transparent;
     box-sizing: border-box;
   }
 
   html {
-    font-family: 'Inter', system-ui, sans-serif;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
 
   body {
     overscroll-behavior: none;
-    background-color: #f0ece4;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden; /* prevent horizontal overflow, keep vertical scroll */
     padding-top: env(safe-area-inset-top);
   }
 
-  /* Prevent horizontal overflow only — keep vertical scroll intact */
-  body { overflow-x: hidden; }
-
   /* Prevent text selection on interactive elements */
-  button, a, [role="button"] {
+  button,
+  a,
+  [role='button'] {
     -webkit-user-select: none;
     user-select: none;
   }
 
-  /* Smooth scrolling for iOS momentum */
+  /* iOS momentum scrolling */
   .scroll-touch {
     -webkit-overflow-scrolling: touch;
   }
-}
-
-@layer components {
-  .tab-bar {
-    @apply sticky bottom-0 z-50 bg-white/90 backdrop-blur-md border-t border-gray-200/60 flex items-center justify-around flex-shrink-0;
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-    padding-top: 0.25rem;
-  }
-
-  .tab-item {
-    @apply flex flex-col items-center gap-0.5 py-2 px-2 rounded-xl text-gray-400 transition-all;
-  }
-
-  .tab-item.active {
-    @apply text-primary;
-  }
-
-  .page-container {
-    @apply max-w-lg mx-auto px-4 pt-4 pb-6;
-  }
-
-  .card {
-    @apply bg-white rounded-2xl shadow-sm border border-gray-100/80 p-4;
-  }
-
-  .btn-primary {
-    @apply bg-primary text-white font-semibold py-3 px-6 rounded-xl active:scale-95 transition-transform;
-  }
-
-  .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
-  }
-
-  .glass-card {
-    @apply bg-white/70 backdrop-blur-sm rounded-2xl border border-white/60 shadow-sm;
-  }
-}
-
-@keyframes border-spin {
-  to { transform: rotate(360deg); }
 }

@@ -42,12 +42,12 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       <div className="card">
         <div className="mb-3">
           <span className="badge bg-primary/10 text-primary">{typeLabel}</span>
-          {session.track && <span className="badge bg-gray-100 text-gray-600 ml-2">{session.track}</span>}
+          {session.track && <span className="badge badge-neutral ml-2">{session.track}</span>}
         </div>
 
-        <h1 className="text-xl font-bold text-gray-900 mb-3">{session.title}</h1>
+        <h1 className="text-xl font-bold text-ink mb-3">{session.title}</h1>
 
-        <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+        <div className="flex items-center gap-4 text-sm text-ink-2 mb-4">
           <div className="flex items-center gap-1">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -67,13 +67,13 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         </div>
 
         {session.description && (
-          <p className="text-gray-600 text-sm leading-relaxed">{session.description}</p>
+          <p className="text-ink-2 text-sm leading-relaxed">{session.description}</p>
         )}
       </div>
 
       {session.speaker && (
         <div className="card mt-4">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Speaker</h2>
+          <h2 className="text-sm font-semibold text-ink-2 uppercase tracking-wide mb-3">Speaker</h2>
           <Link href={`/speakers/${session.speaker.id}`} className="flex items-center gap-3">
             {session.speaker.photoUrl ? (
               <Image
@@ -89,12 +89,12 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
               </div>
             )}
             <div>
-              <div className="font-semibold text-gray-900">{session.speaker.name}</div>
-              <div className="text-sm text-gray-500">
+              <div className="font-semibold text-ink">{session.speaker.name}</div>
+              <div className="text-sm text-ink-2">
                 {[session.speaker.jobTitle, session.speaker.company].filter(Boolean).join(' · ')}
               </div>
             </div>
-            <svg className="w-5 h-5 text-gray-400 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-5 h-5 text-ink-2 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </Link>

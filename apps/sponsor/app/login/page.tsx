@@ -95,7 +95,7 @@ export default function LoginPage() {
               <h2 className="text-4xl font-bold text-white leading-tight whitespace-pre-line">
                 {slide.headline}
               </h2>
-              <p className="text-white/60 mt-3 text-sm">{slide.subtitle}</p>
+              <p className="text-white/75 mt-3 text-sm">{slide.subtitle}</p>
             </div>
           ))}
         </div>
@@ -105,10 +105,13 @@ export default function LoginPage() {
             <button
               key={i}
               onClick={() => setCurrentSlide(i)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === currentSlide ? 'w-8 bg-white' : 'w-6 bg-white/40 hover:bg-white/60'
-              }`}
-            />
+              aria-label={`Go to slide ${i + 1}`}
+              className="group py-3 -my-3"
+            >
+              <span className={`block h-1.5 rounded-full transition-all duration-300 ${
+                i === currentSlide ? 'w-8 bg-white' : 'w-6 bg-white/40 group-hover:bg-white/60'
+              }`} />
+            </button>
           ))}
         </div>
       </div>
@@ -119,11 +122,11 @@ export default function LoginPage() {
           {/* Mobile header (hidden on desktop) */}
           <div className="lg:hidden text-center mb-8">
             <h1 className="text-2xl font-bold text-white">WBR 2027 Sponsor Portal</h1>
-            <p className="text-white/50 text-sm mt-1">Manage your presence, meetings & brand discovery</p>
+            <p className="text-white/70 text-sm mt-1">Manage your presence, meetings & brand discovery</p>
           </div>
 
           <h1 className="text-3xl font-bold text-white mb-2">Sign in</h1>
-          <p className="text-gray-400 text-sm mb-8">
+          <p className="text-white/70 text-sm mb-8">
             Enter your credentials to access the sponsor portal
           </p>
 
@@ -140,7 +143,7 @@ export default function LoginPage() {
                 type="email"
                 required
                 placeholder="Email"
-                className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
               />
             </div>
             <div className="relative">
@@ -149,12 +152,13 @@ export default function LoginPage() {
                 type={showPassword ? 'text' : 'password'}
                 required
                 placeholder="Enter your password"
-                className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors pr-12"
+                className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-white/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors pr-12"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white transition-colors"
               >
                 {showPassword ? (
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -172,7 +176,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3.5 rounded-xl transition-colors disabled:opacity-60"
+              className="btn-primary w-full"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
@@ -180,7 +184,7 @@ export default function LoginPage() {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
-            <div className="relative flex justify-center"><span className="bg-[#1a1a2e] px-4 text-xs text-gray-500">Or sign in with</span></div>
+            <div className="relative flex justify-center"><span className="bg-[#1a1a2e] px-4 text-xs text-white/60">Or sign in with</span></div>
           </div>
 
           <button
@@ -188,7 +192,7 @@ export default function LoginPage() {
               const { signIn } = await import('next-auth/react')
               signIn('google', { callbackUrl: '/dashboard' })
             }}
-            className="w-full flex items-center justify-center gap-3 py-3.5 border border-white/10 rounded-xl text-sm font-medium text-gray-300 hover:bg-white/5 transition-colors"
+            className="w-full flex items-center justify-center gap-3 py-3.5 border border-white/10 rounded-xl text-sm font-medium text-white/90 hover:bg-white/5 transition-colors"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -201,10 +205,10 @@ export default function LoginPage() {
 
           {/* Demo accounts */}
           <div className="mt-8 border border-white/10 rounded-xl p-4">
-            <p className="text-xs font-semibold text-gray-400 mb-3">Demo Sponsor Accounts</p>
-            <div className="space-y-2 text-xs text-gray-500">
-              <p><span className="text-gray-400">Sponsor (Tailor):</span> june@tailor.tech / admin123</p>
-              <p><span className="text-gray-400">Staff:</span> staff@wbr.com / staff123</p>
+            <p className="text-xs font-semibold text-white/70 mb-3">Demo Sponsor Accounts</p>
+            <div className="space-y-2 text-xs text-white/60">
+              <p><span className="text-white/80">Sponsor (Tailor):</span> june@tailor.tech / admin123</p>
+              <p><span className="text-white/80">Staff:</span> staff@wbr.com / staff123</p>
             </div>
           </div>
         </div>

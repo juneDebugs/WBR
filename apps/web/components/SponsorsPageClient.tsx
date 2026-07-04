@@ -62,11 +62,11 @@ function SponsorCell({ name, logoUrl, website }: { name: string; logoUrl: string
 
 // Shared contact cell
 function ContactCell({ contactName, contactEmail }: { contactName: string | null; contactEmail: string | null }) {
-  if (!contactName && !contactEmail) return <span className="text-gray-400">{'\u2014'}</span>
+  if (!contactName && !contactEmail) return <span className="text-ink-2">{'\u2014'}</span>
   return (
     <>
       {contactName && <p className="font-medium text-gray-900">{contactName}</p>}
-      {contactEmail && <p className="text-xs text-gray-400 mt-0.5">{contactEmail}</p>}
+      {contactEmail && <p className="text-xs text-ink-2 mt-0.5">{contactEmail}</p>}
     </>
   )
 }
@@ -78,7 +78,7 @@ function TierHeader({ tier, count }: { tier: string; count: number }) {
       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold tracking-wide ${TIER_STYLES[tier]}`}>
         {tier}
       </span>
-      <span className="text-xs text-gray-400">{count} sponsor{count !== 1 ? 's' : ''}</span>
+      <span className="text-xs text-ink-2">{count} sponsor{count !== 1 ? 's' : ''}</span>
     </div>
   )
 }
@@ -149,7 +149,7 @@ export default function SponsorsPageClient() {
         </div>
 
         {sponsors.length === 0 ? (
-          <p className="text-sm text-gray-400">No sponsors yet.</p>
+          <p className="text-sm text-ink-2">No sponsors yet.</p>
         ) : (
           <div className="space-y-6">
             {TIER_LIST.map(tier => {
@@ -243,7 +243,7 @@ export default function SponsorsPageClient() {
         </div>
 
         {sponsors.length === 0 ? (
-          <p className="text-sm text-gray-400">No sponsors yet.</p>
+          <p className="text-sm text-ink-2">No sponsors yet.</p>
         ) : (
           <div className="space-y-6">
             {grouped.map(({ tier, sponsors: tierSponsors }: any) => (
@@ -280,13 +280,13 @@ export default function SponsorsPageClient() {
                               <ContactCell contactName={s.contactName} contactEmail={s.contactEmail} />
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`font-semibold ${s._count.meetings > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
+                              <span className={`font-semibold ${s._count.meetings > 0 ? 'text-blue-600' : 'text-ink-2'}`}>
                                 {s._count.meetings}
                               </span>
                             </td>
                             <td className="px-4 py-3">
                               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-gray-100">
-                                <span className="text-gray-400 font-normal">1-1</span>
+                                <span className="text-ink-2 font-normal">1-1</span>
                                 <span className="font-bold" style={{ color: fracColor }}>{s.committed}/{s._count.meetings}</span>
                               </span>
                             </td>

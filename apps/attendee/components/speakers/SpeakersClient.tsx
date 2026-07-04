@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useSpeakersData } from '@/lib/hooks'
 import { CompanyLogo, COMPANY_LOGO_NAMES } from './CompanyLogos'
+import { avatarGradient, hashString } from '@/lib/avatar-gradients'
 
 function parsePhotoPos(pos: string | null | undefined) {
   const parts = (pos ?? '50% 50%').trim().split(/\s+/)
@@ -73,19 +74,8 @@ interface Speaker {
   sessions?: Session[]
 }
 
-const AVATAR_GRADIENTS: [string, string][] = [
-  ['#7c3aed', '#6366f1'],
-  ['#6366f1', '#3b82f6'],
-  ['#ec4899', '#f43f5e'],
-  ['#f59e0b', '#f97316'],
-  ['#14b8a6', '#06b6d4'],
-  ['#10b981', '#14b8a6'],
-  ['#d946ef', '#ec4899'],
-  ['#38bdf8', '#818cf8'],
-]
-
 const TRACK_PALETTES = [
-  { from: '#7c3aed', to: '#6366f1', chip: '#ede9fe', chipText: '#5b21b6' },
+  { from: '#4338ca', to: '#6366f1', chip: '#eef2ff', chipText: '#5b21b6' },
   { from: '#6366f1', to: '#2563eb', chip: '#dbeafe', chipText: '#1d4ed8' },
   { from: '#db2777', to: '#e11d48', chip: '#fce7f3', chipText: '#9d174d' },
   { from: '#d97706', to: '#ea580c', chip: '#fef3c7', chipText: '#92400e' },
@@ -95,18 +85,8 @@ const TRACK_PALETTES = [
   { from: '#0284c7', to: '#6366f1', chip: '#e0f2fe', chipText: '#0369a1' },
 ]
 
-function hash(s: string) {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return h
-}
-
-function avatarGradient(name: string) {
-  return AVATAR_GRADIENTS[hash(name) % AVATAR_GRADIENTS.length]
-}
-
 function trackPalette(track: string) {
-  return TRACK_PALETTES[hash(track) % TRACK_PALETTES.length]
+  return TRACK_PALETTES[hashString(track) % TRACK_PALETTES.length]
 }
 
 // ─── Speaker Detail Modal (iOS bottom sheet) ──────────────────────────────────
@@ -220,7 +200,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
 
           {/* Company row */}
           {speaker.company && (
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100">
+            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-hairline">
               {hasLogo ? (
                 <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0">
                   <CompanyLogo company={speaker.company!} size={28} />
@@ -233,7 +213,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                   <span className="text-white text-xs font-bold">{speaker.company[0]}</span>
                 </div>
               )}
-              <span className="font-semibold text-gray-900 text-sm">{speaker.company}</span>
+              <span className="font-semibold text-ink text-sm">{speaker.company}</span>
               {speaker.track && (
                 <span
                   className="ml-auto text-xs font-bold px-2.5 py-0.5 rounded-full"
@@ -250,7 +230,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
 
             {/* Role */}
             {speaker.role && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: '#f9f9fb' }}>
+              <div className="rounded-2xl overflow-hidden bg-surface-2">
                 <div className="px-4 pt-3 pb-1 flex items-center gap-2">
                   <div
                     className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -260,30 +240,30 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                     </svg>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Role</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">Role</span>
                 </div>
-                <p className="px-4 pb-3.5 text-sm font-semibold text-gray-900 leading-snug">{speaker.role}</p>
+                <p className="px-4 pb-3.5 text-sm font-semibold text-ink leading-snug">{speaker.role}</p>
               </div>
             )}
 
             {/* Bio */}
             {speaker.bio && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: '#f9f9fb' }}>
+              <div className="rounded-2xl overflow-hidden bg-surface-2">
                 <div className="px-4 pt-3 pb-1 flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                  <div className="w-6 h-6 rounded-lg bg-brand flex items-center justify-center flex-shrink-0">
                     <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">About</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">About</span>
                 </div>
-                <p className="px-4 pb-3.5 text-sm text-gray-600 leading-relaxed">{speaker.bio}</p>
+                <p className="px-4 pb-3.5 text-sm text-ink-2 leading-relaxed">{speaker.bio}</p>
               </div>
             )}
 
             {/* Sessions */}
             {speaker.sessions && speaker.sessions.length > 0 && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: '#f9f9fb' }}>
+              <div className="rounded-2xl overflow-hidden bg-surface-2">
                 <div className="px-4 pt-3 pb-2 flex items-center gap-2">
                   <div
                     className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -293,7 +273,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
                     {speaker.sessions.length === 1 ? 'Session' : 'Sessions'}
                   </span>
                   <span
@@ -328,26 +308,26 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                               }}
                             />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-gray-900 leading-snug">{session.title}</p>
+                              <p className="text-sm font-semibold text-ink leading-snug">{session.title}</p>
                               <div className="flex items-center gap-1.5 mt-1.5">
-                                <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg className="w-3 h-3 text-ink-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <span className="text-xs text-gray-500">{day} · {time}</span>
+                                <span className="text-xs text-ink-2">{day} · {time}</span>
                               </div>
                               {session.room && (
                                 <div className="flex items-center gap-1.5 mt-1">
-                                  <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <svg className="w-3 h-3 text-ink-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                   </svg>
-                                  <span className="text-xs text-gray-500">{session.room}</span>
+                                  <span className="text-xs text-ink-2">{session.room}</span>
                                 </div>
                               )}
                             </div>
                             {/* Chevron */}
                             <svg
-                              className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1 transition-transform duration-200"
+                              className="w-4 h-4 text-ink-3 flex-shrink-0 mt-1 transition-transform duration-200"
                               style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
                               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                             >
@@ -366,7 +346,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                         >
                           <div className="px-3.5 pb-3">
                             {session.description && (
-                              <p className="text-xs text-gray-500 leading-relaxed pb-2.5 mb-2.5 border-b border-gray-100">
+                              <p className="text-xs text-ink-2 leading-relaxed pb-2.5 mb-2.5 border-b border-hairline">
                                 {session.description}
                               </p>
                             )}
@@ -380,7 +360,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
                                     {session.track}
                                   </span>
                                 )}
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-fill text-ink-2">
                                   {session.type}
                                 </span>
                               </div>
@@ -407,24 +387,24 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
 
             {/* Looking for */}
             {speaker.lookingFor && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: '#f0fdf4' }}>
+              <div className="rounded-2xl overflow-hidden bg-success-soft">
                 <div className="px-4 pt-3 pb-1 flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <div className="w-6 h-6 rounded-lg bg-success flex items-center justify-center flex-shrink-0">
                     <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Looking For</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-success-ink">Looking For</span>
                 </div>
-                <p className="px-4 pb-3.5 text-sm text-emerald-800 leading-relaxed">{speaker.lookingFor}</p>
+                <p className="px-4 pb-3.5 text-sm text-success-ink leading-relaxed">{speaker.lookingFor}</p>
               </div>
             )}
 
             {/* Social links */}
             {(speaker.twitterHandle || speaker.linkedinUrl) && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: '#f9f9fb' }}>
+              <div className="rounded-2xl overflow-hidden bg-surface-2">
                 <div className="px-4 pt-3 pb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Connect</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">Connect</span>
                 </div>
                 <div className="px-4 pb-3.5 flex gap-3">
                   {speaker.twitterHandle && (
@@ -501,18 +481,18 @@ export function SpeakersClient({ speakers: propSpeakers }: { speakers: Speaker[]
   if (isLoading && speakers.length === 0) {
     return (
       <>
-        <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-3 sticky top-0 z-10 backdrop-blur-md border-b border-[#e5e1d9]" style={{ background: 'rgba(240, 236, 228, 0.85)' }}>
-          <h1 className="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Speakers</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Loading...</p>
+        <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-3 sticky top-0 z-10 backdrop-blur-md border-b border-hairline bg-surface/85">
+          <h1 className="text-2xl sm:text-2xl md:text-3xl font-bold text-ink tracking-tight">Speakers</h1>
+          <p className="text-sm text-ink-3 mt-0.5">Loading...</p>
         </div>
         <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-28 animate-pulse">
-          <div className="flex items-center gap-2 bg-white rounded-2xl px-4 py-3 mb-6 shadow-sm border border-gray-100">
-            <div className="h-4 w-4 bg-gray-200 rounded" />
-            <div className="h-4 flex-1 bg-gray-200 rounded" />
+          <div className="card flex items-center gap-2 mb-6">
+            <div className="h-4 w-4 bg-fill-2 rounded" />
+            <div className="h-4 flex-1 bg-fill-2 rounded" />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="aspect-[3/4] bg-gray-200 rounded-2xl" />
+              <div key={i} className="aspect-[3/4] bg-fill-2 rounded-2xl" />
             ))}
           </div>
         </div>
@@ -522,24 +502,24 @@ export function SpeakersClient({ speakers: propSpeakers }: { speakers: Speaker[]
 
   return (
     <>
-      <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-3 sticky top-0 z-10 backdrop-blur-md border-b border-[#e5e1d9]" style={{ background: 'rgba(240, 236, 228, 0.85)' }}>
-        <h1 className="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Speakers</h1>
-        <p className="text-sm text-gray-400 mt-0.5">{speakerCount} speakers</p>
+      <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-3 sticky top-0 z-10 backdrop-blur-md border-b border-hairline bg-surface/85">
+        <h1 className="text-2xl sm:text-2xl md:text-3xl font-bold text-ink tracking-tight">Speakers</h1>
+        <p className="text-sm text-ink-3 mt-0.5">{speakerCount} speakers</p>
       </div>
       <div className="px-4 sm:px-5 md:px-8 lg:px-12 pt-4 pb-28">
         {/* Search */}
-        <div className="flex items-center gap-2 bg-white rounded-2xl px-4 py-3 mb-6 shadow-sm border border-gray-100">
-          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="card flex items-center gap-2 mb-6">
+          <svg className="w-4 h-4 text-ink-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search speakers, topics…"
-            className="flex-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none bg-transparent"
+            className="flex-1 text-sm text-ink placeholder-ink-3 focus:outline-none bg-transparent"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="text-gray-300 active:text-gray-500">
+            <button onClick={() => setSearch('')} className="text-ink-3 active:text-ink-2">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -549,13 +529,13 @@ export function SpeakersClient({ speakers: propSpeakers }: { speakers: Speaker[]
 
         {groups.length === 0 ? (
           <div className="text-center py-20">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-7 h-7 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 rounded-full bg-fill flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
             </div>
-            <p className="font-semibold text-gray-500">No speakers found</p>
+            <p className="font-semibold text-ink-2">No speakers found</p>
           </div>
         ) : (
           <div className="space-y-10">
@@ -569,7 +549,7 @@ export function SpeakersClient({ speakers: propSpeakers }: { speakers: Speaker[]
                       className="w-1 h-5 rounded-full flex-shrink-0"
                       style={{ background: `linear-gradient(to bottom, ${p.from}, ${p.to})` }}
                     />
-                    <h2 className="font-bold text-gray-900 text-base tracking-tight">{track}</h2>
+                    <h2 className="font-bold text-ink text-base tracking-tight">{track}</h2>
                     <span
                       className="ml-auto text-xs font-bold px-2.5 py-0.5 rounded-full"
                       style={{ background: p.chip, color: p.chipText }}
@@ -592,7 +572,7 @@ export function SpeakersClient({ speakers: propSpeakers }: { speakers: Speaker[]
                             <div
                               className="absolute w-[200%] h-[200%] top-[-50%] left-[-50%]"
                               style={{
-                                background: 'conic-gradient(from 0deg, #3b82f6, #a855f7, #ec4899, #a855f7, #3b82f6)',
+                                background: 'conic-gradient(from 0deg, #3b82f6, #818cf8, #818cf8, #818cf8, #3b82f6)',
                                 animation: 'border-spin 3s linear infinite',
                               }}
                             />
@@ -626,11 +606,11 @@ export function SpeakersClient({ speakers: propSpeakers }: { speakers: Speaker[]
                               </div>
 
                               <div className="px-1.5 sm:px-2 pt-2 sm:pt-2.5 pb-2.5 sm:pb-3">
-                                <p className="font-bold text-gray-900 text-xs sm:text-sm md:text-xs lg:text-[11px] xl:text-xs leading-snug line-clamp-2 text-center">
+                                <p className="font-bold text-ink text-xs sm:text-sm md:text-xs lg:text-[11px] xl:text-xs leading-snug line-clamp-2 text-center">
                                   {speaker.name}
                                 </p>
                                 {speaker.jobTitle && (
-                                  <p className="text-[10px] sm:text-xs md:text-[10px] text-gray-400 mt-0.5 sm:mt-1 leading-tight line-clamp-2 text-center">
+                                  <p className="text-[10px] sm:text-xs md:text-[10px] text-ink-3 mt-0.5 sm:mt-1 leading-tight line-clamp-2 text-center">
                                     {speaker.jobTitle}
                                   </p>
                                 )}
