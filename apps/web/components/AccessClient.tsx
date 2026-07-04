@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccessData, type AccessDataParams } from '@/lib/hooks'
+import { useDialogFocus } from '@/lib/useDialogFocus'
 import type { AccessData, AccessUserRow } from '@/lib/access-query'
 
 const PAGE_SIZE = 50
@@ -52,6 +53,7 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(0)
   const [saving, setSaving] = useState<string | null>(null)
+  const [actionErr, setActionErr] = useState('')
 
   // Credential modal state
   const [credModal, setCredModal] = useState<CredentialModal | null>(null)
@@ -102,13 +104,24 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
 
   async function changeRole(userId: string, role: string) {
     setSaving(userId)
-    const res = await fetch('/api/access', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action: 'setRole', role }),
-    })
-    if (res.ok) await refreshAccessData()
-    setSaving(null)
+    setActionErr('')
+    try {
+      const res = await fetch('/api/access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'setRole', role }),
+      })
+      if (res.ok) {
+        await refreshAccessData()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setActionErr(d.error ?? 'Role change failed — the role was not updated.')
+      }
+    } catch {
+      setActionErr('Network error — the role was not updated.')
+    } finally {
+      setSaving(null)
+    }
   }
 
   function openCred(user: AccessUserRow) {
@@ -132,6 +145,10 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [credModal, closeCred])
 
+  // HIG/ARIA dialog pattern: focus moves into the dialog on open, stays
+  // trapped while it is up, and returns to the trigger on close.
+  const credDialogRef = useDialogFocus<HTMLDivElement>(Boolean(credModal))
+
   async function handleSetPassword() {
     if (!credModal) return
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
@@ -140,59 +157,77 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
     }
     setCredSaving(true)
     setCredErr('')
-    const res = await fetch('/api/access', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: credModal.userId, action: 'setPassword', password: newPassword }),
-    })
-    if (res.ok) {
-      setSavedPassword(newPassword)
-      setNewPassword('')
-      setCredModal(prev => prev ? { ...prev, hasPassword: true } : prev)
-      await refreshAccessData()
-    } else {
-      const d = await res.json()
-      setCredErr(d.error ?? 'Failed to set password')
+    try {
+      const res = await fetch('/api/access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: credModal.userId, action: 'setPassword', password: newPassword }),
+      })
+      if (res.ok) {
+        setSavedPassword(newPassword)
+        setNewPassword('')
+        setCredModal(prev => prev ? { ...prev, hasPassword: true } : prev)
+        await refreshAccessData()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setCredErr(d.error ?? 'Failed to set password')
+      }
+    } catch {
+      setCredErr('Network error — password not changed.')
+    } finally {
+      setCredSaving(false)
     }
-    setCredSaving(false)
   }
 
   async function handleClearPassword() {
     if (!credModal) return
     setCredSaving(true)
     setCredErr('')
-    const res = await fetch('/api/access', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: credModal.userId, action: 'clearPassword' }),
-    })
-    if (res.ok) {
-      setSavedPassword(null)
-      setCredModal(prev => prev ? { ...prev, hasPassword: false } : prev)
-      await refreshAccessData()
+    try {
+      const res = await fetch('/api/access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: credModal.userId, action: 'clearPassword' }),
+      })
+      if (res.ok) {
+        setSavedPassword(null)
+        setCredModal(prev => prev ? { ...prev, hasPassword: false } : prev)
+        await refreshAccessData()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setCredErr(d.error ?? 'Failed to remove password')
+      }
+    } catch {
+      setCredErr('Network error — password not removed.')
+    } finally {
+      setCredSaving(false)
     }
-    setCredSaving(false)
   }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
     setInviteStatus('saving')
     setInviteErr('')
-    const res = await fetch('/api/access', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'inviteAdmin', email: inviteEmail, name: inviteName, role: inviteRole }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setInviteStatus('ok')
-      setInviteEmail('')
-      setInviteName('')
-      await refreshAccessData()
-      setTimeout(() => setInviteStatus('idle'), 3000)
-    } else {
+    try {
+      const res = await fetch('/api/access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'inviteAdmin', email: inviteEmail, name: inviteName, role: inviteRole }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setInviteStatus('ok')
+        setInviteEmail('')
+        setInviteName('')
+        await refreshAccessData()
+        setTimeout(() => setInviteStatus('idle'), 3000)
+      } else {
+        setInviteStatus('err')
+        setInviteErr(data.error ?? 'Failed')
+      }
+    } catch {
       setInviteStatus('err')
-      setInviteErr(data.error ?? 'Failed')
+      setInviteErr('Network error — user not saved.')
     }
   }
 
@@ -207,7 +242,7 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
             className="group relative block bg-white border border-gray-200 rounded-xl p-4 cursor-pointer transition-all duration-150 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm active:scale-[0.99] active:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
             data-stat={card.key}
             data-value={counts[card.key]}
-            aria-label={`${card.label}: ${counts[card.key].toLocaleString()}`}
+            aria-label={`${card.label}: ${counts[card.key].toLocaleString()} — ${card.hint}`}
           >
             <svg
               className="absolute top-4 right-4 w-4 h-4 text-gray-300 transition-colors duration-150 group-hover:text-primary"
@@ -223,7 +258,7 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
               {counts[card.key].toLocaleString()}
             </p>
             <p className="text-[13px] text-gray-600 font-medium">{card.label}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">{card.hint}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">{card.hint}</p>
           </Link>
         ))}
       </div>
@@ -272,6 +307,17 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
                 </button>
               )}
             </div>
+          </div>
+        )}
+
+        {actionErr && (
+          <div className="flex items-center justify-between gap-2 px-4 py-2 bg-red-50 border-b border-red-100" role="alert">
+            <p className="text-sm text-red-700">{actionErr}</p>
+            <button onClick={() => setActionErr('')} className="text-red-400 hover:text-red-600" aria-label="Dismiss error">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         )}
 
@@ -344,7 +390,8 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
                     <img src={user.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-500" aria-hidden="true">
-                      {(user.name ?? user.email ?? '?')[0].toUpperCase()}
+                      {/* `||` (not `??`) so an empty-string name/email falls through to '?'; charAt never throws. */}
+                      {(user.name?.trim() || user.email?.trim() || '?').charAt(0).toUpperCase()}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -377,6 +424,11 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
                     aria-label={`Role for ${user.name ?? user.email ?? 'user'}`}
                     className={`text-xs font-medium px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${roleColors[user.role] ?? 'bg-gray-100 text-gray-600'}`}
                   >
+                    {/* A role outside ROLES (e.g. ADMIN) must still display truthfully,
+                        not fall back to the browser default of the first option. */}
+                    {!ROLES.includes(user.role) && (
+                      <option value={user.role} disabled>{user.role.charAt(0) + user.role.slice(1).toLowerCase()}</option>
+                    )}
                     {ROLES.map(r => (
                       <option key={r} value={r}>{r.charAt(0) + r.slice(1).toLowerCase()}</option>
                     ))}
@@ -427,7 +479,9 @@ export function AccessClient({ initialData }: { initialData: AccessData }) {
       {credModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={closeCred}>
           <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+            ref={credDialogRef}
+            tabIndex={-1}
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 focus:outline-none"
             role="dialog"
             aria-modal="true"
             aria-label="User credentials"

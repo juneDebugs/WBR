@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useStaffData, type StaffDataParams } from '@/lib/hooks'
+import { useDialogFocus } from '@/lib/useDialogFocus'
 import type { StaffPage, StaffRow } from '@/lib/staff-query'
 
 const PAGE_SIZE = 50
@@ -51,6 +52,7 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(0)
   const [saving, setSaving] = useState<string | null>(null)
+  const [actionErr, setActionErr] = useState('')
 
   // Credential modal state
   const [credModal, setCredModal] = useState<CredentialModal | null>(null)
@@ -103,13 +105,24 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
 
   async function changeRole(userId: string, role: string) {
     setSaving(userId)
-    const res = await fetch('/api/access', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action: 'setRole', role }),
-    })
-    if (res.ok) await refreshStaff()
-    setSaving(null)
+    setActionErr('')
+    try {
+      const res = await fetch('/api/access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'setRole', role }),
+      })
+      if (res.ok) {
+        await refreshStaff()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setActionErr(d.error ?? 'Role change failed — the role was not updated.')
+      }
+    } catch {
+      setActionErr('Network error — the role was not updated.')
+    } finally {
+      setSaving(null)
+    }
   }
 
   function openCred(user: StaffRow) {
@@ -141,6 +154,11 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [credModal, showAdd, closeCred, closeAdd])
 
+  // HIG/ARIA dialog pattern: focus moves into the dialog on open, stays
+  // trapped while it is up, and returns to the trigger on close.
+  const credDialogRef = useDialogFocus<HTMLDivElement>(Boolean(credModal))
+  const addDialogRef = useDialogFocus<HTMLDivElement>(showAdd)
+
   async function handleSetPassword() {
     if (!credModal) return
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
@@ -149,38 +167,51 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
     }
     setCredSaving(true)
     setCredErr('')
-    const res = await fetch('/api/access', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: credModal.userId, action: 'setPassword', password: newPassword }),
-    })
-    if (res.ok) {
-      setSavedPassword(newPassword)
-      setNewPassword('')
-      setCredModal(prev => prev ? { ...prev, hasPassword: true } : prev)
-      await refreshStaff()
-    } else {
-      const d = await res.json().catch(() => ({}))
-      setCredErr(d.error ?? 'Failed to set password')
+    try {
+      const res = await fetch('/api/access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: credModal.userId, action: 'setPassword', password: newPassword }),
+      })
+      if (res.ok) {
+        setSavedPassword(newPassword)
+        setNewPassword('')
+        setCredModal(prev => prev ? { ...prev, hasPassword: true } : prev)
+        await refreshStaff()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setCredErr(d.error ?? 'Failed to set password')
+      }
+    } catch {
+      setCredErr('Network error — password not changed.')
+    } finally {
+      setCredSaving(false)
     }
-    setCredSaving(false)
   }
 
   async function handleClearPassword() {
     if (!credModal) return
     setCredSaving(true)
     setCredErr('')
-    const res = await fetch('/api/access', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: credModal.userId, action: 'clearPassword' }),
-    })
-    if (res.ok) {
-      setSavedPassword(null)
-      setCredModal(prev => prev ? { ...prev, hasPassword: false } : prev)
-      await refreshStaff()
+    try {
+      const res = await fetch('/api/access', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: credModal.userId, action: 'clearPassword' }),
+      })
+      if (res.ok) {
+        setSavedPassword(null)
+        setCredModal(prev => prev ? { ...prev, hasPassword: false } : prev)
+        await refreshStaff()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setCredErr(d.error ?? 'Failed to remove password')
+      }
+    } catch {
+      setCredErr('Network error — password not removed.')
+    } finally {
+      setCredSaving(false)
     }
-    setCredSaving(false)
   }
 
   function openAdd() {
@@ -269,6 +300,17 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
           </div>
         </div>
 
+        {actionErr && (
+          <div className="flex items-center justify-between gap-2 px-4 py-2 bg-red-50 border-b border-red-100" role="alert">
+            <p className="text-sm text-red-700">{actionErr}</p>
+            <button onClick={() => setActionErr('')} className="text-red-400 hover:text-red-600" aria-label="Dismiss error">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         <div className="divide-y divide-gray-100" aria-busy={isLoading}>
           {rows.length === 0 && (
             <p className="text-sm text-gray-400 p-6">
@@ -322,6 +364,11 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
                   aria-label={`Role for ${user.name ?? user.email ?? 'staff member'}`}
                   className={`text-xs font-medium px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${roleColors[user.role] ?? 'bg-gray-100 text-gray-600'}`}
                 >
+                  {/* A role outside ROLES (e.g. ADMIN) must still display truthfully,
+                      not fall back to the browser default of the first option. */}
+                  {!ROLES.includes(user.role) && (
+                    <option value={user.role} disabled>{user.role.charAt(0) + user.role.slice(1).toLowerCase()}</option>
+                  )}
                   {ROLES.map(r => (
                     <option key={r} value={r}>{r.charAt(0) + r.slice(1).toLowerCase()}</option>
                   ))}
@@ -371,7 +418,9 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={closeAdd}>
           <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+            ref={addDialogRef}
+            tabIndex={-1}
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 focus:outline-none"
             role="dialog"
             aria-modal="true"
             aria-label="Add staff member"
@@ -453,7 +502,9 @@ export function StaffTable({ initialData }: { initialData: StaffPage }) {
       {credModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={closeCred}>
           <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+            ref={credDialogRef}
+            tabIndex={-1}
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 focus:outline-none"
             role="dialog"
             aria-modal="true"
             aria-label="Staff credentials"
