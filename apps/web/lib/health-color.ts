@@ -71,3 +71,18 @@ export function healthBarFillFor(widthPct: number, scorePct: number): Record<str
     backgroundPosition: 'left center',
   }
 }
+
+// Full-width green gradient — a bar pinned to "excellent".
+const GREEN_FULL = 'linear-gradient(90deg, #5ed17f 0%, #34c759 100%)'
+
+/**
+ * Fill style for a "most commonly missing" bar. By default: length = how many
+ * sponsors miss the item, gradient color = its health (100 − missing). The
+ * Booth number bar is pinned full-width green per product request.
+ */
+export function missingBarFill(label: string, pct: number): Record<string, string> {
+  if (label === 'Booth number') {
+    return { width: '100%', backgroundImage: GREEN_FULL }
+  }
+  return healthBarFillFor(pct, 100 - pct)
+}
