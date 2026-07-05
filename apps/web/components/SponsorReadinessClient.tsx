@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { healthBarFill, healthTextColor, healthSolid } from '@/lib/health-color'
+import { healthBarFill, healthBarFillFor, healthTextColor } from '@/lib/health-color'
 
 const TIER_COLOR: Record<string, string> = {
   PLATINUM: 'bg-brand-100 text-brand-700',
@@ -182,8 +182,8 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
                 <div key={label} className="flex items-center gap-3">
                   <span className="text-xs text-ink-2 w-40 flex-shrink-0 truncate">{label}</span>
                   <div className="flex-1 bg-fill rounded-full h-2">
-                    {/* Inverted: more sponsors missing an item = worse = red */}
-                  <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: healthSolid(100 - pct) }} />
+                    {/* Length = how many miss it; gradient color = health (100−missing): most-missing red → least-missing green */}
+                  <div className="h-2 rounded-full" style={healthBarFillFor(pct, 100 - pct)} />
                   </div>
                   <span className="text-xs text-ink-2 w-16 text-right flex-shrink-0">{count} sponsor{count !== 1 ? 's' : ''}</span>
                 </div>
