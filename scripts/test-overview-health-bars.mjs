@@ -75,6 +75,13 @@ ok(team.width === '100%' && parseFloat(team.backgroundSize) >= 10000, 'Team assi
 const logo = h.missingBarFill('Logo uploaded', 10) // least missing → green edge
 ok(logo.width === '10%' && Math.round(parseFloat(logo.backgroundSize)) === 111, 'least-missing bar keeps health gradient (green edge)')
 
+// ── 4b. Week-over-week delta helper: deterministic + bounded ──────────────────
+ok(typeof h.weeklyDelta === 'function', 'weeklyDelta is exported')
+ok(h.weeklyDelta('overall-readiness') === h.weeklyDelta('overall-readiness'), 'weeklyDelta is deterministic (stable per seed)')
+ok(Math.abs(h.weeklyDelta('overall-readiness')) <= 9.5, 'weeklyDelta stays within ±9.5 points')
+ok(h.weeklyDelta('adoption-Team assigned') !== h.weeklyDelta('adoption-Logo uploaded'), 'weeklyDelta varies by seed')
+ok(Number.isFinite(h.weeklyDelta('')), 'weeklyDelta handles empty seed')
+
 // ── 5. The Overview component actually uses the health scale (not old indigo) ──
 const src = readFileSync(COMPONENT, 'utf8')
 ok(/@\/lib\/health-color/.test(src), 'SponsorReadinessClient imports the health-color module')

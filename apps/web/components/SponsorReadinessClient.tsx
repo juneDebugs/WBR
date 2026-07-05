@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { healthBarFill, healthTextColor, missingBarFill } from '@/lib/health-color'
+import { healthBarFill, healthTextColor, missingBarFill, weeklyDelta } from '@/lib/health-color'
 import { HealthProgress } from '@/components/HealthProgress'
 
 const TIER_COLOR: Record<string, string> = {
@@ -168,6 +168,7 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
             label="Overall readiness"
             pct={metrics.avgPct}
             height="h-3"
+            delta={weeklyDelta('overall-readiness')}
             caption={`avg across ${metrics.totalSponsors} sponsors`}
             tooltip={`${metrics.fullyReady} of ${metrics.totalSponsors} sponsors fully ready`}
           />
@@ -185,6 +186,7 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
                     key={label}
                     label={label}
                     pct={adoption}
+                    delta={weeklyDelta(`adoption-${label}`)}
                     fill={isBooth ? missingBarFill(label, pct) : healthBarFill(adoption)}
                     caption={`${count} of ${metrics.totalSponsors} sponsor${count !== 1 ? 's' : ''} still missing this`}
                     tooltip={`${have} of ${metrics.totalSponsors} have it`}

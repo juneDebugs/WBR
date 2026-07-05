@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { SOLUTION_COLORS } from '@/lib/solutions'
 import { HealthProgress } from '@/components/HealthProgress'
+import { weeklyDelta } from '@/lib/health-color'
 
 export interface RecommendedMatch {
   id: string
@@ -128,6 +129,7 @@ export function RecommendedMatchesClient({ matches, heading, subheading }: Props
                 <HealthProgress
                   label="Match"
                   pct={match.matchScore}
+                  delta={weeklyDelta(`match-${match.id}`)}
                   tooltip={`${match.matchScore}% match · ${match.matchedSolutions.length} solution${match.matchedSolutions.length === 1 ? '' : 's'} aligned`}
                   height="h-2"
                 />
