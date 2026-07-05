@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { healthBarFill, healthTextColor, healthSolid } from '@/lib/health-color'
 
 const TIER_COLOR: Record<string, string> = {
   PLATINUM: 'bg-brand-100 text-brand-700',
@@ -10,34 +11,12 @@ const TIER_COLOR: Record<string, string> = {
   BRONZE:   'bg-orange-100 text-orange-700',
 }
 
-// Pink → violet → indigo → blue gradient across completion %
-function scoreColor(pct: number) {
-  // Brand indigo ramp — deeper = more complete (single accent family, HIG).
-  if (pct === 100) return '#4f46e5' // brand-600 — complete
-  if (pct >= 75)  return '#6366f1'  // brand-500 — nearly there
-  if (pct >= 50)  return '#818cf8'  // brand-400 — halfway
-  if (pct >= 25)  return '#a5b4fc'  // brand-300 — early progress
-  return '#c7d2fe'                   // brand-200 — not started / low
-}
-
-// Brand indigo ramp — deeper = more complete (single accent family, HIG).
-function barGradient(pct: number) {
-  if (pct === 0) return '#c7d2fe'   // brand-200
-  if (pct === 100) return '#4f46e5' // brand-600
-  if (pct >= 75) return '#6366f1'   // brand-500
-  if (pct >= 50) return '#818cf8'   // brand-400
-  if (pct >= 25) return '#a5b4fc'   // brand-300
-  return '#c7d2fe'                   // brand-200
-}
-
-function Bar({ pct, height = 'h-1.5', gradient = false }: { pct: number; height?: string; gradient?: boolean }) {
+// Readiness bars use the red→yellow→green health scale (red = bad, yellow = ok,
+// green = excellent) from lib/health-color — see that module for the thresholds.
+function Bar({ pct, height = 'h-1.5' }: { pct: number; height?: string }) {
   return (
     <div className={`w-full bg-fill rounded-full ${height} overflow-hidden`}>
-      <div className={`${height} rounded-full transition-all duration-500`}
-        style={{
-          width: `${pct}%`,
-          background: gradient ? barGradient(pct) : scoreColor(pct),
-        }} />
+      <div className={`${height} rounded-full transition-all duration-500`} style={healthBarFill(pct)} />
     </div>
   )
 }
@@ -150,7 +129,7 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
         <div className="flex items-center gap-2 flex-shrink-0">
           {!expanded && (
             <div className="flex items-center gap-2">
-              <Bar pct={metrics.avgPct} height="h-2" gradient />
+              <Bar pct={metrics.avgPct} height="h-2" />
             </div>
           )}
           <button onClick={() => setExpanded(e => !e)}
@@ -177,7 +156,7 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
         <div className="p-5 space-y-5">
           {/* KPI row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MetricCard label="Avg Completion" value={`${metrics.avgPct}%`} color={metrics.avgPct >= 70 ? 'text-success-ink' : 'text-warning-ink'} />
+            <MetricCard label="Avg Completion" value={`${metrics.avgPct}%`} color={metrics.avgPct >= 80 ? 'text-success-ink' : metrics.avgPct >= 50 ? 'text-warning-ink' : 'text-danger-ink'} />
             <MetricCard label="Fully Ready" value={metrics.fullyReady} sub={`of ${metrics.totalSponsors} sponsors`} color="text-brand-700" />
             <MetricCard label="In Progress" value={metrics.inProgress} sub="partially complete" color="text-brand" />
             <MetricCard label="Not Started" value={metrics.notStarted} sub="0% complete" color="text-danger" />
@@ -187,11 +166,11 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
           <div>
             <div className="flex justify-between text-xs text-ink-2 mb-1.5">
               <span>Overall readiness</span>
-              <span className="font-semibold" style={{ color: scoreColor(metrics.avgPct) }}>{metrics.avgPct}%</span>
+              <span className="font-semibold" style={{ color: healthTextColor(metrics.avgPct) }}>{metrics.avgPct}%</span>
             </div>
             <div className="w-full bg-fill rounded-full h-3 overflow-hidden">
               <div className="h-3 rounded-full transition-all duration-700"
-                style={{ width: `${metrics.avgPct}%`, background: barGradient(metrics.avgPct) }} />
+                style={healthBarFill(metrics.avgPct)} />
             </div>
           </div>
 
@@ -203,7 +182,8 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
                 <div key={label} className="flex items-center gap-3">
                   <span className="text-xs text-ink-2 w-40 flex-shrink-0 truncate">{label}</span>
                   <div className="flex-1 bg-fill rounded-full h-2">
-                    <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #818cf8 0%, #818cf8 100%)' }} />
+                    {/* Inverted: more sponsors missing an item = worse = red */}
+                  <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: healthSolid(100 - pct) }} />
                   </div>
                   <span className="text-xs text-ink-2 w-16 text-right flex-shrink-0">{count} sponsor{count !== 1 ? 's' : ''}</span>
                 </div>
@@ -221,8 +201,8 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${TIER_COLOR[tier]}`}>{tier}</span>
                     <span className="text-xs text-ink-2">{count}</span>
                   </div>
-                  <Bar pct={avg} height="h-2" gradient />
-                  <span className="text-sm font-bold mt-1 block" style={{ color: scoreColor(avg) }}>{avg}%</span>
+                  <Bar pct={avg} height="h-2" />
+                  <span className="text-sm font-bold mt-1 block" style={{ color: healthTextColor(avg) }}>{avg}%</span>
                 </div>
               ))}
             </div>
@@ -281,13 +261,13 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${TIER_COLOR[s.tier] ?? 'bg-fill text-ink-2'}`}>
                           {s.tier}
                         </span>
-                        <span className="text-xs font-bold ml-auto flex-shrink-0" style={{ color: scoreColor(s.pct) }}>
+                        <span className="text-xs font-bold ml-auto flex-shrink-0" style={{ color: healthTextColor(s.pct) }}>
                           {s.pct}% <span className="font-normal text-ink-2">({s.done}/{s.total})</span>
                         </span>
                       </div>
 
                       {/* Progress bar */}
-                      <Bar pct={s.pct} height="h-1.5" gradient />
+                      <Bar pct={s.pct} height="h-1.5" />
 
                       {/* Checklist chips */}
                       <div className="flex flex-wrap gap-1 mt-2">
@@ -343,7 +323,7 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
           {/* Footer */}
           <div className="px-5 py-3 border-t border-hairline bg-fill flex items-center justify-between">
             <div className="flex gap-4 text-xs text-ink-2">
-              <span>Overall avg: <strong style={{ color: scoreColor(metrics.avgPct) }}>{metrics.avgPct}%</strong></span>
+              <span>Overall avg: <strong style={{ color: healthTextColor(metrics.avgPct) }}>{metrics.avgPct}%</strong></span>
               <span>{metrics.totalSponsors} total sponsors</span>
             </div>
             <Link href="/dashboard/sponsors" className="text-xs text-brand-700 hover:underline">Manage sponsors →</Link>
