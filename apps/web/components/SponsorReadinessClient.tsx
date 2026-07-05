@@ -421,7 +421,7 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
           onClick={() => setSentModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 text-center"
             onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto bg-brand">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto bg-brand-gradient">
               <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>

@@ -86,6 +86,10 @@ const boxShadow = {
 
 const RING = '0 0 0 3px rgba(99,102,241,0.30)' // brand focus ring
 
+// Signature brand gradient — blue → pink. The single accent gradient, used on
+// primary CTAs, avatars, logo marks, and key accent surfaces across all apps.
+const BRAND_GRADIENT = 'linear-gradient(135deg, #3b82f6 0%, #ec4899 100%)'
+
 const btnBase = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -178,12 +182,16 @@ function components() {
     '.btn': { ...btnBase },
     '.btn-primary': {
       ...btnBase,
-      backgroundColor: '#6366f1',
       color: '#ffffff',
-      '&:hover': { backgroundColor: '#4f46e5' },
+      backgroundColor: '#6366f1', // fallback under the gradient
+      backgroundImage: BRAND_GRADIENT,
+      transition: 'transform .15s ease, filter .15s ease, opacity .15s ease, box-shadow .15s ease',
+      '&:hover': { filter: 'brightness(0.95)' },
       '&:active': { transform: 'scale(0.97)' },
       '&:disabled': { opacity: '0.5', cursor: 'not-allowed', transform: 'none' },
     },
+    // Reusable brand gradient for avatars, logo marks, and accent surfaces.
+    '.brand-gradient': { backgroundColor: '#6366f1', backgroundImage: BRAND_GRADIENT },
     '.btn-secondary': {
       ...btnBase,
       backgroundColor: '#f2f2f7',
@@ -343,6 +351,7 @@ function base() {
       '--surface': '#ffffff',
       '--ink': '#1d1d1f',
       '--hairline': '#e5e5ea',
+      '--brand-gradient': 'linear-gradient(135deg, #3b82f6 0%, #ec4899 100%)',
     },
     '*': { WebkitTapHighlightColor: 'transparent' },
     html: {
@@ -381,6 +390,7 @@ module.exports = {
       fontFamily: { sans: SYSTEM_SANS },
       fontSize,
       boxShadow,
+      backgroundImage: { 'brand-gradient': BRAND_GRADIENT },
       keyframes: {
         'wbr-pulse': { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.5' } },
         'border-spin': { to: { transform: 'rotate(360deg)' } },
