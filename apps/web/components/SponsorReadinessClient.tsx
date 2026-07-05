@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { healthBarFill, healthTextColor, missingBarFill } from '@/lib/health-color'
+import { HealthProgress } from '@/components/HealthProgress'
 
 const TIER_COLOR: Record<string, string> = {
   PLATINUM: 'bg-brand-100 text-brand-700',
@@ -163,31 +164,33 @@ export function SponsorReadinessClient({ sponsors, metrics }: {
           </div>
 
           {/* Overall progress bar */}
-          <div>
-            <div className="flex justify-between text-xs text-ink-2 mb-1.5">
-              <span>Overall readiness</span>
-              <span className="font-semibold" style={{ color: healthTextColor(metrics.avgPct) }}>{metrics.avgPct}%</span>
-            </div>
-            <div className="w-full bg-fill rounded-full h-3 overflow-hidden">
-              <div className="h-3 rounded-full transition-all duration-700"
-                style={healthBarFill(metrics.avgPct)} />
-            </div>
-          </div>
+          <HealthProgress
+            label="Overall readiness"
+            pct={metrics.avgPct}
+            height="h-3"
+            caption={`avg across ${metrics.totalSponsors} sponsors`}
+            tooltip={`${metrics.fullyReady} of ${metrics.totalSponsors} sponsors fully ready`}
+          />
 
-          {/* Most missing */}
+          {/* Adoption by item — how many sponsors have each item (green = well adopted). */}
           <div>
-            <p className="text-xs font-semibold text-ink mb-2">Most commonly missing items</p>
-            <div className="space-y-2">
-              {metrics.topMissing.map(({ label, count, pct }) => (
-                <div key={label} className="flex items-center gap-3">
-                  <span className="text-xs text-ink-2 w-40 flex-shrink-0 truncate">{label}</span>
-                  <div className="flex-1 bg-fill rounded-full h-2">
-                    {/* Length = how many miss it; color = health (100−missing). Booth number is pinned full-width green. */}
-                  <div className="h-2 rounded-full" style={missingBarFill(label, pct)} />
-                  </div>
-                  <span className="text-xs text-ink-2 w-16 text-right flex-shrink-0">{count} sponsor{count !== 1 ? 's' : ''}</span>
-                </div>
-              ))}
+            <p className="text-xs font-semibold text-ink mb-3">Adoption by item</p>
+            <div className="space-y-4">
+              {metrics.topMissing.map(({ label, count, pct }) => {
+                const isBooth = label === 'Booth number'
+                const adoption = isBooth ? 100 : 100 - pct // % of sponsors that HAVE the item
+                const have = metrics.totalSponsors - count
+                return (
+                  <HealthProgress
+                    key={label}
+                    label={label}
+                    pct={adoption}
+                    fill={isBooth ? missingBarFill(label, pct) : healthBarFill(adoption)}
+                    caption={`${count} of ${metrics.totalSponsors} sponsor${count !== 1 ? 's' : ''} still missing this`}
+                    tooltip={`${have} of ${metrics.totalSponsors} have it`}
+                  />
+                )
+              })}
             </div>
           </div>
 
