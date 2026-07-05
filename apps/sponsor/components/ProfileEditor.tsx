@@ -256,6 +256,7 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
     if (res.ok) {
       const user = availableUsers.find(u => u.id === userId)
       if (user) setTeammates(prev => [...prev, user])
+      invalidate.teammates(); invalidate.sponsor()
     }
   }
 
@@ -267,6 +268,7 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
     })
     if (res.ok) {
       setTeammates(prev => prev.filter(t => t.id !== userId))
+      invalidate.teammates(); invalidate.sponsor()
     }
   }
 

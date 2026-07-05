@@ -137,6 +137,8 @@ export function useInvalidate() {
     attendees: () => qc.invalidateQueries({ queryKey: ['attendees'] }),
     profile: () => qc.invalidateQueries({ queryKey: ['sponsor-profile'] }),
     aiQuota: () => qc.invalidateQueries({ queryKey: ['ai-quota'] }),
+    submissions: () => qc.invalidateQueries({ queryKey: ['submission-forms'] }),
+    teammates: () => qc.invalidateQueries({ queryKey: ['teammates'] }),
     all: () => qc.invalidateQueries(),
   }
 }

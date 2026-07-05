@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import { SolutionBadge } from './SolutionBadge'
 import { getBorderColorForOffering } from '../lib/solutions'
@@ -51,6 +52,7 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [message, setMessage] = useState('')
   const router = useRouter()
+  const qc = useQueryClient()
 
   useEffect(() => {
     if (!showModal) return
@@ -72,7 +74,12 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetSponsorId: sponsor.id, message }),
       })
-      if (res.ok || res.status === 409) { setRequested(true); setShowModal(false); router.refresh() }
+      if (res.ok || res.status === 409) {
+        setRequested(true); setShowModal(false); router.refresh()
+        qc.invalidateQueries({ queryKey: ['meetings'] })
+        qc.invalidateQueries({ queryKey: ['dashboard'] })
+        qc.invalidateQueries({ queryKey: ['browse-requests'] })
+      }
     } finally {
       setLoading(false)
     }

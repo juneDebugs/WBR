@@ -10,7 +10,7 @@ import {
   BLOCKER_COPY,
   CAP_HIT_COPY,
 } from '@/lib/ai-intro'
-import { useAiQuota } from '@/lib/hooks'
+import { useAiQuota, useInvalidate } from '@/lib/hooks'
 import { IntroDraftModal } from './IntroDraftModal'
 import { SolutionBadge } from './SolutionBadge'
 
@@ -66,6 +66,7 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
   const [pendingKey, setPendingKey] = useState<string | null>(null)
 
   const quota = useAiQuota()
+  const invalidate = useInvalidate()
   const capHit = AI_DRAFT_INTRO_ENABLED ? quota.data?.capHit ?? null : null
 
   async function connect(attendeeId: string) {
@@ -78,6 +79,7 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
         body: JSON.stringify({ targetUserId: attendeeId }),
       })
       setRequested(prev => new Set([...prev, attendeeId]))
+      invalidate.meetings()
     } finally {
       setLoading(null)
     }
@@ -85,6 +87,7 @@ export function RecommendedAttendees({ attendees, sponsorId, sponsor }: Props) {
 
   function onSent(attendeeId: string, withIntro: boolean) {
     setRequested(prev => new Set([...prev, attendeeId]))
+    invalidate.meetings()
     if (withIntro) setRequestedWithIntro(prev => new Set([...prev, attendeeId]))
     setDraftTarget(null)
     setPendingKey(null)

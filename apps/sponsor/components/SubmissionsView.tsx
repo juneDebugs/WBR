@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
-import { useSubmissionForms } from '@/lib/hooks'
+import { useSubmissionForms, useInvalidate } from '@/lib/hooks'
 
 const FORM_TYPES = [
   { value: 'ABSTRACT',         label: 'Abstract',           desc: 'Short summaries of proposed presentations or research' },
@@ -126,6 +126,7 @@ const DEFAULT_FIELDS: Record<string, FormField[]> = {
 export function SubmissionsView() {
   // TanStack Query: cached for 5 min — no server round-trip on navigation
   const { data: rawForms, isLoading } = useSubmissionForms()
+  const invalidate = useInvalidate()
 
   // Normalize API response (_count.submissions) to component format (submissionCount)
   const initialForms = useMemo(() =>
@@ -245,6 +246,7 @@ export function SubmissionsView() {
         const form = await res.json()
         setForms(prev => [{ ...form, submissionCount: 0 }, ...prev])
         setShowCreate(false)
+        invalidate.submissions()
       }
     } finally {
       setSaving(false)
@@ -259,13 +261,14 @@ export function SubmissionsView() {
     })
     if (res.ok) {
       setForms(prev => prev.map(f => f.id === form.id ? { ...f, isOpen: !f.isOpen } : f))
+      invalidate.submissions()
     }
   }
 
   async function deleteForm(id: string) {
     if (!confirm('Delete this form and all its submissions?')) return
     const res = await fetch(`/api/submissions/${id}`, { method: 'DELETE' })
-    if (res.ok) setForms(prev => prev.filter(f => f.id !== id))
+    if (res.ok) { setForms(prev => prev.filter(f => f.id !== id)); invalidate.submissions() }
   }
 
   async function openFormSubmissions(form: SubmissionFormData) {
