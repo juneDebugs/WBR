@@ -66,11 +66,20 @@ const logoBar = h.healthBarFillFor(10, 90) // rarely missing → short bar, gree
 ok(logoBar.width === '10%' && Math.round(parseFloat(logoBar.backgroundSize)) === 111, 'healthBarFillFor(10,90): short bar, green edge (least missing)')
 ok(String(boothBar.backgroundImage).includes('#ff3b30') && String(boothBar.backgroundImage).includes('#34c759'), 'healthBarFillFor uses the red→green health gradient')
 
+// "Most commonly missing" bars + the pinned Booth number override.
+const booth = h.missingBarFill('Booth number', 30)
+ok(booth.width === '100%', 'Booth number bar is pinned to 100% width')
+ok(String(booth.backgroundImage).includes('#34c759') && !String(booth.backgroundImage).includes('#ff3b30'), 'Booth number bar is green (no red)')
+const team = h.missingBarFill('Team assigned', 100) // most missing → red, full width
+ok(team.width === '100%' && parseFloat(team.backgroundSize) >= 10000, 'Team assigned bar stays red at full width')
+const logo = h.missingBarFill('Logo uploaded', 10) // least missing → green edge
+ok(logo.width === '10%' && Math.round(parseFloat(logo.backgroundSize)) === 111, 'least-missing bar keeps health gradient (green edge)')
+
 // ── 5. The Overview component actually uses the health scale (not old indigo) ──
 const src = readFileSync(COMPONENT, 'utf8')
 ok(/@\/lib\/health-color/.test(src), 'SponsorReadinessClient imports the health-color module')
 ok(/healthBarFill\(/.test(src), 'readiness bars use healthBarFill')
-ok(/healthBarFillFor\(/.test(src), '"most commonly missing" bars use the healthBarFillFor gradient')
+ok(/missingBarFill\(label, pct\)/.test(src), '"most commonly missing" bars use missingBarFill (incl. Booth override)')
 ok(/healthTextColor\(/.test(src), 'score text uses healthTextColor')
 ok(!/scoreColor|barGradient/.test(src), 'old indigo scoreColor/barGradient removed')
 ok(!/#818cf8|#a5b4fc|#c7d2fe|#4f46e5/.test(src), 'old brand-indigo bar hexes removed')
