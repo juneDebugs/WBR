@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { getIndustry, getJobFunction, getTitleLevel, getCompanyDescription, getBorderColorForSeeking } from '@/lib/solutions'
 import { SolutionBadge } from './SolutionBadge'
@@ -37,6 +38,7 @@ export function PersonCard({ person, requested: initialRequested }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [message, setMessage] = useState('')
   const router = useRouter()
+  const qc = useQueryClient()
 
   useEffect(() => {
     if (!showModal) return
@@ -61,8 +63,12 @@ export function PersonCard({ person, requested: initialRequested }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetUserId: person.id, message }),
       })
-      if (res.ok) { setRequested(true); setShowModal(false); router.refresh() }
-      else if (res.status === 409) { setRequested(true); setShowModal(false); router.refresh() }
+      if (res.ok || res.status === 409) {
+        setRequested(true); setShowModal(false); router.refresh()
+        qc.invalidateQueries({ queryKey: ['meetings'] })
+        qc.invalidateQueries({ queryKey: ['dashboard'] })
+        qc.invalidateQueries({ queryKey: ['browse-requests'] })
+      }
     } finally {
       setLoading(false)
     }
