@@ -3,6 +3,7 @@
 import { useDashboard, useRecommendations } from '@/lib/hooks'
 import { RecommendedMatchesClient } from '@/components/RecommendedMatchesClient'
 import { HealthProgress } from '@/components/HealthProgress'
+import { weeklyDelta } from '@/lib/health-color'
 import { TeamMembers } from '@/components/TeamMembers'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -296,6 +297,7 @@ function UserDashboard({ data, isSponsor }: { data: any; isSponsor: boolean }) {
           <HealthProgress
             label="Profile completeness"
             pct={profilePct}
+            delta={weeklyDelta('meetings-profile')}
             caption={`${profilePct}% complete`}
             tooltip={`${profileFilled} of ${profileFields.length} fields complete`}
           />

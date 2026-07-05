@@ -39,6 +39,27 @@ export function healthLabel(pct: number): 'excellent' | 'ok' | 'bad' {
 }
 
 /**
+ * Week-over-week delta (percentage points, one decimal) for a bar, seeded by a
+ * stable key so it does not jump on every render. Positive = up vs last week.
+ *
+ * DEMO PLACEHOLDER: the app has no weekly-metrics snapshot yet, so this can't be
+ * a real (thisWeek − lastWeek). It's deterministic and clearly labelled "vs last
+ * week" in the UI. To make it real, store a weekly snapshot of each metric and
+ * pass HealthProgress's `delta` = current − lastWeek instead of this.
+ */
+export function weeklyDelta(seed: string): number {
+  let h = 2166136261 // FNV-1a
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  h = h >>> 0
+  const magnitude = (h % 95) / 10 // 0.0 – 9.4 points
+  const sign = (h & 1) === 0 ? 1 : -1
+  return Math.round(sign * magnitude * 10) / 10
+}
+
+/**
  * Inline style for a progress-bar fill showing the red→yellow→green health
  * gradient clipped to `pct`. The gradient is scaled to the FULL track (via
  * background-size) so the color at the fill's right edge reflects the score:

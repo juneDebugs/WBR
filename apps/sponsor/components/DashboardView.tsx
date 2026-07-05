@@ -6,6 +6,7 @@ import { useUser, useSponsorData, useMeetingsData, useAttendees, useInvalidate }
 import { RecommendedAttendees } from './RecommendedAttendees'
 import { TeamMembers } from './TeamMembers'
 import { HealthProgress } from '@/components/HealthProgress'
+import { weeklyDelta } from '@/lib/health-color'
 
 function parseArr(val: string | null | undefined): string[] {
   if (!val) return []
@@ -172,6 +173,7 @@ export function DashboardView() {
             <HealthProgress
               label="Fields complete"
               pct={profile.score}
+              delta={weeklyDelta('sponsor-profile')}
               caption={`${profile.score}% complete`}
               tooltip={
                 profile.missing.length > 0

@@ -33,6 +33,9 @@ ok(/healthTextColor/.test(hp), 'HealthProgress colors the % with healthTextColor
 ok(/healthBarFill/.test(hp), 'HealthProgress defaults the bar to the health gradient')
 ok(/tooltip/.test(hp) && /caption/.test(hp), 'HealthProgress supports caption + hover tooltip')
 ok(/role="tooltip"/.test(hp), 'HealthProgress tooltip has role="tooltip"')
+ok(/delta/.test(hp) && /deltaPeriod/.test(hp), 'HealthProgress accepts a week-over-week delta prop')
+ok(/vs last week/.test(hp), 'HealthProgress delta is labelled "vs last week"')
+ok(/dir === 'flat'|dir: 'up' \| 'down' \| 'flat'/.test(hp), 'trend arrow supports up/down/flat')
 
 // ── 2. Every app has byte-identical copies (single source of truth) ───────────
 const canonHC = read(CANON_HC)
