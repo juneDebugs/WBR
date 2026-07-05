@@ -53,13 +53,24 @@ ok(f50.backgroundSize === '200% 100%', 'healthBarFill(50) scales gradient to ful
 ok(String(f50.backgroundImage).includes('#ff3b30') && String(f50.backgroundImage).includes('#34c759'), 'healthBarFill uses the health gradient')
 ok(h.healthBarFill(25).backgroundSize === '400% 100%', 'healthBarFill(25) scales to 400%')
 ok(h.healthBarFill(100).backgroundSize === '100% 100%', 'healthBarFill(100) scales to 100%')
-ok(h.healthBarFill(0).backgroundSize === '100% 100%', 'healthBarFill(0) has no divide-by-zero')
+ok(h.healthBarFill(0).width === '0%' && /^\d/.test(h.healthBarFill(0).backgroundSize) && !/(Infinity|NaN)/.test(h.healthBarFill(0).backgroundSize), 'healthBarFill(0) has no divide-by-zero (finite size, 0 width)')
 ok(h.healthBarFill(120).width === '100%' && h.healthBarFill(-5).width === '0%', 'healthBarFill clamps out-of-range pct')
+
+// Decoupled width/score fill — the inverted "most commonly missing" bars.
+const teamBar = h.healthBarFillFor(100, 0) // fully missing → full width, red
+ok(teamBar.width === '100%', 'healthBarFillFor(100,0): full-width bar (most missing)')
+ok(parseFloat(teamBar.backgroundSize) >= 10000, 'healthBarFillFor(100,0): score 0 → red (gradient far-left)')
+const boothBar = h.healthBarFillFor(50, 50) // half missing → half width, yellow edge
+ok(boothBar.width === '50%' && boothBar.backgroundSize === '200% 100%', 'healthBarFillFor(50,50): 50% width, yellow edge')
+const logoBar = h.healthBarFillFor(10, 90) // rarely missing → short bar, green edge
+ok(logoBar.width === '10%' && Math.round(parseFloat(logoBar.backgroundSize)) === 111, 'healthBarFillFor(10,90): short bar, green edge (least missing)')
+ok(String(boothBar.backgroundImage).includes('#ff3b30') && String(boothBar.backgroundImage).includes('#34c759'), 'healthBarFillFor uses the red→green health gradient')
 
 // ── 5. The Overview component actually uses the health scale (not old indigo) ──
 const src = readFileSync(COMPONENT, 'utf8')
 ok(/@\/lib\/health-color/.test(src), 'SponsorReadinessClient imports the health-color module')
 ok(/healthBarFill\(/.test(src), 'readiness bars use healthBarFill')
+ok(/healthBarFillFor\(/.test(src), '"most commonly missing" bars use the healthBarFillFor gradient')
 ok(/healthTextColor\(/.test(src), 'score text uses healthTextColor')
 ok(!/scoreColor|barGradient/.test(src), 'old indigo scoreColor/barGradient removed')
 ok(!/#818cf8|#a5b4fc|#c7d2fe|#4f46e5/.test(src), 'old brand-indigo bar hexes removed')

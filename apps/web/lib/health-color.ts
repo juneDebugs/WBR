@@ -45,12 +45,28 @@ export function healthLabel(pct: number): 'excellent' | 'ok' | 'bad' {
  * a low % shows red (bad), mid shows yellow (ok), high reaches green (excellent).
  */
 export function healthBarFill(pct: number): Record<string, string> {
-  const p = Math.max(0, Math.min(100, pct))
+  return healthBarFillFor(pct, pct)
+}
+
+/**
+ * Like `healthBarFill`, but decouples the bar's LENGTH from the COLOR it lands on.
+ *
+ *   width   = `widthPct`  (how much of the track the bar fills)
+ *   color   = the red→yellow→green gradient sampled at `scorePct`
+ *
+ * The gradient is scaled by `scorePct` (not width) so the fill's right edge shows
+ * the color at `scorePct` regardless of length. Used for the "most commonly
+ * missing" bars, where the length encodes how many sponsors miss the item but the
+ * color should encode its health (100 − missing): most-missing = red, least = green.
+ */
+export function healthBarFillFor(widthPct: number, scorePct: number): Record<string, string> {
+  const w = Math.max(0, Math.min(100, widthPct))
+  const s = Math.max(0, Math.min(100, scorePct))
   return {
-    width: `${p}%`,
+    width: `${w}%`,
     backgroundImage: HEALTH_GRADIENT,
-    // 10000/p makes the gradient span the whole track regardless of fill width.
-    backgroundSize: `${p > 0 ? 10000 / p : 100}% 100%`,
+    // 10000/s places the gradient's `s%` color at the fill's right edge; s=0 → all red.
+    backgroundSize: `${s > 0 ? Math.min(10000 / s, 100000) : 100000}% 100%`,
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'left center',
   }
