@@ -250,7 +250,7 @@ function SpeakerModal({ speaker, onClose }: { speaker: Speaker; onClose: () => v
             {speaker.bio && (
               <div className="rounded-2xl overflow-hidden bg-surface-2">
                 <div className="px-4 pt-3 pb-1 flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-brand flex items-center justify-center flex-shrink-0">
+                  <div className="w-6 h-6 rounded-lg bg-brand-gradient flex items-center justify-center flex-shrink-0">
                     <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
