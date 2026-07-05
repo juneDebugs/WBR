@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useUser, useSponsorData, useMeetingsData, useAttendees, useInvalidate } from '@/lib/hooks'
 import { RecommendedAttendees } from './RecommendedAttendees'
 import { TeamMembers } from './TeamMembers'
+import { HealthProgress } from '@/components/HealthProgress'
 
 function parseArr(val: string | null | undefined): string[] {
   if (!val) return []
@@ -168,10 +169,16 @@ export function DashboardView() {
               <h2 className="font-semibold text-ink">Profile Completeness</h2>
               <Link href="/profile" className="text-xs text-primary hover:underline">Edit profile →</Link>
             </div>
-            <div className="w-full bg-fill rounded-full h-2.5">
-              <div className={`h-2.5 rounded-full transition-all ${profile.score >= 80 ? 'bg-success' : 'bg-warning'}`} style={{ width: `${profile.score}%` }} />
-            </div>
-            <p className="text-sm text-ink-2">{profile.score}% complete</p>
+            <HealthProgress
+              label="Fields complete"
+              pct={profile.score}
+              caption={`${profile.score}% complete`}
+              tooltip={
+                profile.missing.length > 0
+                  ? `${profile.missing.length} field${profile.missing.length !== 1 ? 's' : ''} still missing`
+                  : 'All fields complete'
+              }
+            />
             {profile.missing.length > 0 && (
               <div>
                 <p className="text-xs text-ink-2 font-medium mb-2">Missing fields:</p>

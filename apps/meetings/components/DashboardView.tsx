@@ -2,6 +2,7 @@
 
 import { useDashboard, useRecommendations } from '@/lib/hooks'
 import { RecommendedMatchesClient } from '@/components/RecommendedMatchesClient'
+import { HealthProgress } from '@/components/HealthProgress'
 import { TeamMembers } from '@/components/TeamMembers'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -292,13 +293,12 @@ function UserDashboard({ data, isSponsor }: { data: any; isSponsor: boolean }) {
             <h2 className="font-semibold text-ink">Profile Completeness</h2>
             <Link href="/profile" className="text-xs text-primary hover:underline">Edit profile →</Link>
           </div>
-          <div className="w-full bg-fill rounded-full h-2.5">
-            <div
-              className={`h-2.5 rounded-full transition-all ${profilePct >= 80 ? 'bg-success' : 'bg-warning'}`}
-              style={{ width: `${profilePct}%` }}
-            />
-          </div>
-          <p className="text-sm text-ink-2">{profilePct}% complete</p>
+          <HealthProgress
+            label="Profile completeness"
+            pct={profilePct}
+            caption={`${profilePct}% complete`}
+            tooltip={`${profileFilled} of ${profileFields.length} fields complete`}
+          />
           {profileMissing.length > 0 ? (
             <div>
               <p className="text-xs text-ink-2 font-medium mb-2">Missing fields:</p>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { SOLUTION_COLORS } from '@/lib/solutions'
+import { HealthProgress } from '@/components/HealthProgress'
 
 export interface RecommendedMatch {
   id: string
@@ -15,13 +16,6 @@ export interface RecommendedMatch {
   matchScore: number       // 0–100
   matchedSolutions: string[] // solutions that aligned
   alreadyRequested: boolean
-}
-
-function scoreBadgeClass(score: number) {
-  if (score >= 75) return 'badge-success'
-  if (score >= 50) return 'badge-brand'
-  if (score >= 25) return 'badge-warning'
-  return 'badge-neutral'
 }
 
 interface Props {
@@ -76,12 +70,6 @@ export function RecommendedMatchesClient({ matches, heading, subheading }: Props
             >
               {/* Header band */}
               <div className="h-16 flex items-center justify-center relative bg-brand-50">
-                {/* Match score badge */}
-                <div className={`badge ${scoreBadgeClass(match.matchScore)} absolute top-2 right-2 font-bold`}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
-                  {match.matchScore}%
-                </div>
-
                 {/* Logo / avatar */}
                 {match.logoUrl ? (
                   <Image
@@ -135,6 +123,14 @@ export function RecommendedMatchesClient({ matches, heading, subheading }: Props
 
                 {/* Spacer */}
                 <div className="flex-1" />
+
+                {/* Match score */}
+                <HealthProgress
+                  label="Match"
+                  pct={match.matchScore}
+                  tooltip={`${match.matchScore}% match · ${match.matchedSolutions.length} solution${match.matchedSolutions.length === 1 ? '' : 's'} aligned`}
+                  height="h-2"
+                />
 
                 {/* CTA */}
                 <button
