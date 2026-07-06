@@ -20,6 +20,7 @@
     "db:seed": "pnpm --filter @conference/db db:seed",
     "db:studio": "pnpm --filter @conference/db db:studio",
     "test:design": "node scripts/test-design-system.mjs",
+    "test:buttons": "node scripts/test-button-style.mjs",
     "test:overview-bars": "node scripts/test-overview-health-bars.mjs",
     "test:health-progress": "node scripts/test-health-progress.mjs",
     "bench:data": "node scripts/bench-data-layer.mjs",

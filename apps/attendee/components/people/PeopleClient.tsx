@@ -701,7 +701,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
                 onClick={sendGlobal}
                 disabled={!globalInput.trim() || globalSending}
                 className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-opacity"
-                style={{ background: 'linear-gradient(135deg, #4f46e5, #6366f1)' }}
+                style={{ background: '#4f46e5' }}
               >
                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

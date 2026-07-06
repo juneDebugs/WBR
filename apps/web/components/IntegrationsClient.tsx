@@ -269,8 +269,7 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
               <button
                 onClick={saveCredentials}
                 disabled={saving || !modal.formFields?.every(f => !f.key.includes('Password') && !f.key.includes('Url') && !f.key.includes('webhook') ? true : !!formValues[f.key])}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-                style={{ background: `linear-gradient(135deg, ${modal.accentFrom}, ${modal.accentTo})` }}
+                className="btn-primary flex-1"
               >
                 {saving ? 'Connecting…' : 'Connect'}
               </button>
@@ -373,8 +372,7 @@ export function IntegrationsClient({ saved, connected, error }: Props) {
                     </div>
                   ) : (
                     <button onClick={() => openModal(integration)}
-                      className="w-full py-2 rounded-xl text-xs font-semibold text-white transition-all active:scale-95"
-                      style={{ background: `linear-gradient(135deg, ${integration.accentFrom}, ${integration.accentTo})` }}>
+                      className="btn-primary btn-sm w-full">
                       Connect
                     </button>
                   )}
