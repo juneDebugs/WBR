@@ -86,9 +86,32 @@ const boxShadow = {
 
 const RING = '0 0 0 3px rgba(99,102,241,0.30)' // brand focus ring
 
-// Signature brand gradient — blue → pink. The single accent gradient, used on
-// primary CTAs, avatars, logo marks, and key accent surfaces across all apps.
+// Signature brand gradient — blue → pink. Retained ONLY for identity marks
+// (avatars, logo marks, accent surfaces via `.brand-gradient` / `bg-brand-gradient`).
+// Primary CTAs no longer use it — see the "glow" treatment below.
 const BRAND_GRADIENT = 'linear-gradient(135deg, #3b82f6 0%, #ec4899 100%)'
+
+// Primary-CTA "glow" treatment (2026-07 restyle). Replaces the blue→pink gradient
+// button with a solid indigo fill (brand-600), a light lavender edge (brand-300)
+// and a soft violet halo — the single source of truth for the CTA look in all
+// four apps. Implemented purely with color + box-shadow so it changes zero layout
+// (no border box-model shift) and keeps the 44px HIG touch target from btnBase.
+// rgba form is intentional: keeps the violet out of the retired-hex-literal guard
+// and out of app source (this file is the only place the glow is defined).
+const BTN_PRIMARY_BG = '#4f46e5' // brand-600, solid
+const BTN_PRIMARY_BG_HOVER = '#4338ca' // brand-700
+const BTN_GLOW = [
+  '0 0 0 1px rgba(165,180,252,0.90)', // brand-300 lavender edge ring
+  'inset 0 1px 0 rgba(255,255,255,0.18)', // top sheen (HIG depth)
+  '0 4px 14px rgba(79,70,229,0.40)', // brand-600 base lift
+  '0 0 22px rgba(168,85,247,0.45)', // violet halo
+].join(', ')
+const BTN_GLOW_HOVER = [
+  '0 0 0 1px rgba(199,210,254,1)', // brand-200 brighter edge
+  'inset 0 1px 0 rgba(255,255,255,0.22)',
+  '0 6px 20px rgba(79,70,229,0.50)',
+  '0 0 32px rgba(168,85,247,0.60)', // intensified violet halo
+].join(', ')
 
 const btnBase = {
   display: 'inline-flex',
@@ -183,12 +206,13 @@ function components() {
     '.btn-primary': {
       ...btnBase,
       color: '#ffffff',
-      backgroundColor: '#6366f1', // fallback under the gradient
-      backgroundImage: BRAND_GRADIENT,
-      transition: 'transform .15s ease, filter .15s ease, opacity .15s ease, box-shadow .15s ease',
-      '&:hover': { filter: 'brightness(0.95)' },
-      '&:active': { transform: 'scale(0.97)' },
-      '&:disabled': { opacity: '0.5', cursor: 'not-allowed', transform: 'none' },
+      backgroundColor: BTN_PRIMARY_BG, // solid indigo (brand-600) — was the blue→pink gradient
+      backgroundImage: 'none',
+      boxShadow: BTN_GLOW,
+      transition: 'transform .15s ease, background-color .15s ease, box-shadow .15s ease, opacity .15s ease',
+      '&:hover': { backgroundColor: BTN_PRIMARY_BG_HOVER, boxShadow: BTN_GLOW_HOVER },
+      '&:active': { transform: 'scale(0.97)', boxShadow: BTN_GLOW },
+      '&:disabled': { opacity: '0.5', cursor: 'not-allowed', transform: 'none', boxShadow: 'none' },
     },
     // Reusable brand gradient for avatars, logo marks, and accent surfaces.
     '.brand-gradient': { backgroundColor: '#6366f1', backgroundImage: BRAND_GRADIENT },

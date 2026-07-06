@@ -101,6 +101,12 @@ breaks and all four render identically:
 - Layout: `.page-container`, `.hairline`, `.section-title` (HIG grouped-list header)
 - Surfaces: `.card`, `.card-flat`, `.glass` / `.glass-card` (material blur), `.material-bar`
 - Buttons: `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-ghost`, `.icon-btn`
+  - **`.btn-primary`** is the signature CTA: a **solid indigo fill** (`brand-600 #4f46e5`)
+    with a light lavender edge (`brand-300`) and a soft **violet glow** halo — built from
+    `color` + `box-shadow` only (zero layout impact). Hover darkens to `brand-700` and
+    intensifies the glow. (It replaced the earlier blue→pink gradient CTA on 2026-07-06.)
+    The blue→pink `.brand-gradient` / `bg-brand-gradient` is retained **only** for
+    decorative identity marks — logo squares, avatar/icon fallbacks — never for buttons.
 - Forms: `.input`, `.textarea`, `.select`, `.label`, `.form-input`, `.form-label`
 - Data/status: `.badge` + `.badge-{success,warning,danger,brand,neutral}`
 - Filters: `.chip`, `.chip-active`, `.chip-inactive`

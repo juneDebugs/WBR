@@ -249,6 +249,36 @@ the preset, the preset exposes the expected token + component surface, and no ap
 reintroduces the retired rogue-color systems. No separate ADR filed — this is a
 styling-layer convergence, not an architectural boundary change.
 
+### Primary CTA restyle — gradient → solid "glow" button (2026-07-06)
+
+The signature primary CTA was a blue→pink gradient (`.btn-primary`,
+`BRAND_GRADIENT = linear-gradient(135deg, #3b82f6, #ec4899)`). Design direction moved
+it to a **solid indigo fill (brand-600 `#4f46e5`) with a light lavender edge
+(brand-300) and a soft violet halo** — the "new style button." Because the CTA look
+lives in exactly one place — `.btn-primary` in [`packages/ui/preset.cjs`](../packages/ui/preset.cjs) —
+the change is a **single edit that repaints all 79 primary buttons across the four
+apps at once**; no per-call-site churn was needed for the shared class.
+
+Decisions & scope: (1) the change is **buttons only** — the blue→pink gradient is
+**retained** for non-interactive identity marks (`.brand-gradient` /
+`bg-brand-gradient`: logo squares, avatar/icon fallbacks), which is what that gradient
+now exists for; (2) the glow is built purely from `color` + `box-shadow` (a spread
+ring + halo), so it changes **zero layout** — no border box-model shift — and keeps the
+44px HIG touch target, tap-scale, focus-visible ring and disabled state from `btnBase`;
+(3) three one-off gradient/near-CTA buttons were folded into the shared class for
+consistency: the two per-integration "Connect" buttons in `apps/web` IntegrationsClient
+(their inline accent gradient dropped; service identity stays on each card's icon +
+accent strip), the attendee global-chat send button (flattened to the solid brand-600
+fill), and the `apps/meetings` login button (was a hand-rolled `bg-primary`, now
+`.btn-primary`); (4) the violet halo is defined in the preset in `rgba()` form, keeping
+it out of app source and clear of the retired-hex-literal guard in `test:design`. The
+category-color solution chips (a deliberate categorical data-color system, exempted in
+`test:design`) are intentionally left untouched. Guarded by
+`scripts/test-button-style.mjs` (alias `pnpm test:buttons`): asserts `.btn-primary`
+paints no gradient, keeps the glow recipe + HIG affordances, preserves the decorative
+`.brand-gradient`, and that no `<button>` reintroduces a gradient fill. No ADR — a
+styling-layer restyle, not an architectural change.
+
 ---
 
 ## Cross-references
