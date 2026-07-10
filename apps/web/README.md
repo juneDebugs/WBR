@@ -63,9 +63,25 @@ apps/web/
 The admin app's API routes split into two shapes:
 
 - **`app/api/data/*`** — read-only, TanStack-Query-fronted endpoints serving the dashboard panels. Most endpoints are `unstable_cache`'d with a 60s revalidate and a tag (`speakers`, etc.); mutations elsewhere call `revalidateTag(...)` on the matching tag. **Known exception:** `app/api/data/attendees/route.ts` is not cached — it calls `fetchAttendeesPage()` directly per the Phase 9 server-side pagination shape (query params drive the cache key, which would balloon `unstable_cache` storage). Documented in [`docs/architecture.md`](../../docs/architecture.md) §Server-side pagination.
-- **`app/api/<resource>/*`** — mutation routes (POST/PATCH/DELETE) under `/api/access`, `/api/admin`, `/api/attendees`, `/api/email`, `/api/integrations`, `/api/meeting-requests`, `/api/schedule-meetings`, `/api/speakers`, `/api/sponsors`.
+- **`app/api/<resource>/*`** — mutation routes (POST/PATCH/DELETE) under `/api/access`, `/api/admin`, `/api/attendees`, `/api/chat`, `/api/email`, `/api/integrations`, `/api/meeting-requests`, `/api/schedule-meetings`, `/api/speakers`, `/api/sponsors`.
 
 Cross-cutting API inventory lives in [`docs/architecture.md`](../../docs/architecture.md) §API surface.
+
+### Scheduled broadcasts (Chat page)
+
+Admins can pre-schedule Global Broadcast messages. `POST/GET /api/chat/scheduled`
+creates/lists them, `PATCH/DELETE /api/chat/scheduled/[id]` edits/cancels pending ones
+(409 once no longer pending), and `GET|POST /api/chat/scheduled/dispatch` is the
+delivery tick (staff session or `Authorization: Bearer $CRON_SECRET`; wired as a
+per-minute Vercel cron in `vercel.json`). Delivery does not rely on the cron alone:
+the scheduled-list GET, `/api/data/chat`, and the attendee global-chat polls all run
+`dispatchDueScheduledMessages()` from `@conference/db`, which claims each due row
+atomically so overlapping ticks never double-send. UI lives in
+`components/ScheduledBroadcasts.tsx` (schedule dialog + pending queue with edit/cancel
+and sent/failed history) wired into `components/GlobalChatAdmin.tsx`. Decision log:
+[`docs/decisions.md`](../../docs/decisions.md) §Scheduled chat broadcasts. Tests:
+`pnpm test:scheduled` (logic) and `pnpm test:scheduled:api` (HTTP acceptance). New
+environments need the `ScheduledMessage` table on Turso: `pnpm db:migrate-scheduled`.
 
 ## App-specific gotchas
 

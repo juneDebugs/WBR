@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { unstable_cache } from 'next/cache'
-import { prisma } from '@conference/db'
+import { unstable_cache, revalidateTag } from 'next/cache'
+import { prisma, dispatchDueScheduledMessages } from '@conference/db'
 
 const GENERAL_ROOM_ID = 'room-general'
 
@@ -74,6 +74,10 @@ const getCachedChatData = unstable_cache(
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request })
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Opportunistic dispatch tick: deliver any due scheduled broadcasts before
+  // serving chat data, so an open admin chat page acts as a delivery clock.
+  const dispatched = await dispatchDueScheduledMessages(prisma)
+  if (dispatched.sent > 0) revalidateTag('chat')
   const data = await getCachedChatData()
   return NextResponse.json(data)
 }

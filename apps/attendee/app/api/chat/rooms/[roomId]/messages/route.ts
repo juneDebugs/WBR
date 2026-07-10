@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@conference/db'
+import { prisma, dispatchDueScheduledMessagesThrottled, GENERAL_ROOM_ID } from '@conference/db'
 
 // GET /api/chat/rooms/[roomId]/messages
 export async function GET(
@@ -17,6 +17,14 @@ export async function GET(
     where: { roomId_userId: { roomId, userId: session.user.id } },
   })
   if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  // Delivery tick for admin-scheduled broadcasts: attendees polling the
+  // general room every 15s materialize any due scheduled messages, so
+  // delivery does not depend on an admin having the dashboard open.
+  // Throttled per instance so hot polling doesn't tax every request.
+  if (roomId === GENERAL_ROOM_ID) {
+    await dispatchDueScheduledMessagesThrottled(prisma)
+  }
 
   const messages = await prisma.message.findMany({
     where: { roomId },

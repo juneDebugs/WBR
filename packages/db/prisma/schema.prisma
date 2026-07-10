@@ -81,6 +81,7 @@ model User {
   speakerProfile    Speaker?
   chatMemberships   ChatMember[]
   messages          Message[]
+  scheduledMessages ScheduledMessage[]
   following         Follow[]          @relation("UserFollowing")
   followers         Follow[]          @relation("UserFollowers")
   posts             Post[]
@@ -251,8 +252,9 @@ model ChatRoom {
   type      String   @default("CHANNEL") // CHANNEL | DIRECT
   createdAt DateTime @default(now())
 
-  members  ChatMember[]
-  messages Message[]
+  members           ChatMember[]
+  messages          Message[]
+  scheduledMessages ScheduledMessage[]
 }
 
 model ChatMember {
@@ -279,6 +281,25 @@ model Message {
   sender User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([roomId, createdAt])
+}
+
+model ScheduledMessage {
+  id            String    @id @default(cuid())
+  roomId        String
+  senderId      String
+  content       String
+  scheduledFor  DateTime
+  status        String    @default("PENDING") // PENDING | SENT | CANCELED | FAILED
+  sentAt        DateTime?
+  sentMessageId String? // Message.id created on dispatch
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledFor])
+  @@index([roomId, status, scheduledFor])
 }
 
 // ─── Sponsors ────────────────────────────────────────────────────────────────

@@ -32,7 +32,10 @@
     "e2e:sponsor-team": "node scripts/e2e-sponsor-team.mjs",
     "test:meetings-team": "node scripts/test-meetings-team.mjs",
     "e2e:meetings-team": "node scripts/e2e-meetings-team.mjs",
-    "smoketest:browse": "node scripts/smoketest-browse-api.mjs"
+    "smoketest:browse": "node scripts/smoketest-browse-api.mjs",
+    "test:scheduled": "node scripts/test-scheduled-messages.mjs",
+    "test:scheduled:api": "node scripts/test-scheduled-messages-api.mjs",
+    "db:migrate-scheduled": "node scripts/migrate-scheduled-messages.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1",

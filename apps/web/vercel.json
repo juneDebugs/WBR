@@ -2,5 +2,11 @@
   "buildCommand": "cd ../.. && npx turbo build --filter=web",
   "installCommand": "cd ../.. && corepack enable && pnpm install",
   "framework": "nextjs",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/chat/scheduled/dispatch",
+      "schedule": "* * * * *"
+    }
+  ]
 }

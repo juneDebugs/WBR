@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@conference/db'
+import { prisma, dispatchDueScheduledMessagesThrottled } from '@conference/db'
 
 const GENERAL_ROOM_ID = 'room-general'
 
@@ -19,6 +19,10 @@ export async function GET() {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   await ensureRoom()
+
+  // Delivery tick for admin-scheduled broadcasts (see apps/web chat page).
+  // Throttled per instance so hot polling doesn't tax every request.
+  await dispatchDueScheduledMessagesThrottled(prisma)
 
   const messages = await prisma.message.findMany({
     where: { roomId: GENERAL_ROOM_ID },

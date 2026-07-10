@@ -1,5 +1,6 @@
 export { prisma, dbConnectionMode } from './client'
 export * from '@prisma/client'
+export * from './scheduled-messages'
 import { scrypt, timingSafeEqual, randomBytes, type ScryptOptions } from 'crypto'
 import type { ConfSession, Speaker } from '@prisma/client'
 

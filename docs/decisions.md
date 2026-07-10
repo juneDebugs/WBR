@@ -279,6 +279,28 @@ paints no gradient, keeps the glow recipe + HIG affordances, preserves the decor
 `.brand-gradient`, and that no `<button>` reintroduces a gradient fill. No ADR — a
 styling-layer restyle, not an architectural change.
 
+## Scheduled chat broadcasts — read-path dispatch, no job queue (2026-07-10)
+
+Admins can pre-schedule Global Broadcast messages from the Chat page. Rows live in a new
+`ScheduledMessage` table (`PENDING | SENT | CANCELED | FAILED`); due rows are
+materialized into real `Message` rows by `dispatchDueScheduledMessages()` in
+`packages/db/src/scheduled-messages.ts`. **Delivery decision:** the stack has no job
+queue (see ADR 0001/0003 constraints), so dispatch runs opportunistically on the chat
+read paths — the admin page's scheduled-queue poll (30s), `/api/data/chat`, and the
+attendee global-chat polls (15s) — plus a Vercel cron on `apps/web`
+(`/api/chat/scheduled/dispatch`, per-minute, `CRON_SECRET`-authorized). Every caller may
+race; correctness comes from an atomic per-row claim (`updateMany` guarded on
+`status: PENDING` — a single conditional UPDATE), so a message is delivered at most once
+even across concurrent serverless instances. A send failure after claim marks the row
+`FAILED` (surfaced in the UI history; never silently dropped, never double-sent). Edits
+and cancels use the same status guard and return 409 once the row stops being PENDING.
+**Schema on Turso:** `prisma db push` cannot target `libsql://`, so the DDL is replayed
+by `scripts/migrate-scheduled-messages.mjs` (alias `pnpm db:migrate-scheduled`;
+idempotent, also handles local files via `--local`). Guarded by
+`scripts/test-scheduled-messages.mjs` (validation + dispatch atomicity/idempotence/
+failure paths against a scratch DB) and `scripts/test-scheduled-messages-api.mjs`
+(HTTP acceptance: auth, validation, CRUD, live delivery, cache revalidation).
+
 ---
 
 ## Cross-references

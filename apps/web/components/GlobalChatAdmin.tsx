@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { format } from 'date-fns'
+import { ScheduleDialog, ScheduledBroadcastsPanel, formatWhen } from '@/components/ScheduledBroadcasts'
 
 interface RecentMessage {
   id: string
@@ -108,6 +109,9 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
   const [localMessages, setLocalMessages] = useState<RecentMessage[]>(recentMessages)
   const [clearing, setClearing] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [scheduledFlash, setScheduledFlash] = useState<string | null>(null)
+  const [panelRefreshKey, setPanelRefreshKey] = useState(0)
 
 
   async function syncMembers() {
@@ -159,6 +163,33 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
   function deleteOne(id: string) {
     setLocalMessages(prev => prev.filter(m => m.id !== id))
   }
+
+  async function createScheduled(content: string, scheduledForIso: string): Promise<string | null> {
+    const res = await fetch('/api/chat/scheduled', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: content, scheduledFor: scheduledForIso }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return data.error ?? 'Could not schedule the message'
+    setDraft('')
+    setScheduledFlash(`Scheduled for ${formatWhen(scheduledForIso)}`)
+    setTimeout(() => setScheduledFlash(null), 4000)
+    setPanelRefreshKey(k => k + 1)
+    return null
+  }
+
+  // A scheduled broadcast just went out — pull fresh messages into the list
+  const onDelivered = useCallback(async () => {
+    try {
+      const res = await fetch('/api/data/chat')
+      if (!res.ok) return
+      const data = await res.json()
+      setLocalMessages(data.recentMessages ?? [])
+    } catch {
+      // next poll will catch up
+    }
+  }, [])
 
   const synced = memberCount >= totalUsers
 
@@ -231,6 +262,17 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
             className="flex-1 text-sm text-ink placeholder-ink-3 bg-white border border-hairline rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
           />
           <button
+            onClick={() => setScheduleOpen(true)}
+            className="btn-secondary btn-sm flex-shrink-0 self-end px-2.5"
+            aria-label="Schedule for later"
+            title="Schedule for later"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <button
             onClick={sendBroadcast}
             disabled={!draft.trim() || sending}
             className="btn-primary btn-sm flex-shrink-0 self-end"
@@ -246,7 +288,23 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
             )}
           </button>
         </div>
+        {scheduledFlash && (
+          <p className="text-xs text-success-ink font-medium mt-2" role="status">✓ {scheduledFlash}</p>
+        )}
       </div>
+
+      {/* Scheduled queue */}
+      <ScheduledBroadcastsPanel refreshKey={panelRefreshKey} onDelivered={onDelivered} />
+
+      {/* Schedule dialog (create) */}
+      <ScheduleDialog
+        open={scheduleOpen}
+        title="Schedule broadcast"
+        submitLabel="Schedule"
+        initialContent={draft}
+        onClose={() => setScheduleOpen(false)}
+        onSubmit={createScheduled}
+      />
 
       {/* Messages list */}
       {localMessages.length > 0 ? (
