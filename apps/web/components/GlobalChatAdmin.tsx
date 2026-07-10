@@ -310,7 +310,10 @@ export function GlobalChatAdmin({ memberCount, totalUsers, messageCount, recentM
       {localMessages.length > 0 ? (
         <>
           <div className="px-5 py-2 flex items-center justify-between border-b border-hairline bg-fill">
-            <p className="text-xs text-ink-2 italic">← Swipe a message left to delete it</p>
+            <div className="flex items-baseline gap-3">
+              <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest">History</p>
+              <p className="text-xs text-ink-2 italic">← Swipe a message left to delete it</p>
+            </div>
             {confirmClear ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-ink-2">Clear all?</span>
