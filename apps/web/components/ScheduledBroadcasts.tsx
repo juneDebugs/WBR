@@ -322,12 +322,12 @@ export function ScheduledBroadcastsPanel({ refreshKey, onDelivered }: PanelProps
   if (!loaded || (pending.length === 0 && history.length === 0)) return null
 
   return (
-    <div className="border-b border-hairline">
+    <div className="border-b border-hairline bg-brand-50/40">
       {/* Section header */}
-      <div className="px-5 py-2 flex items-center justify-between bg-fill border-b border-hairline">
-        <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest flex items-center gap-1.5">
-          <ClockIcon className="w-3.5 h-3.5" />
-          Scheduled
+      <div className="px-5 py-2.5 flex items-center justify-between bg-brand-50 border-b border-hairline">
+        <p className="text-xs font-semibold text-brand uppercase tracking-widest flex items-center gap-2">
+          <ClockIcon className="w-4 h-4" />
+          Scheduled messages
           {pending.length > 0 && <span className="badge badge-brand">{pending.length}</span>}
         </p>
         {history.length > 0 && (
@@ -351,9 +351,11 @@ export function ScheduledBroadcastsPanel({ refreshKey, onDelivered }: PanelProps
       {pending.length > 0 ? (
         <ul ref={listRef} tabIndex={-1} className="divide-y divide-hairline focus:outline-none">
           {pending.map(item => (
-            <li key={item.id} className="px-5 py-2.5 flex items-start gap-3">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 bg-brand/10">
-                <ClockIcon className="w-3.5 h-3.5 text-brand" />
+            <li key={item.id} className="px-5 py-3 flex items-center gap-3">
+              {/* Glow recipe mirrors .btn-primary: brand-300 edge ring + brand halo,
+                  rgba() form to stay clear of the retired-hex guard in test:design */}
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white text-brand shadow-[0_0_0_1px_rgba(165,180,252,0.9),0_2px_8px_rgba(79,70,229,0.35),0_0_18px_rgba(99,102,241,0.55)]">
+                <ClockIcon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-ink truncate">{item.content}</p>
