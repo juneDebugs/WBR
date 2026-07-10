@@ -35,6 +35,9 @@
     "smoketest:browse": "node scripts/smoketest-browse-api.mjs",
     "test:scheduled": "node scripts/test-scheduled-messages.mjs",
     "test:scheduled:api": "node scripts/test-scheduled-messages-api.mjs",
+    "test:feed": "node scripts/test-home-feed.mjs",
+    "test:feed:api": "node scripts/test-home-feed-api.mjs",
+    "e2e:feed": "node scripts/e2e-home-feed.mjs",
     "db:migrate-scheduled": "node scripts/migrate-scheduled-messages.mjs"
   },
   "devDependencies": {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@conference/db'
+import { prisma, getOrCreateDirectRoom } from '@conference/db'
 
 // GET /api/chat/rooms — list rooms the current user is a member of
 export async function GET() {
@@ -34,29 +34,11 @@ export async function POST(request: Request) {
   const { targetUserId } = await request.json()
   if (!targetUserId) return NextResponse.json({ error: 'Missing targetUserId' }, { status: 400 })
 
-  const myId = session.user.id
+  const result = await getOrCreateDirectRoom(prisma, session.user.id, targetUserId)
+  if (!result.ok) {
+    const status = result.error === 'User not found' ? 404 : 400
+    return NextResponse.json({ error: result.error }, { status })
+  }
 
-  // Check if a DM room already exists between these two users
-  const existing = await prisma.chatRoom.findFirst({
-    where: {
-      type: 'DIRECT',
-      AND: [
-        { members: { some: { userId: myId } } },
-        { members: { some: { userId: targetUserId } } },
-      ],
-    },
-  })
-
-  if (existing) return NextResponse.json(existing)
-
-  const room = await prisma.chatRoom.create({
-    data: {
-      type: 'DIRECT',
-      members: {
-        create: [{ userId: myId }, { userId: targetUserId }],
-      },
-    },
-  })
-
-  return NextResponse.json(room)
+  return NextResponse.json(result.room)
 }

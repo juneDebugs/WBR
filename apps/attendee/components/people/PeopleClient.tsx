@@ -35,9 +35,8 @@ interface Conversation {
   lastMessageAt: string | null
 }
 
-const TABS = ['Discover', 'Friends', 'Messages'] as const
+const TABS = ['Feed', 'Discover', 'Friends', 'Messages'] as const
 
-import Image from 'next/image'
 import { getIndustry, type Industry } from '@/lib/solutions'
 
 type Group = 'Fashion & Style' | 'Beauty & Wellness' | 'Home, Food & Lifestyle' | 'Technology'
@@ -144,7 +143,27 @@ interface ChatMessage {
   content: string
   senderId: string
   createdAt: string
-  sender: { name: string | null; image: string | null }
+  sender: {
+    id?: string
+    name: string | null
+    image: string | null
+    company?: string | null
+    jobTitle?: string | null
+  }
+}
+
+// Relative timestamp for feed cards: "now", "5m", "2h", "Yesterday", else short date.
+function timeAgo(iso: string): string {
+  const date = new Date(iso)
+  const diffMins = Math.floor((Date.now() - date.getTime()) / 60_000)
+  if (diffMins < 1) return 'now'
+  if (diffMins < 60) return `${diffMins}m`
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours}h`
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 export function PeopleClient(_props: Props) {
@@ -167,7 +186,7 @@ export function PeopleClient(_props: Props) {
 function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: Person[]; totalCount: number; friends: Person[]; friendIds: string[]; conversations: Conversation[] } }) {
   const { currentUserId, allUsers, totalCount, friends, friendIds, conversations } = data
 
-  const [tab, setTab] = useState<typeof TABS[number]>('Discover')
+  const [tab, setTab] = useState<typeof TABS[number]>('Feed')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Person | null>(null)
   const [searchResults, setSearchResults] = useState<Person[] | null>(null)
@@ -183,14 +202,15 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Global chat state
-  const [globalOpen, setGlobalOpen] = useState(false)
-  const [globalMessages, setGlobalMessages] = useState<ChatMessage[]>([])
-  const [globalInput, setGlobalInput] = useState('')
-  const [globalLoading, setGlobalLoading] = useState(false)
-  const [globalSending, setGlobalSending] = useState(false)
-  const [latestBroadcast, setLatestBroadcast] = useState<string | null>(null)
-  const globalEndRef = useRef<HTMLDivElement>(null)
+  // Feed state — conference-wide home feed backed by /api/chat/global.
+  // Messages are stored ASCENDING (oldest→newest, as the API returns) and
+  // reversed for display so the newest post is at the top.
+  const [feedMessages, setFeedMessages] = useState<ChatMessage[]>([])
+  const [feedInput, setFeedInput] = useState('')
+  const [feedLoading, setFeedLoading] = useState(true)
+  const [feedSending, setFeedSending] = useState(false)
+  const feedFetchedRef = useRef(false)
+  const feedLatestIdRef = useRef('')
 
   const [friendState, setFriendState] = useState<Record<string, boolean>>(
     Object.fromEntries(friendIds.map(id => [id, true]))
@@ -258,48 +278,120 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Fetch the feed once, the first time the Feed tab becomes active
+  // (immediately on mount, since Feed is the default tab).
   useEffect(() => {
-    globalEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [globalMessages])
-
-  // Fetch latest broadcast on mount
-  useEffect(() => {
+    if (tab !== 'Feed' || feedFetchedRef.current) return
+    feedFetchedRef.current = true
+    setFeedLoading(true)
     fetch('/api/chat/global')
       .then(r => r.json())
       .then(data => {
         const msgs: ChatMessage[] = data.messages ?? []
-        if (msgs.length > 0) setLatestBroadcast(msgs[msgs.length - 1].content)
+        feedLatestIdRef.current = msgs[msgs.length - 1]?.id ?? ''
+        setFeedMessages(msgs)
       })
       .catch(() => {})
-  }, [])
+      .finally(() => setFeedLoading(false))
+  }, [tab])
 
-  async function openGlobalChat() {
-    setGlobalOpen(true)
-    setGlobalLoading(true)
-    try {
-      const res = await fetch('/api/chat/global')
-      const data = await res.json()
-      setGlobalMessages(data.messages ?? [])
-    } finally {
-      setGlobalLoading(false)
+  // Poll while the Feed tab is active — this is the delivery mechanism for
+  // admin-scheduled broadcasts. Mirrors the latestIdRef pattern in
+  // components/chat/ChatView.tsx to skip re-renders when nothing changed.
+  useEffect(() => {
+    if (tab !== 'Feed') return
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/chat/global')
+        if (!res.ok) return
+        const data = await res.json()
+        const msgs: ChatMessage[] = data.messages ?? []
+        const latest = msgs[msgs.length - 1]?.id ?? ''
+        if (latest !== feedLatestIdRef.current) {
+          feedLatestIdRef.current = latest
+          // Preserve any optimistic (temp) messages still awaiting their POST.
+          setFeedMessages(prev => [...msgs, ...prev.filter(m => m.id.startsWith('temp-'))])
+        }
+      } catch {}
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [tab])
+
+  // Current user's profile (for the composer avatar), if already loaded.
+  const me = useMemo(
+    () =>
+      loadedUsers.find(u => u.id === currentUserId) ??
+      friends.find(u => u.id === currentUserId) ??
+      null,
+    [loadedUsers, friends, currentUserId]
+  )
+
+  // Newest-first for display
+  const feedDisplay = useMemo(() => [...feedMessages].reverse(), [feedMessages])
+
+  async function sendFeedPost() {
+    const content = feedInput.trim()
+    if (!content || feedSending) return
+    setFeedSending(true)
+    setFeedInput('')
+
+    // Optimistic append — stored list is ascending, so appending puts the
+    // temp message at the top of the (reversed) feed.
+    const temp: ChatMessage = {
+      id: `temp-${Date.now()}`,
+      content,
+      senderId: currentUserId,
+      createdAt: new Date().toISOString(),
+      sender: {
+        id: currentUserId,
+        name: me?.name ?? 'You',
+        image: me?.image ?? null,
+        company: me?.company ?? null,
+        jobTitle: me?.jobTitle ?? null,
+      },
     }
+    setFeedMessages(prev => [...prev, temp])
+
+    try {
+      const res = await fetch('/api/chat/global', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      })
+      if (res.ok) {
+        const saved: ChatMessage = await res.json()
+        setFeedMessages(prev => {
+          const withoutTemp = prev.filter(m => m.id !== temp.id)
+          // A poll may have already delivered the saved message — don't duplicate.
+          return withoutTemp.some(m => m.id === saved.id) ? withoutTemp : [...withoutTemp, saved]
+        })
+        feedLatestIdRef.current = saved.id
+      } else {
+        // Validation failure (e.g. 400) — remove the temp post, restore input.
+        setFeedMessages(prev => prev.filter(m => m.id !== temp.id))
+        setFeedInput(content)
+      }
+    } catch {
+      setFeedMessages(prev => prev.filter(m => m.id !== temp.id))
+      setFeedInput(content)
+    }
+    setFeedSending(false)
   }
 
-  async function sendGlobal() {
-    if (!globalInput.trim() || globalSending) return
-    setGlobalSending(true)
-    const content = globalInput.trim()
-    setGlobalInput('')
-    const res = await fetch('/api/chat/global', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+  // Open the existing DM modal for a feed post's author.
+  function openDmWith(msg: ChatMessage) {
+    const senderId = msg.sender.id ?? msg.senderId
+    if (senderId === currentUserId) return
+    setSelected({
+      id: senderId,
+      name: msg.sender.name,
+      image: msg.sender.image,
+      company: msg.sender.company ?? null,
+      jobTitle: msg.sender.jobTitle ?? null,
+      bio: null,
+      website: null,
+      linkedinUrl: null,
     })
-    if (res.ok) {
-      const msg = await res.json()
-      setGlobalMessages(prev => [...prev, msg])
-    }
-    setGlobalSending(false)
   }
 
   async function sendMessage() {
@@ -444,18 +536,20 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
     <div className="page-container">
       <h1 className="text-2xl font-bold mb-4">People</h1>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder={tab === 'Messages' ? 'Search messages…' : 'Search people…'}
-          className="input pl-9 bg-fill"
-        />
-      </div>
+      {/* Search (not used by the Feed tab) */}
+      {tab !== 'Feed' && (
+        <div className="relative mb-4">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={tab === 'Messages' ? 'Search messages…' : 'Search people…'}
+            className="input pl-9 bg-fill"
+          />
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-hairline mb-4 overflow-x-auto">
@@ -474,6 +568,119 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
           </button>
         ))}
       </div>
+
+      {/* Feed tab */}
+      {tab === 'Feed' && (
+        <div>
+          {/* Composer */}
+          <div className="card mb-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-fill overflow-hidden flex items-center justify-center flex-shrink-0">
+                {me?.image ? (
+                  <img src={me.image} alt="" className="w-10 h-10 object-cover" />
+                ) : (
+                  <svg className="w-5 h-5 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <textarea
+                  value={feedInput}
+                  onChange={e => setFeedInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendFeedPost() } }}
+                  placeholder="Share something with everyone at WBR…"
+                  maxLength={5000}
+                  rows={2}
+                  className="textarea w-full min-h-[44px]"
+                />
+                <div className="flex justify-end mt-2">
+                  <button
+                    onClick={sendFeedPost}
+                    disabled={!feedInput.trim() || feedSending}
+                    className="btn-primary btn-sm min-h-[44px]"
+                  >
+                    Post
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feed — newest first */}
+          {feedLoading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="card">
+                  <div className="flex items-start gap-3">
+                    <div className="skeleton w-10 h-10 rounded-full flex-shrink-0" />
+                    <div className="flex-1 space-y-2 py-0.5">
+                      <div className="skeleton h-3.5 w-1/3" />
+                      <div className="skeleton h-3 w-1/2" />
+                      <div className="skeleton h-3.5 w-full" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : feedDisplay.length === 0 ? (
+            <div className="empty-state">
+              <div className="w-12 h-12 rounded-full bg-fill flex items-center justify-center">
+                <svg className="w-6 h-6 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-ink">Be the first to say hello to the conference</p>
+              <p className="text-footnote text-ink-3">Posts here are visible to everyone at WBR.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {feedDisplay.map(msg => {
+                const senderId = msg.sender.id ?? msg.senderId
+                const isMe = senderId === currentUserId
+                const isTemp = msg.id.startsWith('temp-')
+                const caption = [msg.sender.company, msg.sender.jobTitle].filter(Boolean).join(' · ')
+                return (
+                  <div key={msg.id} className={`card ${isTemp ? 'opacity-60' : ''}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-fill overflow-hidden flex items-center justify-center flex-shrink-0">
+                        {msg.sender.image ? (
+                          <img src={msg.sender.image} alt="" loading="lazy" className="w-10 h-10 object-cover" />
+                        ) : (
+                          <span className="text-ink-2 font-bold">{(msg.sender.name ?? '?')[0]}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 min-w-0">
+                          {isMe ? (
+                            <span className="font-semibold text-ink text-sm truncate">{msg.sender.name ?? 'You'}</span>
+                          ) : (
+                            <Link href={`/people/${senderId}`} className="font-semibold text-ink text-sm truncate active:opacity-70">
+                              {msg.sender.name ?? 'Unknown'}
+                            </Link>
+                          )}
+                          <span className="text-caption text-ink-3 flex-shrink-0">{timeAgo(msg.createdAt)}</span>
+                        </div>
+                        {caption && <p className="text-footnote text-ink-3 truncate">{caption}</p>}
+                      </div>
+                      {!isMe && (
+                        <button
+                          onClick={() => openDmWith(msg)}
+                          className="btn-ghost btn-sm min-h-[44px] -my-2 -mr-2 flex-shrink-0"
+                        >
+                          Message
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-subhead text-ink whitespace-pre-wrap break-words mt-2">{msg.content}</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages tab */}
       {tab === 'Messages' && (
@@ -550,33 +757,6 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
       {/* Discover tab — grouped */}
       {tab === 'Discover' && (
         <div>
-          {/* WBR module */}
-          <div
-            className="w-full flex items-center gap-3 rounded-2xl p-4 mb-5"
-            style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)' }}
-          >
-            <div className="flex-shrink-0 rounded-full p-[2px]" style={{ boxShadow: '0 0 8px 2px #f72585, 0 0 16px 4px #f72585', background: 'linear-gradient(135deg, #f72585, #ff85c1)' }}>
-              {/*
-                Phase 14 (2026-06-29): hot-linked gstatic.com thumbnail replaced
-                with the local WBR PWA app icon. Same rollback shape as the hero
-                render block in HomeScreen.tsx — uncomment the preserved <Image>
-                below + comment the active one if UAT rejects. The
-                encrypted-tbn0.gstatic.com entry in apps/attendee/next.config.js
-                images.remotePatterns is retained for this rollback path.
-              */}
-              <Image src="/icons/icon-192.png" alt="WBR" width={44} height={44} className="w-11 h-11 rounded-full object-cover block" />
-              {/* Phase 14 rollback — pre-Phase-14 <Image> render preserved verbatim:
-              <Image src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSgAAvPlrRRvUDB1RF75eTXwrpt20VLulV3Dg&s" alt="WBR 2027" width={44} height={44} className="w-11 h-11 rounded-full object-cover block" />
-              */}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-white text-sm">WBR</p>
-              <p className="text-sm text-white/70 mt-0.5 truncate">
-                {latestBroadcast ?? 'No messages yet'}
-              </p>
-            </div>
-          </div>
-
           {searchLoading && tab === 'Discover' && search && (
             <div className="flex justify-center py-8">
               <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -600,115 +780,6 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
               )}
             </>
           )}
-        </div>
-      )}
-
-      {/* WBR modal */}
-      {globalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:px-5" onClick={() => setGlobalOpen(false)}>
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
-            style={{ height: '75dvh', maxHeight: 'calc(100dvh - 60px)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)' }}>
-              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-white text-sm leading-tight">WBR</p>
-                <p className="text-xs text-white/70">Everyone at the conference</p>
-              </div>
-              <button
-                onClick={() => setGlobalOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0"
-              >
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-              {globalLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : globalMessages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
-                    style={{ background: 'linear-gradient(135deg, #4f46e5, #6366f1)' }}>
-                    <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm font-semibold text-ink">Be the first to say hello!</p>
-                  <p className="text-xs text-ink-3 mt-1">Start the global conversation</p>
-                </div>
-              ) : (
-                globalMessages.map(msg => {
-                  const isMe = msg.senderId === currentUserId
-                  return (
-                    <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
-                      {!isMe && (
-                        <div className="w-6 h-6 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 mb-0.5">
-                          {msg.sender.image ? (
-                            <img src={msg.sender.image} alt="" loading="lazy" className="w-6 h-6 object-cover" />
-                          ) : (
-                            <span className="text-primary font-bold text-[10px]">{(msg.sender.name ?? '?')[0]}</span>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex flex-col gap-0.5 max-w-[72%]">
-                        {!isMe && (
-                          <Link href={`/people/${msg.senderId}`} className="text-[10px] text-ink-3 px-1 active:opacity-70">
-                            {msg.sender.name}
-                          </Link>
-                        )}
-                        <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                          isMe
-                            ? 'text-white rounded-br-sm'
-                            : 'bg-fill text-ink rounded-bl-sm'
-                        }`} style={isMe ? { background: 'linear-gradient(135deg, #4f46e5, #6366f1)' } : {}}>
-                          {msg.content}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-              <div ref={globalEndRef} />
-            </div>
-
-            {/* Input */}
-            <div className="flex items-center gap-2 px-3 py-3 border-t border-hairline flex-shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
-              <input
-                value={globalInput}
-                onChange={e => setGlobalInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendGlobal() } }}
-                placeholder="Message everyone…"
-                className="flex-1 bg-fill rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-              <button
-                onClick={sendGlobal}
-                disabled={!globalInput.trim() || globalSending}
-                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-opacity"
-                style={{ background: '#4f46e5' }}
-              >
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
