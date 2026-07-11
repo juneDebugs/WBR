@@ -37,6 +37,7 @@
     "test:scheduled:api": "node scripts/test-scheduled-messages-api.mjs",
     "test:feed": "node scripts/test-home-feed.mjs",
     "test:feed:api": "node scripts/test-home-feed-api.mjs",
+    "test:feed:rail": "node scripts/test-feed-messages-rail.mjs",
     "e2e:feed": "node scripts/e2e-home-feed.mjs",
     "db:migrate-scheduled": "node scripts/migrate-scheduled-messages.mjs",
     "db:migrate-feed": "node scripts/migrate-feed-social.mjs",

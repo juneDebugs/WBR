@@ -4,7 +4,7 @@ import React, { useState, useTransition, useEffect, useRef, useMemo, useCallback
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { usePeopleData } from '@/lib/hooks'
-import { FeedTab, FeedHeader, type Person } from './FeedTab'
+import { FeedTab, FeedHeader, type Person, type Conversation } from './FeedTab'
 
 interface Props {
   currentUserId: string
@@ -13,16 +13,6 @@ interface Props {
   friends: Person[]
   friendIds: string[]
   conversations: Conversation[]
-}
-
-interface Conversation {
-  roomId: string
-  userId: string
-  name: string
-  image: string | null
-  lastMessage: string | null
-  lastMessageSenderId: string | null
-  lastMessageAt: string | null
 }
 
 const TABS = ['Feed', 'Discover', 'Friends', 'Messages'] as const
@@ -450,10 +440,12 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
           me={me}
           people={loadedUsers}
           friends={optimisticFriends}
+          conversations={conversations}
           friendState={friendState}
           pendingFollow={pending}
           onToggleFriend={toggleFriend}
           onOpenDm={handleSelect}
+          onOpenMessages={() => setTab('Messages')}
           composerOpen={composerOpen}
           onComposerOpenChange={setComposerOpen}
         />
@@ -475,12 +467,26 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
             </div>
           ) : (
             filteredConvos.map(convo => {
-              const person = allUsers.find(u => u.id === convo.userId)
+              // Enrich from everything loaded so far (paged users + friends),
+              // then fall back to the conversation payload itself so a thread
+              // whose user isn't loaded still opens.
+              const person: Person = loadedUsers.find(u => u.id === convo.userId) ??
+                friends.find(u => u.id === convo.userId) ?? {
+                id: convo.userId,
+                name: convo.name,
+                image: convo.image,
+                company: null,
+                jobTitle: null,
+                bio: null,
+                website: null,
+                linkedinUrl: null,
+              }
               return (
                 <button
                   key={convo.roomId}
-                  onClick={() => person && setSelected(person)}
-                  className="card w-full flex items-center gap-3 active:bg-fill transition-colors text-left"
+                  onClick={() => convo.userId && setSelected(person)}
+                  disabled={!convo.userId}
+                  className="card w-full flex items-center gap-3 active:bg-fill transition-colors text-left disabled:opacity-50"
                 >
                   <div className="w-12 h-12 rounded-full bg-fill flex-shrink-0 overflow-hidden flex items-center justify-center">
                     {convo.image ? (

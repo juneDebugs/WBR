@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Browser E2E for the People → Feed section (attendee app), Instagram-style UI:
 //   Goal 1 — /people opens on the Feed tab by default: WBR wordmark header,
-//            stories rail ("Your story"), and feed posts all visible.
+//            messages rail ("Messages" entry tile, no "Your story"), and feed
+//            posts all visible.
 //   Goal 2 — a plain ATTENDEE can create a post via the "+" header button and
 //            composer sheet, sees it appear at the top instantly (optimistic),
 //            and it survives a reload (persisted).
@@ -11,7 +12,11 @@
 //   Goal 4 — comments flow: the comments sheet opens, a comment can be posted,
 //            it renders in the list, and the post's "View … comment" count
 //            updates.
-//   Goal 5 — the other People tabs (Discover/Friends/Messages) still render.
+//   Goal 5 — messages rail: a seeded DM conversation appears as a rail tile;
+//            tapping the tile opens the DM thread with that person; tapping
+//            the "Messages" entry tile switches to the Messages tab, which
+//            lists the same conversation.
+//   Goal 6 — the other People tabs (Discover/Friends/Messages) still render.
 //
 // Drives real Chromium at an iPhone-ish viewport, seeds a second user's feed
 // post over HTTP, and writes screenshots to SHOT_DIR for design review.
@@ -97,6 +102,32 @@ async function postFeedAs(creds, content) {
   return res.json()
 }
 
+// Send a DM as `creds` to `targetUserId` so the recipient's messages rail and
+// Messages tab have a real conversation to render.
+async function sendDmAs(creds, targetUserId, content) {
+  const jarFetch = makeJar()
+  const { csrfToken } = await (await jarFetch(`${BASE}/api/auth/csrf`)).json()
+  await jarFetch(`${BASE}/api/auth/callback/credentials`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ csrfToken, email: creds.email, password: creds.password, json: 'true' }),
+  })
+  const roomRes = await jarFetch(`${BASE}/api/chat/rooms`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ targetUserId }),
+  })
+  if (!roomRes.ok) throw new Error(`DM room create failed: ${roomRes.status}`)
+  const room = await roomRes.json()
+  const msgRes = await jarFetch(`${BASE}/api/chat/rooms/${room.id}/messages`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+  if (!msgRes.ok) throw new Error(`DM message post failed: ${msgRes.status}`)
+  return msgRes.json()
+}
+
 // ─── Cleanup oracle (same DB the dev server uses; Turso wins in local dev) ───
 
 function openOracle() {
@@ -158,6 +189,18 @@ async function main() {
   }
   if (!seeded) throw new Error('could not seed the partner feed post')
 
+  // Seed a DM from the partner to the primary actor so the Feed messages rail
+  // and the Messages tab have a conversation to show. User ids/names come from
+  // the same DB the dev server reads.
+  const oracle = openOracle()
+  const meRow = await oracle.execute({ sql: 'SELECT id FROM User WHERE email = ?', args: [CREDS.email] })
+  const partnerRow = await oracle.execute({ sql: 'SELECT id, name FROM User WHERE email = ?', args: [CREDS_B.email] })
+  oracle.close?.()
+  if (!meRow.rows[0] || !partnerRow.rows[0]) throw new Error('test users missing from the DB')
+  const partnerName = partnerRow.rows[0].name ?? 'Unknown'
+  const dmContent = `${MARKER} dm from the feed rail partner`
+  await sendDmAs(CREDS_B, meRow.rows[0].id, dmContent)
+
   const browser = await chromium.launch()
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
   const page = await ctx.newPage()
@@ -173,9 +216,13 @@ async function main() {
   check('WBR wordmark header visible without any tab click (Feed is default)', true)
   const feedTab = page.locator('button', { hasText: 'Feed' }).first()
   check('Feed tab present', await feedTab.count() > 0)
-  const yourStoryVisible = await page.getByText('Your story').first()
+  // The rail's Messages entry is the only element whose accessible name
+  // includes a conversation count (header plane button is plain "Messages").
+  const railMessagesTile = () => page.getByRole('button', { name: /^Messages, \d+ conversation/ }).first()
+  const railTileVisible = await railMessagesTile()
     .waitFor({ state: 'visible', timeout: 30_000 }).then(() => true, () => false)
-  check('stories rail visible ("Your story" item)', yourStoryVisible)
+  check('messages rail visible ("Messages" entry tile with count)', railTileVisible)
+  check('rail no longer shows "Your story"', (await page.getByText('Your story').count()) === 0)
   const partnerPostVisible = await page.getByText(partnerContent).first()
     .waitFor({ state: 'visible', timeout: 30_000 }).then(() => true, () => false)
   check('partner post visible in the feed', partnerPostVisible)
@@ -255,7 +302,32 @@ async function main() {
     .waitFor({ state: 'visible', timeout: 10_000 }).then(() => true, () => false)
   check('post shows an updated "View … comment" count', viewCommentsVisible)
 
-  // ── Goal 5: other tabs unharmed ──
+  // ── Goal 5: messages rail — tile opens the DM, entry tile opens the tab ──
+  console.log('\n[messages rail]')
+  const convoTile = page.getByRole('button', { name: `Open conversation with ${partnerName}` }).first()
+  const convoTileVisible = await convoTile
+    .waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false)
+  check(`rail shows a conversation tile for ${partnerName}`, convoTileVisible)
+  if (convoTileVisible) {
+    await convoTile.click()
+    const dmVisible = await page.getByText(dmContent).first()
+      .waitFor({ state: 'visible', timeout: 20_000 }).then(() => true, () => false)
+    check('tapping the tile opens the DM thread with that person', dmVisible)
+    await page.screenshot({ path: join(SHOT_DIR, 'feed-06-dm-from-rail.png') })
+    // Dismiss the DM sheet via its backdrop (tap above the bottom sheet).
+    await page.mouse.click(195, 60)
+    await page.getByText(dmContent).first().waitFor({ state: 'hidden', timeout: 10_000 })
+      .catch(() => {})
+  }
+  await railMessagesTile().click()
+  const messagesSearchVisible = await page.locator('input[placeholder="Search messages…"]').first()
+    .waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false)
+  check('rail "Messages" entry tile switches to the Messages tab', messagesSearchVisible)
+  check('Messages tab lists the same conversation',
+    (await page.getByText(partnerName).count()) > 0)
+  await page.screenshot({ path: join(SHOT_DIR, 'feed-07-messages-tab.png') })
+
+  // ── Goal 6: other tabs unharmed ──
   console.log('\n[other tabs]')
   for (const label of ['Discover', 'Friends', 'Messages']) {
     await page.locator('button', { hasText: label }).first().click()
@@ -266,7 +338,7 @@ async function main() {
   await page.locator('button', { hasText: 'Feed' }).first().click()
   await wordmark.waitFor({ state: 'visible', timeout: 10_000 })
   check('returning to Feed keeps it working', true)
-  await page.screenshot({ path: join(SHOT_DIR, 'feed-05-back-to-feed.png') })
+  await page.screenshot({ path: join(SHOT_DIR, 'feed-08-back-to-feed.png') })
 
   await browser.close()
   console.log(`\nScreenshots: ${SHOT_DIR}/feed-0*.png`)

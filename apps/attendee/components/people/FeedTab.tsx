@@ -25,6 +25,18 @@ interface FeedSender {
   jobTitle?: string | null
 }
 
+// One DM thread as returned by /api/data/people — the same shape the Messages
+// tab renders. The Feed rail consumes these so both surfaces stay in sync.
+export interface Conversation {
+  roomId: string
+  userId: string
+  name: string
+  image: string | null
+  lastMessage: string | null
+  lastMessageSenderId: string | null
+  lastMessageAt: string | null
+}
+
 export interface FeedMessage {
   id: string
   roomId?: string
@@ -282,10 +294,12 @@ export interface FeedTabProps {
   me: Person | null
   people: Person[]
   friends: Person[]
+  conversations: Conversation[]
   friendState: Record<string, boolean>
   pendingFollow: boolean
   onToggleFriend: (userId: string, e?: React.MouseEvent) => void
   onOpenDm: (person: Person) => void
+  onOpenMessages: () => void
   composerOpen: boolean
   onComposerOpenChange: (open: boolean) => void
 }
@@ -295,10 +309,12 @@ export function FeedTab({
   me,
   people,
   friends,
+  conversations,
   friendState,
   pendingFollow,
   onToggleFriend,
   onOpenDm,
+  onOpenMessages,
   composerOpen,
   onComposerOpenChange,
 }: FeedTabProps) {
@@ -385,18 +401,38 @@ export function FeedTab({
   // Newest-first for display
   const feedDisplay = useMemo(() => [...feedMessages].reverse(), [feedMessages])
 
-  // Stories rail: friends first, then everyone else, excluding me, capped at 15.
-  const storyPeople = useMemo(() => {
-    const seen = new Set<string>([currentUserId])
-    const out: Person[] = []
-    for (const p of [...friends, ...people]) {
-      if (seen.has(p.id)) continue
-      seen.add(p.id)
-      out.push(p)
-      if (out.length >= 15) break
-    }
-    return out
-  }, [friends, people, currentUserId])
+  // Messages rail: one tile per DM conversation, in the same order the
+  // Messages tab shows them (most recent message first). Tapping a tile opens
+  // that conversation directly. People we already have full profiles for are
+  // enriched from friends/people; otherwise the conversation payload itself
+  // carries enough (id, name, image) to open the DM.
+  const railConversations = useMemo(() => {
+    const byId = new Map<string, Person>()
+    for (const p of [...friends, ...people]) if (!byId.has(p.id)) byId.set(p.id, p)
+    return conversations
+      .filter(c => c.userId && c.userId !== currentUserId)
+      .slice(0, 15)
+      .map(c => ({
+        convo: c,
+        person: byId.get(c.userId) ?? {
+          id: c.userId,
+          name: c.name,
+          image: c.image,
+          company: null,
+          jobTitle: null,
+          bio: null,
+          website: null,
+          linkedinUrl: null,
+        },
+      }))
+  }, [conversations, friends, people, currentUserId])
+
+  // Badge/label count: only conversations the rail can actually represent
+  // (orphaned rooms whose other member was deleted arrive with userId '').
+  const railConvoCount = useMemo(
+    () => conversations.filter(c => c.userId && c.userId !== currentUserId).length,
+    [conversations, currentUserId]
+  )
 
   function openComposer() {
     setComposerError(null)
@@ -598,35 +634,45 @@ export function FeedTab({
         </div>
       ) : (
         <>
-          {/* Stories rail */}
+          {/* Messages rail — mirrors the Messages tab's conversation list */}
           <div className="-mx-4 px-4 flex gap-2 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {/* Your story */}
+            {/* Messages entry point — jumps to the Messages tab */}
             <button
               type="button"
-              onClick={openComposer}
+              onClick={onOpenMessages}
+              aria-label={railConvoCount > 0
+                ? `Messages, ${railConvoCount} conversation${railConvoCount === 1 ? '' : 's'}`
+                : 'Messages'}
               className="w-[72px] flex-shrink-0 flex flex-col items-center gap-1 active:opacity-70"
             >
               <div className="relative">
-                <AvatarCircle person={me} sizeClass="w-16 h-16" textClass="text-xl" />
-                <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-primary ring-2 ring-surface flex items-center justify-center" aria-hidden="true">
-                  <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                </span>
+                <div className="w-16 h-16 rounded-full bg-fill-2 flex items-center justify-center">
+                  <PlaneIcon className="w-7 h-7 text-ink-2" />
+                </div>
+                {railConvoCount > 0 && (
+                  <span
+                    className="absolute bottom-0 right-0 min-w-[20px] h-5 px-1 rounded-full bg-primary ring-2 ring-surface flex items-center justify-center text-[10px] font-bold text-white"
+                    aria-hidden="true"
+                  >
+                    {railConvoCount > 9 ? '9+' : railConvoCount}
+                  </span>
+                )}
               </div>
-              <span className="text-caption text-ink text-center truncate w-16">Your story</span>
+              <span className="text-caption text-ink text-center truncate w-16">Messages</span>
             </button>
-            {storyPeople.map(p => (
-              <Link
-                key={p.id}
-                href={`/people/${p.id}`}
+            {railConversations.map(({ convo, person }) => (
+              <button
+                key={convo.roomId}
+                type="button"
+                onClick={() => onOpenDm(person)}
+                aria-label={`Open conversation with ${person.name ?? 'attendee'}`}
                 className="w-[72px] flex-shrink-0 flex flex-col items-center gap-1 active:opacity-70"
               >
-                <GradientRingAvatar person={p} sizeClass="w-16 h-16" outerPad="p-[2.5px]" innerPad="p-[2px]" textClass="text-lg" />
+                <GradientRingAvatar person={person} sizeClass="w-16 h-16" outerPad="p-[2.5px]" innerPad="p-[2px]" textClass="text-lg" />
                 <span className="text-caption text-ink text-center truncate w-16">
-                  {(p.name ?? 'Unknown').split(' ')[0]}
+                  {(person.name ?? 'Unknown').split(' ')[0]}
                 </span>
-              </Link>
+              </button>
             ))}
           </div>
 
