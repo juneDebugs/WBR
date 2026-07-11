@@ -401,21 +401,6 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
         <h1 className="text-2xl font-bold mb-4">People</h1>
       )}
 
-      {/* Search (not used by the Feed tab) */}
-      {tab !== 'Feed' && (
-        <div className="relative mb-4">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={tab === 'Messages' ? 'Search messages…' : 'Search people…'}
-            className="input pl-9 bg-fill"
-          />
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="flex border-b border-hairline mb-4 overflow-x-auto">
         {TABS.map(t => (
@@ -433,6 +418,21 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
           </button>
         ))}
       </div>
+
+      {/* Search (not used by the Feed tab) */}
+      {tab !== 'Feed' && (
+        <div className="relative mb-4">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={tab === 'Messages' ? 'Search messages…' : 'Search people…'}
+            className="input pl-9 bg-fill"
+          />
+        </div>
+      )}
 
       {/* Feed tab — Instagram-style feed (stories, posts, likes, comments). */}
       {tab === 'Feed' && (
