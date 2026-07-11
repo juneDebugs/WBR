@@ -41,6 +41,24 @@ export function NewDmClient({ users }: { users: User[] }) {
         </div>
       </div>
 
+      {filtered.length === 0 && (
+        <div className="text-center px-6 py-16">
+          <div className="w-12 h-12 rounded-full bg-fill flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M15 19v-1a6 6 0 00-12 0v1h12zM13 7a4 4 0 11-8 0 4 4 0 018 0zM19 8v6M22 11h-6" />
+            </svg>
+          </div>
+          <p className="text-sm font-semibold text-ink">
+            {users.length === 0 ? 'No friends to message yet' : 'No results found'}
+          </p>
+          {users.length === 0 && (
+            <p className="text-xs text-ink-3 mt-1">
+              Find people on the People tab and send a friend request — you can message once you&apos;re friends.
+            </p>
+          )}
+        </div>
+      )}
       <div className="divide-y divide-hairline">
         {filtered.map(user => (
           <button key={user.id} onClick={() => startDm(user.id)}

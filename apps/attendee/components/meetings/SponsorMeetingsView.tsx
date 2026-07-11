@@ -57,6 +57,13 @@ export function SponsorMeetingsView({ sponsor, upcoming, past, inboundRequests, 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetUserId: attendeeId }),
     })
+    if (!res.ok) {
+      // New DM rooms require friendship — send the user to the profile,
+      // where the friend-request tile lives (mirrors chat/dm/[userId]).
+      const body = await res.json().catch(() => null)
+      if (body?.code === 'NOT_FRIENDS') router.push(`/people/${attendeeId}`)
+      return
+    }
     const room = await res.json()
     router.push(`/chat/${room.id}`)
   }

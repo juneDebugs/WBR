@@ -9,8 +9,14 @@ export default async function NewMessagePage() {
 
   const userId = session.user!.id
 
+  // Only mutual friends can be messaged, so only list them here. One query:
+  // mutual Follow edges (they→me AND me→them) expressed as relation filters.
   const users = await prisma.user.findMany({
-    where: { id: { not: userId } },
+    where: {
+      id: { not: userId },
+      following: { some: { followingId: userId } },
+      followers: { some: { followerId: userId } },
+    },
     orderBy: { name: 'asc' },
     select: { id: true, name: true, image: true, company: true },
     take: 500,

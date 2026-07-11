@@ -324,6 +324,36 @@ sqlite files), mirroring the scheduled-messages pattern. Guarded by the extended
 `test:feed` (logic), `test:feed:api` (HTTP acceptance incl. DM-leak guards), and
 `e2e:feed` (Playwright: stories, create, like persistence, comments) suites.
 
+## Friend requests replace one-way follows — mutual Follow edges, DM gated on friendship (2026-07-11)
+
+The People→Feed "Follow → Following" button became a friend-request flow: **Friend**
+(request sent) → **Pending** (tap cancels) → the recipient sees **Accept** (feed button,
+people rows, and a "Requests" section in the Friends tab, with a decline ✕) → **Friends**
+(terminal, inert in the feed; unfriend lives behind a confirm on the people rows).
+**Model decision:** friendship is represented as MUTUAL `Follow` edges — one row is a
+pending request, both rows are a friendship — so the feature needed NO schema change
+(hand-replayed Turso DDL is the costly step per the scheduled/feed precedents). The
+derivation helpers live in `packages/db/src/friends.ts` (`FriendStatus`,
+`applyFriendAction` with auto-advance and explicit `remove`, `deriveFriendStatusMap` as
+the single classifier); `/api/friend/[userId]` (GET status, POST action) replaced the
+deleted `/api/follow/[userId]`. **DM gating decision:** only friends can start a DM —
+`getOrCreateDirectRoom` refuses to create a new DIRECT room with `code: 'NOT_FRIENDS'`
+(HTTP 403 from `POST /api/chat/rooms`), while EXISTING rooms are grandfathered: they
+still open and still accept messages after an unfriend (`postRoomMessage` stays
+membership-gated by design; test-asserted). All DM entry points honor the gate: the
+People DM modal shows an inline friendship gate with the contextual action, `chat/new`
+lists only friends, `chat/dm/[userId]` routes through the gated data-layer path, and the
+meetings/my-schedule "Message" buttons fall back to the person's profile (where the
+friend-request tile lives). **Cutover:** rows created under the one-way model would read
+as mere pending requests, so `scripts/migrate-friends-backfill.mjs` (alias
+`db:backfill-friends`; idempotent) mirrors every one-directional edge, converting each
+pre-existing follow into a friendship. Guarded by `test:friends` (62-check data-layer
+suite), `test:friends:api` (HTTP acceptance: lifecycle, 401/400/404, DM gate 403 →
+friends → 200, grandfathering), and the extended `test:feed` / `test:feed:api` /
+`e2e:feed` suites.
+
+---
+
 ## Cross-references
 
 - [Architecture](architecture.md) — cross-cutting current-state architecture.

@@ -22,6 +22,13 @@ From [`src/index.ts`](src/index.ts):
 | `detectSpeakerConflicts(prisma)` | Scans for overlapping speaker-assigned sessions, upserts `ConflictLog`, returns active conflicts. |
 | `getActiveConflicts(prisma)` | Reads active conflicts from `ConflictLog` without re-scanning. |
 | `checkBlackoutConflicts(prisma, userIds, startsAt, endsAt)` | Returns user-blackout overlaps for a candidate time window. |
+| `FriendStatus`, `FriendAction` | Friend-system unions: `none / pending_outgoing / pending_incoming / friends` and `request / cancel / accept / decline / remove`. |
+| `getFriendStatus(prisma, userId, targetUserId)` | Status between two users, derived from the two directional `Follow` edges (mutual = friends). |
+| `getFriendStatuses(prisma, userId)` / `deriveFriendStatusMap(outgoingIds, incomingIds)` | Batch status map keyed by the other user's id; the pure derivation is the single source of the mutual-edge rules. |
+| `areFriends(prisma, a, b)` / `listFriendIds(prisma, userId)` | Mutual-edge checks used by the DM gate and friend-only lists. |
+| `applyFriendAction(prisma, userId, targetUserId, action?)` | State-machine mutation (auto-advances when `action` omitted; unfriending requires explicit `remove`). |
+| `* from './chat'` | Home-feed + DM logic (`getOrCreateDirectRoom` refuses new rooms for non-friends with `code: 'NOT_FRIENDS'`; existing rooms are grandfathered). |
+| `* from './scheduled-messages'` | Scheduled-broadcast validation + atomic dispatch. |
 
 ## Multi-mode Prisma client
 

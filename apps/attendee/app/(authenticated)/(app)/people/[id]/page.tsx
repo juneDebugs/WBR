@@ -1,7 +1,8 @@
-import { prisma } from '@conference/db'
+import { prisma, getFriendStatus } from '@conference/db'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/session'
+import { FriendActionButton } from '@/components/people/FriendActionButton'
 
 export default async function PersonProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -30,7 +31,11 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
   const twitterHandle = user.speakerProfile?.twitterHandle ?? null
   const isOther = user.id !== currentUserId
 
-  const existingRoom = isOther
+  const friendStatus = isOther ? await getFriendStatus(prisma, currentUserId, user.id) : 'none'
+
+  // Only consumed by the Message tile, which renders only for friends —
+  // skip the room lookup entirely on non-friend profiles.
+  const existingRoom = friendStatus === 'friends'
     ? await prisma.chatRoom.findFirst({
         where: {
           type: 'DIRECT',
@@ -43,6 +48,8 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
       })
     : null
 
+  // Another user's profile always has at least one action: the Message tile
+  // (friends) or the friend-request tile (everything else).
   const hasActions = isOther || linkedinUrl || twitterHandle || user.website
   const hasDetails = user.bio || user.company || user.jobTitle || user.website
   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -110,7 +117,7 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
       {/* Action buttons row — iOS Contact style */}
       {hasActions && (
         <div className="flex justify-center gap-2 px-6 pb-5">
-          {isOther && (
+          {isOther && friendStatus === 'friends' && (
             <Link
               href={existingRoom ? `/chat/${existingRoom.id}` : `/chat/dm/${user.id}`}
               className="flex flex-col items-center gap-1 flex-1 max-w-[80px] active:opacity-50 transition-opacity"
@@ -123,6 +130,12 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
               </div>
               <span className="text-[10px] font-medium text-primary">Message</span>
             </Link>
+          )}
+
+          {/* Friend tile: the primary action until you're friends, then an
+              inert "Friends" state marker next to the Message tile. */}
+          {isOther && (
+            <FriendActionButton userId={user.id} name={user.name} initialStatus={friendStatus} />
           )}
 
           {linkedinUrl && (

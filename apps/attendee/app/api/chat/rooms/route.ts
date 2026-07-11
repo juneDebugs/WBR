@@ -36,6 +36,9 @@ export async function POST(request: Request) {
 
   const result = await getOrCreateDirectRoom(prisma, session.user.id, targetUserId)
   if (!result.ok) {
+    if ((result as any).code === 'NOT_FRIENDS') {
+      return NextResponse.json({ error: result.error, code: 'NOT_FRIENDS' }, { status: 403 })
+    }
     const status = result.error === 'User not found' ? 404 : 400
     return NextResponse.json({ error: result.error }, { status })
   }

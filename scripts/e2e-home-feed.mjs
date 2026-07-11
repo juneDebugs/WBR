@@ -195,11 +195,23 @@ async function main() {
   const oracle = openOracle()
   const meRow = await oracle.execute({ sql: 'SELECT id FROM User WHERE email = ?', args: [CREDS.email] })
   const partnerRow = await oracle.execute({ sql: 'SELECT id, name FROM User WHERE email = ?', args: [CREDS_B.email] })
+  if (!meRow.rows[0] || !partnerRow.rows[0]) { oracle.close?.(); throw new Error('test users missing from the DB') }
+
+  // DM room creation is gated on friendship (mutual Follow edges) — make the
+  // two actors friends before seeding the conversation. OR IGNORE keeps
+  // reruns idempotent (unique on the pair and on the deterministic id).
+  const meId = meRow.rows[0].id
+  const partnerId = partnerRow.rows[0].id
+  for (const [a, b] of [[meId, partnerId], [partnerId, meId]]) {
+    await oracle.execute({
+      sql: 'INSERT OR IGNORE INTO Follow (id, followerId, followingId) VALUES (?, ?, ?)',
+      args: [`e2e-fr-${a}-${b}`, a, b],
+    })
+  }
   oracle.close?.()
-  if (!meRow.rows[0] || !partnerRow.rows[0]) throw new Error('test users missing from the DB')
   const partnerName = partnerRow.rows[0].name ?? 'Unknown'
   const dmContent = `${MARKER} dm from the feed rail partner`
-  await sendDmAs(CREDS_B, meRow.rows[0].id, dmContent)
+  await sendDmAs(CREDS_B, meId, dmContent)
 
   const browser = await chromium.launch()
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })

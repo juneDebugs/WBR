@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { usePeopleData } from '@/lib/hooks'
 import { FeedTab, FeedHeader, type Person, type Conversation } from './FeedTab'
+import type { FriendStatus } from '@conference/db'
+import { friendAriaLabel } from '@/lib/friend-labels'
 
 interface Props {
   currentUserId: string
   allUsers: Person[]
   totalCount: number
   friends: Person[]
-  friendIds: string[]
+  friendStatuses: Record<string, FriendStatus>
+  incomingRequests: Person[]
   conversations: Conversation[]
 }
 
@@ -68,12 +71,23 @@ const PAGE_SIZE = 20
 
 // ── Memoized PersonRow ──────────────────────────────────────────────────────
 
-const PersonRow = memo(function PersonRow({ user, isFriend, pending, onSelect, onToggleFriend }: {
+// Row-button copy per friend status. 'friends' is still tappable here (unlike
+// the feed) because the row is the one place a friendship can be removed —
+// behind a confirm in friendAction.
+const ROW_BUTTON_LABEL: Record<FriendStatus, string> = {
+  none: 'Add',
+  pending_outgoing: 'Pending',
+  pending_incoming: 'Accept',
+  friends: 'Friends',
+}
+
+const PersonRow = memo(function PersonRow({ user, status, pending, onSelect, onFriendAction, onDecline }: {
   user: Person
-  isFriend: boolean
+  status: FriendStatus
   pending: boolean
   onSelect: (user: Person) => void
-  onToggleFriend: (userId: string, e?: React.MouseEvent) => void
+  onFriendAction: (userId: string, e?: React.MouseEvent) => void
+  onDecline?: (userId: string, e?: React.MouseEvent) => void
 }) {
   return (
     <div
@@ -107,11 +121,26 @@ const PersonRow = memo(function PersonRow({ user, isFriend, pending, onSelect, o
         )}
       </div>
       <button
-        onClick={e => onToggleFriend(user.id, e)}
+        onClick={e => onFriendAction(user.id, e)}
         disabled={pending}
-        className={`flex-shrink-0 btn-sm ${isFriend ? 'btn-secondary' : 'btn-primary'}`}>
-        {isFriend ? 'Added' : 'Add'}
+        aria-label={friendAriaLabel(status, user.name ?? 'attendee', { removable: true })}
+        className={`flex-shrink-0 btn-sm ${
+          status === 'none' || status === 'pending_incoming' ? 'btn-primary' : 'btn-secondary'
+        }`}>
+        {ROW_BUTTON_LABEL[status]}
       </button>
+      {onDecline && (
+        <button
+          onClick={e => onDecline(user.id, e)}
+          disabled={pending}
+          aria-label={`Decline friend request from ${user.name ?? 'attendee'}`}
+          className="flex-shrink-0 p-2.5 -my-2.5 -mr-1 text-ink-3 active:opacity-70 disabled:opacity-50 transition-opacity"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 })
@@ -149,8 +178,12 @@ export function PeopleClient(_props: Props) {
   return <PeopleClientInner data={data} />
 }
 
-function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: Person[]; totalCount: number; friends: Person[]; friendIds: string[]; conversations: Conversation[]; conferenceName?: string | null } }) {
-  const { currentUserId, allUsers, totalCount, friends, friendIds, conversations, conferenceName } = data
+function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: Person[]; totalCount: number; friends: Person[]; friendStatuses?: Record<string, FriendStatus>; incomingRequests?: Person[]; conversations: Conversation[]; conferenceName?: string | null } }) {
+  const { currentUserId, allUsers, totalCount, friends, conversations, conferenceName } = data
+  // Optional-with-fallback so a stale cached payload (service worker / react-query)
+  // from before the friends API shipped still renders instead of crashing.
+  const friendStatuses = data.friendStatuses ?? {}
+  const incomingRequests = useMemo(() => data.incomingRequests ?? [], [data.incomingRequests])
 
   const [tab, setTab] = useState<typeof TABS[number]>('Feed')
   const [search, setSearch] = useState('')
@@ -173,9 +206,18 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
   // (rendered above the tab bar) and FeedTab (renders the sheet) can share it.
   const [composerOpen, setComposerOpen] = useState(false)
 
-  const [friendState, setFriendState] = useState<Record<string, boolean>>(
-    Object.fromEntries(friendIds.map(id => [id, true]))
-  )
+  const [friendState, setFriendState] = useState<Record<string, FriendStatus>>(friendStatuses)
+
+  // Server refetches are authoritative: the counterpart's accept/decline only
+  // ever arrives via /api/data/people, so replace the optimistic map whenever
+  // a fresh payload lands (react-query keeps the object identity stable
+  // between fetches, so this fires once per refetch, not per render).
+  useEffect(() => {
+    if (data.friendStatuses) setFriendState(data.friendStatuses)
+  }, [data.friendStatuses])
+
+  // DM friendship gate — set when POST /api/chat/rooms answers 403 NOT_FRIENDS.
+  const [dmLocked, setDmLocked] = useState(false)
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [groupLimits, setGroupLimits] = useState<Record<string, number>>({})
@@ -217,23 +259,44 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
     }
   }
 
+  // Live status of the DM modal's target user. selectedIsFriend is in the
+  // room-creation effect's deps so that becoming friends while the locked
+  // modal is open (own accept, or the counterpart's accept arriving via a
+  // refetch) re-attempts room creation automatically.
+  const selectedStatus: FriendStatus = selected ? friendState[selected.id] ?? 'none' : 'none'
+  const selectedIsFriend = selectedStatus === 'friends'
+
   useEffect(() => {
-    if (!selected) { setChatRoomId(null); setMessages([]); setChatInput(''); return }
+    if (!selected) { setChatRoomId(null); setMessages([]); setChatInput(''); setDmLocked(false); return }
+    let cancelled = false
     setChatLoading(true)
-    fetch('/api/chat/rooms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetUserId: selected.id }),
-    })
-      .then(r => r.json())
-      .then(room => {
+    setDmLocked(false)
+    ;(async () => {
+      try {
+        const res = await fetch('/api/chat/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetUserId: selected.id }),
+        })
+        if (!res.ok) {
+          // Not friends yet and no existing room — show the friendship gate.
+          const body = await res.json().catch(() => null)
+          if (!cancelled && res.status === 403 && body?.code === 'NOT_FRIENDS') setDmLocked(true)
+          return
+        }
+        const room = await res.json()
+        if (cancelled) return
         setChatRoomId(room.id)
-        return fetch(`/api/chat/rooms/${room.id}/messages`)
-      })
-      .then(r => r.json())
-      .then(msgs => { setMessages(msgs); setChatLoading(false) })
-      .catch(() => setChatLoading(false))
-  }, [selected])
+        const msgs = await fetch(`/api/chat/rooms/${room.id}/messages`).then(r => r.json())
+        if (!cancelled) setMessages(msgs)
+      } catch {
+        // network error — fall through to clearing the spinner
+      } finally {
+        if (!cancelled) setChatLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [selected, selectedIsFriend])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -272,8 +335,16 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
     const allKnown = new Map<string, Person>()
     for (const u of friends) allKnown.set(u.id, u)
     for (const u of loadedUsers) allKnown.set(u.id, u)
-    return Array.from(allKnown.values()).filter(u => friendState[u.id])
-  }, [friends, loadedUsers, friendState])
+    for (const u of incomingRequests) if (!allKnown.has(u.id)) allKnown.set(u.id, u)
+    return Array.from(allKnown.values()).filter(u => friendState[u.id] === 'friends')
+  }, [friends, loadedUsers, incomingRequests, friendState])
+
+  // Incoming friend requests, overlaid with live friendState so an accepted or
+  // declined row leaves the Requests section without a refetch.
+  const pendingRequests = useMemo(
+    () => incomingRequests.filter(u => (friendState[u.id] ?? 'pending_incoming') === 'pending_incoming'),
+    [incomingRequests, friendState]
+  )
 
   const filteredPeople = useMemo(() => {
     if (tab === 'Messages') return []
@@ -300,13 +371,47 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
     return conversations.filter(c => c.name.toLowerCase().includes(searchLower))
   }, [tab, conversations, search, searchLower])
 
-  const toggleFriend = useCallback((userId: string, e?: React.MouseEvent) => {
+  // One tap handler for every friend button. Omitting the body lets the API
+  // auto-advance (none→request, pending_outgoing→cancel, pending_incoming→accept);
+  // removing an existing friendship is explicit and sits behind a confirm.
+  const friendAction = useCallback((userId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    let body: { action: 'remove' } | undefined
+    if (friendState[userId] === 'friends') {
+      const person =
+        friends.find(u => u.id === userId) ??
+        loadedUsers.find(u => u.id === userId) ??
+        incomingRequests.find(u => u.id === userId) ??
+        searchResults?.find(u => u.id === userId)
+      if (!window.confirm(`Remove ${person?.name ?? 'this person'} as a friend?`)) return
+      body = { action: 'remove' }
+    }
+    startTransition(async () => {
+      const res = await fetch(`/api/friend/${userId}`, {
+        method: 'POST',
+        ...(body && {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
+      })
+      if (!res.ok) return
+      const data: { status: FriendStatus } = await res.json()
+      setFriendState(prev => ({ ...prev, [userId]: data.status }))
+      router.refresh()
+    })
+  }, [friendState, friends, loadedUsers, incomingRequests, searchResults, router])
+
+  const declineRequest = useCallback((userId: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
     startTransition(async () => {
-      const res = await fetch(`/api/follow/${userId}`, { method: 'POST' })
+      const res = await fetch(`/api/friend/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'decline' }),
+      })
       if (!res.ok) return
-      const data = await res.json()
-      setFriendState(prev => ({ ...prev, [userId]: data.following }))
+      const data: { status: FriendStatus } = await res.json()
+      setFriendState(prev => ({ ...prev, [userId]: data.status }))
       router.refresh()
     })
   }, [router])
@@ -366,10 +471,10 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
               <PersonRow
                 key={u.id}
                 user={u}
-                isFriend={friendState[u.id] ?? false}
+                status={friendState[u.id] ?? 'none'}
                 pending={pending}
                 onSelect={handleSelect}
-                onToggleFriend={toggleFriend}
+                onFriendAction={friendAction}
               />
             ))}
             {hasMore && (
@@ -443,8 +548,8 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
           friends={optimisticFriends}
           conversations={conversations}
           friendState={friendState}
-          pendingFollow={pending}
-          onToggleFriend={toggleFriend}
+          pendingFriend={pending}
+          onFriendAction={friendAction}
           onOpenDm={handleSelect}
           onOpenMessages={() => setTab('Messages')}
           composerOpen={composerOpen}
@@ -520,19 +625,38 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
       {/* Friends tab */}
       {tab === 'Friends' && (
         <div className="space-y-2">
+          {/* Incoming friend requests — accepted/declined rows leave the
+              section instantly via the friendState overlay in pendingRequests. */}
+          {!search && pendingRequests.length > 0 && (
+            <>
+              <p className="text-[12px] font-medium text-ink-3 uppercase tracking-wide px-3 pt-1">Requests</p>
+              {pendingRequests.map(u => (
+                <PersonRow
+                  key={u.id}
+                  user={u}
+                  status={friendState[u.id] ?? 'pending_incoming'}
+                  pending={pending}
+                  onSelect={handleSelect}
+                  onFriendAction={friendAction}
+                  onDecline={declineRequest}
+                />
+              ))}
+              <p className="text-[12px] font-medium text-ink-3 uppercase tracking-wide px-3 pt-3">Friends</p>
+            </>
+          )}
           {filteredPeople.map(u => (
             <PersonRow
               key={u.id}
               user={u}
-              isFriend={friendState[u.id] ?? false}
+              status={friendState[u.id] ?? 'none'}
               pending={pending}
               onSelect={handleSelect}
-              onToggleFriend={toggleFriend}
+              onFriendAction={friendAction}
             />
           ))}
           {filteredPeople.length === 0 && (
             <p className="text-center text-ink-3 py-12">
-              {search ? 'No results found.' : "No friends added yet. Discover people and hit Add."}
+              {search ? 'No results found.' : 'No friends yet. Find people in Discover and send a friend request.'}
             </p>
           )}
         </div>
@@ -627,7 +751,28 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
               </button>
             </div>
 
-            {/* Messages */}
+            {/* Friendship gate — no room yet and the server said NOT_FRIENDS */}
+            {dmLocked ? (
+              <div className="flex-1 overflow-y-auto px-6 py-3 flex flex-col items-center justify-center text-center">
+                <div className="w-12 h-12 rounded-full bg-fill flex items-center justify-center mb-3">
+                  <svg className="w-6 h-6 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round"
+                      d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-ink-2 font-medium">
+                  You can message {selected.name?.split(' ')[0] ?? 'them'} once you&apos;re friends.
+                </p>
+                <button
+                  onClick={e => friendAction(selected.id, e)}
+                  disabled={pending}
+                  aria-label={friendAriaLabel(selectedStatus, selected.name ?? 'attendee')}
+                  className={`btn-sm mt-4 ${selectedStatus === 'pending_outgoing' ? 'btn-secondary' : 'btn-primary'}`}
+                >
+                  {selectedStatus === 'pending_outgoing' ? 'Pending' : selectedStatus === 'pending_incoming' ? 'Accept Request' : 'Add Friend'}
+                </button>
+              </div>
+            ) : (
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {chatLoading ? (
                 <div className="flex items-center justify-center h-full">
@@ -669,8 +814,10 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
               )}
               <div ref={messagesEndRef} />
             </div>
+            )}
 
-            {/* Input */}
+            {/* Input — hidden while the friendship gate is showing */}
+            {!dmLocked && (
             <div className="flex items-center gap-2 px-3 py-3 border-t border-hairline flex-shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
               <input
                 value={chatInput}
@@ -689,6 +836,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
                 </svg>
               </button>
             </div>
+            )}
           </div>
         </div>
       )}

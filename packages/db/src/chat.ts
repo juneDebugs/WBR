@@ -298,6 +298,11 @@ export async function postMessageComment(
  * Returns the existing DIRECT room shared by these two users, creating it
  * (with both memberships) when none exists. DIRECT rooms only ever have two
  * members, so "contains both users" identifies the pair's room.
+ *
+ * Creating a NEW room is gated on mutual friendship (see ./friends.ts) and
+ * fails with code 'NOT_FRIENDS' otherwise. Existing rooms are returned
+ * regardless of current friendship, so past conversations keep working after
+ * an unfriend.
  */
 export async function getOrCreateDirectRoom(
   prismaClient: AnyPrismaClient,
@@ -324,6 +329,26 @@ export async function getOrCreateDirectRoom(
     },
   })
   if (existing) return { ok: true as const, room: existing }
+
+  // Mutual-Follow friendship check, inlined rather than imported from
+  // ./friends (a relative import would break node test scripts that
+  // type-strip this file directly — same reason GENERAL_ROOM_ID is mirrored
+  // above). Semantics must match areFriends in ./friends.ts.
+  const edges = await prismaClient.follow.count({
+    where: {
+      OR: [
+        { followerId: userId, followingId: targetUserId },
+        { followerId: targetUserId, followingId: userId },
+      ],
+    },
+  })
+  if (edges < 2) {
+    return {
+      ok: false as const,
+      error: 'You must be friends to message',
+      code: 'NOT_FRIENDS' as const,
+    }
+  }
 
   const room = await prismaClient.chatRoom.create({
     data: {
@@ -369,6 +394,11 @@ export async function listRoomMessagesForUser(
 
 /**
  * Posts a message to a room the sender is a member of.
+ *
+ * Deliberately membership-gated only, NOT friendship-gated: the friendship
+ * gate applies to creating a new DIRECT room (above), while conversations
+ * that already exist keep working after an unfriend. test:friends asserts
+ * this grandfathering.
  */
 export async function postRoomMessage(
   prismaClient: AnyPrismaClient,

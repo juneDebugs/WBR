@@ -23,6 +23,9 @@
 //      401 unauthenticated, 404 for unknown ids and DM-room message ids.
 //   8. Comments: GET/POST /api/feed/:id/comments happy path (ascending, safe
 //      user projection), 400 empty, 401 unauthenticated, 404 for DM messages.
+//   9. Friend gate: NEW DM rooms are friends-only, so the run befriends A↔B
+//      through /api/friend before the DM section; Follow edges it created
+//      (and did not pre-exist) are removed in teardown.
 //
 //   node scripts/test-home-feed-api.mjs           # server already on :3001
 //   node scripts/test-home-feed-api.mjs --start   # boot `next dev`, then kill it
@@ -54,6 +57,9 @@ let failures = 0
 let oracle = null
 let dmRoomWasCreatedByThisRun = false
 let dmRoomId = null
+// Follow edges the befriend step created (absent beforehand) — removed in
+// teardown so a fresh pair is left as strangers again.
+const followEdgesToCleanup = []
 // Messages whose content can't carry the marker (image-only posts) — tracked
 // by id so cleanup still removes them.
 const extraMessageIds = []
@@ -274,6 +280,30 @@ async function main() {
   const postedB = await postB.json()
   const feedAfterB = await (await userA(`${BASE}/api/chat/global`)).json()
   check('attendee post visible to the first user', feedAfterB.messages?.some(m => m.id === postedB.id))
+
+  // ── Befriend A↔B (NEW DM rooms are friend-gated now) ──
+  console.log('\n[befriend]')
+  const preEdges = await oracle.execute({
+    sql: `SELECT followerId, followingId FROM Follow
+          WHERE (followerId = ? AND followingId = ?) OR (followerId = ? AND followingId = ?)`,
+    args: [idA, idB, idB, idA],
+  })
+  const hadEdge = (f, g) => preEdges.rows.some(r => r.followerId === f && r.followingId === g)
+  const friendPost = (jarFetch, targetId, action) =>
+    jarFetch(`${BASE}/api/friend/${targetId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action }),
+    })
+  const friendReq = await friendPost(userA, idB, 'request')
+  check('A can send/refresh a friend request', friendReq.ok, `status ${friendReq.status}`)
+  const friendAcc = await friendPost(userB, idA, 'accept')
+  check('B can accept it', friendAcc.ok, `status ${friendAcc.status}`)
+  const friendAccBody = await friendAcc.json().catch(() => ({}))
+  check('pair reports friends before the DM section', friendAccBody?.status === 'friends',
+    JSON.stringify(friendAccBody))
+  if (!hadEdge(idA, idB)) followEdgesToCleanup.push([idA, idB])
+  if (!hadEdge(idB, idA)) followEdgesToCleanup.push([idB, idA])
 
   // ── DM room creation ──
   console.log('\n[dm room]')
@@ -521,6 +551,12 @@ try {
       if (dmRoomWasCreatedByThisRun && dmRoomId) {
         await oracle.execute({ sql: 'DELETE FROM ChatMember WHERE roomId = ?', args: [dmRoomId] })
         await oracle.execute({ sql: 'DELETE FROM ChatRoom WHERE id = ?', args: [dmRoomId] })
+      }
+      for (const [f, g] of followEdgesToCleanup) {
+        await oracle.execute({
+          sql: 'DELETE FROM Follow WHERE followerId = ? AND followingId = ?',
+          args: [f, g],
+        })
       }
     }
   } catch (e) {

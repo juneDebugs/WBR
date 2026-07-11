@@ -28,6 +28,9 @@
 //      ids and DM-room messages are Not found (likes never leak into DMs).
 //  10. Comments: post + ascending list, empty comment rejected, DM-room
 //      messages are Not found.
+//  11. Friend gate on DMs: getOrCreateDirectRoom refuses a NEW room for a
+//      non-friend pair with code NOT_FRIENDS; the DM sections befriend their
+//      pairs (mutual Follow edges) first.
 //
 //   node scripts/test-home-feed.mjs
 //
@@ -235,6 +238,18 @@ console.log('\n[listGlobalFeed]')
 
 console.log('\n[getOrCreateDirectRoom]')
 {
+  // NEW DM rooms are friend-gated: a non-friend pair is refused outright…
+  const gated = await getOrCreateDirectRoom(prisma, alice.id, bob.id)
+  check('non-friend pair refused with code NOT_FRIENDS',
+    gated.ok === false && gated.code === 'NOT_FRIENDS' &&
+    gated.error === 'You must be friends to message', JSON.stringify(gated))
+
+  // …so befriend the pairs the DM sections use (friendship = mutual Follow edges).
+  for (const [a, b] of [[alice.id, bob.id], [alice.id, carol.id]]) {
+    await prisma.follow.create({ data: { followerId: a, followingId: b } })
+    await prisma.follow.create({ data: { followerId: b, followingId: a } })
+  }
+
   const created = await getOrCreateDirectRoom(prisma, alice.id, bob.id)
   check('DM room created', created.ok === true, JSON.stringify(created))
   check('room is DIRECT with no name', created.ok && created.room.type === 'DIRECT' && created.room.name === null)

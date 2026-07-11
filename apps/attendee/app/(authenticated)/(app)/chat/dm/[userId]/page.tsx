@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic'
-import { prisma } from '@conference/db'
+import { prisma, getOrCreateDirectRoom } from '@conference/db'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 
@@ -12,34 +12,21 @@ export default async function StartDmPage({ params }: { params: Promise<{ userId
 
   if (myId === targetId) redirect('/chat')
 
-  // Find or create the DM room
-  const existing = await prisma.chatRoom.findFirst({
-    where: {
-      type: 'DIRECT',
-      AND: [
-        { members: { some: { userId: myId } } },
-        { members: { some: { userId: targetId } } },
-      ],
-    },
-  })
+  // Single gated find-or-create path — the friendship gate (NOT_FRIENDS for
+  // new rooms, existing rooms grandfathered) lives in the data layer.
+  let result: Awaited<ReturnType<typeof getOrCreateDirectRoom>>
+  try {
+    result = await getOrCreateDirectRoom(prisma, myId, targetId)
+  } catch {
+    // e.g. the caller's user row is missing (JWT outlived a DB reset)
+    redirect('/chat')
+  }
 
-  if (existing) redirect(`/chat/${existing.id}`)
+  if (!result.ok) {
+    // Non-friends land on the profile, where the friend-request tile lives.
+    if ('code' in result && result.code === 'NOT_FRIENDS') redirect(`/people/${targetId}`)
+    redirect('/chat')
+  }
 
-  // Verify both users exist before creating the room
-  const [myUser, targetUser] = await Promise.all([
-    prisma.user.findUnique({ where: { id: myId } }),
-    prisma.user.findUnique({ where: { id: targetId } }),
-  ])
-  if (!myUser || !targetUser) redirect('/chat')
-
-  const room = await prisma.chatRoom.create({
-    data: {
-      type: 'DIRECT',
-      members: {
-        create: [{ userId: myId }, { userId: targetId }],
-      },
-    },
-  })
-
-  redirect(`/chat/${room.id}`)
+  redirect(`/chat/${result.room.id}`)
 }

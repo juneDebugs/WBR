@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import type { FriendStatus } from '@conference/db'
+import { friendAriaLabel } from '@/lib/friend-labels'
 
 // ── Shared types ─────────────────────────────────────────────────────────────
 
@@ -255,6 +257,15 @@ function BookmarkIcon({ filled, className }: { filled: boolean; className: strin
   )
 }
 
+// ── Friend button copy (post header) ─────────────────────────────────────────
+
+const FRIEND_BUTTON_LABEL: Record<FriendStatus, string> = {
+  none: 'Friend',
+  pending_outgoing: 'Pending',
+  pending_incoming: 'Accept',
+  friends: 'Friends',
+}
+
 // ── Feed header (rendered by PeopleClient in place of the "People" h1) ────────
 
 export interface FeedHeaderProps {
@@ -296,9 +307,9 @@ export interface FeedTabProps {
   people: Person[]
   friends: Person[]
   conversations: Conversation[]
-  friendState: Record<string, boolean>
-  pendingFollow: boolean
-  onToggleFriend: (userId: string, e?: React.MouseEvent) => void
+  friendState: Record<string, FriendStatus>
+  pendingFriend: boolean
+  onFriendAction: (userId: string, e?: React.MouseEvent) => void
   onOpenDm: (person: Person) => void
   onOpenMessages: () => void
   composerOpen: boolean
@@ -312,8 +323,8 @@ export function FeedTab({
   friends,
   conversations,
   friendState,
-  pendingFollow,
-  onToggleFriend,
+  pendingFriend,
+  onFriendAction,
   onOpenDm,
   onOpenMessages,
   composerOpen,
@@ -340,6 +351,9 @@ export function FeedTab({
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentInput, setCommentInput] = useState('')
   const [commentSending, setCommentSending] = useState(false)
+  // Bumped whenever local comment state supersedes an in-flight list fetch
+  // (see openComments / sendComment).
+  const commentsGenRef = useRef(0)
 
   // Per-post options sheet (••• on others' posts)
   const [optionsFor, setOptionsFor] = useState<FeedMessage | null>(null)
@@ -546,11 +560,15 @@ export function FeedTab({
     setComments([])
     setCommentInput('')
     setCommentsLoading(true)
+    // Generation guard: if a comment is posted (or the sheet is reopened)
+    // while this list fetch is in flight, its stale snapshot must not clobber
+    // the newer local state — posting a comment races a slow list response.
+    const gen = ++commentsGenRef.current
     fetch(`/api/feed/${messageId}/comments`)
       .then(r => r.json())
-      .then(data => setComments(data.comments ?? []))
+      .then(data => { if (commentsGenRef.current === gen) setComments(data.comments ?? []) })
       .catch(() => {})
-      .finally(() => setCommentsLoading(false))
+      .finally(() => { if (commentsGenRef.current === gen) setCommentsLoading(false) })
   }
 
   async function sendComment() {
@@ -559,6 +577,10 @@ export function FeedTab({
     const messageId = commentsFor
     setCommentSending(true)
     setCommentInput('')
+    // Local state now supersedes any in-flight list fetch for this sheet —
+    // including its loading flag, which that fetch will no longer clear.
+    commentsGenRef.current++
+    setCommentsLoading(false)
 
     const temp: FeedComment = {
       id: `temp-${Date.now()}`,
@@ -699,7 +721,7 @@ export function FeedTab({
                 const senderId = msg.sender.id ?? msg.senderId
                 const isMe = senderId === currentUserId
                 const isTemp = msg.id.startsWith('temp-')
-                const isFollowing = friendState[senderId] ?? false
+                const friendStatus: FriendStatus = friendState[senderId] ?? 'none'
                 const saved = savedIds.has(msg.id)
                 const caption = [msg.sender.company, msg.sender.jobTitle].filter(Boolean).join(' · ')
                 const name = msg.sender.name ?? (isMe ? 'You' : 'Unknown')
@@ -732,13 +754,21 @@ export function FeedTab({
                         <>
                           <button
                             type="button"
-                            onClick={e => onToggleFriend(senderId, e)}
-                            disabled={pendingFollow}
-                            className={`flex-shrink-0 text-sm font-semibold px-2 py-3 -my-3 active:opacity-70 disabled:opacity-50 transition-opacity ${
-                              isFollowing ? 'text-ink-3' : 'text-primary'
+                            onClick={e => onFriendAction(senderId, e)}
+                            disabled={pendingFriend || friendStatus === 'friends'}
+                            aria-disabled={friendStatus === 'friends' || undefined}
+                            aria-label={friendAriaLabel(friendStatus, name)}
+                            className={`flex-shrink-0 text-sm font-semibold px-2 py-3 -my-3 transition-opacity ${
+                              friendStatus === 'friends'
+                                // Terminal state: calm secondary label, full opacity even
+                                // though disabled — it's a state, not a broken control.
+                                ? 'text-ink-3'
+                                : friendStatus === 'pending_outgoing'
+                                  ? 'text-ink-3 active:opacity-70 disabled:opacity-50'
+                                  : 'text-primary active:opacity-70 disabled:opacity-50'
                             }`}
                           >
-                            {isFollowing ? 'Following' : 'Follow'}
+                            {FRIEND_BUTTON_LABEL[friendStatus]}
                           </button>
                           <button
                             type="button"

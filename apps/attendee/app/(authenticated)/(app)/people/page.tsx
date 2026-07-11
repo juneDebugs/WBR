@@ -10,7 +10,8 @@ export default function PeoplePage() {
       allUsers={[]}
       totalCount={0}
       friends={[]}
-      friendIds={[]}
+      friendStatuses={{}}
+      incomingRequests={[]}
       conversations={[]}
     />
   )

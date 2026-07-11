@@ -159,7 +159,7 @@ Entities, grouped:
 - **Sponsors** — `Sponsor` (company with tier, target industries/sizes/revenues for matchmaking, contact info, booth number).
 - **Messaging** — `ChatRoom` (`CHANNEL` or `DIRECT`), `ChatMember`, `Message` (DB-persisted, polled — no real-time transport).
 - **Sponsor forms** — `SubmissionForm`, `FormSubmission`.
-- **Social (built but largely unused)** — `Follow`, `Post`, `PostLike`.
+- **Social** — `Follow` (a directional friend edge: one row = a pending friend request, mutual rows = friendship; derivation helpers in `packages/db/src/friends.ts`; creating a NEW DM room requires friendship, existing rooms are grandfathered), plus `Post`, `PostLike` (built but unused — the live feed runs on `Message`/`room-general`).
 - **Operational** — `EmailLog`, `Integration`.
 
 ### User roles

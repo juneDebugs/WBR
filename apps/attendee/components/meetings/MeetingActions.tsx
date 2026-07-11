@@ -52,6 +52,14 @@ export function MeetingActions({ meetingId, otherUserId, otherName, status, note
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetUserId: otherUserId }),
     })
+    if (!res.ok) {
+      // New DM rooms require friendship — send the user to the profile,
+      // where the friend-request tile lives (mirrors chat/dm/[userId]).
+      const body = await res.json().catch(() => null)
+      setDmLoading(false)
+      if (body?.code === 'NOT_FRIENDS') router.push(`/people/${otherUserId}`)
+      return
+    }
     const room = await res.json()
     router.push(`/chat/${room.id}`)
   }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { getUserFromHeaders } from '@/lib/user'
-import { prisma } from '@conference/db'
+import { prisma, deriveFriendStatusMap } from '@conference/db'
 
 const userSelect = {
   id: true,
@@ -30,7 +30,7 @@ export async function GET() {
   }
 
   try {
-    const [allUsers, totalCount, following, dmRooms, conference] = await Promise.all([
+    const [allUsers, totalCount, outgoingEdges, incomingEdges, dmRooms, conference] = await Promise.all([
       prisma.user.findMany({
         where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, id: { not: userId } },
         orderBy: { name: 'asc' },
@@ -43,6 +43,10 @@ export async function GET() {
       prisma.follow.findMany({
         where: { followerId: userId },
         select: { followingId: true, following: { select: userSelect } },
+      }),
+      prisma.follow.findMany({
+        where: { followingId: userId },
+        select: { followerId: true, follower: { select: userSelect } },
       }),
       prisma.chatRoom.findMany({
         where: { type: 'DIRECT', members: { some: { userId } } },
@@ -58,8 +62,26 @@ export async function GET() {
       }),
     ])
 
-    const friendIds = following.map(f => f.followingId)
-    const friends = following.map(f => f.following)
+    // Friendship = mutual Follow edges. The edges are fetched here (with the
+    // user projections this response needs); the status rules live in one
+    // place — deriveFriendStatusMap in packages/db/src/friends.ts.
+    const friendStatuses = deriveFriendStatusMap(
+      outgoingEdges.map(e => e.followingId),
+      incomingEdges.map(e => e.followerId)
+    )
+
+    // Mutual friends only
+    const friendIds = outgoingEdges
+      .filter(e => friendStatuses[e.followingId] === 'friends')
+      .map(e => e.followingId)
+    const friends = outgoingEdges
+      .filter(e => friendStatuses[e.followingId] === 'friends')
+      .map(e => e.following)
+
+    // Users who requested me and I haven't accepted yet
+    const incomingRequests = incomingEdges
+      .filter(e => friendStatuses[e.followerId] === 'pending_incoming')
+      .map(e => e.follower)
 
     const conversations = dmRooms
       .sort((a, b) => {
@@ -87,6 +109,8 @@ export async function GET() {
       totalCount,
       friends,
       friendIds,
+      friendStatuses,
+      incomingRequests,
       conversations,
       conferenceName: conference?.name ?? null,
     })
