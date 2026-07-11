@@ -719,7 +719,14 @@ export function FeedTab({
                       />
                     )}
 
-                    {/* Action row */}
+                    {/* Caption — no author prefix; the name already leads the post header */}
+                    {msg.content && (
+                      <p className="px-4 pt-1 text-subhead text-ink whitespace-pre-wrap break-words">
+                        {msg.content}
+                      </p>
+                    )}
+
+                    {/* Action row — below the message text */}
                     <div className="flex items-center px-3 py-1.5">
                       <button
                         type="button"
@@ -772,12 +779,6 @@ export function FeedTab({
                       </button>
                     </div>
 
-                    {/* Caption — no author prefix; the name already leads the post header */}
-                    {msg.content && (
-                      <p className="px-4 pt-1 text-subhead text-ink whitespace-pre-wrap break-words">
-                        {msg.content}
-                      </p>
-                    )}
                     {msg.commentCount > 0 && !isTemp && (
                       <button
                         type="button"
