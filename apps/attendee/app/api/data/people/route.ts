@@ -30,7 +30,7 @@ export async function GET() {
   }
 
   try {
-    const [allUsers, totalCount, following, dmRooms] = await Promise.all([
+    const [allUsers, totalCount, following, dmRooms, conference] = await Promise.all([
       prisma.user.findMany({
         where: { role: { in: ['ATTENDEE', 'SPEAKER'] }, id: { not: userId } },
         orderBy: { name: 'asc' },
@@ -51,6 +51,10 @@ export async function GET() {
           messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { content: true, senderId: true, createdAt: true } },
         },
         orderBy: { createdAt: 'desc' },
+      }),
+      prisma.conference.findFirst({
+        where: { active: true },
+        select: { name: true },
       }),
     ])
 
@@ -84,6 +88,7 @@ export async function GET() {
       friends,
       friendIds,
       conversations,
+      conferenceName: conference?.name ?? null,
     })
   } catch (e: any) {
     console.error('[api/data/people] Error:', e?.message, e?.stack)

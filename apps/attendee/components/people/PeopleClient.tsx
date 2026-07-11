@@ -149,8 +149,8 @@ export function PeopleClient(_props: Props) {
   return <PeopleClientInner data={data} />
 }
 
-function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: Person[]; totalCount: number; friends: Person[]; friendIds: string[]; conversations: Conversation[] } }) {
-  const { currentUserId, allUsers, totalCount, friends, friendIds, conversations } = data
+function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: Person[]; totalCount: number; friends: Person[]; friendIds: string[]; conversations: Conversation[]; conferenceName?: string | null } }) {
+  const { currentUserId, allUsers, totalCount, friends, friendIds, conversations, conferenceName } = data
 
   const [tab, setTab] = useState<typeof TABS[number]>('Feed')
   const [search, setSearch] = useState('')
@@ -392,6 +392,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
           "People" h1; every other tab keeps the h1 + search exactly as before. */}
       {tab === 'Feed' ? (
         <FeedHeader
+          conferenceName={conferenceName}
           onCreate={() => setComposerOpen(true)}
           onOpenMessages={() => setTab('Messages')}
           hasConversations={conversations.length > 0}

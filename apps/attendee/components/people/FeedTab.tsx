@@ -258,12 +258,13 @@ function BookmarkIcon({ filled, className }: { filled: boolean; className: strin
 // ── Feed header (rendered by PeopleClient in place of the "People" h1) ────────
 
 export interface FeedHeaderProps {
+  conferenceName?: string | null
   onCreate: () => void
   onOpenMessages: () => void
   hasConversations: boolean
 }
 
-export function FeedHeader({ onCreate, onOpenMessages, hasConversations }: FeedHeaderProps) {
+export function FeedHeader({ conferenceName, onCreate, onOpenMessages, hasConversations }: FeedHeaderProps) {
   return (
     <div className="flex items-center justify-between -mx-2 mb-1">
       <button type="button" onClick={onCreate} aria-label="New post" className="icon-btn text-ink">
@@ -271,9 +272,9 @@ export function FeedHeader({ onCreate, onOpenMessages, hasConversations }: FeedH
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
       </button>
-      <div data-testid="feed-wordmark" className="flex items-center gap-1">
-        <span className="text-[24px] font-extrabold tracking-tight text-ink">WBR</span>
-        <svg className="w-3.5 h-3.5 text-ink mt-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden="true">
+      <div data-testid="feed-wordmark" className="flex items-center gap-1 min-w-0 px-1">
+        <span className="text-[24px] font-extrabold tracking-tight text-ink truncate">{conferenceName ?? 'WBR'}</span>
+        <svg className="w-3.5 h-3.5 text-ink mt-1 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </div>
