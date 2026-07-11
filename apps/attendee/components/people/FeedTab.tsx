@@ -772,10 +772,9 @@ export function FeedTab({
                       </button>
                     </div>
 
-                    {/* Caption */}
+                    {/* Caption — no author prefix; the name already leads the post header */}
                     {msg.content && (
                       <p className="px-4 pt-1 text-subhead text-ink whitespace-pre-wrap break-words">
-                        <span className="font-semibold">{name}</span>{' '}
                         {msg.content}
                       </p>
                     )}
