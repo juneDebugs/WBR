@@ -55,7 +55,7 @@ apps/attendee/
 The attendee app's API splits into three shapes:
 
 - **`app/api/data/*`** — read-only, TanStack-Query-fronted endpoints powering the screens. `chat`, `home`, `meetings`, `my-schedule`, `people`, `schedule`, `setup`, `speakers`. Each is cached with a tag; mutations elsewhere call `revalidateTag`.
-- **`app/api/<resource>/*`** — write routes for `chat`, `follow`, `meeting-requests`, `meetings`, `posts`, `profile`, `push-token`, `setup`.
+- **`app/api/<resource>/*`** — write routes for `chat`, `feed`, `follow`, `meeting-requests`, `meetings`, `posts`, `profile`, `push-token`, `setup`. The `feed/[messageId]/like` + `feed/[messageId]/comments` routes power the Instagram-style People→Feed tab (`components/people/FeedTab.tsx`); they are guarded to `room-general` messages only. Feed posts may carry a base64 `imageUrl` (ADR 0004); schema DDL for `MessageLike`/`MessageComment`/`Message.imageUrl` is replayed on Turso via `db:migrate-feed`.
 - **`app/api/revalidate/route.ts`** — the cross-app inbound endpoint (admin calls in to bust caches after a speaker edit).
 
 Note: **`app/api/data/speakers/route.ts` does NOT strip data-URI photoUrls.** It returns whatever the DB has. The parallel admin endpoint at `apps/web/app/api/data/speakers/route.ts` does strip — this divergence is intentional and noted in the admin README. See [`docs/adr/0004-base64-images-in-db.md`](../../docs/adr/0004-base64-images-in-db.md) for the surrounding decision.

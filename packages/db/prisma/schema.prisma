@@ -81,6 +81,8 @@ model User {
   speakerProfile    Speaker?
   chatMemberships   ChatMember[]
   messages          Message[]
+  messageLikes      MessageLike[]
+  messageComments   MessageComment[]
   scheduledMessages ScheduledMessage[]
   following         Follow[]          @relation("UserFollowing")
   followers         Follow[]          @relation("UserFollowers")
@@ -275,12 +277,40 @@ model Message {
   roomId    String
   senderId  String
   content   String
+  imageUrl  String?
   createdAt DateTime @default(now())
 
-  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  sender User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  room     ChatRoom         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender   User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  likes    MessageLike[]
+  comments MessageComment[]
 
   @@index([roomId, createdAt])
+}
+
+model MessageLike {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+}
+
+model MessageComment {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
 }
 
 model ScheduledMessage {

@@ -303,6 +303,27 @@ failure paths against a scratch DB) and `scripts/test-scheduled-messages-api.mjs
 
 ---
 
+## Instagram-style Feed redesign — social layer on the Message stream (2026-07-10)
+
+The People→Feed tab was fully redesigned as an Instagram-style feed (light mode,
+HIG-compliant, design-system tokens only): WBR wordmark header, gradient-ring stories
+rail (`bg-brand-gradient`), edge-to-edge post cards with like/comment/share/bookmark
+actions, a "New post" bottom-sheet composer with client-side image downscaling
+(canvas → JPEG ≤1080px), and a comments bottom sheet. UI lives in
+`apps/attendee/components/people/FeedTab.tsx`; `PeopleClient.tsx` keeps the other tabs
+and the DM modal untouched. **Model decision:** the feed stays on the `room-general`
+`Message` stream (scheduled-broadcast dispatch and the DM layer keep working unchanged)
+rather than reviving the orphaned `Post`/`PostLike` models — social features are
+additive: `Message.imageUrl` (base64 data URI per ADR 0004, ≤2M chars validated
+server-side), new `MessageLike` (unique per user+message) and `MessageComment` tables,
+enriched feed payloads (`likeCount`/`commentCount`/`likedByMe`), and
+`/api/feed/[messageId]/like` + `/comments` routes. Like/comment endpoints are guarded
+to `room-general` so they can never touch DM rooms. **Schema on Turso:** replayed by
+`scripts/migrate-feed-social.mjs` (alias `db:migrate-feed`; idempotent, `--local` for
+sqlite files), mirroring the scheduled-messages pattern. Guarded by the extended
+`test:feed` (logic), `test:feed:api` (HTTP acceptance incl. DM-leak guards), and
+`e2e:feed` (Playwright: stories, create, like persistence, comments) suites.
+
 ## Cross-references
 
 - [Architecture](architecture.md) — cross-cutting current-state architecture.

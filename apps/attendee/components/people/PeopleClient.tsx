@@ -4,17 +4,7 @@ import React, { useState, useTransition, useEffect, useRef, useMemo, useCallback
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { usePeopleData } from '@/lib/hooks'
-
-interface Person {
-  id: string
-  name: string | null
-  image: string | null
-  company: string | null
-  jobTitle: string | null
-  bio: string | null
-  website: string | null
-  linkedinUrl: string | null
-}
+import { FeedTab, FeedHeader, type Person } from './FeedTab'
 
 interface Props {
   currentUserId: string
@@ -152,20 +142,6 @@ interface ChatMessage {
   }
 }
 
-// Relative timestamp for feed cards: "now", "5m", "2h", "Yesterday", else short date.
-function timeAgo(iso: string): string {
-  const date = new Date(iso)
-  const diffMins = Math.floor((Date.now() - date.getTime()) / 60_000)
-  if (diffMins < 1) return 'now'
-  if (diffMins < 60) return `${diffMins}m`
-  const diffHours = Math.floor(diffMins / 60)
-  if (diffHours < 24) return `${diffHours}h`
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
 export function PeopleClient(_props: Props) {
   const { data, isLoading } = usePeopleData()
 
@@ -202,15 +178,10 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Feed state — conference-wide home feed backed by /api/chat/global.
-  // Messages are stored ASCENDING (oldest→newest, as the API returns) and
-  // reversed for display so the newest post is at the top.
-  const [feedMessages, setFeedMessages] = useState<ChatMessage[]>([])
-  const [feedInput, setFeedInput] = useState('')
-  const [feedLoading, setFeedLoading] = useState(true)
-  const [feedSending, setFeedSending] = useState(false)
-  const feedFetchedRef = useRef(false)
-  const feedLatestIdRef = useRef('')
+  // Feed logic lives in FeedTab (components/people/FeedTab.tsx); PeopleClient
+  // only owns the composer-sheet open state so both the FeedHeader "+" trigger
+  // (rendered above the tab bar) and FeedTab (renders the sheet) can share it.
+  const [composerOpen, setComposerOpen] = useState(false)
 
   const [friendState, setFriendState] = useState<Record<string, boolean>>(
     Object.fromEntries(friendIds.map(id => [id, true]))
@@ -278,45 +249,6 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Fetch the feed once, the first time the Feed tab becomes active
-  // (immediately on mount, since Feed is the default tab).
-  useEffect(() => {
-    if (tab !== 'Feed' || feedFetchedRef.current) return
-    feedFetchedRef.current = true
-    setFeedLoading(true)
-    fetch('/api/chat/global')
-      .then(r => r.json())
-      .then(data => {
-        const msgs: ChatMessage[] = data.messages ?? []
-        feedLatestIdRef.current = msgs[msgs.length - 1]?.id ?? ''
-        setFeedMessages(msgs)
-      })
-      .catch(() => {})
-      .finally(() => setFeedLoading(false))
-  }, [tab])
-
-  // Poll while the Feed tab is active — this is the delivery mechanism for
-  // admin-scheduled broadcasts. Mirrors the latestIdRef pattern in
-  // components/chat/ChatView.tsx to skip re-renders when nothing changed.
-  useEffect(() => {
-    if (tab !== 'Feed') return
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch('/api/chat/global')
-        if (!res.ok) return
-        const data = await res.json()
-        const msgs: ChatMessage[] = data.messages ?? []
-        const latest = msgs[msgs.length - 1]?.id ?? ''
-        if (latest !== feedLatestIdRef.current) {
-          feedLatestIdRef.current = latest
-          // Preserve any optimistic (temp) messages still awaiting their POST.
-          setFeedMessages(prev => [...msgs, ...prev.filter(m => m.id.startsWith('temp-'))])
-        }
-      } catch {}
-    }, 15000)
-    return () => clearInterval(interval)
-  }, [tab])
-
   // Current user's profile (for the composer avatar), if already loaded.
   const me = useMemo(
     () =>
@@ -325,74 +257,6 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
       null,
     [loadedUsers, friends, currentUserId]
   )
-
-  // Newest-first for display
-  const feedDisplay = useMemo(() => [...feedMessages].reverse(), [feedMessages])
-
-  async function sendFeedPost() {
-    const content = feedInput.trim()
-    if (!content || feedSending) return
-    setFeedSending(true)
-    setFeedInput('')
-
-    // Optimistic append — stored list is ascending, so appending puts the
-    // temp message at the top of the (reversed) feed.
-    const temp: ChatMessage = {
-      id: `temp-${Date.now()}`,
-      content,
-      senderId: currentUserId,
-      createdAt: new Date().toISOString(),
-      sender: {
-        id: currentUserId,
-        name: me?.name ?? 'You',
-        image: me?.image ?? null,
-        company: me?.company ?? null,
-        jobTitle: me?.jobTitle ?? null,
-      },
-    }
-    setFeedMessages(prev => [...prev, temp])
-
-    try {
-      const res = await fetch('/api/chat/global', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      })
-      if (res.ok) {
-        const saved: ChatMessage = await res.json()
-        setFeedMessages(prev => {
-          const withoutTemp = prev.filter(m => m.id !== temp.id)
-          // A poll may have already delivered the saved message — don't duplicate.
-          return withoutTemp.some(m => m.id === saved.id) ? withoutTemp : [...withoutTemp, saved]
-        })
-        feedLatestIdRef.current = saved.id
-      } else {
-        // Validation failure (e.g. 400) — remove the temp post, restore input.
-        setFeedMessages(prev => prev.filter(m => m.id !== temp.id))
-        setFeedInput(content)
-      }
-    } catch {
-      setFeedMessages(prev => prev.filter(m => m.id !== temp.id))
-      setFeedInput(content)
-    }
-    setFeedSending(false)
-  }
-
-  // Open the existing DM modal for a feed post's author.
-  function openDmWith(msg: ChatMessage) {
-    const senderId = msg.sender.id ?? msg.senderId
-    if (senderId === currentUserId) return
-    setSelected({
-      id: senderId,
-      name: msg.sender.name,
-      image: msg.sender.image,
-      company: msg.sender.company ?? null,
-      jobTitle: msg.sender.jobTitle ?? null,
-      bio: null,
-      website: null,
-      linkedinUrl: null,
-    })
-  }
 
   async function sendMessage() {
     if (!chatInput.trim() || !chatRoomId || sending) return
@@ -534,7 +398,17 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
 
   return (
     <div className="page-container">
-      <h1 className="text-2xl font-bold mb-4">People</h1>
+      {/* While the Feed tab is active, its Instagram-style header replaces the
+          "People" h1; every other tab keeps the h1 + search exactly as before. */}
+      {tab === 'Feed' ? (
+        <FeedHeader
+          onCreate={() => setComposerOpen(true)}
+          onOpenMessages={() => setTab('Messages')}
+          hasConversations={conversations.length > 0}
+        />
+      ) : (
+        <h1 className="text-2xl font-bold mb-4">People</h1>
+      )}
 
       {/* Search (not used by the Feed tab) */}
       {tab !== 'Feed' && (
@@ -569,117 +443,20 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
         ))}
       </div>
 
-      {/* Feed tab */}
+      {/* Feed tab — Instagram-style feed (stories, posts, likes, comments). */}
       {tab === 'Feed' && (
-        <div>
-          {/* Composer */}
-          <div className="card mb-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-fill overflow-hidden flex items-center justify-center flex-shrink-0">
-                {me?.image ? (
-                  <img src={me.image} alt="" className="w-10 h-10 object-cover" />
-                ) : (
-                  <svg className="w-5 h-5 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <textarea
-                  value={feedInput}
-                  onChange={e => setFeedInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendFeedPost() } }}
-                  placeholder="Share something with everyone at WBR…"
-                  maxLength={5000}
-                  rows={2}
-                  className="textarea w-full min-h-[44px]"
-                />
-                <div className="flex justify-end mt-2">
-                  <button
-                    onClick={sendFeedPost}
-                    disabled={!feedInput.trim() || feedSending}
-                    className="btn-primary btn-sm min-h-[44px]"
-                  >
-                    Post
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Feed — newest first */}
-          {feedLoading ? (
-            <div className="space-y-3">
-              {[0, 1, 2].map(i => (
-                <div key={i} className="card">
-                  <div className="flex items-start gap-3">
-                    <div className="skeleton w-10 h-10 rounded-full flex-shrink-0" />
-                    <div className="flex-1 space-y-2 py-0.5">
-                      <div className="skeleton h-3.5 w-1/3" />
-                      <div className="skeleton h-3 w-1/2" />
-                      <div className="skeleton h-3.5 w-full" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : feedDisplay.length === 0 ? (
-            <div className="empty-state">
-              <div className="w-12 h-12 rounded-full bg-fill flex items-center justify-center">
-                <svg className="w-6 h-6 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </div>
-              <p className="text-sm font-semibold text-ink">Be the first to say hello to the conference</p>
-              <p className="text-footnote text-ink-3">Posts here are visible to everyone at WBR.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {feedDisplay.map(msg => {
-                const senderId = msg.sender.id ?? msg.senderId
-                const isMe = senderId === currentUserId
-                const isTemp = msg.id.startsWith('temp-')
-                const caption = [msg.sender.company, msg.sender.jobTitle].filter(Boolean).join(' · ')
-                return (
-                  <div key={msg.id} className={`card ${isTemp ? 'opacity-60' : ''}`}>
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-fill overflow-hidden flex items-center justify-center flex-shrink-0">
-                        {msg.sender.image ? (
-                          <img src={msg.sender.image} alt="" loading="lazy" className="w-10 h-10 object-cover" />
-                        ) : (
-                          <span className="text-ink-2 font-bold">{(msg.sender.name ?? '?')[0]}</span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 min-w-0">
-                          {isMe ? (
-                            <span className="font-semibold text-ink text-sm truncate">{msg.sender.name ?? 'You'}</span>
-                          ) : (
-                            <Link href={`/people/${senderId}`} className="font-semibold text-ink text-sm truncate active:opacity-70">
-                              {msg.sender.name ?? 'Unknown'}
-                            </Link>
-                          )}
-                          <span className="text-caption text-ink-3 flex-shrink-0">{timeAgo(msg.createdAt)}</span>
-                        </div>
-                        {caption && <p className="text-footnote text-ink-3 truncate">{caption}</p>}
-                      </div>
-                      {!isMe && (
-                        <button
-                          onClick={() => openDmWith(msg)}
-                          className="btn-ghost btn-sm min-h-[44px] -my-2 -mr-2 flex-shrink-0"
-                        >
-                          Message
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-subhead text-ink whitespace-pre-wrap break-words mt-2">{msg.content}</p>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        <FeedTab
+          currentUserId={currentUserId}
+          me={me}
+          people={loadedUsers}
+          friends={optimisticFriends}
+          friendState={friendState}
+          pendingFollow={pending}
+          onToggleFriend={toggleFriend}
+          onOpenDm={handleSelect}
+          composerOpen={composerOpen}
+          onComposerOpenChange={setComposerOpen}
+        />
       )}
 
       {/* Messages tab */}

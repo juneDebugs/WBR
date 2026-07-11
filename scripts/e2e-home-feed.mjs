@@ -1,12 +1,17 @@
 #!/usr/bin/env node
-// Browser E2E for the People → Feed section (attendee app):
-//   Goal 1 — /people opens on the Feed tab by default, with the composer and
-//            the conference-wide feed visible.
-//   Goal 2 — a plain ATTENDEE can post to the feed, sees it appear at the top
-//            instantly (optimistic), and it survives a reload (persisted).
-//   Goal 3 — another user's post shows a "Message" action that opens the DM
-//            modal, and a DM can be sent from it.
-//   Goal 4 — the other People tabs (Discover/Friends/Messages) still render.
+// Browser E2E for the People → Feed section (attendee app), Instagram-style UI:
+//   Goal 1 — /people opens on the Feed tab by default: WBR wordmark header,
+//            stories rail ("Your story"), and feed posts all visible.
+//   Goal 2 — a plain ATTENDEE can create a post via the "+" header button and
+//            composer sheet, sees it appear at the top instantly (optimistic),
+//            and it survives a reload (persisted).
+//   Goal 3 — like flow: tapping the heart on another user's post increments
+//            the count and flips aria-pressed, survives a reload, and can be
+//            unliked again (state left clean).
+//   Goal 4 — comments flow: the comments sheet opens, a comment can be posted,
+//            it renders in the list, and the post's "View … comment" count
+//            updates.
+//   Goal 5 — the other People tabs (Discover/Friends/Messages) still render.
 //
 // Drives real Chromium at an iPhone-ish viewport, seeds a second user's feed
 // post over HTTP, and writes screenshots to SHOT_DIR for design review.
@@ -16,7 +21,8 @@
 //
 // Env: SMOKE_BASE_URL, SMOKE_EMAIL/SMOKE_PASSWORD (attendee, default steph),
 //      SMOKE_EMAIL_B/SMOKE_PASSWORD_B (feed-partner, default june), SHOT_DIR.
-// All messages created here carry a unique marker and are deleted afterwards.
+// All messages/comments created here carry a unique marker and are deleted
+// afterwards (comment cleanup is best-effort across candidate table names).
 
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -32,9 +38,9 @@ catch { ({ chromium } = require('playwright')) }
 
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3001'
 const PORT = new URL(BASE).port || '3001'
-// Primary actor: a plain attendee — proves feed/DM is not staff-gated.
+// Primary actor: a plain attendee — proves feed/likes/comments are not staff-gated.
 const CREDS = { email: process.env.SMOKE_EMAIL ?? 'steph@curry.com', password: process.env.SMOKE_PASSWORD ?? 'stephcurry' }
-// Partner whose post we DM from.
+// Partner whose post we like/comment on.
 const CREDS_B = { email: process.env.SMOKE_EMAIL_B ?? 'june@tailor.tech', password: process.env.SMOKE_PASSWORD_B ?? 'admin123' }
 const SHOT_DIR = process.env.SHOT_DIR ?? '/tmp'
 const MARKER = `[feed-e2e ${process.pid}-${Date.now()}]`
@@ -141,7 +147,7 @@ async function main() {
     console.log('Server is up.')
   }
 
-  // Seed a partner post so the feed has another user's card to DM from.
+  // Seed a partner post so the feed has another user's card to like/comment on.
   // Retried: a just-booted dev server can drop the first requests while
   // routes compile.
   const partnerContent = `${MARKER} partner post — say hi!`
@@ -159,69 +165,97 @@ async function main() {
   console.log(`\nLogging in via UI as ${CREDS.email}`)
   await login(page, CREDS)
 
-  // ── Goal 1: Feed is the default People tab ──
+  // ── Goal 1: Feed is the default People tab, Instagram chrome renders ──
   console.log('\n[feed tab default]')
   await page.goto(`${BASE}/people`, { waitUntil: 'domcontentloaded' })
-  const composer = page.locator('textarea[placeholder="Share something with everyone at WBR…"]')
-  await composer.waitFor({ state: 'visible', timeout: 60_000 })
-  check('composer visible without any tab click (Feed is default)', true)
+  const wordmark = page.getByTestId('feed-wordmark')
+  await wordmark.waitFor({ state: 'visible', timeout: 60_000 })
+  check('WBR wordmark header visible without any tab click (Feed is default)', true)
   const feedTab = page.locator('button', { hasText: 'Feed' }).first()
   check('Feed tab present', await feedTab.count() > 0)
-  const postBtn = page.locator('button', { hasText: 'Post' }).first()
-  check('Post button disabled while composer is empty', await postBtn.isDisabled())
-  // The composer renders while the feed itself is still loading — wait for
-  // the partner's card rather than sampling instantly.
+  const yourStoryVisible = await page.getByText('Your story').first()
+    .waitFor({ state: 'visible', timeout: 30_000 }).then(() => true, () => false)
+  check('stories rail visible ("Your story" item)', yourStoryVisible)
   const partnerPostVisible = await page.getByText(partnerContent).first()
     .waitFor({ state: 'visible', timeout: 30_000 }).then(() => true, () => false)
   check('partner post visible in the feed', partnerPostVisible)
+  check('posts render as full-bleed feed cards', await page.getByTestId('feed-post').count() > 0)
   await page.screenshot({ path: join(SHOT_DIR, 'feed-01-default.png') })
 
-  // ── Goal 2: post to the feed, verify optimistic + persisted ──
-  console.log('\n[post to feed]')
+  // ── Goal 2: create a post via the composer sheet, optimistic + persisted ──
+  console.log('\n[create post]')
   const myContent = `${MARKER} hello from the e2e attendee`
+  await page.getByRole('button', { name: 'New post' }).click()
+  const sheet = page.getByTestId('composer-sheet')
+  await sheet.waitFor({ state: 'visible', timeout: 15_000 })
+  check('composer sheet opens from the "+" header button', true)
+  const composer = sheet.locator('textarea[placeholder="Share something with everyone at WBR…"]')
+  await composer.waitFor({ state: 'visible', timeout: 10_000 })
+  const shareBtn = sheet.getByRole('button', { name: 'Share', exact: true })
+  check('Share disabled while composer is empty', await shareBtn.isDisabled())
   await composer.fill(myContent)
-  check('Post button enabled once content typed', !(await postBtn.isDisabled()))
-  await postBtn.click()
+  check('Share enabled once content typed', !(await shareBtn.isDisabled()))
+  await shareBtn.click()
   await page.getByText(myContent).first().waitFor({ state: 'visible', timeout: 15_000 })
-  check('own post appears in the feed', true)
-  const firstCardText = await page.locator('.card').nth(1).innerText() // nth(0) is the composer card
-  check('own post is the top feed card (newest first)', firstCardText.includes(myContent),
-    firstCardText.slice(0, 120))
+  check('own post appears in the feed (optimistic)', true)
+  const firstPostText = await page.getByTestId('feed-post').first().innerText()
+  check('own post is the top feed card (newest first)', firstPostText.includes(myContent),
+    firstPostText.slice(0, 120))
   await page.screenshot({ path: join(SHOT_DIR, 'feed-02-posted.png') })
 
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.getByText(myContent).first().waitFor({ state: 'visible', timeout: 60_000 })
   check('post survives reload (persisted server-side)', true)
 
-  // ── Goal 3: DM from a feed card ──
-  console.log('\n[dm from feed]')
-  const partnerCard = page.locator('.card', { hasText: partnerContent }).first()
-  const messageBtn = partnerCard.locator('button', { hasText: 'Message' })
-  check('partner card has a Message action', await messageBtn.count() > 0)
-  check('own card has no Message action',
-    (await page.locator('.card', { hasText: myContent }).first().locator('button', { hasText: 'Message' }).count()) === 0)
-  await messageBtn.click()
-  const dmInput = page.locator('input[placeholder*="Message"], textarea[placeholder*="Message"]').first()
-  await dmInput.waitFor({ state: 'visible', timeout: 15_000 })
-  check('DM modal opened from the feed card', true)
-  const dmContent = `${MARKER} dm via feed card`
-  await dmInput.fill(dmContent)
-  // The modal ignores Enter until its room bootstrap (POST /api/chat/rooms)
-  // resolves, leaving the input intact — so retry Enter until the bubble
-  // renders instead of pressing once.
-  let dmRendered = false
-  for (let i = 0; i < 10 && !dmRendered; i++) {
-    await dmInput.press('Enter')
-    dmRendered = await page.getByText(dmContent).first()
-      .waitFor({ state: 'visible', timeout: 2_000 }).then(() => true, () => false)
-  }
-  check('DM sent and rendered in the thread', dmRendered)
-  await page.screenshot({ path: join(SHOT_DIR, 'feed-03-dm-modal.png') })
-  // The DM sheet dismisses on backdrop tap (mobile pattern), not Escape.
-  await page.mouse.click(195, 40)
-  await dmInput.waitFor({ state: 'hidden', timeout: 10_000 })
+  // ── Goal 3: like flow on the partner's post ──
+  console.log('\n[like flow]')
+  const partnerPost = () => page.getByTestId('feed-post').filter({ hasText: partnerContent }).first()
+  const likeBtn = () => partnerPost().getByTestId('like-button')
+  await likeBtn().waitFor({ state: 'visible', timeout: 15_000 })
+  check('like button starts unpressed', (await likeBtn().getAttribute('aria-pressed')) === 'false')
+  check('partner post has a share action', await partnerPost().getByRole('button', { name: 'Send as message' }).count() > 0)
+  check('own post has no share action',
+    (await page.getByTestId('feed-post').filter({ hasText: myContent }).first()
+      .getByRole('button', { name: 'Send as message' }).count()) === 0)
+  await likeBtn().click()
+  await partnerPost().locator('[data-testid="like-button"][aria-pressed="true"]')
+    .waitFor({ state: 'visible', timeout: 10_000 })
+  check('heart flips to pressed (aria-pressed=true) on tap', true)
+  const likeCount = await partnerPost().getByTestId('like-count').innerText().catch(() => '')
+  check('like count appears next to the heart', Number(likeCount) >= 1, `count="${likeCount}"`)
+  await page.screenshot({ path: join(SHOT_DIR, 'feed-03-liked.png') })
 
-  // ── Goal 4: other tabs unharmed ──
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.getByText(partnerContent).first().waitFor({ state: 'visible', timeout: 60_000 })
+  check('like survives reload (persisted server-side)',
+    (await likeBtn().getAttribute('aria-pressed')) === 'true')
+  await likeBtn().click()
+  await partnerPost().locator('[data-testid="like-button"][aria-pressed="false"]')
+    .waitFor({ state: 'visible', timeout: 10_000 })
+  check('unlike flips the heart back (state left clean)', true)
+
+  // ── Goal 4: comments flow on the partner's post ──
+  console.log('\n[comments flow]')
+  const commentContent = `${MARKER} comment via feed e2e`
+  await partnerPost().getByTestId('comment-button').click()
+  const commentsSheet = page.getByTestId('comments-sheet')
+  await commentsSheet.waitFor({ state: 'visible', timeout: 15_000 })
+  check('comments sheet opens', true)
+  const commentInput = commentsSheet.locator('input[placeholder="Add a comment…"]')
+  await commentInput.waitFor({ state: 'visible', timeout: 10_000 })
+  await commentInput.fill(commentContent)
+  await commentsSheet.getByRole('button', { name: 'Post', exact: true }).click()
+  const commentRendered = await commentsSheet.getByText(commentContent).first()
+    .waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false)
+  check('comment posted and rendered in the sheet', commentRendered)
+  await page.screenshot({ path: join(SHOT_DIR, 'feed-04-comments.png') })
+  await commentsSheet.getByRole('button', { name: 'Close comments' }).click()
+  await commentsSheet.waitFor({ state: 'hidden', timeout: 10_000 })
+  const viewCommentsVisible = await partnerPost().getByText(/View (all \d+ comments|1 comment)/).first()
+    .waitFor({ state: 'visible', timeout: 10_000 }).then(() => true, () => false)
+  check('post shows an updated "View … comment" count', viewCommentsVisible)
+
+  // ── Goal 5: other tabs unharmed ──
   console.log('\n[other tabs]')
   for (const label of ['Discover', 'Friends', 'Messages']) {
     await page.locator('button', { hasText: label }).first().click()
@@ -230,9 +264,9 @@ async function main() {
       (await page.locator('body').innerText()).length > 0 && !(await page.locator('text=Application error').count()))
   }
   await page.locator('button', { hasText: 'Feed' }).first().click()
-  await composer.waitFor({ state: 'visible', timeout: 10_000 })
+  await wordmark.waitFor({ state: 'visible', timeout: 10_000 })
   check('returning to Feed keeps it working', true)
-  await page.screenshot({ path: join(SHOT_DIR, 'feed-04-back-to-feed.png') })
+  await page.screenshot({ path: join(SHOT_DIR, 'feed-05-back-to-feed.png') })
 
   await browser.close()
   console.log(`\nScreenshots: ${SHOT_DIR}/feed-0*.png`)
@@ -246,7 +280,24 @@ try {
 } finally {
   try {
     const oracle = openOracle()
+    // Comments first (they reference messages). The comment table name is
+    // owned by the backend; try candidates best-effort so cleanup works
+    // whichever name shipped.
+    for (const table of ['MessageComment', 'FeedComment', 'PostComment', 'Comment']) {
+      try { await oracle.execute({ sql: `DELETE FROM ${table} WHERE content LIKE ?`, args: [`%${MARKER}%`] }) } catch {}
+    }
     await oracle.execute({ sql: 'DELETE FROM Message WHERE content LIKE ?', args: [`%${MARKER}%`] })
+    // Best-effort: drop any like/comment rows orphaned by the message delete.
+    for (const table of ['MessageLike', 'FeedLike', 'PostLike']) {
+      try {
+        await oracle.execute({ sql: `DELETE FROM ${table} WHERE messageId NOT IN (SELECT id FROM Message)` })
+      } catch {}
+    }
+    for (const table of ['MessageComment', 'FeedComment', 'PostComment', 'Comment']) {
+      try {
+        await oracle.execute({ sql: `DELETE FROM ${table} WHERE messageId NOT IN (SELECT id FROM Message)` })
+      } catch {}
+    }
   } catch (e) {
     console.error('cleanup failed:', e.message)
   }

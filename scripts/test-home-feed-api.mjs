@@ -16,6 +16,13 @@
 //      membership rows exist for both (oracle-checked).
 //   5. Guardrails: self-DM 400, unknown target 404, missing target 400,
 //      reading a room you're not a member of 403.
+//   6. Feed social: GET /api/chat/global messages carry imageUrl / likeCount /
+//      commentCount / likedByMe; POST with a valid data-URI image persists and
+//      echoes it (oracle-checked), invalid images are 400s.
+//   7. Likes: POST /api/feed/:id/like toggles per user with correct counts,
+//      401 unauthenticated, 404 for unknown ids and DM-room message ids.
+//   8. Comments: GET/POST /api/feed/:id/comments happy path (ascending, safe
+//      user projection), 400 empty, 401 unauthenticated, 404 for DM messages.
 //
 //   node scripts/test-home-feed-api.mjs           # server already on :3001
 //   node scripts/test-home-feed-api.mjs --start   # boot `next dev`, then kill it
@@ -39,12 +46,17 @@ const PASSWORD_A = process.env.SMOKE_PASSWORD ?? 'admin123'
 const EMAIL_B = process.env.SMOKE_EMAIL_B ?? 'steph@curry.com'
 const PASSWORD_B = process.env.SMOKE_PASSWORD_B ?? 'stephcurry'
 const MARKER = `[feed-test ${process.pid}-${Date.now()}]`
+const TINY_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
 let serverProc = null
 let failures = 0
 let oracle = null
 let dmRoomWasCreatedByThisRun = false
 let dmRoomId = null
+// Messages whose content can't carry the marker (image-only posts) — tracked
+// by id so cleanup still removes them.
+const extraMessageIds = []
 
 function check(name, cond, detail = '') {
   if (cond) console.log(`  ✓ ${name}`)
@@ -122,8 +134,10 @@ async function openDb(jarFetch) {
     return createClient({ url, authToken })
   }
   if (mode.startsWith('sqlite')) {
-    const rel = mode.replace(/^sqlite:\s*file:/, '')
-    return createClient({ url: `file:${join(ROOT, 'apps/attendee', rel)}` })
+    const path = mode.replace(/^sqlite:\s*file:/, '')
+    // DATABASE_URL may be absolute (file:/abs/path) or relative to the app dir.
+    const resolved = path.startsWith('/') ? path : join(ROOT, 'apps/attendee', path)
+    return createClient({ url: `file:${resolved}` })
   }
   throw new Error(`unexpected server connection mode: ${mode || JSON.stringify(debug)}`)
 }
@@ -348,6 +362,135 @@ async function main() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ content: 'sneaky' }),
     })).status === 403)
+
+  // ── Feed social: enrichment fields + images ──
+  console.log('\n[feed social: enrichment + images]')
+  const postGlobalBody = (jarFetch, body) =>
+    jarFetch(`${BASE}/api/chat/global`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  const enrichedFeed = await (await userA(`${BASE}/api/chat/global`)).json()
+  check('feed messages carry imageUrl/likeCount/commentCount/likedByMe',
+    (enrichedFeed.messages ?? []).length > 0 &&
+    enrichedFeed.messages.every(m => 'imageUrl' in m && typeof m.likeCount === 'number' &&
+      typeof m.commentCount === 'number' && typeof m.likedByMe === 'boolean'))
+
+  const imgRes = await postGlobalBody(userA, { content: `${MARKER} with pic`, imageUrl: TINY_PNG })
+  check('post with image accepted', imgRes.ok, `status ${imgRes.status}`)
+  const imgPosted = await imgRes.json()
+  check('post echoes the image data URI', imgPosted?.imageUrl === TINY_PNG,
+    JSON.stringify(imgPosted).slice(0, 200))
+  check('fresh post echoes zero social counts',
+    imgPosted?.likeCount === 0 && imgPosted?.commentCount === 0 && imgPosted?.likedByMe === false)
+  const dbImg = await oracle.execute({
+    sql: 'SELECT imageUrl FROM Message WHERE id = ?',
+    args: [imgPosted.id],
+  })
+  check('oracle: imageUrl persisted', dbImg.rows[0]?.imageUrl === TINY_PNG)
+
+  const imageOnlyRes = await postGlobalBody(userA, { content: '', imageUrl: TINY_PNG })
+  check('image-only post (empty content) accepted', imageOnlyRes.ok, `status ${imageOnlyRes.status}`)
+  const imageOnlyPosted = await imageOnlyRes.json()
+  if (imageOnlyPosted?.id) extraMessageIds.push(imageOnlyPosted.id)
+  check('image-only post stores empty content + the image',
+    imageOnlyPosted?.content === '' && imageOnlyPosted?.imageUrl === TINY_PNG)
+
+  check('http(s) imageUrl → 400',
+    (await postGlobalBody(userA, { content: 'x', imageUrl: 'https://example.com/x.png' })).status === 400)
+  check('non-image data URI → 400',
+    (await postGlobalBody(userA, { content: 'x', imageUrl: 'data:text/html;base64,PHNjcmlwdD4=' })).status === 400)
+
+  // ── Feed social: likes ──
+  console.log('\n[feed social: likes]')
+  const likeUrl = id => `${BASE}/api/feed/${id}/like`
+  check('unauthenticated like rejected',
+    (await fetch(likeUrl(posted.id), { method: 'POST' })).status === 401)
+
+  const likeARes = await userA(likeUrl(posted.id), { method: 'POST' })
+  check('A can like a feed message', likeARes.status === 200, `status ${likeARes.status}`)
+  const likeA = await likeARes.json()
+  check('A like → liked true, count 1', likeA?.liked === true && likeA?.likeCount === 1,
+    JSON.stringify(likeA))
+  const likeB = await (await userB(likeUrl(posted.id), { method: 'POST' })).json()
+  check('B like → liked true, count 2', likeB?.liked === true && likeB?.likeCount === 2,
+    JSON.stringify(likeB))
+  const dbLikes = await oracle.execute({
+    sql: 'SELECT COUNT(*) AS n FROM MessageLike WHERE messageId = ?',
+    args: [posted.id],
+  })
+  check('oracle: both like rows persisted', Number(dbLikes.rows[0]?.n) === 2,
+    JSON.stringify(dbLikes.rows))
+
+  const likedFeed = await (await userB(`${BASE}/api/chat/global`)).json()
+  const likedMsg = likedFeed.messages?.find(m => m.id === posted.id)
+  check('feed reflects likeCount + likedByMe for the viewer',
+    likedMsg?.likeCount === 2 && likedMsg?.likedByMe === true, JSON.stringify(likedMsg).slice(0, 200))
+
+  const unlikeA = await (await userA(likeUrl(posted.id), { method: 'POST' })).json()
+  check('A toggles off → liked false, count 1', unlikeA?.liked === false && unlikeA?.likeCount === 1,
+    JSON.stringify(unlikeA))
+  const unlikeB = await (await userB(likeUrl(posted.id), { method: 'POST' })).json()
+  check('B toggles off → liked false, count 0', unlikeB?.liked === false && unlikeB?.likeCount === 0)
+
+  check('like on unknown message → 404',
+    (await userA(likeUrl('no-such-message'), { method: 'POST' })).status === 404)
+  check('like on a DM-room message → 404 (guard)',
+    (await userA(likeUrl(dmMsg.id), { method: 'POST' })).status === 404)
+
+  // ── Feed social: comments ──
+  console.log('\n[feed social: comments]')
+  const commentsUrl = id => `${BASE}/api/feed/${id}/comments`
+  const postComment = (jarFetch, id, content) =>
+    jarFetch(commentsUrl(id), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+  check('unauthenticated comment list rejected', (await fetch(commentsUrl(posted.id))).status === 401)
+  check('unauthenticated comment post rejected', (await fetch(commentsUrl(posted.id), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content: 'nope' }),
+  })).status === 401)
+
+  const commentContent = `${MARKER} nice one`
+  const commentRes = await postComment(userB, posted.id, `  ${commentContent}  `)
+  check('comment accepted', commentRes.ok, `status ${commentRes.status}`)
+  const comment = await commentRes.json()
+  check('comment echoes trimmed content + safe user projection',
+    comment?.content === commentContent && comment?.messageId === posted.id &&
+    comment?.user?.id === idB && !('password' in (comment?.user ?? {})) &&
+    !('pushToken' in (comment?.user ?? {})) && !('email' in (comment?.user ?? {})),
+    JSON.stringify(comment).slice(0, 200))
+
+  const replyContent2 = `${MARKER} thanks!`
+  check('second comment accepted', (await postComment(userA, posted.id, replyContent2)).ok)
+
+  const listRes = await userA(commentsUrl(posted.id))
+  check('comments readable', listRes.status === 200, `status ${listRes.status}`)
+  const { comments } = await listRes.json()
+  check('comments listed ascending with both entries',
+    Array.isArray(comments) &&
+    comments.some(c => c.content === commentContent) &&
+    comments.findIndex(c => c.content === commentContent) <
+      comments.findIndex(c => c.content === replyContent2),
+    JSON.stringify(comments ?? []).slice(0, 200))
+  check('listed comments never leak credentials',
+    (Array.isArray(comments) ? comments : []).every(c =>
+      c.user && !('password' in c.user) && !('pushToken' in c.user)))
+
+  const commentedFeed = await (await userA(`${BASE}/api/chat/global`)).json()
+  check('feed commentCount reflects both comments',
+    commentedFeed.messages?.find(m => m.id === posted.id)?.commentCount === 2)
+
+  check('empty comment → 400', (await postComment(userA, posted.id, '   ')).status === 400)
+  check('comment on a DM-room message → 404 (guard)',
+    (await postComment(userA, dmMsg.id, 'sneaky')).status === 404)
+  check('listing comments on a DM-room message → 404',
+    (await userA(commentsUrl(dmMsg.id))).status === 404)
 }
 
 try {
@@ -356,9 +499,24 @@ try {
   failures++
   console.error(`\n  ✗ unexpected error — ${e.message}`)
 } finally {
-  // Remove every row this run created.
+  // Remove every row this run created. Social rows go first — the oracle's
+  // raw SQL doesn't run with foreign_keys ON, so cascades can't be relied on.
   try {
     if (oracle) {
+      await oracle.execute({
+        sql: 'DELETE FROM MessageLike WHERE messageId IN (SELECT id FROM Message WHERE content LIKE ?)',
+        args: [`%${MARKER}%`],
+      })
+      await oracle.execute({
+        sql: 'DELETE FROM MessageComment WHERE messageId IN (SELECT id FROM Message WHERE content LIKE ?)',
+        args: [`%${MARKER}%`],
+      })
+      await oracle.execute({ sql: 'DELETE FROM MessageComment WHERE content LIKE ?', args: [`%${MARKER}%`] })
+      for (const id of extraMessageIds) {
+        await oracle.execute({ sql: 'DELETE FROM MessageLike WHERE messageId = ?', args: [id] })
+        await oracle.execute({ sql: 'DELETE FROM MessageComment WHERE messageId = ?', args: [id] })
+        await oracle.execute({ sql: 'DELETE FROM Message WHERE id = ?', args: [id] })
+      }
       await oracle.execute({ sql: 'DELETE FROM Message WHERE content LIKE ?', args: [`%${MARKER}%`] })
       if (dmRoomWasCreatedByThisRun && dmRoomId) {
         await oracle.execute({ sql: 'DELETE FROM ChatMember WHERE roomId = ?', args: [dmRoomId] })
