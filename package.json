@@ -39,7 +39,8 @@
     "test:feed:api": "node scripts/test-home-feed-api.mjs",
     "e2e:feed": "node scripts/e2e-home-feed.mjs",
     "db:migrate-scheduled": "node scripts/migrate-scheduled-messages.mjs",
-    "db:migrate-feed": "node scripts/migrate-feed-social.mjs"
+    "db:migrate-feed": "node scripts/migrate-feed-social.mjs",
+    "seed:feed-posts": "node scripts/seed-feed-posts.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1",
