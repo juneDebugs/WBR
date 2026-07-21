@@ -39,6 +39,7 @@
     "test:feed": "node scripts/test-home-feed.mjs",
     "test:feed:api": "node scripts/test-home-feed-api.mjs",
     "test:feed:rail": "node scripts/test-feed-messages-rail.mjs",
+    "test:broadcast-glow": "node scripts/test-broadcast-glow.mjs",
     "test:friends": "node scripts/test-friends.mjs",
     "test:friends:api": "node scripts/test-friends-api.mjs",
     "test:chat-no-dm": "node scripts/test-admin-chat-dm-removed.mjs",

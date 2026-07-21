@@ -25,6 +25,18 @@ interface FeedSender {
   image: string | null
   company?: string | null
   jobTitle?: string | null
+  role?: string | null
+}
+
+// Client-safe mirror of ADMIN_BROADCAST_ROLES / isAdminBroadcastRole from
+// packages/db/src/broadcast.ts. Copied rather than imported on purpose:
+// importing a runtime value from '@conference/db' would bundle the Prisma
+// client into the browser. scripts/test-broadcast-glow.mjs asserts this stays
+// in sync with the canonical list. An admin global broadcast is the only kind
+// of feed post authored by one of these roles, so role alone identifies it.
+const ADMIN_BROADCAST_ROLES = ['STAFF', 'ORGANIZER', 'ADMIN']
+function isAdminBroadcast(role: string | null | undefined): boolean {
+  return role != null && ADMIN_BROADCAST_ROLES.includes(role)
 }
 
 // One DM thread as returned by /api/data/people — the same shape the Messages
@@ -725,12 +737,26 @@ export function FeedTab({
                 const saved = savedIds.has(msg.id)
                 const caption = [msg.sender.company, msg.sender.jobTitle].filter(Boolean).join(' · ')
                 const name = msg.sender.name ?? (isMe ? 'You' : 'Unknown')
+                // Admin global broadcasts glow around their whole perimeter. To
+                // let the glow read on all four sides, the post detaches from
+                // the edge-to-edge feed into an inset, rounded card (the feed's
+                // -mx-4 full-bleed is cancelled by mx-4 here); ordinary posts
+                // keep the flush hairline-separated layout.
+                const isBroadcast = isAdminBroadcast(msg.sender.role)
                 return (
                   <article
                     key={msg.id}
                     data-testid="feed-post"
-                    className={`bg-surface border-b border-hairline ${idx === 0 ? 'border-t' : ''} ${isTemp ? 'opacity-60' : ''}`}
+                    data-broadcast={isBroadcast ? 'true' : undefined}
+                    className={`bg-surface ${isTemp ? 'opacity-60' : ''} ${
+                      isBroadcast
+                        ? 'feed-broadcast rounded-2xl mx-4 my-3 overflow-hidden'
+                        : `border-b border-hairline ${idx === 0 ? 'border-t' : ''}`
+                    }`}
                   >
+                    {isBroadcast && (
+                      <span className="sr-only">Announcement from the organizers</span>
+                    )}
                     {/* Post header */}
                     <div className="flex items-center gap-3 px-4 py-2.5">
                       {isMe ? (

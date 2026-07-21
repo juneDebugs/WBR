@@ -21,12 +21,16 @@ export const MAX_CHAT_CONTENT_LENGTH = 5000
 // Explicit sender projection used everywhere a message is returned to a
 // client. Never widen this to `sender: true` — the User row carries
 // credentials (password, pushToken) that must not leak into chat payloads.
+// `role` is safe (it is not a credential) and lets the attendee feed tell an
+// admin global broadcast apart from an ordinary post — see
+// packages/db/src/broadcast.ts.
 export const CHAT_SENDER_SELECT = {
   id: true,
   name: true,
   image: true,
   company: true,
   jobTitle: true,
+  role: true,
 } as const
 
 // Cap on the data-URI length of a feed image (~1.5MB of binary once the

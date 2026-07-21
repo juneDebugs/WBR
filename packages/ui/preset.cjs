@@ -113,6 +113,20 @@ const BTN_GLOW_HOVER = [
   '0 0 32px rgba(168,85,247,0.60)', // intensified violet halo
 ].join(', ')
 
+// Global-broadcast "glow" (2026-07). An admin global message in the attendee
+// feed reads as an elevated, brand-lit card: a crisp lavender edge ring, a soft
+// halo band, an elevation lift, and a violet bloom — the same glow vocabulary
+// as the primary CTA, applied to a card perimeter. Static (no motion) so it is
+// unaffected by prefers-reduced-motion and stays calm in a scrolling feed;
+// additive rgba so it reads on both light and dark surfaces. Single source of
+// truth for the broadcast look across every app (see `.feed-broadcast`).
+const FEED_BROADCAST_GLOW = [
+  '0 0 0 1px rgba(165,180,252,0.90)', // brand-300 lavender edge ring
+  '0 0 0 4px rgba(99,102,241,0.14)', // soft inner halo band
+  '0 6px 20px rgba(79,70,229,0.28)', // brand-600 elevation lift
+  '0 0 30px rgba(168,85,247,0.42)', // violet bloom around the perimeter
+].join(', ')
+
 const btnBase = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -190,6 +204,12 @@ function components() {
       backdropFilter: 'saturate(180%) blur(20px)',
       borderColor: '#e5e5ea',
     },
+
+    // Admin global-broadcast card — glows around its whole perimeter so an
+    // organizer announcement stands out from ordinary feed posts. Layout-safe:
+    // the glow is pure box-shadow (drawn outside the border box, so a rounded
+    // overflow-hidden card never clips it) and adds no border-box shift.
+    '.feed-broadcast': { boxShadow: FEED_BROADCAST_GLOW },
 
     // Grouped-list style section header (HIG), better contrast than gray-400.
     '.section-title': {
