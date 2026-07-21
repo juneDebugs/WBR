@@ -1,12 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { SponsorLogo } from '@/components/SponsorLogo'
 
 // ─── Client-safe view model (mirrors apps/web/lib/chat-settings-server.ts) ────
 export type VendorRow = {
   sponsorId: string
   name: string
   tier: string
+  logoUrl: string | null
   toAttendees: boolean
   toSpeakers: boolean
 }
@@ -324,8 +326,16 @@ export function ChatSettingsPanel({
           key: v.sponsorId,
           leading: (
             <div className="flex items-center gap-3 min-w-0">
-              <span className="flex-shrink-0 w-9 h-9 rounded-xl bg-brand-gradient text-white grid place-items-center text-xs font-semibold">
-                {initials(v.name)}
+              <span className="flex-shrink-0 w-9 h-9 rounded-xl bg-fill border border-hairline grid place-items-center overflow-hidden">
+                <SponsorLogo
+                  name={v.name}
+                  logoUrl={v.logoUrl}
+                  className="w-full h-full object-contain p-1"
+                  fallbackClassName="text-ink-2 font-semibold text-xs"
+                />
+                <span aria-hidden="true" style={{ display: 'none' }} className="text-ink-2 font-semibold text-xs">
+                  {initials(v.name)}
+                </span>
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-ink truncate">{v.name}</p>

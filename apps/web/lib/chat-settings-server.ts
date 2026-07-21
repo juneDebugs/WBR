@@ -19,6 +19,7 @@ export type VendorSettingRow = {
   sponsorId: string
   name: string
   tier: string
+  logoUrl: string | null
 } & VendorSettings
 
 export type StaffSettingRow = {
@@ -37,7 +38,7 @@ export async function getChatSettingsView(): Promise<ChatSettingsView> {
   const [settings, sponsors, staff] = await Promise.all([
     getAllChatMessagingSettings(prisma),
     prisma.sponsor.findMany({
-      select: { id: true, name: true, tier: true },
+      select: { id: true, name: true, tier: true, logoUrl: true },
       orderBy: [{ name: 'asc' }],
     }),
     prisma.user.findMany({
@@ -55,6 +56,7 @@ export async function getChatSettingsView(): Promise<ChatSettingsView> {
         sponsorId: s.id,
         name: s.name,
         tier: s.tier,
+        logoUrl: s.logoUrl ?? null,
         toAttendees: v.toAttendees,
         toSpeakers: v.toSpeakers,
       }

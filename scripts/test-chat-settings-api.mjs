@@ -166,9 +166,9 @@ async function main() {
   check('vendorGlobal.enabled is boolean', typeof view?.vendorGlobal?.enabled === 'boolean')
   check('vendors is an array', Array.isArray(view.vendors))
   check('staff is an array', Array.isArray(view.staff))
-  check('every vendor row well-formed',
-    view.vendors.every(v => typeof v.sponsorId === 'string' && typeof v.name === 'string' && typeof v.tier === 'string' && typeof v.toAttendees === 'boolean' && typeof v.toSpeakers === 'boolean'),
-    `sample=${JSON.stringify(view.vendors[0])}`)
+  check('every vendor row well-formed (incl. logoUrl string|null)',
+    view.vendors.every(v => typeof v.sponsorId === 'string' && typeof v.name === 'string' && typeof v.tier === 'string' && (typeof v.logoUrl === 'string' || v.logoUrl === null) && typeof v.toAttendees === 'boolean' && typeof v.toSpeakers === 'boolean'),
+    `sample=${JSON.stringify({ ...view.vendors[0], logoUrl: view.vendors[0]?.logoUrl ? '<present>' : view.vendors[0]?.logoUrl })}`)
   check('every staff row well-formed',
     view.staff.every(s => typeof s.userId === 'string' && typeof s.name === 'string' && typeof s.toAttendees === 'boolean' && typeof s.toVendors === 'boolean' && typeof s.toSpeakers === 'boolean'),
     `sample=${JSON.stringify(view.staff[0])}`)
