@@ -22,12 +22,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+export type ToggleSize = 'md' | 'lg'
+
 export interface ToggleProps {
   checked: boolean
   onChange: (next: boolean) => void
   disabled?: boolean
   /** Locked = permanently on and not editable; stays focusable, shows a padlock. */
   locked?: boolean
+  /** 'md' (default) or 'lg' — the 1.5× master-switch size. */
+  size?: ToggleSize
   labelledBy?: string
   describedBy?: string
   /** Tooltip, primarily used to explain a locked control. */
@@ -36,11 +40,11 @@ export interface ToggleProps {
 }
 
 // ── Geometry (px). Track is a rounded rectangle; thumb a rounded square. ───────
-const TRACK_W = 52
-const TRACK_H = 32
-const PAD = 4
-const THUMB = TRACK_H - PAD * 2 // 24 — resting square side
-const FAR = TRACK_W - PAD - THUMB // 24 — resting inset on the trailing side
+// 'lg' is a clean 1.5× of the base so the master switch reads as more prominent.
+const SIZES = {
+  md: { w: 52, h: 32, pad: 4, radius: 11, thumbRadius: 8, icon: 14, lock: 12 },
+  lg: { w: 78, h: 48, pad: 6, radius: 16, thumbRadius: 12, icon: 21, lock: 18 },
+} as const
 
 // How long the thumb is held in its stretched (both-insets-tucked) state before
 // it settles onto the destination side. Shorter than the CSS travel below, so the
@@ -55,6 +59,7 @@ export function Toggle({
   onChange,
   disabled = false,
   locked = false,
+  size = 'md',
   labelledBy,
   describedBy,
   title,
@@ -79,12 +84,14 @@ export function Toggle({
     onChange(!checked)
   }, [locked, disabled, checked, onChange])
 
+  const dim = SIZES[size]
+  const thumb = dim.h - dim.pad * 2 // resting square side
+  const far = dim.w - dim.pad - thumb // resting inset on the trailing side
+
   // While stretching, both insets tuck in → the thumb fills the track (elongated).
   // At rest it sits square on the on/off side.
-  const left = stretching ? PAD : checked ? FAR : PAD
-  const right = stretching ? PAD : checked ? PAD : FAR
-
-  const interactive = !locked && !disabled
+  const left = stretching ? dim.pad : checked ? far : dim.pad
+  const right = stretching ? dim.pad : checked ? dim.pad : far
 
   return (
     <button
@@ -99,25 +106,28 @@ export function Toggle({
       aria-disabled={locked || undefined}
       title={title}
       onClick={handleClick}
-      className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 ${
+      // shrink-0: the track has a fixed pixel size, so the control must never be
+      // squeezed by a flex parent (e.g. the master-switch header row) — that was
+      // collapsing the track into a narrow pill.
+      className={`relative inline-flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] px-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 ${
         className ?? ''
       }`}
     >
       <span
         aria-hidden="true"
-        className={`relative block transition-colors motion-reduce:transition-none ${
+        className={`relative block shrink-0 transition-colors motion-reduce:transition-none ${
           checked ? 'bg-brand-600' : 'bg-brand-300'
         } ${locked ? 'cursor-not-allowed' : disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-        style={{ width: TRACK_W, height: TRACK_H, borderRadius: 11 }}
+        style={{ width: dim.w, height: dim.h, minWidth: dim.w, borderRadius: dim.radius }}
       >
         <span
           className="absolute bg-white"
           style={{
-            top: PAD,
-            bottom: PAD,
+            top: dim.pad,
+            bottom: dim.pad,
             left,
             right,
-            borderRadius: 8,
+            borderRadius: dim.thumbRadius,
             boxShadow: '0 1px 2px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12)',
             transition: `left ${TRAVEL} ${EASE}, right ${TRAVEL} ${EASE}`,
           }}
@@ -126,12 +136,12 @@ export function Toggle({
               dash shows only during the stretch, exactly like the reference. */}
           <span className="absolute inset-0 grid place-items-center">
             {locked ? (
-              <LockIcon />
+              <LockIcon px={dim.lock} />
             ) : (
               <>
-                <CheckIcon show={checked && !stretching} />
-                <DashIcon show={stretching} />
-                <CrossIcon show={!checked && !stretching} />
+                <CheckIcon show={checked && !stretching} px={dim.icon} />
+                <DashIcon show={stretching} px={dim.icon} />
+                <CrossIcon show={!checked && !stretching} px={dim.icon} />
               </>
             )}
           </span>
@@ -143,14 +153,13 @@ export function Toggle({
 
 // ── Thumb glyphs ──────────────────────────────────────────────────────────────
 // Absolutely stacked and cross-faded by opacity; `brand` hues echo the track.
-const glyphBase =
-  'absolute h-[14px] w-[14px] transition-opacity duration-150 motion-reduce:transition-none'
+const glyphBase = 'absolute transition-opacity duration-150 motion-reduce:transition-none'
 
-function CheckIcon({ show }: { show: boolean }) {
+function CheckIcon({ show, px }: { show: boolean; px: number }) {
   return (
     <svg
       className={`${glyphBase} text-brand-600`}
-      style={{ opacity: show ? 1 : 0 }}
+      style={{ opacity: show ? 1 : 0, width: px, height: px }}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -161,11 +170,11 @@ function CheckIcon({ show }: { show: boolean }) {
   )
 }
 
-function CrossIcon({ show }: { show: boolean }) {
+function CrossIcon({ show, px }: { show: boolean; px: number }) {
   return (
     <svg
       className={`${glyphBase} text-brand-400`}
-      style={{ opacity: show ? 1 : 0 }}
+      style={{ opacity: show ? 1 : 0, width: px, height: px }}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -176,11 +185,11 @@ function CrossIcon({ show }: { show: boolean }) {
   )
 }
 
-function DashIcon({ show }: { show: boolean }) {
+function DashIcon({ show, px }: { show: boolean; px: number }) {
   return (
     <svg
       className={`${glyphBase} text-brand-300`}
-      style={{ opacity: show ? 1 : 0 }}
+      style={{ opacity: show ? 1 : 0, width: px, height: px }}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -191,10 +200,11 @@ function DashIcon({ show }: { show: boolean }) {
   )
 }
 
-function LockIcon() {
+function LockIcon({ px }: { px: number }) {
   return (
     <svg
-      className="h-3 w-3 text-brand-600"
+      className="text-brand-600"
+      style={{ width: px, height: px }}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

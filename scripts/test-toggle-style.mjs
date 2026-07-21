@@ -64,7 +64,8 @@ ok(/setTimeout\(\s*\(\)\s*=>\s*setStretching\(false\)/.test(toggle),
 
 // Rounded-SQUARE thumb, not a circle/pill. The thumb span paints white with a
 // small (non-9999) corner radius.
-ok(/borderRadius:\s*8\b/.test(toggle), 'thumb uses a rounded-SQUARE corner (borderRadius 8), not a pill')
+ok(/borderRadius:\s*dim\.thumbRadius\b/.test(toggle) && /thumbRadius:\s*8\b/.test(toggle),
+  'thumb uses a rounded-SQUARE corner (thumbRadius 8 at base), not a pill')
 ok(!/rounded-full[^\n]*bg-white/.test(toggle) && !/bg-white[^\n]*rounded-full/.test(toggle),
   'thumb is NOT a rounded-full circle')
 
@@ -78,6 +79,20 @@ ok(/transition-opacity/.test(toggle), 'the glyphs cross-fade (transition-opacity
 // Brand palette (matches the reference blue while staying on-brand indigo).
 ok(/bg-brand-600/.test(toggle), 'ON track is brand-600')
 ok(/bg-brand-300/.test(toggle), 'OFF track is pale brand-300')
+
+// Size variant: 'lg' is a clean 1.5× of 'md' (the prominent master switch).
+ok(/size\?:\s*ToggleSize/.test(toggle) || /size:\s*ToggleSize/.test(toggle), 'Toggle accepts a size prop')
+const mdW = (toggle.match(/md:\s*\{\s*w:\s*(\d+),\s*h:\s*(\d+)/) || [])
+const lgW = (toggle.match(/lg:\s*\{\s*w:\s*(\d+),\s*h:\s*(\d+)/) || [])
+ok(mdW[1] === '52' && mdW[2] === '32', "md geometry is 52×32 (the base toggle)")
+ok(lgW[1] === '78' && lgW[2] === '48', "lg geometry is 78×48 — exactly 1.5× the base")
+ok(mdW[1] && lgW[1] && Number(lgW[1]) === Number(mdW[1]) * 1.5 && Number(lgW[2]) === Number(mdW[2]) * 1.5,
+  'lg is a precise 1.5× scale of md')
+
+// The control must never be squeezed by a flex parent (the master-switch bug):
+// the track has a fixed px size, so the button + track are shrink-0.
+ok((toggle.match(/shrink-0/g) || []).length >= 2, 'the button and track are shrink-0 (no flex squeeze)')
+ok(/minWidth:\s*dim\.w/.test(toggle), 'track pins minWidth to its fixed width')
 
 // ── 2. HIG affordances preserved on the shared control ────────────────────────
 ok(/role="switch"/.test(toggle), 'Toggle is a role="switch"')
@@ -100,6 +115,11 @@ for (const [rel, retiredTrack] of Object.entries(consumers)) {
   const src = readFileSync(join(ROOT, rel), 'utf8')
   ok(/from '@\/components\/Toggle'/.test(src), `${rel} imports the shared Toggle`)
   ok(/<Toggle\b/.test(src), `${rel} renders <Toggle>`)
+  if (rel.endsWith('ChatSettingsPanel.tsx')) {
+    // The master "Vendor messaging" switch is the prominent 1.5× (lg) control.
+    ok(/labelledBy="vendor-global-label"[^>]*size="lg"|size="lg"[^>]*labelledBy="vendor-global-label"/.test(src),
+      `${rel}: master vendor switch renders at size="lg"`)
+  }
   ok(!/role="switch"/.test(src), `${rel} no longer hand-rolls a role="switch"`)
   ok(!/translate-x-\[22px\]/.test(src), `${rel} no longer hand-rolls a translate-x thumb`)
   for (const cls of retiredTrack) {

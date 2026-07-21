@@ -35,13 +35,15 @@ function Switch({
   disabled,
   labelledBy,
   onChange,
+  size,
 }: {
   checked: boolean
   disabled: boolean
   labelledBy: string
   onChange: (next: boolean) => void
+  size?: 'md' | 'lg'
 }) {
-  return <Toggle checked={checked} disabled={disabled} labelledBy={labelledBy} onChange={onChange} />
+  return <Toggle checked={checked} disabled={disabled} labelledBy={labelledBy} onChange={onChange} size={size} />
 }
 
 const TIER_BADGE: Record<string, string> = {
@@ -274,7 +276,7 @@ export function ChatSettingsPanel({
               silence every vendor at once, regardless of the per-vendor rules below.
             </p>
           </div>
-          <Switch checked={vendorGlobalOn} disabled={!canEdit || busy} labelledBy="vendor-global-label" onChange={setVendorGlobal} />
+          <Switch checked={vendorGlobalOn} disabled={!canEdit || busy} labelledBy="vendor-global-label" onChange={setVendorGlobal} size="lg" />
         </div>
         {!vendorGlobalOn && (
           <div className="px-5 py-2.5 bg-warning-soft border-t border-warning/20 flex items-center gap-2">
