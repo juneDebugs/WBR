@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SponsorLogo } from '@/components/SponsorLogo'
+import { Toggle } from '@/components/Toggle'
 
 // ─── Client-safe view model (mirrors apps/web/lib/chat-settings-server.ts) ────
 export type VendorRow = {
@@ -28,7 +29,7 @@ export type ChatSettingsData = {
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
 
-// ─── iOS-style switch (HIG) ──────────────────────────────────────────────────
+// ─── Switch — the shared squash-stretch Toggle (see components/Toggle.tsx) ─────
 function Switch({
   checked,
   disabled,
@@ -40,33 +41,7 @@ function Switch({
   labelledBy: string
   onChange: (next: boolean) => void
 }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-labelledby={labelledBy}
-      disabled={disabled}
-      onClick={() => {
-        if (disabled) return
-        onChange(!checked)
-      }}
-      className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2"
-    >
-      <span
-        aria-hidden="true"
-        className={`relative inline-flex h-[31px] w-[51px] items-center rounded-full transition-colors motion-reduce:transition-none ${
-          checked ? 'bg-success' : 'bg-fill-2'
-        } ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-      >
-        <span
-          className={`inline-block h-[27px] w-[27px] transform rounded-full bg-white shadow transition-transform motion-reduce:transition-none ${
-            checked ? 'translate-x-[22px]' : 'translate-x-[2px]'
-          }`}
-        />
-      </span>
-    </button>
-  )
+  return <Toggle checked={checked} disabled={disabled} labelledBy={labelledBy} onChange={onChange} />
 }
 
 const TIER_BADGE: Record<string, string> = {

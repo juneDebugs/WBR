@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { Toggle } from '@/components/Toggle'
 import {
   PERMISSION_SECTIONS,
   MANAGEABLE_ROLES,
@@ -53,7 +54,8 @@ function rolesEqual(a: Draft, b: Draft, role: ManageableRole): boolean {
   return true
 }
 
-// ─── iOS-style switch ────────────────────────────────────────────────────────
+// ─── PermissionSwitch — the shared squash-stretch Toggle, with a locked variant ─
+// (see components/Toggle.tsx). Locked stays focusable so SR users hear the reason.
 function PermissionSwitch({
   checked, locked, disabled, labelledBy, describedBy, onChange,
 }: {
@@ -65,39 +67,15 @@ function PermissionSwitch({
   onChange: (next: boolean) => void
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-labelledby={labelledBy}
-      aria-describedby={describedBy}
-      // Locked stays focusable (so SR users hear the reason) but is not a real
-      // disabled control; read-only/saving uses the actual disabled attribute.
-      disabled={disabled && !locked}
-      aria-disabled={locked || undefined}
-      onClick={() => { if (locked || disabled) return; onChange(!checked) }}
+    <Toggle
+      checked={checked}
+      onChange={onChange}
+      disabled={disabled}
+      locked={locked}
+      labelledBy={labelledBy}
+      describedBy={describedBy}
       title={locked ? 'Organizers always keep access to Roles & Permissions, so no one can be locked out.' : undefined}
-      className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2"
-    >
-      <span
-        aria-hidden="true"
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors motion-reduce:transition-none ${
-          checked ? 'bg-primary' : 'bg-fill-2'
-        } ${locked ? 'cursor-not-allowed' : disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-      >
-        <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform motion-reduce:transition-none ${
-            checked ? 'translate-x-[22px]' : 'translate-x-0.5'
-          }`}
-        />
-        {locked && (
-          <svg className="absolute left-1.5 h-3 w-3 text-white/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-        )}
-      </span>
-    </button>
+    />
   )
 }
 
