@@ -40,6 +40,8 @@
     "test:feed:rail": "node scripts/test-feed-messages-rail.mjs",
     "test:friends": "node scripts/test-friends.mjs",
     "test:friends:api": "node scripts/test-friends-api.mjs",
+    "test:chat-no-dm": "node scripts/test-admin-chat-dm-removed.mjs",
+    "test:chat-no-dm:api": "node scripts/test-admin-chat-dm-removed-api.mjs",
     "e2e:feed": "node scripts/e2e-home-feed.mjs",
     "db:migrate-scheduled": "node scripts/migrate-scheduled-messages.mjs",
     "db:migrate-feed": "node scripts/migrate-feed-social.mjs",

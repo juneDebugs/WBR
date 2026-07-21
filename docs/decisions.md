@@ -354,6 +354,35 @@ friends → 200, grandfathering), and the extended `test:feed` / `test:feed:api`
 
 ---
 
+## Admin Chat: remove the Direct Messages viewing surface (2026-07-20)
+
+The admin (`apps/web`) Chat page previously stacked two sections: **Global Broadcast**
+(top) and a **Direct Messages** viewer (bottom) — a "Direct Messages — N conversations"
+list where an organizer could expand any DIRECT room and read two attendees' entire
+private thread. That viewer was removed; the Chat page is now the Global Broadcast
+surface alone. **Why:** a back-office reader of every attendee's private DMs is a privacy
+liability, and the surface had no membership gate (`GET /api/chat/rooms/[roomId]` returned
+any room's full history to any admin session). **Scope decision — surgical, not a chat
+teardown:** the viewer was self-contained and read DM data through *raw inline Prisma*
+(`chatRoom.findMany({ where: { type: 'DIRECT' } })`) in the route and server page, calling
+**no** `packages/db/src/chat.ts` function — so the shared chat data layer was left
+untouched and the attendee DM system (`getOrCreateDirectRoom` / `listRoomMessagesForUser`
+/ `postRoomMessage`, and the attendee `/api/chat/rooms*` routes) is unaffected. Deleted:
+`components/DMRoomsClient.tsx` (whole file) and `app/api/chat/rooms/[roomId]/route.ts`
+(whole route — `DMRoomsClient` was its only caller). Stripped: the DIRECT-room query and
+`rooms` payload from `app/api/data/chat/route.ts` and `app/(dashboard)/dashboard/chat/page.tsx`,
+and the DM list + its loading skeleton from `ChatPageClient.tsx` / `loading.tsx`. Preserved
+untouched: Global Broadcast, scheduled broadcasts, the Sidebar Chat entry, and the `chat`
+permission key. The DIRECT `ChatRoom` rows themselves stay — they are a shared model the
+attendee DM feature depends on; only the admin *viewing* of them is gone. Guarded by
+`test:chat-no-dm` (42-check source contract: files deleted, DM markup/queries/`rooms`
+gone, broadcast + attendee DM layer + nav/permission all intact) and `test:chat-no-dm:api`
+(HTTP acceptance: `/api/data/chat` drops `rooms` while keeping the broadcast payload, the
+deleted DM route 404s for an authed admin, `/api/chat/scheduled` still 200s, and
+`/dashboard/chat` renders "Global Broadcast" but not "Direct Messages").
+
+---
+
 ## Cross-references
 
 - [Architecture](architecture.md) — cross-cutting current-state architecture.
