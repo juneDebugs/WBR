@@ -597,3 +597,21 @@ model RolePermission {
   permissions String   // JSON array of permission keys
   updatedAt   DateTime @updatedAt
 }
+
+// ─── Chat messaging permissions ─────────────────────────────────────────────────
+// Admin-controlled gating for friend requests / new DMs (see the admin Chat →
+// Settings tab and packages/db/src/chat-settings.ts). One row per control:
+//   scope = 'VENDOR_GLOBAL' (subjectId ''), 'VENDOR' (subjectId = Sponsor.id),
+//   or 'STAFF' (subjectId = User.id). `settings` is a JSON object whose shape
+//   depends on the scope. Like RolePermission, this table is also created
+//   defensively at runtime via CREATE TABLE IF NOT EXISTS, so it works before
+//   this model is pushed to Turso; the column shape matches that DDL exactly, so
+//   `prisma db push` stays a no-op.
+model ChatMessagingPermission {
+  scope     String
+  subjectId String
+  settings  String // JSON object; shape depends on scope
+  updatedAt DateTime @updatedAt
+
+  @@id([scope, subjectId])
+}

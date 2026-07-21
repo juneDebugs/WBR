@@ -83,6 +83,21 @@ and sent/failed history) wired into `components/GlobalChatAdmin.tsx`. Decision l
 `pnpm test:scheduled` (logic) and `pnpm test:scheduled:api` (HTTP acceptance). New
 environments need the `ScheduledMessage` table on Turso: `pnpm db:migrate-scheduled`.
 
+### Chat Settings (Chat page → Settings tab)
+
+The Chat page is a two-tab shell (`components/ChatTabsShell.tsx`): **Broadcast**
+(the existing `GlobalChatAdmin`) and **Settings** (`components/ChatSettingsPanel.tsx`).
+The Settings tab controls who may *start* a conversation (friend request / new DM):
+a global vendor master switch, per-vendor (Sponsor company) switches for Attendees/
+Speakers, and per-WBR-Staff switches for Attendees/Vendors/Speakers. `GET|PUT
+/api/chat/settings` (staff/organizer/admin) reads/writes via `lib/chat-settings-server.ts`,
+which joins the Sponsor + Staff rosters with the `ChatMessagingPermission` rows from
+`@conference/db` (`packages/db/src/chat-settings.ts`). Enforcement lives in the
+attendee app (`apps/attendee/lib/messaging-guard.ts` → `checkMessagingPermission`),
+not here. Defaults are permissive; existing threads are grandfathered. New Turso
+DBs: `pnpm db:migrate-chat-settings`. Tests: `pnpm test:chat-settings`,
+`pnpm test:chat-perm`, `pnpm test:chat-settings:api`.
+
 ## App-specific gotchas
 
 - **`ADMIN_EMAILS` env var is documentation residue.** It appears in `.env.local.example` but no runtime code reads it. The admin sign-in gate is role-based — `lib/auth.ts:43, 68` checks `User.role ∈ {STAFF, ORGANIZER, ADMIN}`. To grant or revoke admin access, update the user's `User.role` in the DB; do not touch `ADMIN_EMAILS`.

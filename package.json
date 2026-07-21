@@ -42,8 +42,12 @@
     "test:friends:api": "node scripts/test-friends-api.mjs",
     "test:chat-no-dm": "node scripts/test-admin-chat-dm-removed.mjs",
     "test:chat-no-dm:api": "node scripts/test-admin-chat-dm-removed-api.mjs",
+    "test:chat-settings": "node scripts/test-chat-settings.mjs",
+    "test:chat-settings:api": "node scripts/test-chat-settings-api.mjs",
+    "test:chat-perm": "node scripts/test-chat-permission-enforcement.mjs",
     "e2e:feed": "node scripts/e2e-home-feed.mjs",
     "db:migrate-scheduled": "node scripts/migrate-scheduled-messages.mjs",
+    "db:migrate-chat-settings": "node scripts/migrate-chat-settings.mjs",
     "db:migrate-feed": "node scripts/migrate-feed-social.mjs",
     "db:backfill-friends": "node scripts/migrate-friends-backfill.mjs",
     "seed:feed-posts": "node scripts/seed-feed-posts.mjs"

@@ -3,6 +3,7 @@ export * from '@prisma/client'
 export * from './scheduled-messages'
 export * from './chat'
 export * from './friends'
+export * from './chat-settings'
 import { scrypt, timingSafeEqual, randomBytes, type ScryptOptions } from 'crypto'
 import type { ConfSession, Speaker } from '@prisma/client'
 

@@ -3,6 +3,7 @@ import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, getFriendStatus, applyFriendAction, type FriendAction } from '@conference/db'
+import { actorFromSession, guardFriendRequest } from '@/lib/messaging-guard'
 
 // GET — friend status between the current user and [userId]
 export async function GET(
@@ -46,6 +47,27 @@ export async function POST(
       role: 'ATTENDEE',
     },
   })
+
+  // Admin gate: vendors/staff may be restricted from initiating friend requests
+  // to certain audiences. Only the 'request' initiation is gated — accepting,
+  // declining, cancelling or removing are responses/teardown and always allowed.
+  // A friendship starts only from status 'none', which is what an omitted action
+  // infers as 'request'.
+  const isRequest =
+    action === 'request' ||
+    (!action && (await getFriendStatus(prisma, currentUserId, userId)) === 'none')
+  if (isRequest) {
+    const actor = actorFromSession(session)
+    if (actor) {
+      const decision = await guardFriendRequest(actor, userId)
+      if (!decision.allowed) {
+        return NextResponse.json(
+          { error: decision.message ?? 'Messaging is not permitted.', code: decision.code },
+          { status: 403 },
+        )
+      }
+    }
+  }
 
   const result = await applyFriendAction(prisma, currentUserId, userId, action)
   if (!result.ok) {

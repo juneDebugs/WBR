@@ -381,6 +381,35 @@ gone, broadcast + attendee DM layer + nav/permission all intact) and `test:chat-
 deleted DM route 404s for an authed admin, `/api/chat/scheduled` still 200s, and
 `/dashboard/chat` renders "Global Broadcast" but not "Direct Messages").
 
+### Chat Settings — admin-controlled friend/message gating
+
+The admin Chat page (`apps/web` → `/dashboard/chat`) gained a **Settings** tab
+(alongside the existing **Broadcast** tab) that gates who may *initiate* contact —
+send a friend request or open a new DM — across the conference. Three controls:
+(1) a **global master switch** for all vendor → attendee/speaker outreach;
+(2) **per-vendor** switches (per Sponsor company) for Attendees and/or Speakers;
+(3) **per-staff** switches (per WBR Staff member) for Attendees, Vendors and/or
+Speakers. Defaults are permissive (everything enabled), so the feature is a pure
+opt-in restriction layer over the existing mutual-Follow friendship gate; existing
+conversations are grandfathered (mirrors the `NOT_FRIENDS` behavior).
+
+Persistence follows the `RolePermission` precedent — a `ChatMessagingPermission`
+table (`(scope, subjectId)` PK, JSON `settings`) owned by a defensive
+`CREATE TABLE IF NOT EXISTS` in `packages/db/src/chat-settings.ts`, so it works on
+Turso before a `prisma db push`; the model shape in `schema.prisma` matches the DDL
+exactly (push stays a no-op). `chat-settings.ts` has **no relative imports** (it is
+type-strip tested and re-exported from `@conference/db`), holding the same
+discipline as `chat.ts`/`friends.ts`. The single composite gate
+`checkMessagingPermission()` fails **open** on any DB error — a moderation toggle
+never hard-breaks messaging. Enforcement is wired at the attendee choke points via
+`apps/attendee/lib/messaging-guard.ts`: `POST /api/friend/[userId]` (the `request`
+initiation only), `POST /api/chat/rooms`, and the `chat/dm/[userId]` server page.
+UI reuses the Staff page's tab-shell + iOS-switch + dirty/SaveBar idioms (HIG). New
+Turso environments run `pnpm db:migrate-chat-settings`. Tests: `test:chat-settings`
+(pure logic + persistence), `test:chat-perm` (composite enforcement against real
+User/Sponsor rows), `test:chat-settings:api` (HTTP GET/PUT auth + persistence,
+self-restoring).
+
 ---
 
 ## Cross-references
