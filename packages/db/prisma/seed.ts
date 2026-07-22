@@ -474,14 +474,16 @@ async function main() {
   const testHash = await hashPassword('password123')
   const demoHash = await hashPassword('demo123')
 
-  const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string; solutionsSeeking?: string; solutionsOffering?: string }[] = [
+  // The Brand-tier account is Steph Curry (restored from the old
+  // demo-attendee-steph seed user), now mapped onto the Brand login.
+  const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string; bio?: string; image?: string; solutionsSeeking?: string; solutionsOffering?: string }[] = [
     { id: 'test-wbr', email: 'wbr@test.com', name: 'WBR', role: 'ORGANIZER', password: testHash, company: 'WBR', jobTitle: 'Conference Organizer' },
-    { id: 'test-brand', email: 'brand@test.com', name: 'Brand', role: 'BRAND', password: testHash, company: 'Glossier', jobTitle: 'Head of DTC', solutionsSeeking: JSON.stringify(['AI & Automation','Personalization','Analytics & Reporting']), solutionsOffering: JSON.stringify(['Email Marketing','Loyalty & Rewards']) },
+    { id: 'test-brand', email: 'stephcurry@test.com', name: 'Steph Curry', role: 'BRAND', password: testHash, company: 'Golden State Warriors', jobTitle: 'Point Guard', bio: 'Point guard for the Golden State Warriors. At WBR to scout commerce, brand, and loyalty tooling for the next signature drop.', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&q=80&fit=crop&crop=face', solutionsSeeking: JSON.stringify(['AI & Automation','Personalization','Analytics & Reporting']), solutionsOffering: JSON.stringify(['Email Marketing','Loyalty & Rewards']) },
     { id: 'test-sponsor', email: 'sponsor@test.com', name: 'Sponsor', role: 'SPONSOR', password: testHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor ERP', jobTitle: 'Partner Manager' },
   ]
 
   // Helper: upsert user by email, handling existing IDs gracefully
-  async function upsertUser(data: { id: string; email: string; name: string; role: string; password?: string; sponsorId?: string; company?: string; jobTitle?: string; image?: string; solutionsSeeking?: string; solutionsOffering?: string }) {
+  async function upsertUser(data: { id: string; email: string; name: string; role: string; password?: string; sponsorId?: string; company?: string; jobTitle?: string; bio?: string; image?: string; solutionsSeeking?: string; solutionsOffering?: string }) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
     if (existing) {
       await prisma.user.update({
@@ -493,6 +495,7 @@ async function main() {
           ...(data.sponsorId !== undefined ? { sponsorId: data.sponsorId } : {}),
           ...(data.company ? { company: data.company } : {}),
           ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
+          ...(data.bio ? { bio: data.bio } : {}),
           ...(data.image ? { image: data.image } : {}),
           ...(data.solutionsSeeking ? { solutionsSeeking: data.solutionsSeeking } : {}),
           ...(data.solutionsOffering ? { solutionsOffering: data.solutionsOffering } : {}),
@@ -514,6 +517,7 @@ async function main() {
           ...(data.sponsorId !== undefined ? { sponsorId: data.sponsorId } : {}),
           ...(data.company ? { company: data.company } : {}),
           ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
+          ...(data.bio ? { bio: data.bio } : {}),
           ...(data.image ? { image: data.image } : {}),
           ...(data.solutionsSeeking ? { solutionsSeeking: data.solutionsSeeking } : {}),
           ...(data.solutionsOffering ? { solutionsOffering: data.solutionsOffering } : {}),
@@ -532,6 +536,7 @@ async function main() {
         sponsorId: data.sponsorId,
         company: data.company,
         jobTitle: data.jobTitle,
+        bio: data.bio,
         image: data.image,
         solutionsSeeking: data.solutionsSeeking,
         solutionsOffering: data.solutionsOffering,
@@ -541,7 +546,9 @@ async function main() {
 
   console.log(`  Creating ${demoUsers.length} demo accounts...`)
   for (let i = 0; i < demoUsers.length; i++) {
-    await upsertUser({ ...demoUsers[i], image: attendeeHeadshot(i) })
+    // Respect an explicit image on the demo user (e.g. Steph's headshot);
+    // otherwise fall back to a deterministic headshot by index.
+    await upsertUser({ ...demoUsers[i], image: demoUsers[i].image ?? attendeeHeadshot(i) })
   }
 
   // ── Attendee users (for seed-meetings data) ────────────────────────────────
@@ -723,7 +730,7 @@ async function main() {
   console.log(`   Sessions: ${sessions.length}`)
   console.log(`   Time blocks: ${timeBlocks.length}`)
   console.log(`   Sponsors: ${sponsorDefs.length}`)
-  console.log(`   Test accounts: ${demoUsers.length} (wbr@test.com, brand@test.com, sponsor@test.com — all password123)`)
+  console.log(`   Test accounts: ${demoUsers.length} (wbr@test.com, stephcurry@test.com, sponsor@test.com — all password123)`)
   console.log(`   Attendee users: ${attendeeUsers.length} (jordan@demo.com/demo123, etc.)`)
   console.log(`   Chat: General channel + members`)
 }

@@ -93,7 +93,7 @@ From [`packages/db/prisma/seed.ts`](../../packages/db/prisma/seed.ts):
 | Email | Password | Role | Use for |
 |---|---|---|---|
 | `wbr@test.com` | `password123` | ORGANIZER | Staff queue approval flow |
-| `brand@test.com` | `password123` | BRAND | Requesting meetings |
+| `stephcurry@test.com` | `password123` | BRAND | Requesting meetings |
 
 Sponsor accounts are bounced from this app (Meetings admits Brand + WBR only).
 

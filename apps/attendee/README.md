@@ -101,7 +101,7 @@ From [`packages/db/prisma/seed.ts`](../../packages/db/prisma/seed.ts) — the mo
 | Email | Password | Role |
 |---|---|---|
 | `wbr@test.com` | `password123` | ORGANIZER |
-| `brand@test.com` | `password123` | BRAND |
+| `stephcurry@test.com` | `password123` | BRAND |
 | `sponsor@test.com` | `password123` | SPONSOR (`sponsorId` → Tailor ERP) |
 
 ## Environment variables

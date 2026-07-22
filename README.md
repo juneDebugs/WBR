@@ -130,7 +130,7 @@ After `dev.sh` reports servers running, each app should redirect an unauthentica
 | Account | Email | Password | Role | Apps it can log into |
 |---|---|---|---|---|
 | WBR | `wbr@test.com` | `password123` | ORGANIZER | Admin, Meetings, Sponsor, Mobile (all four) |
-| Brand | `brand@test.com` | `password123` | BRAND | Meetings, Mobile |
+| Brand | `stephcurry@test.com` | `password123` | BRAND | Meetings, Mobile |
 | Sponsor | `sponsor@test.com` | `password123` | SPONSOR (`sponsorId` → Tailor ERP) | Sponsor, Mobile |
 
 Every app gates login by account access: Admin admits WBR only; Meetings admits Brand + WBR; Sponsor admits Sponsor + WBR; Mobile (attendee) admits all three.

@@ -117,7 +117,7 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
           <div className="space-y-2.5">
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-medium text-white/85">Brand</span>
-              <span className="text-white/60">brand@test.com / password123</span>
+              <span className="text-white/60">stephcurry@test.com / password123</span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-medium text-white/85">Sponsor</span>

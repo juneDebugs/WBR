@@ -48,7 +48,7 @@ function section(t) { console.log(`\n${t}`) }
 // policy module against it — so a regression in the module is caught.
 const ACCOUNTS = {
   WBR:     { email: 'wbr@test.com',     password: 'password123', role: 'ORGANIZER', sponsorId: null, name: 'WBR' },
-  Brand:   { email: 'brand@test.com',   password: 'password123', role: 'BRAND',     sponsorId: null, name: 'Brand' },
+  Brand:   { email: 'stephcurry@test.com',   password: 'password123', role: 'BRAND',     sponsorId: null, name: 'Steph Curry' },
   Sponsor: { email: 'sponsor@test.com', password: 'password123', role: 'SPONSOR',   sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', name: 'Sponsor' },
 }
 const GOAL = {

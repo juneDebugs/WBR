@@ -24,7 +24,7 @@ catch { ({ chromium } = require('playwright')) }
 
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3002'
 const PORT = new URL(BASE).port || '3002'
-const CREDS = { email: process.env.SMOKE_EMAIL ?? 'brand@test.com', password: process.env.SMOKE_PASSWORD ?? 'password123' }
+const CREDS = { email: process.env.SMOKE_EMAIL ?? 'stephcurry@test.com', password: process.env.SMOKE_PASSWORD ?? 'password123' }
 const SHOT_DIR = process.env.SHOT_DIR ?? '/tmp'
 const SECTION_TITLE = 'Your Team at WBR 2027'
 

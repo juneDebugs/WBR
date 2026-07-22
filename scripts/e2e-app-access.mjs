@@ -38,7 +38,7 @@ const BASE = arg('base', `http://localhost:${PORT}`)
 // Account role → tier. Matches packages/db/src/app-access.ts + the DB seed.
 const ACCOUNTS = [
   { label: 'WBR',     email: 'wbr@test.com',     password: 'password123', role: 'ORGANIZER' },
-  { label: 'Brand',   email: 'brand@test.com',   password: 'password123', role: 'BRAND' },
+  { label: 'Brand',   email: 'stephcurry@test.com',   password: 'password123', role: 'BRAND' },
   { label: 'Sponsor', email: 'sponsor@test.com', password: 'password123', role: 'SPONSOR' },
 ]
 

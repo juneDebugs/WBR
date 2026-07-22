@@ -18,15 +18,15 @@
 // `reject` is an account that authenticates but is denied access to that app.
 const APPS = [
   { name: 'web',      port: 3000, redirect: '/dashboard', email: 'wbr@test.com', password: 'password123',
-    reject: { email: 'brand@test.com', password: 'password123' } },   // Admin admits WBR only
+    reject: { email: 'stephcurry@test.com', password: 'password123' } },   // Admin admits WBR only
   { name: 'attendee', port: 3001, redirect: '/home',      email: 'wbr@test.com', password: 'password123',
-    second: { email: 'brand@test.com', password: 'password123' } },   // Mobile admits everyone
+    second: { email: 'stephcurry@test.com', password: 'password123' } },   // Mobile admits everyone
   { name: 'meetings', port: 3002, redirect: '/',           email: 'wbr@test.com', password: 'password123',
-    second: { email: 'brand@test.com', password: 'password123' },
+    second: { email: 'stephcurry@test.com', password: 'password123' },
     reject: { email: 'sponsor@test.com', password: 'password123' } }, // Meetings admits Brand + WBR only
   { name: 'sponsor',  port: 3003, redirect: '/dashboard',  email: 'wbr@test.com', password: 'password123',
     second: { email: 'sponsor@test.com', password: 'password123' },
-    reject: { email: 'brand@test.com', password: 'password123' } },   // Sponsor admits Sponsor + WBR only
+    reject: { email: 'stephcurry@test.com', password: 'password123' } },   // Sponsor admits Sponsor + WBR only
 ]
 
 let passed = 0
