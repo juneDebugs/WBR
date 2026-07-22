@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma, verifyPassword } from '@conference/db'
+import { prisma, verifyPassword, canAccessApp } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -42,6 +42,11 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
+          if (!canAccessApp('sponsor', user.role)) {
+            console.error('[auth] Role not allowed for sponsor:', email, user.role)
+            return null
+          }
+
           return {
             id: user.id,
             email: user.email!,
@@ -74,6 +79,7 @@ export const authOptions: NextAuthOptions = {
           create: { email, name: user.name ?? email.split('@')[0], role: 'ATTENDEE', image: user.image },
           include: { sponsor: { select: { name: true, logoUrl: true } } },
         })
+        if (!canAccessApp('sponsor', dbUser.role)) return false
         ;(user as any).id = dbUser.id
         ;(user as any).role = dbUser.role
         ;(user as any).sponsorId = dbUser.sponsorId ?? null

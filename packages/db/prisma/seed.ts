@@ -462,23 +462,22 @@ async function main() {
     })
   }
 
-  // ── Demo users (login page accounts) ───────────────────────────────────────
-  // These are the accounts shown on each app's login page.
-  // Web app requires password + STAFF/ORGANIZER role.
-  // Other apps use email-only but users still need correct roles/sponsorId.
+  // ── Test accounts (login page accounts) ────────────────────────────────────
+  // The 3 canonical accounts shown on each app's login page. Per-app sign-in
+  // access is enforced by packages/db/src/app-access.ts (single source of
+  // truth). Roles map to the access tiers:
+  //   WBR     → ORGANIZER (full admin; access to every app)
+  //   BRAND   → BRAND     (meetings + mobile)
+  //   SPONSOR → SPONSOR   (sponsor portal + mobile; linked to Tailor ERP)
+  // All three share the password `password123`.
 
-  const adminHash = await hashPassword('admin123')
-  const staffHash = await hashPassword('staff123')
+  const testHash = await hashPassword('password123')
   const demoHash = await hashPassword('demo123')
-  const sponsorHash = await hashPassword('sponsor123')
-  const stephHash = await hashPassword('stephcurry')
 
-  const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string }[] = [
-    { id: 'demo-admin-june', email: 'june@tailor.tech', name: 'June Cho', role: 'ORGANIZER', password: adminHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor', jobTitle: 'VP of Sales' },
-    { id: 'demo-attendee-steph', email: 'steph@curry.com', name: 'Steph Curry', role: 'ATTENDEE', password: stephHash, company: 'Golden State', jobTitle: 'Point Guard' },
-    { id: 'demo-staff', email: 'staff@wbr.com', name: 'WBR Staff', role: 'STAFF', password: staffHash, company: 'WBR', jobTitle: 'Event Coordinator' },
-    { id: 'demo-sponsor-shopify', email: 'sponsor@shopify.com', name: 'Shopify Rep', role: 'ATTENDEE', password: sponsorHash, sponsorId: 'cmngb2h4h0000vm28ssjt1m0z', company: 'Shopify', jobTitle: 'Partner Manager' },
-    { id: 'demo-sponsor-klaviyo', email: 'sponsor@klaviyo.com', name: 'Klaviyo Rep', role: 'ATTENDEE', password: sponsorHash, sponsorId: 'cmngb2h4h0004vm28nn3rme1o', company: 'Klaviyo', jobTitle: 'Account Executive' },
+  const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string; solutionsSeeking?: string; solutionsOffering?: string }[] = [
+    { id: 'test-wbr', email: 'wbr@test.com', name: 'WBR', role: 'ORGANIZER', password: testHash, company: 'WBR', jobTitle: 'Conference Organizer' },
+    { id: 'test-brand', email: 'brand@test.com', name: 'Brand', role: 'BRAND', password: testHash, company: 'Glossier', jobTitle: 'Head of DTC', solutionsSeeking: JSON.stringify(['AI & Automation','Personalization','Analytics & Reporting']), solutionsOffering: JSON.stringify(['Email Marketing','Loyalty & Rewards']) },
+    { id: 'test-sponsor', email: 'sponsor@test.com', name: 'Sponsor', role: 'SPONSOR', password: testHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor ERP', jobTitle: 'Partner Manager' },
   ]
 
   // Helper: upsert user by email, handling existing IDs gracefully
@@ -724,7 +723,7 @@ async function main() {
   console.log(`   Sessions: ${sessions.length}`)
   console.log(`   Time blocks: ${timeBlocks.length}`)
   console.log(`   Sponsors: ${sponsorDefs.length}`)
-  console.log(`   Demo accounts: ${demoUsers.length} (steph@curry.com/stephcurry, june@tailor.tech/admin123, staff@wbr.com/staff123, sponsor@shopify.com/sponsor123)`)
+  console.log(`   Test accounts: ${demoUsers.length} (wbr@test.com, brand@test.com, sponsor@test.com — all password123)`)
   console.log(`   Attendee users: ${attendeeUsers.length} (jordan@demo.com/demo123, etc.)`)
   console.log(`   Chat: General channel + members`)
 }

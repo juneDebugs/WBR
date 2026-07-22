@@ -40,8 +40,8 @@ try {
 const MIN = 8
 const SPONSOR_BASE = process.env.SMOKE_SPONSOR_URL ?? 'http://localhost:3003'
 const MEETINGS_BASE = process.env.SMOKE_MEETINGS_URL ?? 'http://localhost:3002'
-const SPONSOR_LOGIN = { email: process.env.SMOKE_EMAIL ?? 'sponsor@shopify.com', password: process.env.SMOKE_PASSWORD ?? 'sponsor123' }
-const MEETINGS_LOGIN = { email: process.env.SMOKE_MEETINGS_EMAIL ?? 'steph@curry.com', password: process.env.SMOKE_MEETINGS_PASSWORD ?? 'stephcurry' }
+const SPONSOR_LOGIN = { email: process.env.SMOKE_EMAIL ?? 'sponsor@test.com', password: process.env.SMOKE_PASSWORD ?? 'password123' }
+const MEETINGS_LOGIN = { email: process.env.SMOKE_MEETINGS_EMAIL ?? 'brand@test.com', password: process.env.SMOKE_MEETINGS_PASSWORD ?? 'password123' }
 const SHOT_DIR = process.env.E2E_SHOT_DIR ?? join(ROOT, '.e2e-shots')
 
 let failures = 0

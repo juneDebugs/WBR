@@ -144,11 +144,13 @@ export default function LoginPage() {
             Sign in with Google
           </button>
 
-          {/* Demo accounts */}
-          <div className="mt-5 bg-fill/50 backdrop-blur rounded-xl p-3.5 text-caption text-ink-2 space-y-1">
-            <p className="font-medium text-ink-2 mb-1.5">Demo accounts</p>
-            <p><span className="text-ink-2">Admin:</span> <span className="text-ink-2">june@tailor.tech / admin123</span></p>
-            <p><span className="text-ink-2">Staff:</span> <span className="text-ink-2">staff@wbr.com / staff123</span></p>
+          {/* Demo account */}
+          <div className="mt-5 bg-fill/50 backdrop-blur rounded-xl p-3.5 text-caption">
+            <p className="font-medium text-ink mb-2">Demo account</p>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-medium text-ink-2">WBR</span>
+              <span className="text-ink-3">wbr@test.com / password123</span>
+            </div>
           </div>
         </div>
 

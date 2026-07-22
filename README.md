@@ -127,15 +127,13 @@ After `dev.sh` reports servers running, each app should redirect an unauthentica
 
 ### Test credentials (from `packages/db/prisma/seed.ts`)
 
-| App | Email | Password | Role |
-|---|---|---|---|
-| Admin (web) | `june@tailor.tech` | `admin123` | ORGANIZER |
-| Meetings staff queue | `staff@wbr.com` | `staff123` | STAFF |
-| Attendee | `steph@curry.com` | `stephcurry` | ATTENDEE |
-| Sponsor (Shopify) | `sponsor@shopify.com` | `sponsor123` | ATTENDEE + `sponsorId` |
-| Sponsor (Klaviyo) | `sponsor@klaviyo.com` | `sponsor123` | ATTENDEE + `sponsorId` |
+| Account | Email | Password | Role | Apps it can log into |
+|---|---|---|---|---|
+| WBR | `wbr@test.com` | `password123` | ORGANIZER | Admin, Meetings, Sponsor, Mobile (all four) |
+| Brand | `brand@test.com` | `password123` | BRAND | Meetings, Mobile |
+| Sponsor | `sponsor@test.com` | `password123` | SPONSOR (`sponsorId` → Tailor ERP) | Sponsor, Mobile |
 
-Only the admin app restricts login by role (STAFF / ORGANIZER / ADMIN). The other three apps accept any valid credential and gate features post-login.
+Every app gates login by account access: Admin admits WBR only; Meetings admits Brand + WBR; Sponsor admits Sponsor + WBR; Mobile (attendee) admits all three.
 
 ### Debugging
 

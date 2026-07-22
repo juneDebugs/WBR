@@ -96,14 +96,13 @@ pnpm dev:attendee   # Turbo-coordinated
 
 ## Test credentials
 
-From [`packages/db/prisma/seed.ts`](../../packages/db/prisma/seed.ts) — this app accepts any credential in the seed:
+From [`packages/db/prisma/seed.ts`](../../packages/db/prisma/seed.ts) — the mobile app accepts all three test accounts:
 
 | Email | Password | Role |
 |---|---|---|
-| `steph@curry.com` | `stephcurry` | ATTENDEE |
-| `sponsor@shopify.com` | `sponsor123` | ATTENDEE + `sponsorId` |
-| `sponsor@klaviyo.com` | `sponsor123` | ATTENDEE + `sponsorId` |
-| `june@tailor.tech` | `admin123` | ORGANIZER (also gets in) |
+| `wbr@test.com` | `password123` | ORGANIZER |
+| `brand@test.com` | `password123` | BRAND |
+| `sponsor@test.com` | `password123` | SPONSOR (`sponsorId` → Tailor ERP) |
 
 ## Environment variables
 

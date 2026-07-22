@@ -30,8 +30,8 @@ async function getSessionCookie(): Promise<string> {
     },
     body: new URLSearchParams({
       csrfToken,
-      email: 'june@tailor.tech',
-      password: 'admin123',
+      email: 'wbr@test.com',
+      password: 'password123',
     }),
     redirect: 'manual',
   })

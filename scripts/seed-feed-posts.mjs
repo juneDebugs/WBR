@@ -108,7 +108,7 @@ async function main() {
   const candidates = await client.execute(
     `SELECT "id", "name" FROM "User"
      WHERE "name" IS NOT NULL AND "image" IS NOT NULL
-       AND "email" NOT IN ('june@tailor.tech', 'steph@curry.com')
+       AND "email" NOT IN ('wbr@test.com', 'brand@test.com')
      ORDER BY "name" ASC`
   )
   if (candidates.rows.length < 20) {

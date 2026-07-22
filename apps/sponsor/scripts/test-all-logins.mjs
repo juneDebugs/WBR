@@ -8,16 +8,25 @@
  *  3. Non-existent user → 401
  *  4. Missing fields → 400
  *  5. Empty body → 400
- *  6. Role enforcement (web app only)
+ *  6. App-access enforcement (per-app reject list — accounts that authenticate but lack access to that app)
  *  7. Session cookie works with middleware (protected route returns 200)
  *  8. No cookie → protected route returns 401/redirect
  */
 
+// Primary login for every app is the WBR organizer (has access to all four apps).
+// `second` is another account that legitimately has access to that app.
+// `reject` is an account that authenticates but is denied access to that app.
 const APPS = [
-  { name: 'web',      port: 3000, redirect: '/dashboard', email: 'june@tailor.tech', password: 'admin123', roleCheck: true },
-  { name: 'attendee', port: 3001, redirect: '/home',      email: 'june@tailor.tech', password: 'admin123', roleCheck: false },
-  { name: 'meetings', port: 3002, redirect: '/',           email: 'june@tailor.tech', password: 'admin123', roleCheck: false },
-  { name: 'sponsor',  port: 3003, redirect: '/dashboard',  email: 'june@tailor.tech', password: 'admin123', roleCheck: false },
+  { name: 'web',      port: 3000, redirect: '/dashboard', email: 'wbr@test.com', password: 'password123',
+    reject: { email: 'brand@test.com', password: 'password123' } },   // Admin admits WBR only
+  { name: 'attendee', port: 3001, redirect: '/home',      email: 'wbr@test.com', password: 'password123',
+    second: { email: 'brand@test.com', password: 'password123' } },   // Mobile admits everyone
+  { name: 'meetings', port: 3002, redirect: '/',           email: 'wbr@test.com', password: 'password123',
+    second: { email: 'brand@test.com', password: 'password123' },
+    reject: { email: 'sponsor@test.com', password: 'password123' } }, // Meetings admits Brand + WBR only
+  { name: 'sponsor',  port: 3003, redirect: '/dashboard',  email: 'wbr@test.com', password: 'password123',
+    second: { email: 'sponsor@test.com', password: 'password123' },
+    reject: { email: 'brand@test.com', password: 'password123' } },   // Sponsor admits Sponsor + WBR only
 ]
 
 let passed = 0
@@ -115,12 +124,12 @@ async function testApp(app) {
     else fail(name, 'Empty body → 400', `got ${res.status}`)
   }
 
-  // ── Test 6: Role enforcement (web only) ────────────────────────────────
-  if (app.roleCheck) {
-    // steph@curry.com is an ATTENDEE — should be rejected by web admin
-    const { status, data } = await postLogin(port, { email: 'steph@curry.com', password: 'stephcurry' })
-    if (status === 403) ok(name, 'Non-admin role → 403')
-    else fail(name, 'Non-admin role → 403', `got ${status}: ${JSON.stringify(data)}`)
+  // ── Test 6: App-access enforcement ─────────────────────────────────────
+  if (app.reject) {
+    // This account authenticates fine, but has no access to THIS app.
+    const { status, data } = await postLogin(port, app.reject)
+    if (status === 401 || status === 403) ok(name, `No app access (${app.reject.email}) → rejected`)
+    else fail(name, `No app access (${app.reject.email}) → rejected`, `got ${status}: ${JSON.stringify(data)}`)
   }
 
   // ── Test 8: No cookie → protected route blocked ───────────────────────
@@ -135,10 +144,10 @@ async function testApp(app) {
   }
 
   // ── Test: Second valid account ─────────────────────────────────────────
-  {
-    const { status, data } = await postLogin(port, { email: 'staff@wbr.com', password: 'staff123' })
-    if (status === 200 && data?.user?.email === 'staff@wbr.com') ok(name, 'Second account (staff) login works')
-    else fail(name, 'Second account (staff) login works', `got ${status}: ${JSON.stringify(data)}`)
+  if (app.second) {
+    const { status, data } = await postLogin(port, app.second)
+    if (status === 200 && data?.user?.email === app.second.email) ok(name, `Second account (${app.second.email}) login works`)
+    else fail(name, `Second account (${app.second.email}) login works`, `got ${status}: ${JSON.stringify(data)}`)
   }
 }
 

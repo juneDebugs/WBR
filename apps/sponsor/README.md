@@ -92,14 +92,14 @@ pnpm dev:sponsor   # Turbo-coordinated
 
 ## Test credentials
 
-From [`packages/db/prisma/seed.ts`](../../packages/db/prisma/seed.ts) — only `sponsorId`-bearing users get past the sponsor-only routes:
+From [`packages/db/prisma/seed.ts`](../../packages/db/prisma/seed.ts) — the sponsor portal admits the Sponsor and WBR accounts only:
 
 | Email | Password | Role | `sponsorId` |
 |---|---|---|---|
-| `sponsor@shopify.com` | `sponsor123` | ATTENDEE | Shopify |
-| `sponsor@klaviyo.com` | `sponsor123` | ATTENDEE | Klaviyo |
+| `sponsor@test.com` | `password123` | SPONSOR | Tailor ERP |
+| `wbr@test.com` | `password123` | ORGANIZER | — (organizer access) |
 
-Plain attendees (`steph@curry.com`) can sign in but hit 403 on sponsor-only routes.
+Brand accounts are bounced from this app (Sponsor admits Sponsor + WBR only).
 
 ## Environment variables
 

@@ -44,9 +44,9 @@ catch { ({ chromium } = require('playwright')) }
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3001'
 const PORT = new URL(BASE).port || '3001'
 // Primary actor: a plain attendee — proves feed/likes/comments are not staff-gated.
-const CREDS = { email: process.env.SMOKE_EMAIL ?? 'steph@curry.com', password: process.env.SMOKE_PASSWORD ?? 'stephcurry' }
+const CREDS = { email: process.env.SMOKE_EMAIL ?? 'brand@test.com', password: process.env.SMOKE_PASSWORD ?? 'password123' }
 // Partner whose post we like/comment on.
-const CREDS_B = { email: process.env.SMOKE_EMAIL_B ?? 'june@tailor.tech', password: process.env.SMOKE_PASSWORD_B ?? 'admin123' }
+const CREDS_B = { email: process.env.SMOKE_EMAIL_B ?? 'wbr@test.com', password: process.env.SMOKE_PASSWORD_B ?? 'password123' }
 const SHOT_DIR = process.env.SHOT_DIR ?? '/tmp'
 const MARKER = `[feed-e2e ${process.pid}-${Date.now()}]`
 

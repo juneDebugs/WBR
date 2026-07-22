@@ -4,8 +4,8 @@ import { authOptions } from '@/lib/auth'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const email = searchParams.get('email') ?? 'steph@curry.com'
-  const pw = searchParams.get('pw') ?? 'stephcurry'
+  const email = searchParams.get('email') ?? 'brand@test.com'
+  const pw = searchParams.get('pw') ?? 'password123'
 
   const steps: string[] = []
 

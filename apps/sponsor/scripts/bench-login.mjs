@@ -10,8 +10,8 @@
  */
 
 const BASE = 'http://localhost:3003'
-const EMAIL = 'june@tailor.tech'
-const PASSWORD = 'admin123'
+const EMAIL = 'sponsor@test.com'
+const PASSWORD = 'password123'
 const ITERATIONS = parseInt(process.argv[2] ?? '20', 10)
 
 function stats(arr) {

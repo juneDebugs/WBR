@@ -34,8 +34,8 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3000'
 const PORT = new URL(BASE).port || '3000'
-const EMAIL = process.env.SMOKE_EMAIL ?? 'june@tailor.tech'
-const PASSWORD = process.env.SMOKE_PASSWORD ?? 'admin123'
+const EMAIL = process.env.SMOKE_EMAIL ?? 'wbr@test.com'
+const PASSWORD = process.env.SMOKE_PASSWORD ?? 'password123'
 const MARKER = `[sched-test ${process.pid}-${Date.now()}]`
 
 let serverProc = null

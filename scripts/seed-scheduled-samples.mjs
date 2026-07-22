@@ -23,7 +23,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(join(ROOT, 'packages/db/package.json'))
 const { createClient } = require('@libsql/client')
 
-const SENDER_EMAIL = process.env.SMOKE_EMAIL ?? 'june@tailor.tech'
+const SENDER_EMAIL = process.env.SMOKE_EMAIL ?? 'wbr@test.com'
 const GENERAL_ROOM_ID = 'room-general'
 
 function at(hoursFromNow, atHour = null) {

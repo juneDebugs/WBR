@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma, verifyPassword, dbConnectionMode } from '@conference/db'
+import { prisma, verifyPassword, dbConnectionMode, canAccessApp } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -29,6 +29,8 @@ export const authOptions: NextAuthOptions = {
           const valid = await verifyPassword(credentials.password, user.password)
           if (!valid) return null
 
+          if (!canAccessApp('attendee', user.role)) return null
+
           return { id: user.id, email: user.email!, name: user.name, role: user.role, sponsorId: user.sponsorId }
       },
     }),
@@ -47,6 +49,7 @@ export const authOptions: NextAuthOptions = {
           },
           create: { email, name: user.name ?? email.split('@')[0], role: 'ATTENDEE', image: user.image },
         })
+        if (!canAccessApp('attendee', dbUser.role)) return false
         // Attach DB fields so jwt() doesn't need a second query
         ;(user as any).id = dbUser.id
         ;(user as any).role = dbUser.role

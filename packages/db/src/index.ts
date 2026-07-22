@@ -1,5 +1,6 @@
 export { prisma, dbConnectionMode } from './client'
 export * from '@prisma/client'
+export * from './app-access'
 export * from './scheduled-messages'
 export * from './chat'
 export * from './broadcast'

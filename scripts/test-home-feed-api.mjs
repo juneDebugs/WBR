@@ -44,10 +44,10 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3001'
 const PORT = new URL(BASE).port || '3001'
-const EMAIL_A = process.env.SMOKE_EMAIL ?? 'june@tailor.tech'
-const PASSWORD_A = process.env.SMOKE_PASSWORD ?? 'admin123'
-const EMAIL_B = process.env.SMOKE_EMAIL_B ?? 'steph@curry.com'
-const PASSWORD_B = process.env.SMOKE_PASSWORD_B ?? 'stephcurry'
+const EMAIL_A = process.env.SMOKE_EMAIL ?? 'wbr@test.com'
+const PASSWORD_A = process.env.SMOKE_PASSWORD ?? 'password123'
+const EMAIL_B = process.env.SMOKE_EMAIL_B ?? 'brand@test.com'
+const PASSWORD_B = process.env.SMOKE_PASSWORD_B ?? 'password123'
 const MARKER = `[feed-test ${process.pid}-${Date.now()}]`
 const TINY_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='

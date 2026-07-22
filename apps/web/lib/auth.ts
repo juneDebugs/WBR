@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma, verifyPassword } from '@conference/db'
+import { prisma, verifyPassword, canAccessApp } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -40,7 +40,7 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
-          if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(existing.role)) {
+          if (!canAccessApp('web', existing.role)) {
             console.error('[auth] Role not allowed:', email, existing.role)
             return null
           }
@@ -65,7 +65,7 @@ export const authOptions: NextAuthOptions = {
           where: { email },
           select: { id: true, role: true },
         })
-        if (!existing || !['STAFF', 'ORGANIZER', 'ADMIN'].includes(existing.role)) return false
+        if (!existing || !canAccessApp('web', existing.role)) return false
         if (user.name || user.image) {
           prisma.user.update({
             where: { email },

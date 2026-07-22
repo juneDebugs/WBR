@@ -33,10 +33,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3003'
 const PORT = new URL(BASE).port || '3003'
-const EMAIL = process.env.SMOKE_EMAIL ?? 'sponsor@shopify.com'
-const PASSWORD = process.env.SMOKE_PASSWORD ?? 'sponsor123'
-const EMAIL_2 = process.env.SMOKE_EMAIL_2 ?? 'sponsor@klaviyo.com'
-const PASSWORD_2 = process.env.SMOKE_PASSWORD_2 ?? 'sponsor123'
+const EMAIL = process.env.SMOKE_EMAIL ?? 'sponsor@test.com'
+const PASSWORD = process.env.SMOKE_PASSWORD ?? 'password123'
+const EMAIL_2 = process.env.SMOKE_EMAIL_2 ?? 'wbr@test.com'
+const PASSWORD_2 = process.env.SMOKE_PASSWORD_2 ?? 'password123'
 
 // The keys fetchSponsorData selects for staff rows — anything extra (password,
 // pushToken, ...) is a leak.
@@ -169,7 +169,7 @@ async function main() {
   const { jar, jarFetch } = makeJar()
   console.log(`\nLogging in as sponsor rep #1`)
   check('login accepted + session cookie set', await login(jarFetch, jar, EMAIL, PASSWORD),
-    'wrong credentials? reseed (sponsor@shopify.com / sponsor123)')
+    'wrong credentials? reseed (sponsor@test.com / password123)')
 
   // ── 3. staff mapping matches the admin Staff list ──
   console.log('\n[GET /api/sponsor-data — staff mapping]')

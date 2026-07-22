@@ -29,7 +29,12 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
         body: JSON.stringify({ email, password }),
       })
       if (!res.ok) {
-        setError('Invalid email or password.')
+        const data = await res.json().catch(() => null)
+        setError(
+          data?.error === 'Unauthorized role'
+            ? "This account doesn't have access to the mobile app."
+            : 'Invalid email or password.'
+        )
         setLoading(false)
         return
       }
@@ -107,11 +112,22 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
           </button>
         </div>
 
-        <div className="mt-6 bg-white/10 rounded-2xl p-4 text-xs text-white/70 space-y-1.5">
-          <p className="font-semibold text-white/90 mb-2">Demo accounts</p>
-          <p><span className="text-white/50">Attendee:</span> steph@curry.com / stephcurry</p>
-          <p><span className="text-white/50">Sponsor (Tailor):</span> june@tailor.tech / admin123</p>
-          <p><span className="text-white/50">Staff:</span> staff@wbr.com / staff123</p>
+        <div className="mt-6 bg-white/10 rounded-2xl p-4 text-xs">
+          <p className="font-semibold text-white/90 mb-3">Demo accounts</p>
+          <div className="space-y-2.5">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-medium text-white/85">Brand</span>
+              <span className="text-white/60">brand@test.com / password123</span>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-medium text-white/85">Sponsor</span>
+              <span className="text-white/60">sponsor@test.com / password123</span>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-medium text-white/85">WBR</span>
+              <span className="text-white/60">wbr@test.com / password123</span>
+            </div>
+          </div>
         </div>
 
         <p className="text-white/40 text-xs text-center mt-4">

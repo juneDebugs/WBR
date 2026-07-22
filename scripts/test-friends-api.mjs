@@ -45,8 +45,8 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3001'
 const PORT = new URL(BASE).port || '3001'
-const BOOTSTRAP_EMAIL = process.env.SMOKE_EMAIL ?? 'june@tailor.tech'
-const BOOTSTRAP_PASSWORD = process.env.SMOKE_PASSWORD ?? 'admin123'
+const BOOTSTRAP_EMAIL = process.env.SMOKE_EMAIL ?? 'wbr@test.com'
+const BOOTSTRAP_PASSWORD = process.env.SMOKE_PASSWORD ?? 'password123'
 const RUN = `${process.pid}-${Date.now()}`
 const MARKER = `[friends-test ${RUN}]`
 

@@ -52,7 +52,10 @@
     "db:migrate-chat-settings": "node scripts/migrate-chat-settings.mjs",
     "db:migrate-feed": "node scripts/migrate-feed-social.mjs",
     "db:backfill-friends": "node scripts/migrate-friends-backfill.mjs",
-    "seed:feed-posts": "node scripts/seed-feed-posts.mjs"
+    "seed:feed-posts": "node scripts/seed-feed-posts.mjs",
+    "db:reset-test-accounts": "node packages/db/scripts/reset-test-accounts.mjs",
+    "test:accounts": "node scripts/test-test-accounts.mjs",
+    "e2e:accounts": "node scripts/e2e-app-access-all.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1",

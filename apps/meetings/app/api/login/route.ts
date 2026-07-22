@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { encode } from 'next-auth/jwt'
-import { prisma, verifyPassword } from '@conference/db'
+import { prisma, verifyPassword, canAccessApp } from '@conference/db'
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
 
   if (!user?.password) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+  }
+
+  if (!canAccessApp('meetings', user.role)) {
+    return NextResponse.json({ error: 'Unauthorized role' }, { status: 403 })
   }
 
   const valid = await verifyPassword(body.password, user.password)

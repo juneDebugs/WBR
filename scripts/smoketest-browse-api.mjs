@@ -18,8 +18,8 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3003'
-const EMAIL = process.env.SMOKE_EMAIL ?? 'sponsor@shopify.com'
-const PASSWORD = process.env.SMOKE_PASSWORD ?? 'sponsor123'
+const EMAIL = process.env.SMOKE_EMAIL ?? 'sponsor@test.com'
+const PASSWORD = process.env.SMOKE_PASSWORD ?? 'password123'
 const MIN = 20
 
 let serverProc = null

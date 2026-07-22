@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { encode } from 'next-auth/jwt'
-import { prisma, verifyPassword } from '@conference/db'
-
-const ALLOWED_ROLES = ['STAFF', 'ORGANIZER', 'ADMIN']
+import { prisma, verifyPassword, canAccessApp } from '@conference/db'
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
@@ -21,7 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
   }
 
-  if (!ALLOWED_ROLES.includes(user.role)) {
+  if (!canAccessApp('web', user.role)) {
     return NextResponse.json({ error: 'Unauthorized role' }, { status: 403 })
   }
 

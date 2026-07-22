@@ -128,14 +128,13 @@ pnpm dev:web     # Turbo-coordinated
 
 ## Test credentials
 
-From [`packages/db/prisma/seed.ts`](../../packages/db/prisma/seed.ts) — only role-gated accounts can log in here:
+From [`packages/db/prisma/seed.ts`](../../packages/db/prisma/seed.ts) — only the WBR organizer account can log in here:
 
 | Email | Password | Role |
 |---|---|---|
-| `june@tailor.tech` | `admin123` | ORGANIZER |
-| `staff@wbr.com` | `staff123` | STAFF |
+| `wbr@test.com` | `password123` | ORGANIZER |
 
-Attendees and sponsors are accepted by other apps but bounced from this one.
+Brand and sponsor accounts are accepted by other apps but bounced from this one.
 
 ## Environment variables
 

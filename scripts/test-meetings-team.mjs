@@ -37,12 +37,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.SMOKE_BASE_URL ?? 'http://localhost:3002'
 const PORT = new URL(BASE).port || '3002'
-const EMAIL = process.env.SMOKE_EMAIL ?? 'steph@curry.com'
-const PASSWORD = process.env.SMOKE_PASSWORD ?? 'stephcurry'
-const EMAIL_2 = process.env.SMOKE_EMAIL_2 ?? 'sponsor@shopify.com'
-const PASSWORD_2 = process.env.SMOKE_PASSWORD_2 ?? 'sponsor123'
-const STAFF_EMAIL = process.env.SMOKE_STAFF_EMAIL ?? 'staff@wbr.com'
-const STAFF_PASSWORD = process.env.SMOKE_STAFF_PASSWORD ?? 'staff123'
+const EMAIL = process.env.SMOKE_EMAIL ?? 'brand@test.com'
+const PASSWORD = process.env.SMOKE_PASSWORD ?? 'password123'
+const EMAIL_2 = process.env.SMOKE_EMAIL_2 ?? 'sponsor@test.com'
+const PASSWORD_2 = process.env.SMOKE_PASSWORD_2 ?? 'password123'
+const STAFF_EMAIL = process.env.SMOKE_STAFF_EMAIL ?? 'wbr@test.com'
+const STAFF_PASSWORD = process.env.SMOKE_STAFF_PASSWORD ?? 'password123'
 
 const ALLOWED_STAFF_KEYS = new Set(['id', 'name', 'image', 'jobTitle', 'company', 'email', 'role'])
 

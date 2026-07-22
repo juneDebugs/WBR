@@ -48,7 +48,12 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
       if (!res.ok) {
-        setError('Invalid email or password.')
+        const data = await res.json().catch(() => null)
+        setError(
+          data?.error === 'Unauthorized role'
+            ? "This account doesn't have access to the meetings portal."
+            : 'Invalid email or password.'
+        )
         setLoading(false)
         return
       }
@@ -187,9 +192,15 @@ export default function LoginPage() {
           {/* Demo accounts */}
           <div className="mt-8 border border-white/10 rounded-xl p-4">
             <p className="text-xs font-semibold text-white/70 mb-3">Demo accounts</p>
-            <div className="space-y-2 text-xs text-white/60">
-              <p><span className="text-white/80">Attendee:</span> steph@curry.com / stephcurry</p>
-              <p><span className="text-white/80">Staff:</span> staff@wbr.com / staff123</p>
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-medium text-white/85">Brand</span>
+                <span className="text-white/60">brand@test.com / password123</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-medium text-white/85">WBR</span>
+                <span className="text-white/60">wbr@test.com / password123</span>
+              </div>
             </div>
           </div>
         </div>
