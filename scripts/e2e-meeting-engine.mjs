@@ -110,45 +110,54 @@ async function main() {
     await prisma.meetingRequest.create({ data: { requesterId: u.id, targetSponsorId: target.id, status: 'APPROVED' } })
   }
 
-  console.log('\n[company directory]')
+  console.log('\n[company directory — eTail]')
   await page.goto(`${BASE}/staff`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
-  check('directory heading renders', await page.getByRole('heading', { name: 'Meeting Engine' }).waitFor({ timeout: 30_000 }).then(() => true).catch(() => false))
-  const rows = page.locator('tr[role="button"]')
-  await rows.first().waitFor({ timeout: 30_000 }).catch(() => {})
-  check('directory lists companies', (await rows.count()) > 0)
-  check('fill-rate meters render', (await page.locator('.meter-fill').count()) > 0)
+  check('workflow stepper "Manage Meetings" renders', await page.getByText('Manage Meetings').first().waitFor({ timeout: 30_000 }).then(() => true).catch(() => false))
+  check('eTail nav shows "Companies"', (await page.getByText('Companies', { exact: false }).count()) > 0)
+  check('"Number of Companies" counter renders', await page.getByText(/Number of Companies/).waitFor({ timeout: 30_000 }).then(() => true).catch(() => false))
+  // Wait for the async company fetch to render the data grid before asserting columns.
+  await page.getByText('Company Name', { exact: true }).first().waitFor({ timeout: 30_000 }).catch(() => {})
+  check('table has "Company Name" column header', (await page.getByText('Company Name', { exact: true }).count()) > 0)
+  check('table has "Total Confirmed Meetings" column', (await page.getByText('Total Confirmed Meetings').count()) > 0)
+  check('rows show a green "login" button', (await page.getByText('login', { exact: true }).count()) > 0)
   await page.screenshot({ path: join(SHOT_DIR, 'engine-directory.png'), fullPage: true }).catch(() => {})
 
-  console.log('\n[schedule matrix]')
-  const targetRow = target ? page.locator('tr[role="button"]', { hasText: target.name }).first() : rows.first()
-  await targetRow.click()
-  check('split-view Unscheduled Bank region appears', await page.getByRole('region', { name: 'Unscheduled bank' }).waitFor({ timeout: 30_000 }).then(() => true).catch(() => false))
+  console.log('\n[schedule screen — eTail]')
+  const companyLink = target ? page.getByRole('button', { name: target.name }).first() : page.locator('td button').first()
+  await companyLink.click()
+  check('"Switch company" bar renders', await page.getByText('Switch company:').waitFor({ timeout: 30_000 }).then(() => true).catch(() => false))
+  check('sub-tabs incl. "Meeting Times"', (await page.getByRole('button', { name: 'Meeting Times' }).count()) > 0)
+  check('"Unscheduled" sidebar section renders', (await page.getByText('Unscheduled', { exact: false }).count()) > 0)
   const dayTabs = page.locator('[role="tablist"][aria-label="Conference day"] [role="tab"]')
   await dayTabs.first().waitFor({ timeout: 20_000 }).catch(() => {})
-  check('day segmented control has tabs', (await dayTabs.count()) > 0)
-  check('calendar grid region renders', (await page.getByRole('region', { name: 'Schedule grid' }).count()) > 0)
+  check('day tabs render', (await dayTabs.count()) > 0)
+  check('grid has "Meet As" column', (await page.getByText('Meet As').count()) > 0)
+  check('grid has "Meeting With" column', (await page.getByText('Meeting With').count()) > 0)
   if (await dayTabs.count() > 1) {
     await dayTabs.first().focus()
     await page.keyboard.press('ArrowRight')
     check('ArrowRight moves the active day tab', (await dayTabs.nth(1).getAttribute('aria-selected')) === 'true')
   }
-  await page.screenshot({ path: join(SHOT_DIR, 'engine-matrix.png'), fullPage: true }).catch(() => {})
+  await page.screenshot({ path: join(SHOT_DIR, 'engine-schedule.png'), fullPage: true }).catch(() => {})
 
-  console.log('\n[assign sheet]')
-  const assignBtn = page.getByRole('button', { name: 'Assign…' }).first()
-  const hasBtn = await assignBtn.waitFor({ timeout: 15_000 }).then(() => true).catch(() => false)
-  check('bank candidate shows an Assign button', hasBtn)
-  if (hasBtn) {
-    await assignBtn.click()
-    const sheet = page.getByRole('dialog')
-    const shown = await sheet.waitFor({ timeout: 15_000 }).then(() => true).catch(() => false)
-    check('Assign sheet opens as a role=dialog', shown)
+  console.log('\n[assign location modal — eTail]')
+  // Select the seeded Unscheduled candidate, then click a "Schedule at…" link.
+  const candidate = page.getByRole('button', { name: /E2E Bank Candidate/ }).first()
+  const hasCandidate = await candidate.waitFor({ timeout: 15_000 }).then(() => true).catch(() => false)
+  check('seeded candidate appears in Unscheduled', hasCandidate)
+  if (hasCandidate) {
+    await candidate.click()
+    const scheduleLink = page.getByRole('button', { name: 'Schedule at…' }).first()
+    await scheduleLink.waitFor({ timeout: 10_000 }).catch(() => {})
+    await scheduleLink.click()
+    const modal = page.getByRole('dialog')
+    const shown = await modal.waitFor({ timeout: 15_000 }).then(() => true).catch(() => false)
+    check('Assign Meeting Location modal opens', shown && (await page.getByText('Assign Meeting Location').count()) > 0)
     if (shown) {
-      // Room picker (rendered after availability loads) should show occupancy badges.
-      await page.locator('[role="option"]').first().waitFor({ timeout: 10_000 }).catch(() => {})
-      await page.screenshot({ path: join(SHOT_DIR, 'engine-assign-sheet.png') }).catch(() => {})
+      check('modal shows the asterisk/bracket legend', (await page.getByText(/Asterisk .* indicates location/).count()) > 0)
+      await page.screenshot({ path: join(SHOT_DIR, 'engine-assign-location.png') }).catch(() => {})
       await page.keyboard.press('Escape')
-      check('Escape dismisses the sheet', await sheet.waitFor({ state: 'detached', timeout: 8_000 }).then(() => true).catch(() => false))
+      check('Escape dismisses the modal', await modal.waitFor({ state: 'detached', timeout: 8_000 }).then(() => true).catch(() => false))
     }
   }
 

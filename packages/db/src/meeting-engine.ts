@@ -44,6 +44,11 @@ export function interestLevel(score: number): InterestLevel {
   if (score >= 34) return 'Medium'
   return 'Low'
 }
+// eTail shows interest as an n/5 rating (e.g. "Interest Level: 4/5").
+export function interestOutOf5(score: number): number {
+  const n = Math.round(score / 20)
+  return score > 0 && n === 0 ? 1 : n
+}
 
 export function parseSolutions(raw: string | null | undefined): string[] {
   if (!raw) return []
@@ -153,18 +158,25 @@ export interface DirectoryRow {
   name: string
   logoUrl: string | null
   tier: string
-  requests: number     // active requests belonging to this company
-  pending: number      // PENDING (needs review)
-  unscheduled: number  // APPROVED, awaiting a slot (the bank)
-  confirmed: number    // active SponsorMeetings
-  fillRate: number     // confirmed / FILL_TARGET, capped at 1
+  createdAt: string          // Company "Created"
+  lastLogin: string | null   // most recent rep activity (proxy)
+  numLogins: number          // number of company reps (proxy for login count)
+  receiveRequests: boolean   // company accepts meeting requests
+  requestsMade: number       // requests this company's reps sent to attendees
+  requestsReceived: number   // requests targeting this company
+  confirmed: number          // Total Confirmed Meetings
+  // Retained for internal use (bank size / fill meter), not eTail columns.
+  requests: number
+  pending: number
+  unscheduled: number
+  fillRate: number
 }
 export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Promise<DirectoryRow[]> {
   const confId = await resolveConferenceId(prisma, conferenceId)
-  const [sponsors, requests, meetings] = await Promise.all([
+  const [sponsors, requests, meetings, reps] = await Promise.all([
     prisma.sponsor.findMany({
       where: { conferenceId: confId },
-      select: { id: true, name: true, logoUrl: true, tier: true },
+      select: { id: true, name: true, logoUrl: true, tier: true, createdAt: true },
       orderBy: { name: 'asc' },
     }),
     prisma.meetingRequest.findMany({
@@ -178,6 +190,12 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
       where: { status: 'CONFIRMED' },
       select: { sponsorId: true, userId: true },
     }),
+    prisma.user.groupBy({
+      by: ['sponsorId'],
+      where: { sponsorId: { not: null } },
+      _count: { _all: true },
+      _max: { updatedAt: true },
+    }),
   ])
 
   const confirmedBySponsor = new Map<string, number>()
@@ -187,26 +205,37 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
     scheduledPairs.add(`${m.sponsorId}::${m.userId}`)
   }
 
-  const agg = new Map<string, { requests: number; pending: number; unscheduled: number }>()
+  const repStats = new Map<string, { count: number; lastLogin: Date | null }>()
+  for (const r of reps) if (r.sponsorId) repStats.set(r.sponsorId, { count: r._count._all, lastLogin: r._max.updatedAt ?? null })
+
+  const agg = new Map<string, { requests: number; pending: number; unscheduled: number; made: number; received: number }>()
   for (const r of requests) {
     const parties = resolveParties(r)
     if (!parties) continue
-    const cur = agg.get(parties.sponsorId) ?? { requests: 0, pending: 0, unscheduled: 0 }
+    const cur = agg.get(parties.sponsorId) ?? { requests: 0, pending: 0, unscheduled: 0, made: 0, received: 0 }
     cur.requests++
+    if (r.targetSponsorId) cur.received++       // attendee → this company
+    else cur.made++                             // this company's rep → attendee
     if (r.status === 'PENDING') cur.pending++
-    // Only count as unscheduled if the pair isn't already booked (mirrors the
-    // matrix bank, which drops requests whose user already has a meeting).
     else if (r.status === 'APPROVED' && !scheduledPairs.has(`${parties.sponsorId}::${parties.userId}`)) cur.unscheduled++
     agg.set(parties.sponsorId, cur)
   }
 
   return sponsors.map(s => {
-    const a = agg.get(s.id) ?? { requests: 0, pending: 0, unscheduled: 0 }
+    const a = agg.get(s.id) ?? { requests: 0, pending: 0, unscheduled: 0, made: 0, received: 0 }
     const confirmed = confirmedBySponsor.get(s.id) ?? 0
+    const rep = repStats.get(s.id)
     return {
       id: s.id, name: s.name, logoUrl: s.logoUrl, tier: s.tier,
+      createdAt: s.createdAt.toISOString(),
+      lastLogin: rep?.lastLogin ? rep.lastLogin.toISOString() : null,
+      numLogins: rep?.count ?? 0,
+      receiveRequests: true,
+      requestsMade: a.made,
+      requestsReceived: a.received,
+      confirmed,
       requests: a.requests, pending: a.pending, unscheduled: a.unscheduled,
-      confirmed, fillRate: Math.min(1, confirmed / FILL_TARGET),
+      fillRate: Math.min(1, confirmed / FILL_TARGET),
     }
   })
 }
@@ -223,8 +252,10 @@ export interface BankItem {
   total: number
   interest: InterestLevel
   interestScore: number
+  interestOutOf5: number
   matched: string[]
   confirmedCount: number // the candidate's load across all companies
+  status: 'Inbound' | 'Approved'
 }
 export interface PendingItem {
   requestId: string
@@ -235,6 +266,26 @@ export interface PendingItem {
   message: string | null
   interest: InterestLevel
   interestScore: number
+}
+// A candidate already scheduled with this company (sidebar "Already Scheduled").
+export interface ScheduledItem {
+  sponsorMeetingId: string
+  userId: string
+  name: string
+  company: string | null
+  image: string | null
+  confirmedCount: number
+  timeBlockId: string
+  room: string | null
+}
+// A declined/withdrawn request (sidebar "Misc").
+export interface MiscItem {
+  requestId: string
+  userId: string
+  name: string
+  company: string | null
+  image: string | null
+  status: 'Declined'
 }
 export interface SlotMeeting {
   sponsorMeetingId: string
@@ -260,8 +311,10 @@ export interface ScheduleMatrix {
   sponsor: { id: string; name: string; logoUrl: string | null; tier: string }
   rooms: MeetingRoom[]
   totalRoomCapacity: number
-  bank: BankItem[]
-  pending: PendingItem[]
+  bank: BankItem[]              // Unscheduled — APPROVED, awaiting a slot
+  pending: PendingItem[]        // Unscheduled — PENDING (Inbound)
+  alreadyScheduled: ScheduledItem[]
+  misc: MiscItem[]              // Declined / withdrawn
   days: MatrixDay[]
   confirmedCount: number
 }
@@ -294,7 +347,7 @@ export async function getSponsorScheduleMatrix(
     }),
     prisma.meetingRequest.findMany({
       where: {
-        status: { in: ['PENDING', 'APPROVED'] },
+        status: { in: ['PENDING', 'APPROVED', 'REJECTED'] },
         OR: [
           { targetSponsorId: sponsorId },
           { requester: { sponsorId } },
@@ -336,6 +389,7 @@ export async function getSponsorScheduleMatrix(
     matched: string[]
   }
   const scored: Scored[] = []
+  const rejected: Scored[] = []
   for (const req of requests) {
     const parties = resolveParties(req as RequestLike)
     if (!parties || parties.sponsorId !== sponsorId) continue
@@ -344,13 +398,13 @@ export async function getSponsorScheduleMatrix(
     const userOffering = parseSolutions(cand?.solutionsOffering ?? null)
     const userSeeking = parseSolutions(cand?.solutionsSeeking ?? null)
     const { score, matched } = scoreSolutionsMatch(sponsorSeeking, sponsorOffering, userOffering, userSeeking)
-    scored.push({
-      req, parties,
-      userName: cand?.name ?? 'Unknown',
-      company: cand?.company ?? null,
-      image: cand?.image ?? null,
+    const entry: Scored = {
+      req, parties, userName: cand?.name ?? 'Unknown',
+      company: cand?.company ?? null, image: cand?.image ?? null,
       userOffering, userSeeking, score, matched,
-    })
+    }
+    if (req.status === 'REJECTED') rejected.push(entry)
+    else scored.push(entry) // PENDING + APPROVED are ranked together
   }
   scored.sort((a, b) => b.score - a.score ||
     a.req.createdAt.getTime() - b.req.createdAt.getTime())
@@ -362,7 +416,10 @@ export async function getSponsorScheduleMatrix(
   const scheduledUserIds = new Set(sponsorMeetings.map(m => m.userId))
 
   // Load per-candidate confirmed-meeting counts (their load, across all companies).
-  const candidateIds = Array.from(new Set(scored.map(s => s.parties.userId)))
+  const candidateIds = Array.from(new Set([
+    ...scored.map(s => s.parties.userId),
+    ...sponsorMeetings.map(m => m.userId),
+  ]))
   const loadCounts = candidateIds.length
     ? await prisma.sponsorMeeting.groupBy({
         by: ['userId'],
@@ -390,10 +447,18 @@ export async function getSponsorScheduleMatrix(
       requestId: s.req.id, userId: s.parties.userId, name: s.userName,
       company: s.company, image: s.image, message: s.req.message,
       rank: rankByRequestId.get(s.req.id) ?? 0, total,
-      interest: interestLevel(s.score), interestScore: s.score, matched: s.matched,
+      interest: interestLevel(s.score), interestScore: s.score,
+      interestOutOf5: interestOutOf5(s.score), matched: s.matched,
       confirmedCount: loadByUser.get(s.parties.userId) ?? 0,
+      status: 'Approved',
     })
   }
+
+  // Sidebar "Misc" — declined/withdrawn requests.
+  const misc: MiscItem[] = rejected.map(s => ({
+    requestId: s.req.id, userId: s.parties.userId, name: s.userName,
+    company: s.company, image: s.image, status: 'Declined' as const,
+  }))
 
   // Build day → slots with their meetings.
   const meetingsByBlock = new Map<string, SlotMeeting[]>()
@@ -424,12 +489,23 @@ export async function getSponsorScheduleMatrix(
     })
   }
 
+  // Sidebar "Already Scheduled" — candidates with a confirmed meeting here.
+  const alreadyScheduled: ScheduledItem[] = sponsorMeetings.map(m => ({
+    sponsorMeetingId: m.id, userId: m.userId,
+    name: m.user?.name ?? 'Unknown', company: m.user?.company ?? null,
+    image: m.user?.image ?? null,
+    confirmedCount: loadByUser.get(m.userId) ?? 0,
+    timeBlockId: m.timeBlockId, room: m.location,
+  }))
+
   return {
     sponsor: { id: sponsor.id, name: sponsor.name, logoUrl: sponsor.logoUrl, tier: sponsor.tier },
     rooms: MEETING_ROOMS,
     totalRoomCapacity,
     bank,
     pending,
+    alreadyScheduled,
+    misc,
     days: Array.from(dayMap.values()),
     confirmedCount: sponsorMeetings.length,
   }

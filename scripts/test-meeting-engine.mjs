@@ -115,12 +115,19 @@ async function main() {
   const dirRow = dir.find(d => d.id === sponsor.id)
   check('directory includes sponsor row', !!dirRow)
   check('directory unscheduled ≥ 2 (A+B in bank)', dirRow.unscheduled >= 2, `got ${dirRow?.unscheduled}`)
+  check('directory carries eTail columns (created/numLogins/requestsReceived)',
+    typeof dirRow.createdAt === 'string' && typeof dirRow.numLogins === 'number' && dirRow.requestsReceived >= 2 && dirRow.receiveRequests === true,
+    `created=${typeof dirRow.createdAt} numLogins=${dirRow.numLogins} received=${dirRow.requestsReceived}`)
 
   let mx = await E.getSponsorScheduleMatrix(prisma, sponsor.id, confId)
   const bankA = mx.bank.find(b => b.requestId === reqA.id)
   const bankB = mx.bank.find(b => b.requestId === reqB.id)
   check('bank contains both fixtures', !!bankA && !!bankB)
   check('bank items carry rank/total', bankA.total >= 2 && bankA.rank >= 1)
+  check('matrix has eTail sidebar arrays (alreadyScheduled/misc) + interestOutOf5/status',
+    Array.isArray(mx.alreadyScheduled) && Array.isArray(mx.misc) &&
+    typeof bankA.interestOutOf5 === 'number' && bankA.interestOutOf5 <= 5 && bankA.status === 'Approved',
+    `outOf5=${bankA?.interestOutOf5} status=${bankA?.status}`)
   if (sponsorSeeking.length) check('A (matching) ranks ahead of B', bankA.rank < bankB.rank, `A#${bankA?.rank} vs B#${bankB?.rank}`)
   check('confirmedCount starts at 0', bankA.confirmedCount === 0 && bankB.confirmedCount === 0)
 

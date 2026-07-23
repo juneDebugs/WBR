@@ -20,3 +20,17 @@ export function interestBadgeClass(level: string): string {
 export function fillMeterClass(rate: number): string {
   return rate >= 0.8 ? 'success' : rate >= 0.5 ? 'warning' : 'danger'
 }
+
+// eTail-style datestamps, all in UTC to match day grouping.
+const DATE_FMT = new Intl.DateTimeFormat('en-US', { year: '2-digit', month: '2-digit', day: '2-digit', timeZone: 'UTC' })
+const DATETIME_FMT = new Intl.DateTimeFormat('en-US', {
+  year: '2-digit', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+})
+export function fmtDate(iso: string | null): string {
+  if (!iso) return '—'
+  return DATE_FMT.format(new Date(iso)) // 05/07/25
+}
+export function fmtDateTime(iso: string | null): string {
+  if (!iso) return '—'
+  return DATETIME_FMT.format(new Date(iso)).replace(',', '') // 05/07/25 10:49 AM
+}
