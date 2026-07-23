@@ -35,6 +35,11 @@ export type AppName = 'web' | 'meetings' | 'sponsor' | 'attendee'
 
 // The admin/WBR tier — full access to every app.
 const WBR_ROLES = ['WBR', 'ORGANIZER', 'ADMIN', 'STAFF'] as const
+
+/** True when `role` is a WBR staff/organizer role (the meeting-engine operators). */
+export function isWbrStaff(role: string | null | undefined): boolean {
+  return !!role && (WBR_ROLES as readonly string[]).includes(role)
+}
 // General participant roles that behave as brand-side attendees.
 const ATTENDEE_ROLES = ['ATTENDEE', 'SPEAKER'] as const
 

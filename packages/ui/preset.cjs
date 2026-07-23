@@ -381,6 +381,112 @@ function components() {
       gap: '0.75rem',
       color: '#8e8e93',
     },
+
+    // ── Meeting-engine console (HIG) ────────────────────────────────────────
+    // iOS segmented control: a fill track with a raised white "thumb" for the
+    // active segment. Used for day switching + the cancel preserve/remove toggle.
+    '.segmented': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '2px',
+      padding: '2px',
+      backgroundColor: '#f2f2f7',
+      borderRadius: '0.75rem',
+    },
+    '.segmented-item': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.375rem',
+      flex: '1 1 0%',
+      minHeight: '36px',
+      padding: '0 0.875rem',
+      borderRadius: '0.625rem',
+      fontSize: '0.8125rem',
+      fontWeight: '600',
+      color: '#6e6e73',
+      whiteSpace: 'nowrap',
+      transition: 'color .15s ease, background-color .15s ease, box-shadow .15s ease',
+      cursor: 'pointer',
+      userSelect: 'none',
+    },
+    '.segmented-item.active': {
+      backgroundColor: '#ffffff',
+      color: '#1d1d1f',
+      boxShadow: boxShadow.card,
+    },
+    '.segmented-item:disabled': { opacity: '0.4', cursor: 'not-allowed' },
+
+    // iPad-style split view (bank sidebar + calendar grid).
+    '.split-view': { display: 'flex', height: '100%', minHeight: '0', overflow: 'hidden' },
+    '.split-view-sidebar': {
+      width: '340px',
+      flexShrink: '0',
+      borderRight: '1px solid #e5e5ea',
+      overflowY: 'auto',
+      backgroundColor: '#ffffff',
+    },
+    '.split-view-main': { flex: '1 1 0%', minWidth: '0', overflowY: 'auto', backgroundColor: '#f5f5f7' },
+
+    // Side sheet (assign / reschedule). Lighter scrim than the cancel modal —
+    // HIG uses a lighter interruption for in-context tasks than for alerts.
+    '.sheet-scrim': {
+      position: 'fixed',
+      inset: '0',
+      backgroundColor: 'rgba(0,0,0,0.25)',
+      zIndex: '60',
+    },
+    '.sheet-panel': {
+      position: 'fixed',
+      top: '0',
+      right: '0',
+      height: '100%',
+      width: 'min(440px, 100vw)',
+      backgroundColor: '#ffffff',
+      borderLeft: '1px solid #e5e5ea',
+      boxShadow: boxShadow.elevated,
+      zIndex: '61',
+      display: 'flex',
+      flexDirection: 'column',
+    },
+
+    // Non-modal HUD popover for bank-candidate detail.
+    '.popover-card': {
+      backgroundColor: '#ffffff',
+      border: '1px solid #e5e5ea',
+      borderRadius: '0.75rem',
+      boxShadow: boxShadow.pop,
+      padding: '0.875rem',
+      width: '260px',
+    },
+
+    // Fill-rate meter.
+    '.meter': {
+      height: '6px',
+      width: '100%',
+      borderRadius: '9999px',
+      backgroundColor: '#f2f2f7',
+      overflow: 'hidden',
+    },
+    '.meter-fill': { height: '100%', borderRadius: '9999px', transition: 'width .2s ease', backgroundColor: '#8e8e93' },
+    '.meter-fill.success': { backgroundColor: '#34c759' },
+    '.meter-fill.warning': { backgroundColor: '#ff9f0a' },
+    '.meter-fill.danger': { backgroundColor: '#ff3b30' },
+
+    // Ordinal rank chip (e.g. "4/19") — steady width so the list doesn't jitter.
+    '.rank-chip': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: '2.75rem',
+      padding: '0.125rem 0.5rem',
+      borderRadius: '9999px',
+      fontSize: '0.75rem',
+      fontWeight: '600',
+      fontVariantNumeric: 'tabular-nums',
+      backgroundColor: '#f2f2f7',
+      color: '#6e6e73',
+    },
   }
 }
 

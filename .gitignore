@@ -44,3 +44,4 @@ apps/attendee/public/workbox-*.js.map
 
 # Browser E2E screenshots
 .e2e-shots/
+scripts/.screenshots/

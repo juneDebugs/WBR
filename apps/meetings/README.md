@@ -1,6 +1,16 @@
 # apps/meetings — Meeting coordination portal + staff queue
 
-The 1-on-1 meeting coordination Next.js 15 (App Router) application. Runs on port 3002 in local dev. Any signed-in user can request meetings; only `User.role === 'STAFF'` can approve, reject, or confirm requests via the staff queue.
+The 1-on-1 meeting coordination Next.js 15 (App Router) application. Runs on port 3002 in local dev. Any signed-in user can request meetings; the **WBR staff tier** (`isWbrStaff(role)` → `WBR` / `ORGANIZER` / `ADMIN` / `STAFF`; the `wbr@test.com` account is `ORGANIZER`) operates the meeting engine at `/staff`. Note: the gate is the WBR tier, not the literal string `'STAFF'` — the earlier `role === 'STAFF'` check was unreachable by the current Brand/Sponsor/WBR test accounts.
+
+## Meeting engine console (`/staff`)
+
+`/staff` is a **company-centric scheduling console** (Apple-HIG, desktop) that replaced the flat request queue. Flow: a **company directory** (Sponsors, with requests / needs-review / unscheduled / confirmed / fill-rate) → open a company → an iPad-style **split view**: an **Unscheduled Bank** (approved requests awaiting a slot, each ranked by solution-match interest with a HUD popover) + a **day-tabbed calendar grid**. Staff assign a bank candidate to a time slot + room (mutual-availability + occupancy/capacity enforced), reschedule, or cancel (preserve → back to bank, or remove entirely).
+
+- Engine logic: [`packages/db/src/meeting-engine.ts`](../../packages/db/src/meeting-engine.ts) — pure, prisma-injected (ranking, availability, occupancy, load-balance, guarded assign/reschedule/cancel). Typed `EngineError` codes map to HTTP status in [`lib/staff-api.ts`](lib/staff-api.ts).
+- UI: [`components/engine/`](components/engine/) (`CompanyDirectory`, `ScheduleMatrix`, `AssignSheet`, `EditSheet`, `CancelModal`, `Sheet`). HIG classes (`.segmented`, `.split-view`, `.sheet-panel`, `.popover-card`, `.meter`) live in the shared preset.
+- Schema: `SponsorMeeting` gained `location` (room/table) + `reason` (cancellation). Apply to Turso with `pnpm db:migrate-engine`.
+- Design + contract: [`docs/prd/meeting-engine.md`](../../docs/prd/meeting-engine.md) and [`docs/prd/meeting-engine-hig-spec.md`](../../docs/prd/meeting-engine-hig-spec.md).
+- Tests: `pnpm test:engine` (engine units + lifecycle), `pnpm test:engine:api` (`--start`), `pnpm e2e:engine` (`--start`).
 
 Cross-cutting architecture (data flow, auth model, deployment topology, system diagram) lives in [`docs/architecture.md`](../../docs/architecture.md). This file is the working-here doc for the `apps/meetings` subtree.
 
@@ -57,6 +67,7 @@ apps/meetings/
 - `app/api/dashboard/route.ts` — user-facing dashboard data.
 - `app/api/meeting-requests/` — POST (create), PATCH `[id]` (status transition, STAFF only).
 - `app/api/meetings/route.ts` — confirmed-meeting list.
+- `app/api/staff/*` — meeting-engine console (all WBR-staff gated via `lib/staff-api.ts:requireStaff`): `GET companies` (directory), `GET companies/[sponsorId]/schedule` (matrix), `GET companies/[sponsorId]/availability?requestId=` + `GET meetings/[id]/availability` (mutual-free slots), `POST meetings/assign`, `PATCH meetings/[id]` (reschedule), `POST meetings/[id]/cancel`, `PATCH requests/[id]` (approve/reject).
 - `app/api/profile/route.ts` — user profile read/update.
 - `app/api/login/route.ts` — credentials-login helper.
 

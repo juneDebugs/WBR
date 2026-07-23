@@ -3,6 +3,7 @@ import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { isWbrStaff } from '@conference/db/src/app-access'
 
 interface Props { role: string }
 
@@ -13,7 +14,7 @@ const NAV = [
   { href: '/profile', label: 'Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
 ]
 
-const STAFF_NAV = { href: '/staff', label: 'Finalize', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }
+const STAFF_NAV = { href: '/staff', label: 'Engine', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }
 
 export const NavBar = memo(function NavBar({ role }: Props) {
   const pathname = usePathname()
@@ -22,7 +23,8 @@ export const NavBar = memo(function NavBar({ role }: Props) {
     return exact ? pathname === href : pathname === href || pathname.startsWith(href + '/')
   }
 
-  const items = role === 'STAFF' ? [...NAV.slice(0, -1), STAFF_NAV, NAV[NAV.length - 1]] : NAV
+  const staff = isWbrStaff(role)
+  const items = staff ? [...NAV.slice(0, -1), STAFF_NAV, NAV[NAV.length - 1]] : NAV
 
   return (
     <header className="material-bar border-b sticky top-0 z-40">
@@ -52,7 +54,7 @@ export const NavBar = memo(function NavBar({ role }: Props) {
 
         {/* Right side */}
         <div className="flex items-center gap-2">
-          {role === 'STAFF' && (
+          {staff && (
             <span className="badge badge-brand hidden sm:flex">Staff</span>
           )}
           <button onClick={() => signOut({ callbackUrl: '/login' })}

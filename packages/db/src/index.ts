@@ -6,6 +6,7 @@ export * from './chat'
 export * from './broadcast'
 export * from './friends'
 export * from './chat-settings'
+export * from './meeting-engine'
 import { scrypt, timingSafeEqual, randomBytes, type ScryptOptions } from 'crypto'
 import type { ConfSession, Speaker } from '@prisma/client'
 
