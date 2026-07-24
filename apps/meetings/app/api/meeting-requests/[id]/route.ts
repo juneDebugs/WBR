@@ -11,19 +11,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const role = user.role
 
   const body = await req.json()
-  const { status, timeBlockId } = body
+  const { status, timeBlockId, priority } = body
 
   const VALID_STATUSES = ['PENDING', 'APPROVED', 'CONFIRMED', 'REJECTED', 'CANCELLED']
-  if (!status || !VALID_STATUSES.includes(status)) {
+  const VALID_PRIORITIES = ['BEST_FIT', 'MED', 'LOW']
+  if (status !== undefined && !VALID_STATUSES.includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
+  if (priority !== undefined && !VALID_PRIORITIES.includes(priority)) {
+    return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
+  }
+  if (status === undefined && priority === undefined) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+  }
 
-  // Only STAFF can approve/reject/confirm
+  // Only STAFF can approve/reject/confirm/re-tier
   if (role !== 'STAFF') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const updated = await prisma.meetingRequest.update({
     where: { id },
-    data: { status, ...(timeBlockId ? { timeBlockId } : {}) },
+    data: {
+      ...(status !== undefined ? { status } : {}),
+      ...(priority !== undefined ? { priority } : {}),
+      ...(timeBlockId ? { timeBlockId } : {}),
+    },
     include: { requester: true, targetUser: true, targetSponsor: true, timeBlock: true },
   })
 

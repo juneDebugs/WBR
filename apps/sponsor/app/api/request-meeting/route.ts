@@ -11,10 +11,12 @@ export async function POST(req: Request) {
   const user = session.user as any
   if (!user.id) return NextResponse.json({ error: 'No user id' }, { status: 403 })
 
-  const { targetUserId, message } = await req.json()
+  const { targetUserId, message, priority } = await req.json()
   if (!targetUserId) return NextResponse.json({ error: 'targetUserId required' }, { status: 400 })
   if (targetUserId === user.id) return NextResponse.json({ error: 'Cannot request a meeting with yourself' }, { status: 400 })
   if (message && message.length > 1000) return NextResponse.json({ error: 'Message too long (max 1000 chars)' }, { status: 400 })
+  // Priority tier drives auto-scheduling order (Best Fit → Med → Low); default Med.
+  const prio = priority === 'BEST_FIT' || priority === 'MED' || priority === 'LOW' ? priority : 'MED'
 
   const existing = await prisma.meetingRequest.findFirst({
     where: { requesterId: user.id, targetUserId },
@@ -26,14 +28,15 @@ export async function POST(req: Request) {
     // the persisted record per ADR 0005. If both sides have a message,
     // the existing one wins (later drafts don't overwrite earlier sends
     // — the user's already-sent intro is the source of truth).
-    if (message && !existing.message) {
-      const updated = await prisma.meetingRequest.update({
-        where: { id: existing.id },
-        data: { message },
-      })
-      return NextResponse.json(updated)
-    }
-    return NextResponse.json(existing)
+    // The requester may re-send to revise their priority tier, so that
+    // always lands on the existing row.
+    const data: { message?: string; priority: string } = { priority: prio }
+    if (message && !existing.message) data.message = message
+    const updated = await prisma.meetingRequest.update({
+      where: { id: existing.id },
+      data,
+    })
+    return NextResponse.json(updated)
   }
 
   const created = await prisma.meetingRequest.create({
@@ -41,6 +44,7 @@ export async function POST(req: Request) {
       requesterId: user.id,
       targetUserId,
       message: message || null,
+      priority: prio,
       status: 'PENDING',
     },
   })

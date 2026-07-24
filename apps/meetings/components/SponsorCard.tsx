@@ -51,6 +51,7 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [message, setMessage] = useState('')
+  const [priority, setPriority] = useState<'BEST_FIT' | 'MED' | 'LOW'>('BEST_FIT')
   const router = useRouter()
   const qc = useQueryClient()
 
@@ -72,7 +73,7 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
       const res = await fetch('/api/meeting-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetSponsorId: sponsor.id, message }),
+        body: JSON.stringify({ targetSponsorId: sponsor.id, message, priority }),
       })
       if (res.ok || res.status === 409) {
         setRequested(true); setShowModal(false); router.refresh()
@@ -191,6 +192,22 @@ export function SponsorCard({ sponsor, requested: initialRequested }: Props) {
               rows={3}
               className="textarea mb-4"
             />
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-ink mb-1.5">Meeting priority</label>
+              <p className="text-xs text-ink-3 mb-2">How strong a fit is this meeting for you? This sets scheduling order.</p>
+              <div className="segmented w-full" role="radiogroup" aria-label="Meeting priority">
+                {([['BEST_FIT','Best Fit'],['MED','Med'],['LOW','Low']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    role="radio"
+                    aria-checked={priority === val}
+                    onClick={() => setPriority(val)}
+                    className={`segmented-item${priority === val ? ' active' : ''}`}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
             <div className="flex gap-2">
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
               <button onClick={sendRequest} disabled={loading} className="btn-primary flex-1">

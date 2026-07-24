@@ -32,9 +32,13 @@ const TIER_COLORS: Record<string, string> = {
   BRONZE:   'bg-orange-100 text-orange-700',
 }
 
+const PRIORITY_LABEL = { BEST_FIT: 'Best Fit', MED: 'Med', LOW: 'Low' } as const
+const PRIORITY_BADGE = { BEST_FIT: 'badge badge-brand', MED: 'badge badge-warning', LOW: 'badge badge-neutral' } as const
+
 type MeetingRequest = {
   id: string
   status: string
+  priority?: 'BEST_FIT' | 'MED' | 'LOW' | null
   message: string | null
   timeBlockId: string | null
   timeBlock: { id: string; startsAt: string | Date; endsAt: string | Date; location: string | null } | null
@@ -121,6 +125,7 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
             <tr>
               <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">From</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Requesting to Meet</th>
+              {!selected && <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Priority</th>}
               {!selected && <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Committed</th>}
               <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Time Assigned</th>
               {!selected && <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Actions</th>}
@@ -133,7 +138,7 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
               return (
                 <Fragment key={group.status}>
                   <tr>
-                    <td colSpan={selected ? 3 : 5} className={`px-4 py-2 ${group.bg} border-y ${group.border}`}>
+                    <td colSpan={selected ? 3 : 6} className={`px-4 py-2 ${group.bg} border-y ${group.border}`}>
                       <div className="flex items-center gap-2">
                         <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${group.dot}`} />
                         <span className={`text-caption font-bold uppercase tracking-widest ${group.text}`}>{group.label}</span>
@@ -186,6 +191,13 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
                   </td>
                   {!selected && (
                     <td className="px-4 py-3">
+                      <span className={PRIORITY_BADGE[(r.priority ?? 'MED') as keyof typeof PRIORITY_BADGE]}>
+                        {PRIORITY_LABEL[(r.priority ?? 'MED') as keyof typeof PRIORITY_LABEL]}
+                      </span>
+                    </td>
+                  )}
+                  {!selected && (
+                    <td className="px-4 py-3">
                       {r.targetSponsor ? (() => {
                         const n = sponsorCommitments[r.targetSponsor.id] ?? 0
                         const done = n >= 10
@@ -222,6 +234,7 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
                         requestId={r.id}
                         status={r.status}
                         currentTimeBlockId={r.timeBlockId ?? null}
+                        priority={r.priority ?? 'MED'}
                       />
                     </td>
                   )}
@@ -413,6 +426,7 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
                 requestId={selected.id}
                 status={selected.status}
                 currentTimeBlockId={selected.timeBlockId ?? null}
+                priority={selected.priority ?? 'MED'}
               />
             </div>
           )}

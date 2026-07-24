@@ -37,6 +37,22 @@ export function roomByName(name: string | null | undefined): MeetingRoom | null 
 // Target number of confirmed meetings per company, used for the fill-rate meter.
 export const FILL_TARGET = 10
 
+// ── Priority tiers ────────────────────────────────────────────────────────────
+// The requester (attendee or sponsor) tags each meeting request with how strong a
+// fit it is. The auto-scheduler fills Best Fit requests first, then Med, then Low.
+export type MeetingPriority = 'BEST_FIT' | 'MED' | 'LOW'
+export const MEETING_PRIORITIES: MeetingPriority[] = ['BEST_FIT', 'MED', 'LOW']
+export function normalizePriority(raw: string | null | undefined): MeetingPriority {
+  return raw === 'BEST_FIT' || raw === 'MED' || raw === 'LOW' ? raw : 'MED'
+}
+// Lower rank schedules first: BEST_FIT (0) → MED (1) → LOW (2).
+export function priorityRank(p: MeetingPriority): number {
+  return p === 'BEST_FIT' ? 0 : p === 'MED' ? 1 : 2
+}
+export function priorityLabel(p: MeetingPriority): string {
+  return p === 'BEST_FIT' ? 'Best Fit' : p === 'MED' ? 'Med' : 'Low'
+}
+
 // ── Interest scoring ────────────────────────────────────────────────────────
 export type InterestLevel = 'High' | 'Medium' | 'Low'
 export function interestLevel(score: number): InterestLevel {
@@ -248,6 +264,7 @@ export interface BankItem {
   company: string | null
   image: string | null
   message: string | null
+  priority: MeetingPriority
   rank: number
   total: number
   interest: InterestLevel
@@ -264,6 +281,7 @@ export interface PendingItem {
   company: string | null
   image: string | null
   message: string | null
+  priority: MeetingPriority
   interest: InterestLevel
   interestScore: number
 }
@@ -356,7 +374,7 @@ export async function getSponsorScheduleMatrix(
       orderBy: { createdAt: 'asc' },
       select: {
         id: true, requesterId: true, targetUserId: true, targetSponsorId: true,
-        status: true, message: true, createdAt: true,
+        status: true, message: true, priority: true, createdAt: true,
         requester: {
           select: {
             sponsorId: true, name: true, company: true, image: true,
@@ -406,7 +424,11 @@ export async function getSponsorScheduleMatrix(
     if (req.status === 'REJECTED') rejected.push(entry)
     else scored.push(entry) // PENDING + APPROVED are ranked together
   }
-  scored.sort((a, b) => b.score - a.score ||
+  // Rank reflects the order the auto-scheduler will fill slots: priority tier
+  // first (Best Fit → Med → Low), then fit score, then oldest request wins.
+  scored.sort((a, b) =>
+    priorityRank(normalizePriority(a.req.priority)) - priorityRank(normalizePriority(b.req.priority)) ||
+    b.score - a.score ||
     a.req.createdAt.getTime() - b.req.createdAt.getTime())
   const total = scored.length
   const rankByRequestId = new Map<string, number>()
@@ -437,6 +459,7 @@ export async function getSponsorScheduleMatrix(
       pending.push({
         requestId: s.req.id, userId: s.parties.userId, name: s.userName,
         company: s.company, image: s.image, message: s.req.message,
+        priority: normalizePriority(s.req.priority),
         interest: interestLevel(s.score), interestScore: s.score,
       })
       continue
@@ -446,6 +469,7 @@ export async function getSponsorScheduleMatrix(
     bank.push({
       requestId: s.req.id, userId: s.parties.userId, name: s.userName,
       company: s.company, image: s.image, message: s.req.message,
+      priority: normalizePriority(s.req.priority),
       rank: rankByRequestId.get(s.req.id) ?? 0, total,
       interest: interestLevel(s.score), interestScore: s.score,
       interestOutOf5: interestOutOf5(s.score), matched: s.matched,
@@ -834,4 +858,250 @@ export function loadBalancePreferred(
 ): string | null {
   if (candidates.length === 0) return null
   return candidates.reduce((best, c) => (c.confirmedCount < best.confirmedCount ? c : best)).userId
+}
+
+// ── Priority auto-scheduler ───────────────────────────────────────────────────
+// Greedily materializes MeetingRequests into confirmed SponsorMeetings, filling
+// the highest-priority tier first (Best Fit → Med → Low), then best fit score,
+// then oldest request. Honors every constraint assertSlotBookable enforces
+// (candidate blackouts, one meeting per candidate per block, per-sponsor booth
+// capacity, per-room capacity) via an in-memory occupancy simulation seeded from
+// the existing confirmed state, so a whole conference is scheduled in one pass.
+// dryRun returns the same plan without writing — used by the admin preview.
+export interface AutoScheduleInput {
+  conferenceId?: string
+  sponsorId?: string    // limit to one company's booth; omit = every company
+  statuses?: string[]   // eligible request statuses; default PENDING + APPROVED
+  dryRun?: boolean      // simulate only, persist nothing
+}
+export interface AutoScheduledEntry {
+  requestId: string
+  sponsorId: string
+  sponsorName: string
+  userId: string
+  userName: string
+  priority: MeetingPriority
+  score: number
+  timeBlockId: string
+  startsAt: string
+  room: string
+}
+export interface AutoSkippedEntry {
+  requestId: string
+  sponsorId: string
+  sponsorName: string
+  userId: string
+  userName: string
+  priority: MeetingPriority
+  reason: string
+}
+export interface TierSummary {
+  tier: MeetingPriority
+  eligible: number
+  scheduled: number
+  skipped: number
+}
+export interface AutoScheduleResult {
+  dryRun: boolean
+  scheduled: AutoScheduledEntry[]
+  skipped: AutoSkippedEntry[]
+  byTier: TierSummary[]
+  totalEligible: number
+}
+
+export async function autoScheduleByPriority(
+  prisma: Db, input: AutoScheduleInput = {},
+): Promise<AutoScheduleResult> {
+  const confId = await resolveConferenceId(prisma, input.conferenceId)
+  const statuses = input.statuses ?? ['PENDING', 'APPROVED']
+  const dryRun = !!input.dryRun
+
+  const [timeBlocks, sponsors, confirmedMtgs, peerMeetings, blackouts, requests] = await Promise.all([
+    prisma.timeBlock.findMany({
+      where: { conferenceId: confId }, orderBy: { startsAt: 'asc' },
+      select: { id: true, startsAt: true, endsAt: true },
+    }),
+    prisma.sponsor.findMany({
+      where: input.sponsorId ? { id: input.sponsorId } : { conferenceId: confId },
+      select: { id: true, name: true, solutionsSeeking: true, solutionsOffering: true },
+    }),
+    prisma.sponsorMeeting.findMany({
+      where: { status: 'CONFIRMED' },
+      select: { sponsorId: true, userId: true, timeBlockId: true, location: true },
+    }),
+    prisma.meeting.findMany({
+      where: { status: { in: ['PENDING', 'CONFIRMED'] } },
+      select: { attendeeAId: true, attendeeBId: true, timeBlockId: true },
+    }),
+    prisma.blackoutTime.findMany({ select: { userId: true, startsAt: true, endsAt: true } }),
+    prisma.meetingRequest.findMany({
+      where: {
+        status: { in: statuses },
+        ...(input.sponsorId
+          ? { OR: [{ targetSponsorId: input.sponsorId }, { requester: { sponsorId: input.sponsorId } }] }
+          : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true, requesterId: true, targetUserId: true, targetSponsorId: true,
+        status: true, priority: true, createdAt: true,
+        requester: { select: { sponsorId: true, name: true, solutionsOffering: true, solutionsSeeking: true } },
+        targetUser: { select: { name: true, solutionsOffering: true, solutionsSeeking: true } },
+      },
+    }),
+  ])
+
+  const sponsorById = new Map(sponsors.map(s => [s.id, s]))
+  const sponsorIdSet = new Set(sponsors.map(s => s.id))
+
+  // In-memory occupancy, seeded from the existing confirmed state.
+  const sponsorBlockCount = new Map<string, Map<string, number>>()          // sponsor → block → count
+  const sponsorBlockRoom = new Map<string, Map<string, Map<string, number>>>() // sponsor → block → room → count
+  const candidateBusy = new Map<string, Set<string>>()                      // user → busy blocks
+  const scheduledPairs = new Set<string>()                                  // `${sponsorId}::${userId}`
+
+  const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1)
+  const busyOf = (uid: string): Set<string> => {
+    let s = candidateBusy.get(uid)
+    if (!s) { s = new Set(); candidateBusy.set(uid, s) }
+    return s
+  }
+  const sBlock = (sid: string): Map<string, number> => {
+    let m = sponsorBlockCount.get(sid)
+    if (!m) { m = new Map(); sponsorBlockCount.set(sid, m) }
+    return m
+  }
+  const sRoom = (sid: string, tb: string): Map<string, number> => {
+    let byBlock = sponsorBlockRoom.get(sid)
+    if (!byBlock) { byBlock = new Map(); sponsorBlockRoom.set(sid, byBlock) }
+    let m = byBlock.get(tb)
+    if (!m) { m = new Map(); byBlock.set(tb, m) }
+    return m
+  }
+
+  for (const m of confirmedMtgs) {
+    bump(sBlock(m.sponsorId), m.timeBlockId)
+    if (m.location) bump(sRoom(m.sponsorId, m.timeBlockId), m.location)
+    busyOf(m.userId).add(m.timeBlockId)
+    scheduledPairs.add(`${m.sponsorId}::${m.userId}`)
+  }
+  for (const pm of peerMeetings) {
+    busyOf(pm.attendeeAId).add(pm.timeBlockId)
+    busyOf(pm.attendeeBId).add(pm.timeBlockId)
+  }
+
+  // Per-candidate blackout-blocked time blocks (memoized).
+  const blackoutByUser = new Map<string, { startsAt: Date; endsAt: Date }[]>()
+  for (const b of blackouts) {
+    const arr = blackoutByUser.get(b.userId) ?? []
+    arr.push({ startsAt: b.startsAt, endsAt: b.endsAt })
+    blackoutByUser.set(b.userId, arr)
+  }
+  const blockedCache = new Map<string, Set<string>>()
+  const blockedOf = (uid: string): Set<string> => {
+    let s = blockedCache.get(uid)
+    if (!s) {
+      s = new Set()
+      const bl = blackoutByUser.get(uid)
+      if (bl) for (const tb of timeBlocks) {
+        if (bl.some(x => overlaps(tb.startsAt, tb.endsAt, x.startsAt, x.endsAt))) s.add(tb.id)
+      }
+      blockedCache.set(uid, s)
+    }
+    return s
+  }
+
+  // Build the eligible, scored, priority-ordered candidate list.
+  interface Cand {
+    reqId: string; sponsorId: string; sponsorName: string; userId: string; userName: string
+    repId: string | null; priority: MeetingPriority; score: number; createdAt: Date
+  }
+  const cands: Cand[] = []
+  for (const req of requests) {
+    const parties = resolveParties(req as RequestLike)
+    if (!parties || !sponsorIdSet.has(parties.sponsorId)) continue
+    const sponsor = sponsorById.get(parties.sponsorId)!
+    const cand = req.targetSponsorId ? req.requester : req.targetUser
+    const { score } = scoreSolutionsMatch(
+      parseSolutions(sponsor.solutionsSeeking), parseSolutions(sponsor.solutionsOffering),
+      parseSolutions(cand?.solutionsOffering ?? null), parseSolutions(cand?.solutionsSeeking ?? null),
+    )
+    cands.push({
+      reqId: req.id, sponsorId: parties.sponsorId, sponsorName: sponsor.name,
+      userId: parties.userId, userName: cand?.name ?? 'Unknown', repId: parties.repId,
+      priority: normalizePriority(req.priority), score, createdAt: req.createdAt,
+    })
+  }
+  // Global order: Best Fit tier first (across all companies), then fit, then age.
+  cands.sort((a, b) =>
+    priorityRank(a.priority) - priorityRank(b.priority) ||
+    b.score - a.score ||
+    a.createdAt.getTime() - b.createdAt.getTime())
+
+  const toSkip = (c: Cand) => ({
+    requestId: c.reqId, sponsorId: c.sponsorId, sponsorName: c.sponsorName,
+    userId: c.userId, userName: c.userName, priority: c.priority,
+  })
+
+  const scheduled: AutoScheduledEntry[] = []
+  const skipped: AutoSkippedEntry[] = []
+  const writes: any[] = []
+  const tbById = new Map(timeBlocks.map(tb => [tb.id, tb]))
+
+  for (const c of cands) {
+    const pairKey = `${c.sponsorId}::${c.userId}`
+    if (scheduledPairs.has(pairKey)) {
+      skipped.push({ ...toSkip(c), reason: 'Already has a meeting with this company' })
+      continue
+    }
+    const busy = busyOf(c.userId)
+    const blocked = blockedOf(c.userId)
+    let placed: { timeBlockId: string; room: string } | null = null
+    for (const tb of timeBlocks) {
+      if (busy.has(tb.id) || blocked.has(tb.id)) continue
+      if ((sBlock(c.sponsorId).get(tb.id) ?? 0) >= totalRoomCapacity) continue
+      const roomCounts = sRoom(c.sponsorId, tb.id)
+      const room = MEETING_ROOMS.find(r => (roomCounts.get(r.name) ?? 0) < r.capacity)
+      if (!room) continue
+      placed = { timeBlockId: tb.id, room: room.name }
+      break
+    }
+    if (!placed) {
+      skipped.push({ ...toSkip(c), reason: 'No free slot (candidate or company fully booked)' })
+      continue
+    }
+    // Commit to in-memory state so later candidates see this occupancy.
+    bump(sBlock(c.sponsorId), placed.timeBlockId)
+    bump(sRoom(c.sponsorId, placed.timeBlockId), placed.room)
+    busy.add(placed.timeBlockId)
+    scheduledPairs.add(pairKey)
+    const tb = tbById.get(placed.timeBlockId)!
+    scheduled.push({
+      requestId: c.reqId, sponsorId: c.sponsorId, sponsorName: c.sponsorName,
+      userId: c.userId, userName: c.userName, priority: c.priority, score: c.score,
+      timeBlockId: placed.timeBlockId, startsAt: tb.startsAt.toISOString(), room: placed.room,
+    })
+    if (!dryRun) {
+      writes.push(prisma.sponsorMeeting.create({
+        data: {
+          sponsorId: c.sponsorId, userId: c.userId, repId: c.repId,
+          timeBlockId: placed.timeBlockId, location: placed.room, status: 'CONFIRMED',
+        },
+      }))
+      writes.push(prisma.meetingRequest.update({
+        where: { id: c.reqId }, data: { status: 'CONFIRMED', timeBlockId: placed.timeBlockId },
+      }))
+    }
+  }
+
+  if (!dryRun && writes.length) await prisma.$transaction(writes)
+
+  const byTier: TierSummary[] = MEETING_PRIORITIES.map(tier => ({
+    tier,
+    eligible: cands.filter(c => c.priority === tier).length,
+    scheduled: scheduled.filter(s => s.priority === tier).length,
+    skipped: skipped.filter(s => s.priority === tier).length,
+  }))
+
+  return { dryRun, scheduled, skipped, byTier, totalEligible: cands.length }
 }

@@ -13,17 +13,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const body = await req.json()
-  const { status, timeBlockId } = body
+  const { status, timeBlockId, priority } = body
 
+  // Priority-only edits are allowed (admin re-tiering a request in place); a
+  // status, when present, must be valid.
   const VALID_STATUSES = ['PENDING', 'APPROVED', 'CONFIRMED', 'REJECTED', 'CANCELLED']
-  if (!status || !VALID_STATUSES.includes(status)) {
+  const VALID_PRIORITIES = ['BEST_FIT', 'MED', 'LOW']
+  if (status !== undefined && !VALID_STATUSES.includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  }
+  if (priority !== undefined && !VALID_PRIORITIES.includes(priority)) {
+    return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
+  }
+  if (status === undefined && priority === undefined) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
   }
 
   const updated = await prisma.meetingRequest.update({
     where: { id },
     data: {
-      status,
+      ...(status !== undefined ? { status } : {}),
+      ...(priority !== undefined ? { priority } : {}),
       ...(timeBlockId !== undefined ? { timeBlockId: timeBlockId || null } : {}),
     },
     include: {

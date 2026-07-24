@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ScheduleMatrix as MatrixData, BankItem, PendingItem, ScheduledItem, MiscItem, MatrixSlot } from '@conference/db'
+import type { ScheduleMatrix as MatrixData, BankItem, PendingItem, ScheduledItem, MiscItem, MatrixSlot, MeetingPriority } from '@conference/db'
 import { fmtRange, fmtDate } from './format'
 import { AssignLocationModal, type AssignLocationTarget } from './AssignLocationModal'
 import { EditMeetingModal, type EditTarget } from './EditMeetingModal'
@@ -10,6 +10,21 @@ type Company = { id: string; name: string }
 type SelectedCand = { requestId: string; userId: string; name: string; company: string | null }
 
 const SUBTABS = ['Request Meeting', 'Received', 'Sent', 'Meeting Times'] as const
+
+const PRIORITY_LABEL = { BEST_FIT: 'Best Fit', MED: 'Med', LOW: 'Low' } as const
+const PRIORITY_BADGE = { BEST_FIT: 'badge badge-brand', MED: 'badge badge-warning', LOW: 'badge badge-neutral' } as const
+
+// Best Fit first, then Med, then Low — matches the auto-scheduler fill order.
+const PRIORITY_ORDER: MeetingPriority[] = ['BEST_FIT', 'MED', 'LOW']
+
+type TierSummaryRow = { tier: MeetingPriority; eligible: number; scheduled: number; skipped: number }
+type AutoScheduleResult = {
+  dryRun: boolean
+  scheduled: unknown[]
+  skipped: unknown[]
+  byTier: TierSummaryRow[]
+  totalEligible: number
+}
 
 export function ScheduleScreen({
   sponsorId, sponsorName, companies, onSwitchCompany, onBack,
@@ -29,6 +44,7 @@ export function ScheduleScreen({
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null)
   const [hint, setHint] = useState<string | null>(null)
+  const [autoOpen, setAutoOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -71,6 +87,7 @@ export function ScheduleScreen({
           {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <span className="ml-1 border border-[#ccc] rounded px-2 py-1 bg-white text-[#555] cursor-default">Next ▾</span>
+        <button className="btn-primary ml-auto" onClick={() => setAutoOpen(true)}>Auto-Schedule by Priority</button>
       </div>
 
       {/* Sub-tabs */}
@@ -103,6 +120,7 @@ export function ScheduleScreen({
               {data?.pending.map(p => (
                 <CandidateRow key={p.requestId} kind="Inbound" name={p.name} company={p.company}
                   rank={0} total={0} confirmed={0} interestOutOf5={Math.round(p.interestScore / 20)} interest={p.interest}
+                  priority={p.priority ?? 'MED'}
                   selected={selected?.requestId === p.requestId}
                   onSelect={() => setSelected({ requestId: p.requestId, userId: p.userId, name: p.name, company: p.company })}
                   sponsorName={sponsorName} />
@@ -110,6 +128,7 @@ export function ScheduleScreen({
               {data?.bank.map(b => (
                 <CandidateRow key={b.requestId} kind="Approved" name={b.name} company={b.company}
                   rank={b.rank} total={b.total} confirmed={b.confirmedCount} interestOutOf5={b.interestOutOf5} interest={b.interest}
+                  priority={b.priority ?? 'MED'}
                   selected={selected?.requestId === b.requestId}
                   onSelect={() => setSelected({ requestId: b.requestId, userId: b.userId, name: b.name, company: b.company })}
                   sponsorName={sponsorName} />
@@ -214,6 +233,7 @@ export function ScheduleScreen({
       {assignTarget && <AssignLocationModal sponsorId={sponsorId} sponsorName={sponsorName} target={assignTarget} onClose={() => setAssignTarget(null)} onDone={afterMutation} />}
       {editTarget && <EditMeetingModal sponsorName={sponsorName} target={editTarget} onClose={() => setEditTarget(null)} onDone={afterMutation} />}
       {cancelTarget && <CancelMeetingModal target={cancelTarget} onClose={() => setCancelTarget(null)} onDone={afterMutation} />}
+      {autoOpen && <AutoSchedulePanel sponsorId={sponsorId} sponsorName={sponsorName} onClose={() => setAutoOpen(false)} onApplied={() => { setAutoOpen(false); setSelected(null); load() }} />}
     </div>
   )
 }
@@ -233,9 +253,9 @@ function Section({ title, count, defaultOpen = true, children }: { title: string
 const Empty = () => <div className="px-3 py-2 text-[12px] text-[#bbb]">None</div>
 
 // ── Candidate row with HUD tooltip ──
-function CandidateRow({ kind, name, company, rank, total, confirmed, interestOutOf5, interest, selected, onSelect, sponsorName }: {
+function CandidateRow({ kind, name, company, rank, total, confirmed, interestOutOf5, interest, priority, selected, onSelect, sponsorName }: {
   kind: 'Inbound' | 'Approved'; name: string; company: string | null; rank: number; total: number; confirmed: number
-  interestOutOf5: number; interest: string; selected: boolean; onSelect: () => void; sponsorName: string
+  interestOutOf5: number; interest: string; priority: MeetingPriority; selected: boolean; onSelect: () => void; sponsorName: string
 }) {
   const [hud, setHud] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -253,11 +273,13 @@ function CandidateRow({ kind, name, company, rank, total, confirmed, interestOut
           <span className="text-[12px] text-[#333]">{name}{company ? <span className="text-[#888]">, {company}</span> : ''}</span>
           {kind === 'Approved' && <span className="text-[11px] text-[#777]"> ({rank}/{total} ; {confirmed})</span>}
         </span>
+        <span className={`${PRIORITY_BADGE[priority]} shrink-0`}>{PRIORITY_LABEL[priority]}</span>
         <span className={`text-[10px] px-1.5 py-0.5 rounded ${kind === 'Inbound' ? 'bg-[#5bc0de] text-white' : 'bg-[#5cb85c] text-white'}`}>{kind}</span>
       </button>
       {hud && (
         <div className="absolute left-full top-0 ml-1 z-40 w-56 bg-[#333] text-white text-[11px] rounded shadow-lg p-2.5" role="group" aria-label={`Details for ${name}`}>
           <div className="mb-1"><span className="text-[#9ecbff]">Target:</span> {name}{company ? `, ${company}` : ''}</div>
+          <div><span className="text-[#9ecbff]">Priority:</span> {PRIORITY_LABEL[priority]}</div>
           <div><span className="text-[#9ecbff]">Interest Level:</span> {interestOutOf5}/5</div>
           <div><span className="text-[#9ecbff]">Source:</span> {sponsorName}</div>
           {kind === 'Approved' && <div><span className="text-[#9ecbff]">Ranking:</span> {rank}</div>}
@@ -281,6 +303,90 @@ function MiscRow({ item }: { item: MiscItem }) {
     <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[#f0f0f0] text-[12px]">
       <span className="min-w-0 flex-1 text-[#777]">{item.name}{item.company ? `, ${item.company}` : ''}</span>
       <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#d9534f] text-white">{item.status}</span>
+    </div>
+  )
+}
+
+// ── Auto-Schedule by Priority (dry-run preview → apply) ──
+function AutoSchedulePanel({ sponsorId, sponsorName, onClose, onApplied }: {
+  sponsorId: string; sponsorName: string; onClose: () => void; onApplied: () => void
+}) {
+  const [preview, setPreview] = useState<AutoScheduleResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const res = await fetch('/api/staff/meetings/auto-schedule', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sponsorId, dryRun: true }),
+        })
+        if (!res.ok) throw new Error('Failed to preview auto-schedule')
+        const d: AutoScheduleResult = await res.json()
+        if (alive) setPreview(d)
+      } catch (e: any) { if (alive) setError(e.message) }
+    })()
+    return () => { alive = false }
+  }, [sponsorId])
+
+  async function apply() {
+    setApplying(true); setError(null)
+    try {
+      const res = await fetch('/api/staff/meetings/auto-schedule', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sponsorId }),
+      })
+      if (!res.ok) throw new Error('Failed to apply auto-schedule')
+      onApplied()
+    } catch (e: any) { setError(e.message); setApplying(false) }
+  }
+
+  const empty = preview && preview.totalEligible === 0
+  const byTier = preview ? PRIORITY_ORDER.map(t => preview.byTier.find(r => r.tier === t)).filter(Boolean) as TierSummaryRow[] : []
+  const totalScheduled = byTier.reduce((n, r) => n + r.scheduled, 0)
+  const totalSkipped = byTier.reduce((n, r) => n + r.skipped, 0)
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Auto-schedule preview">
+      <div className="bg-surface rounded-2xl w-full max-w-md p-5 shadow-elevated" style={{ fontFamily: 'inherit' }}>
+        <h2 className="text-[17px] font-semibold text-[#1c1c1e] mb-3">Auto-Schedule Preview — {sponsorName}</h2>
+
+        {error && <div className="mb-3 border border-[#d9534f] bg-[#f2dede] text-[#a94442] px-3 py-2 text-[13px] rounded">{error}</div>}
+
+        {!preview && !error && <div className="text-[13px] text-[#777] py-4">Loading preview…</div>}
+
+        {empty && <div className="text-[13px] text-[#555] py-3">No unscheduled requests for this company.</div>}
+
+        {preview && !empty && (
+          <div className="space-y-2">
+            {byTier.map(r => (
+              <div key={r.tier} className="flex items-center gap-2 text-[13px]">
+                <span className={PRIORITY_BADGE[r.tier]}>{PRIORITY_LABEL[r.tier]}</span>
+                <span className="text-[#333]">{r.scheduled} scheduled · {r.skipped} skipped</span>
+                <span className="ml-auto text-[#888]">{r.eligible} eligible</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-2 text-[13px] pt-2 mt-1 border-t border-[#e5e5e5]">
+              <span className="font-semibold text-[#1c1c1e]">Total</span>
+              <span className="text-[#333]">{totalScheduled} scheduled · {totalSkipped} skipped</span>
+              <span className="ml-auto text-[#888]">{preview.totalEligible} eligible</span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 mt-5">
+          {empty ? (
+            <button className="btn-secondary" onClick={onClose}>Close</button>
+          ) : (
+            <>
+              <button className="btn-secondary" onClick={onClose} disabled={applying}>Cancel</button>
+              <button className="btn-primary" onClick={apply} disabled={applying || !preview}>{applying ? 'Working…' : 'Apply'}</button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

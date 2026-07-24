@@ -305,6 +305,7 @@ export function SponsorBrowseView() {
     setSyncedIds(true)
   }
   const [message, setMessage] = useState('')
+  const [priority, setPriority] = useState<'BEST_FIT' | 'MED' | 'LOW'>('BEST_FIT')
   const [filterOpen, setFilterOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
@@ -313,7 +314,7 @@ export function SponsorBrowseView() {
     if (!requesting && !filterOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (requesting) { setRequesting(null); setMessage('') }
+      if (requesting) { setRequesting(null); setMessage(''); setPriority('BEST_FIT') }
       else if (filterOpen) setFilterOpen(false)
     }
     window.addEventListener('keydown', onKey)
@@ -374,11 +375,12 @@ export function SponsorBrowseView() {
     await fetch('/api/request-meeting', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetUserId: personId, message }),
+      body: JSON.stringify({ targetUserId: personId, message, priority }),
     })
     setRequested(prev => new Set([...prev, personId]))
     setRequesting(null)
     setMessage('')
+    setPriority('BEST_FIT')
   }
 
   const activeFilterCount = roles.length + jobFunctions.length + industries.length + sizes.length + revenues.length + seeking.length + (search ? 1 : 0)
@@ -579,7 +581,7 @@ export function SponsorBrowseView() {
       {/* Meeting request modal */}
       {requesting && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4 animate-fade-in"
-          onClick={() => { setRequesting(null); setMessage('') }}>
+          onClick={() => { setRequesting(null); setMessage(''); setPriority('BEST_FIT') }}>
           <div role="dialog" aria-modal="true" aria-label="Request a meeting"
             className="bg-surface rounded-2xl w-full max-w-md p-5 shadow-elevated animate-slide-up"
             onClick={e => e.stopPropagation()}>
@@ -594,8 +596,24 @@ export function SponsorBrowseView() {
               rows={3}
               className="textarea resize-none mb-4"
             />
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-ink mb-1.5">Meeting priority</label>
+              <p className="text-xs text-ink-3 mb-2">How strong a fit is this meeting for you? This sets scheduling order.</p>
+              <div className="segmented w-full" role="radiogroup" aria-label="Meeting priority">
+                {([['BEST_FIT','Best Fit'],['MED','Med'],['LOW','Low']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    role="radio"
+                    aria-checked={priority === val}
+                    onClick={() => setPriority(val)}
+                    className={`segmented-item${priority === val ? ' active' : ''}`}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
             <div className="flex gap-2">
-              <button onClick={() => { setRequesting(null); setMessage('') }} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={() => { setRequesting(null); setMessage(''); setPriority('BEST_FIT') }} className="btn-secondary flex-1">Cancel</button>
               <button onClick={() => requestMeeting(requesting)} className="btn-primary flex-1">
                 Send Request
               </button>

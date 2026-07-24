@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const userId = user.id
 
   const body = await req.json()
-  const { targetUserId, targetSponsorId, message } = body
+  const { targetUserId, targetSponsorId, message, priority } = body
 
   if (!targetUserId && !targetSponsorId) {
     return NextResponse.json({ error: 'Target required' }, { status: 400 })
@@ -26,6 +26,8 @@ export async function POST(req: Request) {
   if (message && message.length > 1000) {
     return NextResponse.json({ error: 'Message too long (max 1000 chars)' }, { status: 400 })
   }
+  // Priority tier drives auto-scheduling order (Best Fit → Med → Low); default Med.
+  const prio = priority === 'BEST_FIT' || priority === 'MED' || priority === 'LOW' ? priority : 'MED'
 
   // Check not duplicate
   const existing = await prisma.meetingRequest.findFirst({
@@ -35,10 +37,20 @@ export async function POST(req: Request) {
       status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] },
     },
   })
-  if (existing) return NextResponse.json({ error: 'Request already exists' }, { status: 409 })
+  if (existing) {
+    // Not a hard duplicate error: let the requester revise their priority tier
+    // on the request they already sent (idempotent), returning the live row.
+    if (existing.priority !== prio) {
+      const updated = await prisma.meetingRequest.update({
+        where: { id: existing.id }, data: { priority: prio },
+      })
+      return NextResponse.json(updated)
+    }
+    return NextResponse.json({ error: 'Request already exists' }, { status: 409 })
+  }
 
   const request = await prisma.meetingRequest.create({
-    data: { requesterId: userId, targetUserId, targetSponsorId, message },
+    data: { requesterId: userId, targetUserId, targetSponsorId, message, priority: prio },
   })
   // Invalidate in-memory cache for affected users
   invalidate(userId)

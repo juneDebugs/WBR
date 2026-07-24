@@ -414,6 +414,7 @@ model MeetingRequest {
   targetSponsorId String?
   message         String?
   status          String   @default("PENDING") // PENDING | APPROVED | REJECTED | CONFIRMED
+  priority        String   @default("MED")      // BEST_FIT | MED | LOW — requester's meeting-fit priority; drives auto-scheduling order
   timeBlockId     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -428,6 +429,7 @@ model MeetingRequest {
   @@index([targetSponsorId])
   @@index([status])
   @@index([status, timeBlockId])
+  @@index([status, priority])
   @@index([timeBlockId])
   @@index([requesterId, status])
   @@index([targetUserId, status])

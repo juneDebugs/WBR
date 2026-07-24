@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useMeetingsData } from '@/lib/hooks'
 import { AutoScheduleButton } from '@/components/AutoScheduleButton'
+import { PriorityAutoScheduleButton } from '@/components/PriorityAutoScheduleButton'
 import { MeetingsTableWithPanel } from '@/components/MeetingsTableWithPanel'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -14,6 +15,9 @@ const TIER_COLORS: Record<string, string> = {
   SILVER:   'bg-fill text-ink-2',
   BRONZE:   'bg-orange-100 text-orange-700',
 }
+
+const PRIORITY_LABEL = { BEST_FIT: 'Best Fit', MED: 'Med', LOW: 'Low' } as const
+const PRIORITY_BADGE = { BEST_FIT: 'badge badge-brand', MED: 'badge badge-warning', LOW: 'badge badge-neutral' } as const
 
 export default function MeetingsPageClient({ tab: tabParam, status, type }: { tab?: string; status?: string; type?: string }) {
   const { data, isLoading } = useMeetingsData()
@@ -85,6 +89,7 @@ export default function MeetingsPageClient({ tab: tabParam, status, type }: { ta
         personRole: r.requester.role,
         targetName: r.targetUser?.name ?? null,
         targetCompany: r.targetUser?.company ?? null,
+        priority: (r.priority ?? 'MED') as keyof typeof PRIORITY_LABEL,
         status: r.status,
       })),
     ].sort((a, b) => new Date(a.timeBlock.startsAt).getTime() - new Date(b.timeBlock.startsAt).getTime())
@@ -219,7 +224,10 @@ export default function MeetingsPageClient({ tab: tabParam, status, type }: { ta
                 )
               })}
             </div>
-            <AutoScheduleButton approvedCount={counts.APPROVED ?? 0} />
+            <div className="flex items-center gap-2">
+              <PriorityAutoScheduleButton />
+              <AutoScheduleButton approvedCount={counts.APPROVED ?? 0} />
+            </div>
           </div>
 
           {/* Status filter */}
@@ -392,9 +400,16 @@ export default function MeetingsPageClient({ tab: tabParam, status, type }: { ta
 
                             {/* Type */}
                             <td className="px-4 py-3.5">
-                              <span className={`badge ${item.type === 'sponsor' ? 'bg-warning-soft text-warning-ink' : 'bg-brand-50 text-brand-700'}`}>
-                                {item.type === 'sponsor' ? 'Sponsor' : 'Peer'}
-                              </span>
+                              <div className="flex flex-col items-start gap-1">
+                                <span className={`badge ${item.type === 'sponsor' ? 'bg-warning-soft text-warning-ink' : 'bg-brand-50 text-brand-700'}`}>
+                                  {item.type === 'sponsor' ? 'Sponsor' : 'Peer'}
+                                </span>
+                                {(item as any).priority && (
+                                  <span className={PRIORITY_BADGE[(item as any).priority as keyof typeof PRIORITY_BADGE]}>
+                                    {PRIORITY_LABEL[(item as any).priority as keyof typeof PRIORITY_LABEL]}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))

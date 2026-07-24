@@ -12,6 +12,9 @@ function fmtSlot(start: string, end: string) {
   return `${day}, ${t1}–${t2}`
 }
 
+const PRIORITY_LABEL = { BEST_FIT: 'Best Fit', MED: 'Med', LOW: 'Low' } as const
+type Priority = keyof typeof PRIORITY_LABEL
+
 interface AvailableSlot {
   id: string
   startsAt: string
@@ -26,11 +29,14 @@ interface Props {
   requestId: string
   status: string
   currentTimeBlockId: string | null
+  priority?: Priority
 }
 
-export function MeetingRequestActions({ requestId, status, currentTimeBlockId }: Props) {
+export function MeetingRequestActions({ requestId, status, currentTimeBlockId, priority: initialPriority = 'MED' }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [priority, setPriority] = useState<Priority>(initialPriority)
+  const [savingPriority, setSavingPriority] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [slots, setSlots] = useState<AvailableSlot[]>([])
@@ -56,6 +62,40 @@ export function MeetingRequestActions({ requestId, status, currentTimeBlockId }:
     setLoading(false)
     router.refresh()
   }
+
+  async function updatePriority(next: Priority) {
+    if (next === priority) return
+    const prev = priority
+    setPriority(next) // optimistic
+    setSavingPriority(true)
+    const res = await fetch(`/api/meeting-requests/${requestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priority: next }),
+    })
+    setSavingPriority(false)
+    if (!res.ok) { setPriority(prev); return } // revert on failure
+    router.refresh()
+  }
+
+  // Compact priority segmented control (shown for all non-rejected requests)
+  const PriorityEditor = () => (
+    <div>
+      <p className="text-caption text-ink-3 mb-1">Priority</p>
+      <div className="segmented w-full">
+        {(['BEST_FIT', 'MED', 'LOW'] as const).map(p => (
+          <button
+            key={p}
+            onClick={() => updatePriority(p)}
+            disabled={savingPriority}
+            className={`segmented-item !min-h-[28px] !text-caption !px-2 ${priority === p ? 'active' : ''}`}
+          >
+            {PRIORITY_LABEL[p]}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 
   async function openAssign() {
     setAssigning(true)
@@ -190,7 +230,8 @@ export function MeetingRequestActions({ requestId, status, currentTimeBlockId }:
     }
 
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 min-w-[220px]">
+        <div className="flex items-center gap-2">
         <button
           onClick={() => update('APPROVED')}
           disabled={loading}
@@ -222,6 +263,8 @@ export function MeetingRequestActions({ requestId, status, currentTimeBlockId }:
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>
+        </div>
+        <PriorityEditor />
       </div>
     )
   }
@@ -263,6 +306,8 @@ export function MeetingRequestActions({ requestId, status, currentTimeBlockId }:
           </div>
         )
       )}
+
+      {!assigning && <PriorityEditor />}
     </div>
   )
 }
