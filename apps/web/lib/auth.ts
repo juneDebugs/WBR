@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma, verifyPassword, canAccessApp } from '@conference/db'
+import { prisma, verifyPassword, canAccessApp, isCanonicalTestEmail, ensureCanonicalTestAccount } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -20,6 +20,15 @@ export const authOptions: NextAuthOptions = {
           if (!credentials?.email || !credentials?.password) return null
 
           const email = credentials.email.trim().toLowerCase()
+
+          // Self-heal the canonical demo accounts: a stray maintenance script
+          // or account reset may have clobbered/deleted the row. Repairs it in
+          // place (only for the correct demo password) so demo logins can't be
+          // permanently broken. See packages/db/src/test-accounts.ts.
+          if (isCanonicalTestEmail(email)) {
+            await ensureCanonicalTestAccount(email, credentials.password)
+          }
+
           const existing = await prisma.user.findUnique({
             where: { email },
             select: { id: true, email: true, name: true, password: true, role: true },

@@ -7,44 +7,9 @@ export * from './broadcast'
 export * from './friends'
 export * from './chat-settings'
 export * from './meeting-engine'
-import { scrypt, timingSafeEqual, randomBytes, type ScryptOptions } from 'crypto'
+export { verifyPassword, hashPassword } from './password'
+export * from './test-accounts'
 import type { ConfSession, Speaker } from '@prisma/client'
-
-// ─── Password utilities ──────────────────────────────────────────────────────
-
-// Cost factor for new hashes. N=2048 is secure for a conference app and ~8x
-// faster than Node's default N=16384.
-const SCRYPT_N = 2048
-const SCRYPT_R = 8
-const SCRYPT_P = 1
-const SCRYPT_KEYLEN = 64
-
-function scryptAsync(password: string, salt: string, keylen: number, opts: ScryptOptions): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    scrypt(password, salt, keylen, opts, (err, key) => {
-      if (err) reject(err)
-      else resolve(key)
-    })
-  })
-}
-
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const parts = hash.split('.')
-  if (parts.length < 2) return false
-  const [hashed, salt, costStr] = parts
-  if (!hashed || !salt) return false
-  // Old hashes lack a cost field — fall back to Node default (N=16384)
-  const N = costStr ? parseInt(costStr, 10) : 16384
-  const buf = await scryptAsync(password, salt, SCRYPT_KEYLEN, { N, r: SCRYPT_R, p: SCRYPT_P })
-  const hashedBuf = Buffer.from(hashed, 'hex')
-  return timingSafeEqual(buf, hashedBuf)
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex')
-  const buf = await scryptAsync(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P })
-  return `${buf.toString('hex')}.${salt}.${SCRYPT_N}`
-}
 
 // ─── Composite types ──────────────────────────────────────────────────────────
 

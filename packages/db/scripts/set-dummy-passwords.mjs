@@ -25,9 +25,17 @@ function derivePassword(name, email) {
 
 const prisma = new PrismaClient()
 
+// The canonical demo/test accounts must keep their advertised `password123`
+// login. This script rewrites every user's password to `firstname123`, which
+// silently broke the demo logins in the past — so it now skips them. Keep in
+// sync with packages/db/src/test-accounts.ts (CANONICAL_TEST_ACCOUNTS).
+const CANONICAL_TEST_EMAILS = new Set(['wbr@test.com', 'stephcurry@test.com', 'sponsor@test.com'])
+
 async function main() {
-  const users = await prisma.user.findMany({ select: { id: true, name: true, email: true } })
-  console.log(`Setting passwords for ${users.length} users…`)
+  const all = await prisma.user.findMany({ select: { id: true, name: true, email: true } })
+  const users = all.filter((u) => !CANONICAL_TEST_EMAILS.has((u.email ?? '').toLowerCase()))
+  const skipped = all.length - users.length
+  console.log(`Setting passwords for ${users.length} users… (skipping ${skipped} canonical test account(s))`)
 
   let done = 0
   for (const user of users) {
