@@ -382,39 +382,66 @@ function components() {
       color: '#8e8e93',
     },
 
-    // ── Meeting-engine console (HIG) ────────────────────────────────────────
-    // iOS segmented control: a fill track with a raised white "thumb" for the
-    // active segment. Used for day switching + the cancel preserve/remove toggle.
+    // ── Segmented control (Apple HIG — UISegmentedControl) ──────────────────
+    // A systemGray6 track holding a raised white "thumb" for the active segment,
+    // with hairline separators between inactive segments (they vanish next to
+    // the thumb) and a tactile press dip. Used for day switching, the cancel
+    // preserve/remove toggle, and the meeting-priority picker.
     '.segmented': {
+      position: 'relative',
       display: 'inline-flex',
       alignItems: 'center',
-      gap: '2px',
       padding: '2px',
       backgroundColor: '#f2f2f7',
-      borderRadius: '0.75rem',
+      borderRadius: '0.5625rem', // 9px — iOS track radius
     },
     '.segmented-item': {
+      position: 'relative',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
       gap: '0.375rem',
       flex: '1 1 0%',
-      minHeight: '36px',
+      minHeight: '34px',
       padding: '0 0.875rem',
-      borderRadius: '0.625rem',
+      border: '0',
+      borderRadius: '0.4375rem', // 7px thumb radius (track 9 − 2px inset)
+      background: 'transparent',
       fontSize: '0.8125rem',
-      fontWeight: '600',
-      color: '#6e6e73',
+      fontWeight: '500',
+      lineHeight: '1',
+      letterSpacing: '-0.01em',
+      color: '#3c3c43',
       whiteSpace: 'nowrap',
-      transition: 'color .15s ease, background-color .15s ease, box-shadow .15s ease',
       cursor: 'pointer',
       userSelect: 'none',
+      WebkitTapHighlightColor: 'transparent',
+      transition: 'color .2s ease, background-color .2s ease, box-shadow .2s ease, transform .1s ease',
     },
+    // Hairline divider on the leading edge of every non-first segment.
+    '.segmented-item + .segmented-item::before': {
+      content: '""',
+      position: 'absolute',
+      left: '0',
+      top: '18%',
+      bottom: '18%',
+      width: '1px',
+      borderRadius: '1px',
+      backgroundColor: 'rgba(60,60,67,0.18)',
+      transition: 'opacity .2s ease',
+    },
+    // Dividers flanking the active thumb fade out (the pill separates them).
+    '.segmented-item.active::before': { opacity: '0' },
+    '.segmented-item.active + .segmented-item::before': { opacity: '0' },
     '.segmented-item.active': {
       backgroundColor: '#ffffff',
       color: '#1d1d1f',
-      boxShadow: boxShadow.card,
+      fontWeight: '600',
+      // Soft, tight iOS thumb shadow: ambient lift + crisp contact line.
+      boxShadow: '0 3px 8px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06)',
     },
+    '.segmented-item:active:not(:disabled)': { transform: 'scale(0.96)' },
+    '.segmented-item:focus-visible': { outline: 'none', boxShadow: RING },
     '.segmented-item:disabled': { opacity: '0.4', cursor: 'not-allowed' },
 
     // iPad-style split view (bank sidebar + calendar grid).
