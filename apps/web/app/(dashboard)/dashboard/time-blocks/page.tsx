@@ -36,13 +36,15 @@ const getCachedTimeBlocksData = unstable_cache(
           image: true,
           role: true,
           company: true,
+          // No relation orderBy here: Prisma's query engine panics ("no entry
+          // found for key") when a nested to-one relation orderBy is combined
+          // with parent-batch chunking, which kicks in past 999 users. The
+          // meetings are sorted in JS below anyway.
           meetingsAsA: {
             select: { timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } } },
-            orderBy: { timeBlock: { startsAt: 'asc' } },
           },
           meetingsAsB: {
             select: { timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } } },
-            orderBy: { timeBlock: { startsAt: 'asc' } },
           },
           blackoutTimes: {
             select: { id: true, startsAt: true, endsAt: true, reason: true },
