@@ -326,10 +326,12 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                     <div className="w-6 h-6 rounded-full bg-fill flex items-center justify-center text-ink-2 font-bold text-caption flex-shrink-0">
                                       {initial(m.name)}
                                     </div>
-                                    <span className="font-medium text-ink truncate">{m.name}</span>
-                                    {m.company && <span className="text-xs text-ink-2 truncate">{m.company}</span>}
+                                    <span className="min-w-0 flex-1">
+                                      <span className="font-medium text-ink">{m.name}</span>
+                                      {m.company && <span className="text-xs text-ink-2 ml-1.5">{m.company}</span>}
+                                    </span>
                                     {m.room && <span className="badge badge-neutral flex-shrink-0">{m.room}</span>}
-                                    <span className="ml-auto flex items-center flex-shrink-0">
+                                    <span className="flex items-center flex-shrink-0">
                                       <button
                                         type="button"
                                         aria-label={`Reschedule meeting with ${m.name}`}
