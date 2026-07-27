@@ -63,6 +63,7 @@
     "db:migrate-priority": "node scripts/migrate-meeting-priority.mjs",
     "db:backfill-friends": "node scripts/migrate-friends-backfill.mjs",
     "seed:feed-posts": "node scripts/seed-feed-posts.mjs",
+    "seed:unscheduled": "node packages/db/scripts/seed-unscheduled-demo.mjs",
     "db:reset-test-accounts": "node packages/db/scripts/reset-test-accounts.mjs",
     "test:accounts": "node scripts/test-test-accounts.mjs",
     "e2e:accounts": "node scripts/e2e-app-access-all.mjs"
