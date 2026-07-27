@@ -5,24 +5,17 @@ import { useMeetingsData } from '@/lib/hooks'
 import { AutoScheduleButton } from '@/components/AutoScheduleButton'
 import { PriorityAutoScheduleButton } from '@/components/PriorityAutoScheduleButton'
 import { MeetingsTableWithPanel } from '@/components/MeetingsTableWithPanel'
+import CompanySchedulerClient from '@/components/CompanySchedulerClient'
 import Image from 'next/image'
 import Link from 'next/link'
 import { fmtTime, TZ } from '@/lib/format'
+import { TIER_COLORS, PRIORITY_LABEL, PRIORITY_BADGE } from '@/lib/meetings-ui'
 
-const TIER_COLORS: Record<string, string> = {
-  PLATINUM: 'bg-slate-100 text-slate-700',
-  GOLD:     'bg-warning-soft text-warning-ink',
-  SILVER:   'bg-fill text-ink-2',
-  BRONZE:   'bg-orange-100 text-orange-700',
-}
-
-const PRIORITY_LABEL = { BEST_FIT: 'Best Fit', MED: 'Med', LOW: 'Low' } as const
-const PRIORITY_BADGE = { BEST_FIT: 'badge badge-brand', MED: 'badge badge-warning', LOW: 'badge badge-neutral' } as const
-
-export default function MeetingsPageClient({ tab: tabParam, status, type }: { tab?: string; status?: string; type?: string }) {
-  const { data, isLoading } = useMeetingsData()
-
-  const tab = tabParam === 'schedule' ? 'schedule' : 'requests'
+export default function MeetingsPageClient({ tab: tabParam, status, type, company }: { tab?: string; status?: string; type?: string; company?: string }) {
+  const tab = tabParam === 'schedule' ? 'schedule' : tabParam === 'companies' ? 'companies' : 'requests'
+  // The Companies tab fetches its own data (scheduler-hooks) — don't drag the
+  // heavy meetings dataset along just to badge the inactive tabs.
+  const { data, isLoading } = useMeetingsData(undefined, { enabled: tab !== 'companies' })
   const statusFilter = status?.toUpperCase()
   const typeFilter = type === 'attendee' ? 'attendee' : type === 'sponsor' ? 'sponsor' : undefined
 
@@ -115,7 +108,7 @@ export default function MeetingsPageClient({ tab: tabParam, status, type }: { ta
     return { allConfirmed, sponsorFillRate, scheduleByDay }
   }, [meetingRequests, confirmedSponsorMeetings])
 
-  if (isLoading && !data) {
+  if (isLoading && !data && tab !== 'companies') {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-6">
@@ -163,14 +156,21 @@ export default function MeetingsPageClient({ tab: tabParam, status, type }: { ta
             tab === 'schedule' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
           }`}>
           Master Schedule
-          <span className={`ml-1.5 text-xs opacity-70`}>{allConfirmed.length}</span>
+          {data && <span className={`ml-1.5 text-xs opacity-70`}>{allConfirmed.length}</span>}
+        </Link>
+        <Link href="?tab=companies"
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+            tab === 'companies' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
+          }`}>
+          Companies
         </Link>
         <Link href="/dashboard/meetings/new" className="ml-auto text-sm px-4 py-2 bg-white border border-hairline rounded-xl text-ink-2 hover:bg-fill font-medium transition-colors">
           + New Time Block
         </Link>
       </div>
 
-      {/* -- KPI STRIP -- */}
+      {/* -- KPI STRIP (request-level; hidden on the company scheduler) -- */}
+      {tab !== 'companies' && (
       <div className="grid grid-cols-5 gap-3 mb-6">
         {([
           { label: 'Pending',   val: counts.PENDING   ?? 0, status: 'pending',   dot: 'bg-warning', num: 'text-warning-ink' },
@@ -201,6 +201,10 @@ export default function MeetingsPageClient({ tab: tabParam, status, type }: { ta
           </div>
         </div>
       </div>
+      )}
+
+      {/* -- COMPANIES TAB (company-centric scheduler) -- */}
+      {tab === 'companies' && <CompanySchedulerClient sponsor={company} />}
 
       {/* -- REQUESTS TAB -- */}
       {tab === 'requests' && (

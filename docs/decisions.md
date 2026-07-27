@@ -418,6 +418,27 @@ self-restoring).
 
 ---
 
+## Admin Company Scheduler — engine capability shared into apps/web, HIG-native UI (2026-07-26)
+
+The company-centric meeting-engine capability (company directory → per-company
+schedule matrix with an unscheduled request bank, availability-driven assign/
+reschedule with per-room occupancy, cancel with preserve-vs-remove-request
+semantics, priority auto-schedule) was integrated into the admin app as a third
+Meetings tab (**Companies**, `?tab=companies&company=<id>`), rather than linking
+admins out to the eTail-styled `/staff` console in apps/meetings. Rationale: the
+engine (`packages/db/src/meeting-engine.ts`) was already pure and prisma-injected,
+so the admin app adds only a thin permission-gated API
+(`/api/admin/scheduler/*`, gated by `roleHasPermission(role,'meetings')` — the
+finer-grained layer the older meetings routes predate) and an HIG-native UI per
+`docs/prd/meeting-engine-hig-spec.md` (split view, side sheets, alertdialog
+cancel, segmented day switcher — all existing preset classes). One engine change
+rode along: `getSponsorScheduleMatrix` now surfaces CANCELLED requests in the
+sidebar `misc` list as `'Removed'` (previously cancel-with-remove made the request
+vanish, since `misc` only read REJECTED). Tests: `test:admin-scheduler`,
+`test:admin-scheduler:api` (admin app on :3200), `e2e:admin-scheduler`.
+
+---
+
 ## Cross-references
 
 - [Architecture](architecture.md) — cross-cutting current-state architecture.

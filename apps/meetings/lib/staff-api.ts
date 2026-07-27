@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getUserFromHeaders } from '@/lib/user'
-import { EngineError, isWbrStaff, type EngineErrorCode } from '@conference/db'
+import { EngineError, engineErrorHttpStatus, isWbrStaff } from '@conference/db'
 
 // WBR-staff gate for the meeting-engine console API. The operator role is the
 // WBR tier (WBR/ORGANIZER/ADMIN/STAFF) — the wbr@test.com account is ORGANIZER.
@@ -12,16 +12,12 @@ export async function requireStaff(): Promise<{ user: { id: string; role: string
   return { user }
 }
 
-// Map typed EngineError codes to HTTP responses.
-const CONFLICT_CODES: EngineErrorCode[] = ['CANDIDATE_BUSY', 'ROOM_CONFLICT', 'SPONSOR_FULL', 'ALREADY_SCHEDULED']
-const NOT_FOUND_CODES: EngineErrorCode[] = ['REQUEST_NOT_FOUND', 'MEETING_NOT_FOUND']
-
+// Map typed EngineError codes to HTTP responses. The code→status
+// classification is exported by the engine so this console and the admin
+// scheduler API in apps/web stay in lockstep as codes are added.
 export function engineErrorResponse(err: unknown): NextResponse {
   if (err instanceof EngineError) {
-    const status = NOT_FOUND_CODES.includes(err.code) ? 404
-      : CONFLICT_CODES.includes(err.code) ? 409
-      : 400
-    return NextResponse.json({ error: err.message, code: err.code }, { status })
+    return NextResponse.json({ error: err.message, code: err.code }, { status: engineErrorHttpStatus(err.code) })
   }
   console.error('[staff-api] unexpected error', err)
   return NextResponse.json({ error: 'Internal error' }, { status: 500 })

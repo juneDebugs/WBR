@@ -67,6 +67,30 @@ The admin app's API routes split into two shapes:
 
 Cross-cutting API inventory lives in [`docs/architecture.md`](../../docs/architecture.md) §API surface.
 
+### Company Scheduler (Meetings page → Companies tab)
+
+The Meetings page has a third URL-param tab, **Companies** (`?tab=companies`,
+drill-in `&company=<sponsorId>`): the admin-native version of the company-centric
+meeting-engine console, sharing the pure engine in
+[`packages/db/src/meeting-engine.ts`](../../packages/db/src/meeting-engine.ts) with
+the eTail-styled `/staff` console in apps/meetings. Directory of sponsor companies
+(request counts, confirmed meetings, fill meter) → per-company split view: request
+bank sidebar (Inbound approve/decline, Unscheduled ranked by priority tier + fit
+score, Scheduled, Declined/Removed) and a day-segmented slot grid. Assign and
+reschedule run through availability-driven side sheets with per-room occupancy;
+cancel is an alert dialog with preserve-request ("Return to Bank") vs remove
+semantics; per-company priority auto-schedule wraps `POST /api/auto-schedule` with
+a dry-run preview. API: `GET/POST/PATCH /api/admin/scheduler/*`
+(`lib/scheduler-api.ts` gates every route with `roleHasPermission(role, 'meetings')`
+and maps typed `EngineError` codes to 404/409/400). UI:
+`components/CompanySchedulerClient.tsx` + `CompanyDirectory` / `CompanyScheduleView` /
+`AssignMeetingSheet` / `RescheduleMeetingSheet` / `CancelMeetingDialog` /
+`CompanyAutoScheduleButton`, per the HIG spec in
+[`docs/prd/meeting-engine-hig-spec.md`](../../docs/prd/meeting-engine-hig-spec.md).
+Tests: `test:admin-scheduler` (engine), `test:admin-scheduler:api` (HTTP),
+`e2e:admin-scheduler` (Playwright); the HTTP/e2e scripts target :3000 by
+default and honor `SMOKE_BASE_URL` when that port is taken.
+
 ### Scheduled broadcasts (Chat page)
 
 Admins can pre-schedule Global Broadcast messages. `POST/GET /api/chat/scheduled`

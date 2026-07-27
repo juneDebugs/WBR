@@ -118,6 +118,18 @@ export class EngineError extends Error {
   }
 }
 
+// The HTTP classification of each error code is a property of the engine's
+// error vocabulary, not of any one app — both the admin scheduler API and the
+// staff console API derive their responses from this single map so a new code
+// can never return 409 in one portal and 400 in the other.
+const NOT_FOUND_CODES: readonly EngineErrorCode[] = ['REQUEST_NOT_FOUND', 'MEETING_NOT_FOUND']
+const CONFLICT_CODES: readonly EngineErrorCode[] = ['CANDIDATE_BUSY', 'ROOM_CONFLICT', 'SPONSOR_FULL', 'ALREADY_SCHEDULED']
+export function engineErrorHttpStatus(code: EngineErrorCode): number {
+  if (NOT_FOUND_CODES.includes(code)) return 404
+  if (CONFLICT_CODES.includes(code)) return 409
+  return 400
+}
+
 // ── Party resolution ────────────────────────────────────────────────────────
 // A request "belongs" to a sponsor when either the request targets the sponsor
 // (an attendee → sponsor ask) or the requester is a rep of the sponsor
@@ -296,14 +308,16 @@ export interface ScheduledItem {
   timeBlockId: string
   room: string | null
 }
-// A declined/withdrawn request (sidebar "Misc").
+// A declined/withdrawn request (sidebar "Misc"). REJECTED requests read as
+// 'Declined'; CANCELLED ones (cancel-with-remove or withdrawal) read as
+// 'Removed'. Deliberately slim — no avatar/solutions payload — because the
+// terminal-request list grows without bound over a conference's life.
 export interface MiscItem {
   requestId: string
   userId: string
   name: string
   company: string | null
-  image: string | null
-  status: 'Declined'
+  status: 'Declined' | 'Removed'
 }
 export interface SlotMeeting {
   sponsorMeetingId: string
@@ -350,14 +364,16 @@ export async function getSponsorScheduleMatrix(
   })
   if (!sponsor) throw new EngineError('REQUEST_NOT_FOUND', 'Sponsor not found')
 
-  const [timeBlocks, sponsorMeetings, requests] = await Promise.all([
+  const [timeBlocks, sponsorMeetings, requests, terminalRequests] = await Promise.all([
     prisma.timeBlock.findMany({
       where: { conferenceId: confId },
       orderBy: { startsAt: 'asc' },
       select: { id: true, startsAt: true, endsAt: true },
     }),
+    // Scope to this conference's blocks so meetings booked against another
+    // conference never inflate the fill meter or list without a grid row.
     prisma.sponsorMeeting.findMany({
-      where: { sponsorId, status: 'CONFIRMED' },
+      where: { sponsorId, status: 'CONFIRMED', timeBlock: { conferenceId: confId } },
       select: {
         id: true, userId: true, timeBlockId: true, location: true,
         user: { select: { name: true, company: true, image: true } },
@@ -365,7 +381,7 @@ export async function getSponsorScheduleMatrix(
     }),
     prisma.meetingRequest.findMany({
       where: {
-        status: { in: ['PENDING', 'APPROVED', 'REJECTED'] },
+        status: { in: ['PENDING', 'APPROVED'] },
         OR: [
           { targetSponsorId: sponsorId },
           { requester: { sponsorId } },
@@ -389,6 +405,24 @@ export async function getSponsorScheduleMatrix(
         },
       },
     }),
+    // Terminal requests only feed the "Misc" sidebar — fetch them slim (no
+    // base64 avatars, no solutions blobs) and skip the scoring pipeline. The
+    // CANCELLED graveyard grows forever, so this path must stay cheap.
+    prisma.meetingRequest.findMany({
+      where: {
+        status: { in: ['REJECTED', 'CANCELLED'] },
+        OR: [
+          { targetSponsorId: sponsorId },
+          { requester: { sponsorId } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true, requesterId: true, targetUserId: true, targetSponsorId: true, status: true,
+        requester: { select: { sponsorId: true, name: true, company: true } },
+        targetUser: { select: { name: true, company: true } },
+      },
+    }),
   ])
 
   const sponsorSeeking = parseSolutions(sponsor.solutionsSeeking)
@@ -407,7 +441,6 @@ export async function getSponsorScheduleMatrix(
     matched: string[]
   }
   const scored: Scored[] = []
-  const rejected: Scored[] = []
   for (const req of requests) {
     const parties = resolveParties(req as RequestLike)
     if (!parties || parties.sponsorId !== sponsorId) continue
@@ -416,13 +449,11 @@ export async function getSponsorScheduleMatrix(
     const userOffering = parseSolutions(cand?.solutionsOffering ?? null)
     const userSeeking = parseSolutions(cand?.solutionsSeeking ?? null)
     const { score, matched } = scoreSolutionsMatch(sponsorSeeking, sponsorOffering, userOffering, userSeeking)
-    const entry: Scored = {
+    scored.push({
       req, parties, userName: cand?.name ?? 'Unknown',
       company: cand?.company ?? null, image: cand?.image ?? null,
       userOffering, userSeeking, score, matched,
-    }
-    if (req.status === 'REJECTED') rejected.push(entry)
-    else scored.push(entry) // PENDING + APPROVED are ranked together
+    }) // PENDING + APPROVED are ranked together
   }
   // Rank reflects the order the auto-scheduler will fill slots: priority tier
   // first (Best Fit → Med → Low), then fit score, then oldest request wins.
@@ -478,11 +509,18 @@ export async function getSponsorScheduleMatrix(
     })
   }
 
-  // Sidebar "Misc" — declined/withdrawn requests.
-  const misc: MiscItem[] = rejected.map(s => ({
-    requestId: s.req.id, userId: s.parties.userId, name: s.userName,
-    company: s.company, image: s.image, status: 'Declined' as const,
-  }))
+  // Sidebar "Misc" — declined (REJECTED) and removed (CANCELLED) requests.
+  const misc: MiscItem[] = []
+  for (const req of terminalRequests) {
+    const parties = resolveParties(req as RequestLike)
+    if (!parties || parties.sponsorId !== sponsorId) continue
+    const cand = req.targetSponsorId ? req.requester : req.targetUser
+    misc.push({
+      requestId: req.id, userId: parties.userId,
+      name: cand?.name ?? 'Unknown', company: cand?.company ?? null,
+      status: req.status === 'CANCELLED' ? 'Removed' : 'Declined',
+    })
+  }
 
   // Build day → slots with their meetings.
   const meetingsByBlock = new Map<string, SlotMeeting[]>()

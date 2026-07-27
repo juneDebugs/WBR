@@ -27,8 +27,8 @@ export function useAttendeesPage(params: AttendeesPageParams, initialData?: Atte
     ...(initialData && { initialData, initialDataUpdatedAt: Date.now() }),
   })
 }
-export function useMeetingsData(initialData?: any) {
-  return useQuery({ queryKey: ['meetings'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 60_000, initialData })
+export function useMeetingsData(initialData?: any, opts?: { enabled?: boolean }) {
+  return useQuery({ queryKey: ['meetings'], queryFn: () => fetch('/api/data/meetings').then(r => r.json()), staleTime: 60_000, initialData, enabled: opts?.enabled ?? true })
 }
 export function useDashboardStats(initialData?: any) {
   return useQuery({ queryKey: ['dashboard'], queryFn: () => fetch('/api/data/dashboard').then(r => r.json()), staleTime: 120_000, initialData })
