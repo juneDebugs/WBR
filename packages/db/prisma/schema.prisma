@@ -392,7 +392,10 @@ model SponsorMeeting {
   status      String   @default("CONFIRMED") // CONFIRMED | CANCELLED
   location    String?  // Assigned room/table (from MEETING_ROOMS); null = unassigned/legacy
   reason      String?  // Cancellation reason (set when status = CANCELLED)
-  notes       String?
+  notes       String?  // Internal floor note (check-in) or cancellation context
+  // On-site check-in (floor portal): when each party was marked as arrived.
+  sponsorArrivedAt DateTime?
+  buyerArrivedAt   DateTime?
   createdAt   DateTime @default(now())
 
   sponsor     Sponsor   @relation(fields: [sponsorId], references: [id], onDelete: Cascade)

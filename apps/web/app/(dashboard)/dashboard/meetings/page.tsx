@@ -7,12 +7,12 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
   if (denied) return denied
 
   const params = await searchParams
-  // The Companies scheduler is a split view (bank sidebar + slot grid) that
-  // needs the full viewport width; the other tabs keep the standard reading cap.
+  // The Companies scheduler (bank sidebar + slot grid) and the Check-In floor
+  // grid need the full viewport width; the other tabs keep the reading cap.
   return (
     <>
       <AdminHeader title="Meetings" />
-      <main className={`flex-1 p-6 ${params.tab === 'companies' ? '' : 'max-w-6xl'}`}>
+      <main className={`flex-1 p-6 ${params.tab === 'companies' || params.tab === 'checkin' ? '' : 'max-w-6xl'}`}>
         <MeetingsPageClient tab={params.tab} status={params.status} type={params.type} company={params.company} />
       </main>
     </>

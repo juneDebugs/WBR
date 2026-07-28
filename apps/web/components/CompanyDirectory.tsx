@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import type { DirectoryRow } from '@conference/db'
 import { useCompanyDirectory } from '@/lib/scheduler-hooks'
 import { TIER_COLORS, TIER_FALLBACK, FILL_TARGET, meterClass } from '@/lib/meetings-ui'
+import { fmtDate } from '@/lib/format'
 
 type SortKey = 'name' | 'confirmed' | 'fill'
 
@@ -93,6 +94,7 @@ export function CompanyDirectory() {
                   Company{sortIndicator('name')}
                 </button>
               </th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Last login</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Requests received</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Requests made</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Pending</th>
@@ -127,7 +129,7 @@ export function CompanyDirectory() {
                         <div className="skeleton h-4 w-40" />
                       </div>
                     </td>
-                    {[...Array(5)].map((_, j) => (
+                    {[...Array(6)].map((_, j) => (
                       <td key={j} className="px-4 py-3.5">
                         <div className="skeleton h-4 w-12 ml-auto" />
                       </td>
@@ -178,6 +180,11 @@ function DirectoryTableRow({ row, onOpen }: { row: DirectoryRow; onOpen: () => v
           <span className="font-semibold text-ink">{row.name}</span>
           <span className={`badge text-caption ${TIER_COLORS[row.tier] ?? TIER_FALLBACK}`}>{row.tier}</span>
         </Link>
+      </td>
+      <td className="px-4 py-3.5">
+        {/* PRD 1.1 "login stats": most recent rep activity + how many reps hold accounts */}
+        <p className="text-sm text-ink-2">{row.lastLogin ? fmtDate(row.lastLogin) : '—'}</p>
+        <p className="text-caption text-ink-3">{row.numLogins} rep{row.numLogins === 1 ? '' : 's'}</p>
       </td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-2">{row.requestsReceived}</td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-2">{row.requestsMade}</td>

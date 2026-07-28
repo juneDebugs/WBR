@@ -439,6 +439,30 @@ vanish, since `misc` only read REJECTED). Tests: `test:admin-scheduler`,
 
 ---
 
+## On-site Check-In portal — arrival timestamps on SponsorMeeting, admin-only tab (2026-07-28)
+
+The eTail operational ask "a screen that has all the meetings by time slot …
+check, check" (Directions/discovery transcript 41:01–44:44) became a fourth
+Meetings tab (**Check-In**, `?tab=checkin`) in the admin app rather than a new
+app or a `/staff` clone: floor managers are admin/staff users already covered by
+the `'meetings'` permission, and the grid is one aggregate query. Attendance is
+persisted as two nullable timestamps on `SponsorMeeting`
+(`sponsorArrivedAt` / `buyerArrivedAt`, added by the idempotent
+`db:migrate-checkin` script) instead of booleans — a timestamp is a free audit
+trail ("when did they arrive") and un-ticking simply nulls it. The floor note
+reuses `SponsorMeeting.notes` (cancellation notes and floor notes are mutually
+exclusive lifecycles: a meeting is either CONFIRMED on the board or CANCELLED
+off it). Engine functions (`getCheckInBoard`, `setMeetingCheckIn`) live in the
+same self-contained `meeting-engine.ts` so the staff console can adopt them
+later without a schema or API change; `setMeetingCheckIn` takes partial input
+(undefined = untouched) so concurrent checkbox ticks and note edits never
+clobber each other. Sorting follows the PRD exactly: chronological by slot,
+alphabetical by sponsor within a slot; the footer reconciles completed
+(both arrived) vs total per day and overall. Tests: `test:checkin`,
+`test:checkin:api`, `e2e:checkin`.
+
+---
+
 ## Cross-references
 
 - [Architecture](architecture.md) — cross-cutting current-state architecture.

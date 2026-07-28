@@ -888,6 +888,165 @@ export async function cancelMeeting(prisma: Db, input: CancelInput) {
   return { meeting, preserved: input.preserveRequest, requestUpdated: !!linked }
 }
 
+// ── On-site floor check-in ──────────────────────────────────────────────────
+// The floor portal is a master attendance grid across EVERY company: meetings
+// grouped chronologically by time slot and sorted alphabetically by sponsor
+// within each slot, with dual arrival check-offs (sponsor / buyer), an internal
+// note per meeting, and running completion tallies for the footer.
+export interface CheckInMeeting {
+  sponsorMeetingId: string
+  sponsorId: string
+  sponsorName: string
+  sponsorLogo: string | null
+  sponsorTier: string
+  attendeeName: string
+  attendeeCompany: string | null
+  room: string | null
+  sponsorArrivedAt: string | null
+  buyerArrivedAt: string | null
+  notes: string | null
+}
+export interface CheckInTotals {
+  meetings: number
+  completed: number      // both parties arrived
+  sponsorArrived: number
+  buyerArrived: number
+  awaiting: number       // neither party arrived yet
+}
+export interface CheckInSlot {
+  timeBlockId: string
+  startsAt: string
+  endsAt: string
+  meetings: CheckInMeeting[] // alphabetical by sponsor, then attendee
+  completed: number
+}
+export interface CheckInDay {
+  dayKey: string
+  label: string
+  slots: CheckInSlot[]       // chronological
+  totals: CheckInTotals
+}
+export interface CheckInBoard {
+  days: CheckInDay[]
+  totals: CheckInTotals
+}
+
+function tallyCheckIns(meetings: CheckInMeeting[]): CheckInTotals {
+  const totals: CheckInTotals = { meetings: meetings.length, completed: 0, sponsorArrived: 0, buyerArrived: 0, awaiting: 0 }
+  for (const m of meetings) {
+    if (m.sponsorArrivedAt) totals.sponsorArrived++
+    if (m.buyerArrivedAt) totals.buyerArrived++
+    if (m.sponsorArrivedAt && m.buyerArrivedAt) totals.completed++
+    else if (!m.sponsorArrivedAt && !m.buyerArrivedAt) totals.awaiting++
+  }
+  return totals
+}
+
+export async function getCheckInBoard(prisma: Db, conferenceId?: string): Promise<CheckInBoard> {
+  const confId = await resolveConferenceId(prisma, conferenceId)
+  const [timeBlocks, meetings] = await Promise.all([
+    prisma.timeBlock.findMany({
+      where: { conferenceId: confId },
+      orderBy: { startsAt: 'asc' },
+      select: { id: true, startsAt: true, endsAt: true },
+    }),
+    prisma.sponsorMeeting.findMany({
+      where: { status: 'CONFIRMED', timeBlock: { conferenceId: confId } },
+      select: {
+        id: true, sponsorId: true, timeBlockId: true, location: true, notes: true,
+        sponsorArrivedAt: true, buyerArrivedAt: true,
+        sponsor: { select: { name: true, logoUrl: true, tier: true } },
+        user: { select: { name: true, company: true } },
+      },
+    }),
+  ])
+
+  const byBlock = new Map<string, CheckInMeeting[]>()
+  for (const m of meetings) {
+    const row: CheckInMeeting = {
+      sponsorMeetingId: m.id,
+      sponsorId: m.sponsorId,
+      sponsorName: m.sponsor?.name ?? 'Unknown',
+      sponsorLogo: m.sponsor?.logoUrl ?? null,
+      sponsorTier: m.sponsor?.tier ?? 'BRONZE',
+      attendeeName: m.user?.name ?? 'Unknown',
+      attendeeCompany: m.user?.company ?? null,
+      room: m.location,
+      sponsorArrivedAt: m.sponsorArrivedAt ? m.sponsorArrivedAt.toISOString() : null,
+      buyerArrivedAt: m.buyerArrivedAt ? m.buyerArrivedAt.toISOString() : null,
+      notes: m.notes,
+    }
+    const arr = byBlock.get(m.timeBlockId) ?? []
+    arr.push(row)
+    byBlock.set(m.timeBlockId, arr)
+  }
+
+  const dayMap = new Map<string, CheckInDay>()
+  const all: CheckInMeeting[] = []
+  for (const tb of timeBlocks) {
+    const slotMeetings = byBlock.get(tb.id)
+    if (!slotMeetings?.length) continue // the floor grid only shows slots with meetings
+    slotMeetings.sort((a, b) =>
+      a.sponsorName.localeCompare(b.sponsorName) || a.attendeeName.localeCompare(b.attendeeName))
+    all.push(...slotMeetings)
+    const key = dayKeyOf(tb.startsAt)
+    let day = dayMap.get(key)
+    if (!day) {
+      day = {
+        dayKey: key, label: dayLabel(tb.startsAt), slots: [],
+        totals: { meetings: 0, completed: 0, sponsorArrived: 0, buyerArrived: 0, awaiting: 0 },
+      }
+      dayMap.set(key, day)
+    }
+    day.slots.push({
+      timeBlockId: tb.id,
+      startsAt: tb.startsAt.toISOString(),
+      endsAt: tb.endsAt.toISOString(),
+      meetings: slotMeetings,
+      completed: slotMeetings.filter(m => m.sponsorArrivedAt && m.buyerArrivedAt).length,
+    })
+  }
+  const days = Array.from(dayMap.values())
+  for (const day of days) day.totals = tallyCheckIns(day.slots.flatMap(s => s.meetings))
+
+  return { days, totals: tallyCheckIns(all) }
+}
+
+// Toggle arrivals / edit the internal note for one meeting. Fields left
+// undefined are untouched, so a checkbox tick never clobbers a concurrent
+// note edit (and vice versa). Only CONFIRMED meetings can be checked in.
+export interface CheckInUpdate {
+  sponsorMeetingId: string
+  sponsorArrived?: boolean
+  buyerArrived?: boolean
+  notes?: string | null
+}
+export async function setMeetingCheckIn(prisma: Db, input: CheckInUpdate) {
+  const m = await prisma.sponsorMeeting.findUnique({
+    where: { id: input.sponsorMeetingId },
+    select: { id: true, status: true },
+  })
+  if (!m) throw new EngineError('MEETING_NOT_FOUND')
+  if (m.status !== 'CONFIRMED') throw new EngineError('BAD_STATUS', 'Only confirmed meetings can be checked in')
+
+  const data: Record<string, unknown> = {}
+  if (input.sponsorArrived !== undefined) data.sponsorArrivedAt = input.sponsorArrived ? new Date() : null
+  if (input.buyerArrived !== undefined) data.buyerArrivedAt = input.buyerArrived ? new Date() : null
+  if (input.notes !== undefined) data.notes = input.notes?.trim() ? input.notes.trim() : null
+
+  const updated = await prisma.sponsorMeeting.update({
+    where: { id: m.id },
+    data,
+    select: { id: true, sponsorArrivedAt: true, buyerArrivedAt: true, notes: true },
+  })
+  return {
+    sponsorMeetingId: updated.id,
+    sponsorArrivedAt: updated.sponsorArrivedAt ? updated.sponsorArrivedAt.toISOString() : null,
+    buyerArrivedAt: updated.buyerArrivedAt ? updated.buyerArrivedAt.toISOString() : null,
+    notes: updated.notes,
+  }
+}
+
 // ── Load-balancing hint ─────────────────────────────────────────────────────
 // Given candidate loads, recommend scheduling the one with the fewest meetings
 // (spreads attention across attendees). Returns the userId to prefer.

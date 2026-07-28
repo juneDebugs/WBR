@@ -91,6 +91,25 @@ Tests: `test:admin-scheduler` (engine), `test:admin-scheduler:api` (HTTP),
 `e2e:admin-scheduler` (Playwright); the HTTP/e2e scripts target :3000 by
 default and honor `SMOKE_BASE_URL` when that port is taken.
 
+### On-site Check-In (Meetings page → Check-In tab)
+
+Fourth URL-param tab, **Check-In** (`?tab=checkin`): the on-site floor
+attendance portal. One master grid of every confirmed sponsor meeting for the
+selected day — grouped chronologically by time slot, sorted alphabetically by
+sponsor within each slot — with dual arrival check-offs (**Sponsor arrived** /
+**Buyer arrived**), an internal per-meeting floor note (stored on
+`SponsorMeeting.notes`), and a footer reconciliation bar (completed vs total,
+per-party arrival counts, awaiting). Arrivals persist as
+`SponsorMeeting.sponsorArrivedAt` / `buyerArrivedAt` timestamps
+(`db:migrate-checkin` adds the columns). Engine: `getCheckInBoard` /
+`setMeetingCheckIn` in `packages/db/src/meeting-engine.ts`. API:
+`GET /api/admin/scheduler/checkin` + `PATCH /api/admin/scheduler/checkin/[id]`
+(same `'meetings'` permission gate as the rest of the scheduler). UI:
+`components/CheckInBoard.tsx` (optimistic React Query mutations; the board
+refetches every 30s so several floor managers converge without manual
+refreshes). Tests: `test:checkin` (engine), `test:checkin:api` (HTTP),
+`e2e:checkin` (Playwright).
+
 ### Scheduled broadcasts (Chat page)
 
 Admins can pre-schedule Global Broadcast messages. `POST/GET /api/chat/scheduled`
