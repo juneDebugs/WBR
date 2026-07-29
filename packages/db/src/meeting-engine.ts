@@ -1352,7 +1352,7 @@ export interface AutoMatchTotals {
   ready: number     // matched, awaiting a meeting
   scheduled: number // matched with a confirmed meeting
 }
-export type AutoMatchEventType = 'MATCHED' | 'SCHEDULED'
+export type AutoMatchEventType = 'MATCHED' | 'SCHEDULED' | 'RESCHEDULED' | 'CANCELLED'
 export interface AutoMatchLogEntry {
   id: string
   event: AutoMatchEventType
@@ -1539,9 +1539,22 @@ export async function syncAutoMatches(prisma: Db, conferenceId?: string): Promis
 
   const existing = await prisma.autoMatchEvent.findMany({
     where: { userId: { in: matches.map(m => m.attendee.id) } },
-    select: { sponsorId: true, userId: true, event: true },
+    select: { sponsorId: true, userId: true, event: true, createdAt: true },
   })
-  const seen = new Set(existing.map(e => `${e.event}|${e.sponsorId}::${e.userId}`))
+  // A cancelled match that re-forms (both sides pick each other again) gets
+  // fresh MATCHED/SCHEDULED entries: dedup only against events newer than the
+  // pair's most recent cancellation.
+  const lastCancelled = new Map<string, number>()
+  for (const e of existing) {
+    if (e.event !== 'CANCELLED') continue
+    const k = `${e.sponsorId}::${e.userId}`
+    lastCancelled.set(k, Math.max(lastCancelled.get(k) ?? 0, e.createdAt.getTime()))
+  }
+  const seen = new Set(
+    existing
+      .filter(e => e.createdAt.getTime() > (lastCancelled.get(`${e.sponsorId}::${e.userId}`) ?? -1))
+      .map(e => `${e.event}|${e.sponsorId}::${e.userId}`),
+  )
   const placedNow = new Map((run?.scheduled ?? []).map(s => [`${s.sponsorId}::${s.userId}`, s]))
 
   const rows: {
@@ -1566,4 +1579,69 @@ export async function syncAutoMatches(prisma: Db, conferenceId?: string): Promis
 
   const matchedLogged = rows.filter(r => r.event === 'MATCHED').length
   return { scheduled: run?.scheduled ?? [], matchedLogged, scheduledLogged: rows.length - matchedLogged }
+}
+
+// ── Auto-match meeting actions ──────────────────────────────────────────────
+// Reschedule / cancel for meetings on the Auto board. Both reuse the engine's
+// guarded mutations and extend the auto-match audit trail.
+async function autoMatchPairNames(prisma: Db, sponsorId: string, userId: string) {
+  const [sponsor, user] = await Promise.all([
+    prisma.sponsor.findUnique({ where: { id: sponsorId }, select: { name: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+  ])
+  return { sponsorName: sponsor?.name ?? 'Company', attendeeName: user?.name ?? 'Attendee' }
+}
+
+export async function rescheduleAutoMatchMeeting(prisma: Db, input: RescheduleInput) {
+  const meeting = await rescheduleMeeting(prisma, input)
+  const [tb, names] = await Promise.all([
+    prisma.timeBlock.findUnique({ where: { id: input.timeBlockId }, select: { startsAt: true } }),
+    autoMatchPairNames(prisma, meeting.sponsorId, meeting.userId),
+  ])
+  await prisma.autoMatchEvent.create({
+    data: {
+      sponsorId: meeting.sponsorId, userId: meeting.userId, ...names,
+      event: 'RESCHEDULED', room: input.room, startsAt: tb?.startsAt ?? null,
+    },
+  })
+  return meeting
+}
+
+// Cancelling an auto-matched meeting dissolves the match: every live Best Fit
+// pick between the pair is withdrawn (CANCELLED) along with the meeting.
+// Anything less would be self-defeating — a surviving mutual pick re-forms the
+// match and the very next sweep re-schedules the meeting the admin just
+// cancelled. A fresh pick from both sides re-creates the match organically.
+export interface AutoMatchCancelInput {
+  sponsorMeetingId: string
+  reason?: string | null
+}
+export async function cancelAutoMatchMeeting(prisma: Db, input: AutoMatchCancelInput) {
+  const result = await cancelMeeting(prisma, {
+    sponsorMeetingId: input.sponsorMeetingId,
+    preserveRequest: false,
+    reason: input.reason ?? null,
+  })
+  const { sponsorId, userId } = result.meeting
+  const [, names] = await Promise.all([
+    prisma.meetingRequest.updateMany({
+      where: {
+        priority: 'BEST_FIT',
+        status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] },
+        OR: [
+          { targetSponsorId: sponsorId, requesterId: userId },
+          { requester: { sponsorId }, targetUserId: userId },
+        ],
+      },
+      data: { status: 'CANCELLED' },
+    }),
+    autoMatchPairNames(prisma, sponsorId, userId),
+  ])
+  await prisma.autoMatchEvent.create({
+    data: {
+      sponsorId, userId, ...names,
+      event: 'CANCELLED', room: null, startsAt: null,
+    },
+  })
+  return result
 }

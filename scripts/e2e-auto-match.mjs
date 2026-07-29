@@ -5,7 +5,10 @@
 // turns the fixture's mutual picks into a CONFIRMED SponsorMeeting. Drives a
 // real browser: login as WBR staff → Auto tab → the fixture company section
 // arrives already "✓ Scheduled" (DB row carries the rep + a room) → activity
-// log shows the pair's MATCHED and SCHEDULED events → stat tiles render.
+// log shows the pair's MATCHED and SCHEDULED events → stat tiles render →
+// Reschedule moves the meeting to another slot (new timeBlockId + RESCHEDULED
+// event) → Cancel with a reason flips the meeting to CANCELLED, withdraws both
+// Best Fit picks, and dissolves the match off the board (CANCELLED event).
 // Screenshots at every stage. Fixtures (sponsor + rep + attendee + the two
 // BEST_FIT MeetingRequests that form the match, names prefixed 'E2E AutoMatch')
 // are created/removed via Prisma; active conference time blocks are used
@@ -38,6 +41,7 @@ const COMPANY = 'E2E AutoMatch Co'
 const REP = 'E2E AutoMatch Rep'
 const BUYER = 'E2E AutoMatch Buyer'
 const PREFIX = 'am-e2e-'
+const CANCEL_REASON = 'e2e cancel'
 const T = 30_000
 
 let serverProc = null, failures = 0
@@ -201,6 +205,58 @@ async function main() {
     check(`"${label}" tile renders`, await page.getByText(label, { exact: true }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
   }
   await shot(page, 'auto-match-final.png')
+
+  console.log('\n[reschedule]')
+  const originalBlockId = meeting?.timeBlockId ?? null
+  await page.getByRole('button', { name: `Reschedule meeting — ${COMPANY} with ${BUYER}`, exact: true }).click()
+  const reschedDialog = page.getByRole('dialog')
+  check('reschedule dialog opens', await reschedDialog.waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('reschedule heading', await reschedDialog.getByRole('heading', { name: 'Reschedule Meeting' }).waitFor({ timeout: T }).then(() => true).catch(() => false))
+  // Slot buttons are the only dialog buttons carrying the tabular-nums time
+  // range; skip the one suffixed "· current" so the meeting actually moves.
+  const slotButtons = reschedDialog.locator('button:enabled', { has: page.locator('span.tabular-nums') }).filter({ hasNotText: 'current' })
+  const slotsLoaded = await slotButtons.first().waitFor({ timeout: T }).then(() => true).catch(() => false)
+  check('an alternative open slot exists', slotsLoaded)
+  if (slotsLoaded) {
+    await slotButtons.first().click()
+    check('Room select appears with a free room', await reschedDialog.getByLabel('Room', { exact: true }).waitFor({ timeout: T }).then(() => true).catch(() => false))
+    await shot(page, 'auto-match-reschedule-dialog.png')
+    await reschedDialog.getByRole('button', { name: 'Move Meeting', exact: true }).click()
+    check('meeting moved to a new time block in DB', await waitFor(async () => {
+      const m = await prisma.sponsorMeeting.findUnique({ where: { id: meeting.id }, select: { timeBlockId: true, status: true } })
+      return !!m && m.status === 'CONFIRMED' && m.timeBlockId !== originalBlockId
+    }, T, 'rescheduled SponsorMeeting').then(() => true).catch(() => false))
+    check('RESCHEDULED event written', await waitFor(async () => {
+      const e = await prisma.autoMatchEvent.findFirst({ where: { sponsorId: sponsor.id, userId: attendee.id, event: 'RESCHEDULED' }, select: { id: true } })
+      return !!e
+    }, T, 'RESCHEDULED AutoMatchEvent').then(() => true).catch(() => false))
+    check('log shows Meeting rescheduled for the pair', await pairRows.filter({ hasText: 'Meeting rescheduled' }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
+  } else {
+    // Can't move a meeting when the conference has a single open slot — close
+    // the dialog so the cancel stage still runs against a clean board.
+    await reschedDialog.getByRole('button', { name: 'Close', exact: true }).click().catch(() => {})
+  }
+  await shot(page, 'auto-match-rescheduled.png')
+
+  console.log('\n[cancel]')
+  await page.getByRole('button', { name: `Cancel meeting — ${COMPANY} with ${BUYER}`, exact: true }).click()
+  const cancelDialog = page.getByRole('dialog')
+  check('cancel dialog opens', await cancelDialog.waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('cancel heading', await cancelDialog.getByRole('heading', { name: 'Cancel Meeting?' }).waitFor({ timeout: T }).then(() => true).catch(() => false))
+  await cancelDialog.getByLabel('Cancellation reason', { exact: true }).fill(CANCEL_REASON)
+  await shot(page, 'auto-match-cancel-dialog.png')
+  await cancelDialog.getByRole('button', { name: 'Cancel Meeting', exact: true }).click()
+  check('meeting CANCELLED with reason in DB', await waitFor(async () => {
+    const m = await prisma.sponsorMeeting.findUnique({ where: { id: meeting.id }, select: { status: true, reason: true } })
+    return !!m && m.status === 'CANCELLED' && m.reason === CANCEL_REASON
+  }, T, 'cancelled SponsorMeeting').then(() => true).catch(() => false))
+  check('both Best Fit picks withdrawn (requests CANCELLED)', await waitFor(async () => {
+    const reqs = await prisma.meetingRequest.findMany({ where: { id: { startsWith: PREFIX } }, select: { status: true } })
+    return reqs.length === 2 && reqs.every(r => r.status === 'CANCELLED')
+  }, T, 'both MeetingRequests CANCELLED').then(() => true).catch(() => false))
+  check('match dissolves off the board', await section.waitFor({ state: 'detached', timeout: T }).then(() => true).catch(() => false))
+  check('log shows Meeting cancelled — match dissolved', await pairRows.filter({ hasText: 'Meeting cancelled — match dissolved' }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
+  await shot(page, 'auto-match-cancelled.png')
 
   check('no app console errors during the flow', appErrors.length === 0, appErrors.slice(0, 3).join(' | '))
   await browser.close()

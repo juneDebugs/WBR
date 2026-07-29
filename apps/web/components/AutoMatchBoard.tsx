@@ -1,9 +1,11 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import type { AutoMatch, AutoMatchLogEntry } from '@conference/db'
-import { useAutoMatchBoard } from '@/lib/scheduler-hooks'
+import { useQueryClient } from '@tanstack/react-query'
+import type { AutoMatch, AutoMatchLogEntry, RescheduleAvailability } from '@conference/db'
+import { useAutoMatchBoard, invalidateScheduler } from '@/lib/scheduler-hooks'
 import { fmtRangeUTC, fmtTimeUTC } from '@/lib/format'
 import { TIER_COLORS, TIER_FALLBACK } from '@/lib/meetings-ui'
 
@@ -149,9 +151,19 @@ function CompanySection({ sponsor, matches }: { sponsor: AutoMatch['sponsor']; m
 }
 
 // One matched pair within its company section: the attendee, the mutual-pick
-// signal, both picks' provenance, and the auto-scheduled slot/room (or the
-// waiting state when every slot is currently taken).
+// signal, both picks' provenance, the auto-scheduled slot/room (or the waiting
+// state when every slot is currently taken), and reschedule/cancel actions.
 function MatchCard({ match }: { match: AutoMatch }) {
+  const queryClient = useQueryClient()
+  const [dialog, setDialog] = useState<'reschedule' | 'cancel' | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const done = () => {
+    setDialog(null)
+    setActionError(null)
+    invalidateScheduler(queryClient)
+  }
+
   return (
     <div className="bg-white border border-hairline rounded-xl px-4 py-3">
       <div className="flex items-center gap-4 flex-wrap">
@@ -172,7 +184,7 @@ function MatchCard({ match }: { match: AutoMatch }) {
           {match.score > 0 && <span className="text-caption text-ink-3 tabular-nums">{match.score}% fit</span>}
         </div>
 
-        {/* Outcome */}
+        {/* Outcome + actions */}
         <div className="flex-shrink-0 text-right ml-auto">
           {match.meeting ? (
             <>
@@ -181,6 +193,24 @@ function MatchCard({ match }: { match: AutoMatch }) {
                 {fmtRangeUTC(match.meeting.startsAt, match.meeting.endsAt)}
                 {match.meeting.room && <span className="text-ink-3"> {'·'} {match.meeting.room}</span>}
               </p>
+              <div className="flex justify-end gap-1 mt-1">
+                <button
+                  type="button"
+                  onClick={() => { setActionError(null); setDialog('reschedule') }}
+                  className="btn-ghost btn-sm"
+                  aria-label={`Reschedule meeting — ${match.sponsor.name} with ${match.attendee.name}`}
+                >
+                  Reschedule
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setActionError(null); setDialog('cancel') }}
+                  className="btn-ghost btn-sm text-danger"
+                  aria-label={`Cancel meeting — ${match.sponsor.name} with ${match.attendee.name}`}
+                >
+                  Cancel
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -190,6 +220,31 @@ function MatchCard({ match }: { match: AutoMatch }) {
           )}
         </div>
       </div>
+
+      {actionError && (
+        <div className="mt-2 rounded-xl bg-danger-soft text-danger-ink text-xs px-3 py-2" role="alert">
+          {actionError}
+        </div>
+      )}
+
+      {dialog === 'reschedule' && match.meeting && (
+        <RescheduleSheet
+          match={match}
+          meeting={match.meeting}
+          onClose={() => setDialog(null)}
+          onDone={done}
+          onError={setActionError}
+        />
+      )}
+      {dialog === 'cancel' && match.meeting && (
+        <CancelDialog
+          match={match}
+          meeting={match.meeting}
+          onClose={() => setDialog(null)}
+          onDone={done}
+          onError={setActionError}
+        />
+      )}
 
       {/* Pick provenance */}
       <p className="text-caption text-ink-3 mt-2">
@@ -210,34 +265,228 @@ function MatchCard({ match }: { match: AutoMatch }) {
   )
 }
 
+const LOG_STYLE: Record<string, { dot: string; label: string }> = {
+  MATCHED: { dot: 'bg-brand', label: 'Matched · both picked Best Fit' },
+  SCHEDULED: { dot: 'bg-success', label: 'Meeting auto-scheduled' },
+  RESCHEDULED: { dot: 'bg-warning', label: 'Meeting rescheduled' },
+  CANCELLED: { dot: 'bg-danger', label: 'Meeting cancelled — match dissolved' },
+}
+
 function LogRow({ entry }: { entry: AutoMatchLogEntry }) {
-  const scheduled = entry.event === 'SCHEDULED'
+  const style = LOG_STYLE[entry.event] ?? LOG_STYLE.MATCHED
+  const showSlot = entry.event === 'SCHEDULED' || entry.event === 'RESCHEDULED'
   return (
     <li className="px-4 py-2.5">
       <div className="flex items-start gap-2">
-        <span
-          aria-hidden="true"
-          className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${scheduled ? 'bg-success' : 'bg-brand'}`}
-        />
+        <span aria-hidden="true" className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${style.dot}`} />
         <div className="min-w-0">
           <p className="text-xs font-medium text-ink leading-snug">
             {entry.sponsorName} {'↔'} {entry.attendeeName}
           </p>
           <p className="text-caption text-ink-2 leading-snug">
-            {scheduled ? (
-              <>
-                Meeting auto-scheduled
-                {entry.room && <> {'·'} {entry.room}</>}
-                {entry.startsAt && <> {'·'} {fmtTimeUTC(entry.startsAt)}</>}
-              </>
-            ) : (
-              <>Matched {'·'} both picked Best Fit</>
-            )}
+            {style.label}
+            {showSlot && entry.room && <> {'·'} {entry.room}</>}
+            {showSlot && entry.startsAt && <> {'·'} {fmtTimeUTC(entry.startsAt)}</>}
           </p>
           <p className="text-caption text-ink-3 tabular-nums">{fmtLogTime(entry.createdAt)}</p>
         </div>
       </div>
     </li>
+  )
+}
+
+// ── Card actions ─────────────────────────────────────────────────────────────
+
+async function meetingAction(url: string, init: RequestInit): Promise<void> {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...init })
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}))
+    throw new Error(d.error ?? `Request failed (${r.status})`)
+  }
+}
+
+// Slot + room picker for moving an auto-scheduled meeting. Availability comes
+// from the shared scheduler endpoint (the moved meeting reads as free in it).
+function RescheduleSheet({ match, meeting, onClose, onDone, onError }: {
+  match: AutoMatch
+  meeting: NonNullable<AutoMatch['meeting']>
+  onClose: () => void
+  onDone: () => void
+  onError: (msg: string) => void
+}) {
+  const [availability, setAvailability] = useState<RescheduleAvailability | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [slotId, setSlotId] = useState<string | null>(null)
+  const [room, setRoom] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    fetch(`/api/admin/scheduler/meetings/${encodeURIComponent(meeting.sponsorMeetingId)}/availability`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then(a => { if (alive) setAvailability(a) })
+      .catch(() => { if (alive) setLoadError(true) })
+    return () => { alive = false }
+  }, [meeting.sponsorMeetingId])
+
+  const slots = availability?.days.flatMap(d => d.slots) ?? []
+  const selected = slots.find(s => s.timeBlockId === slotId) ?? null
+  const freeRooms = selected?.rooms.filter(r => r.available) ?? []
+
+  async function save() {
+    if (!slotId || !room) return
+    setSaving(true)
+    try {
+      await meetingAction(`/api/admin/scheduler/auto/meetings/${encodeURIComponent(meeting.sponsorMeetingId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ timeBlockId: slotId, room }),
+      })
+      onDone()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Reschedule failed')
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div role="dialog" aria-modal="true" aria-label="Reschedule meeting" className="bg-surface rounded-2xl p-5 shadow-elevated max-w-md w-full">
+        <h2 className="font-semibold text-ink text-base">Reschedule Meeting</h2>
+        <p className="text-sm text-ink-2 mt-1">
+          {match.sponsor.name} {'↔'} {match.attendee.name} {'·'} currently {fmtRangeUTC(meeting.startsAt, meeting.endsAt)}
+          {meeting.room && <> {'·'} {meeting.room}</>}
+        </p>
+
+        {loadError ? (
+          <p className="text-sm text-danger mt-4">Couldn&rsquo;t load open slots. Close and try again.</p>
+        ) : !availability ? (
+          <div className="mt-4 space-y-2">
+            {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-10 rounded-xl" />)}
+          </div>
+        ) : (
+          <>
+            <div className="mt-4 max-h-64 overflow-y-auto space-y-3 pr-1">
+              {availability.days.map(day => (
+                <div key={day.dayKey}>
+                  <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest mb-1.5">{day.label}</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {day.slots.map(slot => {
+                      const isCurrent = slot.timeBlockId === availability.current.timeBlockId
+                      const active = slotId === slot.timeBlockId
+                      return (
+                        <button
+                          key={slot.timeBlockId}
+                          type="button"
+                          disabled={!slot.available}
+                          onClick={() => {
+                            setSlotId(slot.timeBlockId)
+                            const free = slot.rooms.filter(r => r.available)
+                            setRoom(isCurrent && availability.current.room && free.some(r => r.name === availability.current.room)
+                              ? availability.current.room
+                              : free[0]?.name ?? null)
+                          }}
+                          className={`px-2.5 py-2 rounded-xl text-xs font-medium text-left transition-colors border ${
+                            active
+                              ? 'bg-primary text-white border-transparent shadow-sm'
+                              : slot.available
+                                ? 'bg-white border-hairline text-ink hover:bg-fill'
+                                : 'bg-fill border-transparent text-ink-3 cursor-not-allowed'
+                          }`}
+                        >
+                          <span className="tabular-nums">{fmtRangeUTC(slot.startsAt, slot.endsAt)}</span>
+                          {isCurrent && <span className={`ml-1 ${active ? 'opacity-80' : 'text-ink-3'}`}>{'·'} current</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {selected && (
+              <div className="mt-3 flex items-center gap-2">
+                <label htmlFor={`room-${meeting.sponsorMeetingId}`} className="text-xs font-medium text-ink-2">Room</label>
+                <select
+                  id={`room-${meeting.sponsorMeetingId}`}
+                  value={room ?? ''}
+                  onChange={e => setRoom(e.target.value)}
+                  className="input text-xs flex-1"
+                >
+                  {freeRooms.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                </select>
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button type="button" onClick={onClose} disabled={saving} className="btn-secondary btn-sm">Close</button>
+          <button type="button" onClick={save} disabled={saving || !slotId || !room} className="btn-primary btn-sm">
+            {saving ? 'Working…' : 'Move Meeting'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CancelDialog({ match, meeting, onClose, onDone, onError }: {
+  match: AutoMatch
+  meeting: NonNullable<AutoMatch['meeting']>
+  onClose: () => void
+  onDone: () => void
+  onError: (msg: string) => void
+}) {
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function confirm() {
+    setSaving(true)
+    try {
+      await meetingAction(`/api/admin/scheduler/auto/meetings/${encodeURIComponent(meeting.sponsorMeetingId)}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() || null }),
+      })
+      onDone()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Cancel failed')
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div role="dialog" aria-modal="true" aria-label="Cancel meeting" className="bg-surface rounded-2xl p-5 shadow-elevated max-w-md w-full">
+        <h2 className="font-semibold text-ink text-base">Cancel Meeting?</h2>
+        <p className="text-sm text-ink-2 mt-2">
+          {match.sponsor.name} {'↔'} {match.attendee.name} {'·'} {fmtRangeUTC(meeting.startsAt, meeting.endsAt)}
+          {meeting.room && <> {'·'} {meeting.room}</>}
+        </p>
+        <p className="text-sm text-ink-2 mt-2">
+          This also dissolves the match: both Best Fit picks are withdrawn, so it won&rsquo;t be rescheduled
+          automatically. If both sides pick each other again, a new match forms.
+        </p>
+        <input
+          type="text"
+          className="input text-sm w-full mt-3"
+          placeholder="Reason (optional)"
+          aria-label="Cancellation reason"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          maxLength={300}
+        />
+        <div className="flex justify-end gap-2 mt-5">
+          <button type="button" onClick={onClose} disabled={saving} className="btn-secondary btn-sm">Keep Meeting</button>
+          <button type="button" onClick={confirm} disabled={saving} className="btn-danger btn-sm">
+            {saving ? 'Working…' : 'Cancel Meeting'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

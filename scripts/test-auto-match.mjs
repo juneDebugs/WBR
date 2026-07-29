@@ -13,12 +13,16 @@
 // later pick), fit scoring, totals math, dry-run planning (nothing persisted),
 // real scheduling (sponsor-side request preferred → meeting inherits repId,
 // request flips CONFIRMED, earliest free block + Table 1 first), post-schedule
-// board state and ordering, idempotence, and the syncAutoMatches sweep
-// (schedules ready pairs, writes MATCHED/SCHEDULED AutoMatchEvent rows,
-// backfills SCHEDULED for pre-existing meetings, skips unschedulable pairs,
-// writes nothing on a second run). The event log is GLOBAL (not conference-
-// scoped), so board.log assertions always filter to fixture pairs — never
-// global length/order. Deletes every fixture row in finally.
+// board state and ordering, idempotence, the syncAutoMatches sweep (schedules
+// ready pairs, writes MATCHED/SCHEDULED AutoMatchEvent rows, backfills
+// SCHEDULED for pre-existing meetings, skips unschedulable pairs, writes
+// nothing on a second run), and the board meeting actions —
+// rescheduleAutoMatchMeeting (guarded move + RESCHEDULED event) and
+// cancelAutoMatchMeeting (cancel + both-direction pick withdrawal + CANCELLED
+// event, sweep does not resurrect, fresh mutual picks re-match with fresh log
+// entries via the cancellation-aware dedup). The event log is GLOBAL (not
+// conference-scoped), so board.log assertions always filter to fixture pairs —
+// never global length/order. Deletes every fixture row in finally.
 //
 //   node scripts/test-auto-match.mjs
 //
@@ -37,6 +41,14 @@ function check(name, cond, detail = '') {
   if (cond) console.log(`  ✓ ${name}`)
   else { failures++; console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`) }
 }
+async function expectThrow(name, code, fn) {
+  try { await fn(); failures++; console.error(`  ✗ ${name} — expected ${code}, but it resolved`) }
+  catch (e) {
+    if (e?.code === code) console.log(`  ✓ ${name} (threw ${code})`)
+    else { failures++; console.error(`  ✗ ${name} — expected ${code}, got ${e?.code ?? e?.message}`) }
+  }
+}
+
 function readEnvLocal(app) {
   const env = {}
   try {
@@ -320,6 +332,102 @@ async function main() {
     board.log.every((e, i) => i === 0 || board.log[i - 1].createdAt >= e.createdAt))
   const viaHelper = (await E.getAutoMatchLog(prisma, 500)).filter(e => e.userId?.startsWith(PREFIX))
   check('getAutoMatchLog returns the same 7 fixture entries', viaHelper.length === 7, `count=${viaHelper.length}`)
+
+  // ── Board meeting actions ────────────────────────────────────────────────
+  // (A,u6) was scheduled by the sweep at tb1/Table 2 — move it, then cancel
+  // it, then re-form the match with fresh picks. Pair-scoped event counters
+  // via evOf() keep every assertion deterministic.
+  console.log('\nrescheduleAutoMatchMeeting')
+  const mtgU6Row = await prisma.sponsorMeeting.findFirst({
+    where: { sponsorId: spA.id, userId: u6.id, status: 'CONFIRMED' }, select: { id: true },
+  })
+  const moved = await E.rescheduleAutoMatchMeeting(prisma, { sponsorMeetingId: mtgU6Row.id, timeBlockId: tb2.id, room: 'Table 1' })
+  check('returns the updated meeting (tb2 / Table 1)',
+    moved?.timeBlockId === tb2.id && moved?.location === 'Table 1', JSON.stringify({ tb: moved?.timeBlockId, room: moved?.location }))
+  const movedRow = await prisma.sponsorMeeting.findUnique({ where: { id: mtgU6Row.id }, select: { timeBlockId: true, location: true, status: true } })
+  check('meeting row persisted with the new slot, still CONFIRMED',
+    movedRow?.timeBlockId === tb2.id && movedRow?.location === 'Table 1' && movedRow?.status === 'CONFIRMED', JSON.stringify(movedRow))
+  const eventsOf = (sponsorId, userId, event) =>
+    prisma.autoMatchEvent.findMany({ where: { sponsorId, userId, event } })
+  const rescheduledEvents = await eventsOf(spA.id, u6.id, 'RESCHEDULED')
+  check('RESCHEDULED event written with the new room + new slot startsAt',
+    rescheduledEvents.length === 1 && rescheduledEvents[0].room === 'Table 1' &&
+    rescheduledEvents[0].startsAt?.getTime() === tb2.startsAt.getTime() &&
+    rescheduledEvents[0].sponsorName === spA.name && rescheduledEvents[0].attendeeName === u6.name)
+  board = await E.getAutoMatchBoard(prisma, confId)
+  const movedMatch = board.matches.find(m => m.key === key(spA.id, u6.id))
+  check('board shows the match still scheduled, at the NEW slot',
+    movedMatch?.meeting?.timeBlockId === tb2.id && movedMatch.meeting.room === 'Table 1' &&
+    movedMatch.meeting.startsAt === tb2.startsAt.toISOString(), JSON.stringify(movedMatch?.meeting ?? null))
+
+  console.log('\nreschedule — typed errors')
+  await expectThrow('unknown room → UNKNOWN_ROOM', 'UNKNOWN_ROOM',
+    () => E.rescheduleAutoMatchMeeting(prisma, { sponsorMeetingId: mtgU6Row.id, timeBlockId: tb1.id, room: 'Table 99' }))
+  const mtgBRow = await prisma.sponsorMeeting.findFirst({
+    where: { sponsorId: spB.id, userId: u2.id, status: 'CONFIRMED' }, select: { id: true },
+  })
+  await expectThrow('moving (B,u2) onto tb1 where u2 is pre-booked → CANDIDATE_BUSY', 'CANDIDATE_BUSY',
+    () => E.rescheduleAutoMatchMeeting(prisma, { sponsorMeetingId: mtgBRow.id, timeBlockId: tb1.id, room: 'Table 2' }))
+  await expectThrow('bogus meeting id → MEETING_NOT_FOUND', 'MEETING_NOT_FOUND',
+    () => E.rescheduleAutoMatchMeeting(prisma, { sponsorMeetingId: `${PREFIX}bogus-${stamp}`, timeBlockId: tb1.id, room: 'Table 1' }))
+  const rescheduledCount = await prisma.autoMatchEvent.count({ where: { userId: { startsWith: PREFIX }, event: 'RESCHEDULED' } })
+  check('failed reschedules wrote no extra RESCHEDULED events', rescheduledCount === 1, `count=${rescheduledCount}`)
+
+  console.log('\ncancelAutoMatchMeeting — dissolves the match')
+  const cancelled = await E.cancelAutoMatchMeeting(prisma, { sponsorMeetingId: mtgU6Row.id, reason: 'am-test cancel' })
+  check('returns cancelMeeting result (meeting CANCELLED, request not preserved)',
+    cancelled?.meeting?.status === 'CANCELLED' && cancelled.preserved === false, JSON.stringify({ status: cancelled?.meeting?.status, preserved: cancelled?.preserved }))
+  const cancelledRow = await prisma.sponsorMeeting.findUnique({ where: { id: mtgU6Row.id }, select: { status: true, reason: true } })
+  check('meeting persisted CANCELLED with the reason', cancelledRow?.status === 'CANCELLED' && cancelledRow.reason === 'am-test cancel', JSON.stringify(cancelledRow))
+  const u6Reqs = await prisma.meetingRequest.findMany({
+    where: { OR: [{ requesterId: u6.id, targetSponsorId: spA.id }, { requesterId: rep1.id, targetUserId: u6.id }] },
+    select: { status: true },
+  })
+  check('BOTH direction BEST_FIT picks flipped to CANCELLED',
+    u6Reqs.length === 2 && u6Reqs.every(r => r.status === 'CANCELLED'), JSON.stringify(u6Reqs.map(r => r.status)))
+  const cancelEvents = await eventsOf(spA.id, u6.id, 'CANCELLED')
+  check('CANCELLED event written (room/startsAt null)',
+    cancelEvents.length === 1 && cancelEvents[0].room === null && cancelEvents[0].startsAt === null &&
+    cancelEvents[0].sponsorName === spA.name && cancelEvents[0].attendeeName === u6.name)
+  board = await E.getAutoMatchBoard(prisma, confId)
+  check('match GONE from the board (neither ready nor scheduled): matches=3, ready=1, scheduled=2',
+    !board.matches.some(m => m.key === key(spA.id, u6.id)) &&
+    board.totals.matches === 3 && board.totals.ready === 1 && board.totals.scheduled === 2, JSON.stringify(board.totals))
+
+  console.log('\nSweep does not resurrect a cancelled match')
+  const syncAfterCancel = await E.syncAutoMatches(prisma, confId)
+  check('sweep after cancel schedules nothing and writes nothing',
+    syncAfterCancel.scheduled.length === 0 && syncAfterCancel.matchedLogged === 0 && syncAfterCancel.scheduledLogged === 0, JSON.stringify(syncAfterCancel))
+  const u6Meetings = await prisma.sponsorMeeting.count({ where: { sponsorId: spA.id, userId: u6.id } })
+  check('no new meeting for the cancelled pair (only the CANCELLED row remains)', u6Meetings === 1, `count=${u6Meetings}`)
+  const u6EventTotal = await prisma.autoMatchEvent.count({ where: { sponsorId: spA.id, userId: u6.id } })
+  check('pair event history unchanged (MATCHED + SCHEDULED + RESCHEDULED + CANCELLED = 4)', u6EventTotal === 4, `count=${u6EventTotal}`)
+  await expectThrow('cancel on the already-cancelled meeting → BAD_STATUS', 'BAD_STATUS',
+    () => E.cancelAutoMatchMeeting(prisma, { sponsorMeetingId: mtgU6Row.id, reason: 'am-test again' }))
+
+  console.log('\nRe-match after cancel (cancellation-aware log dedup)')
+  await mkReq('u6-a2', { requesterId: u6.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-06T09:00:00Z') })
+  const rRep1U6b = await mkReq('rep1-u6b', { requesterId: rep1.id, targetUserId: u6.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-06T10:00:00Z') })
+  const syncRematch = await E.syncAutoMatches(prisma, confId)
+  check('sweep re-schedules the re-formed pair via the fresh sponsor-side pick',
+    syncRematch.scheduled.length === 1 && syncRematch.scheduled[0].requestId === rRep1U6b.id, JSON.stringify(syncRematch.scheduled.map(s => s.requestId)))
+  check('re-scheduled back into tb1 / Table 2 (Table 1 still held by u1)',
+    syncRematch.scheduled[0]?.timeBlockId === tb1.id && syncRematch.scheduled[0]?.room === 'Table 2')
+  check('fresh MATCHED + SCHEDULED logged despite the pair\'s older events',
+    syncRematch.matchedLogged === 1 && syncRematch.scheduledLogged === 1, JSON.stringify({ matchedLogged: syncRematch.matchedLogged, scheduledLogged: syncRematch.scheduledLogged }))
+  const [m2, s2, r2c, c2] = await Promise.all([
+    eventsOf(spA.id, u6.id, 'MATCHED'), eventsOf(spA.id, u6.id, 'SCHEDULED'),
+    eventsOf(spA.id, u6.id, 'RESCHEDULED'), eventsOf(spA.id, u6.id, 'CANCELLED'),
+  ])
+  check('pair log history: 2 MATCHED, 2 SCHEDULED, 1 RESCHEDULED, 1 CANCELLED',
+    m2.length === 2 && s2.length === 2 && r2c.length === 1 && c2.length === 1,
+    `M=${m2.length} S=${s2.length} R=${r2c.length} C=${c2.length}`)
+  const liveU6 = await prisma.sponsorMeeting.count({ where: { sponsorId: spA.id, userId: u6.id, status: 'CONFIRMED' } })
+  check('exactly one live meeting again for the pair', liveU6 === 1, `count=${liveU6}`)
+  board = await E.getAutoMatchBoard(prisma, confId)
+  check('board shows the re-formed match scheduled again: matches=4, ready=1, scheduled=3',
+    board.matches.find(m => m.key === key(spA.id, u6.id))?.meeting?.timeBlockId === tb1.id &&
+    board.totals.matches === 4 && board.totals.ready === 1 && board.totals.scheduled === 3, JSON.stringify(board.totals))
 }
 
 try {

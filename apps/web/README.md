@@ -123,18 +123,26 @@ which also catches pairs that were unschedulable earlier. The sponsor-side
 request is used so the meeting inherits the rep who made the pick; all engine
 booking constraints apply. Every transition is recorded in the
 **`AutoMatchEvent` audit log** (`MATCHED` when both picks exist, `SCHEDULED`
-with room + slot once the meeting lands, whichever path created it) —
-relation-free and name-denormalized so history survives deletions;
-`db:migrate-auto-match` creates the table on Turso. The board sections
-matches **by company** (tier + `N of M scheduled` per section; cards carry fit
-score, matched solutions, both picks' provenance, and slot/room or an
-"Awaiting slot" state) with the activity log in a side rail. Engine:
-`getAutoMatchBoard` / `syncAutoMatches` / `scheduleAutoMatches` /
-`getAutoMatchLog` in `packages/db/src/meeting-engine.ts`. API: `GET
-/api/admin/scheduler/auto` (same `'meetings'` permission gate). UI:
-`components/AutoMatchBoard.tsx` (React Query, 30s poll). Tests:
-`test:auto-match` (engine), `test:auto-match:api` (HTTP), `e2e:auto-match`
-(Playwright).
+with room + slot once the meeting lands — whichever path created it — plus
+`RESCHEDULED` / `CANCELLED` from the card actions) — relation-free and
+name-denormalized so history survives deletions; `db:migrate-auto-match`
+creates the table on Turso. The board sections matches **by company** (tier +
+`N of M scheduled` per section; cards carry fit score, matched solutions, both
+picks' provenance, and slot/room or an "Awaiting slot" state) with the
+activity log in a side rail. Each scheduled card offers **Reschedule** (slot +
+room picker over the shared availability endpoint) and **Cancel** — cancelling
+deliberately dissolves the match by withdrawing every live Best Fit pick
+between the pair (anything less and the next sweep would re-schedule the
+meeting the admin just cancelled); a fresh mutual pick re-forms the match, and
+the sweep's log dedup is cancellation-aware so the re-match logs fresh events.
+Engine: `getAutoMatchBoard` / `syncAutoMatches` / `scheduleAutoMatches` /
+`getAutoMatchLog` / `rescheduleAutoMatchMeeting` / `cancelAutoMatchMeeting` in
+`packages/db/src/meeting-engine.ts`. API: `GET /api/admin/scheduler/auto`,
+`PATCH /api/admin/scheduler/auto/meetings/[id]`, `POST
+/api/admin/scheduler/auto/meetings/[id]/cancel` (same `'meetings'` permission
+gate). UI: `components/AutoMatchBoard.tsx` (React Query, 30s poll). Demo data:
+`seed:auto-matches`. Tests: `test:auto-match` (engine), `test:auto-match:api`
+(HTTP), `e2e:auto-match` (Playwright).
 
 ### Scheduled broadcasts (Chat page)
 

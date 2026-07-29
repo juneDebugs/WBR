@@ -8,14 +8,18 @@
 // syncAutoMatches sweep BEFORE reading the board, so the first authenticated
 // GET after the fixtures exist must come back with the fixture pair ALREADY
 // scheduled (meeting + room) and MATCHED/SCHEDULED entries in the audit log;
-// a second GET must change nothing (no duplicate meeting or events). The route
-// always reads the ACTIVE conference, so fixtures (a throwaway sponsor + rep +
-// attendee + far-future time block + the mutual BEST_FIT request pair, ids
-// prefixed 'am-test-api-') are created in it and removed via Prisma against
-// the SAME db the server uses, so the test is hermetic and the DB is left as
-// found. The active conference may hold real matches too — the sweep can
-// legitimately schedule/log those — so every assertion is pinned to OUR pair
-// (never to global counts or log order).
+// a second GET must change nothing (no duplicate meeting or events). Then the
+// meeting actions: PATCH /auto/meetings/{id} moves the meeting to a slot+room
+// picked from the shared availability endpoint (RESCHEDULED event), and
+// POST /auto/meetings/{id}/cancel dissolves the match (meeting CANCELLED, both
+// picks withdrawn, CANCELLED event, sweep does not resurrect, re-cancel 400s).
+// The route always reads the ACTIVE conference, so fixtures (a throwaway
+// sponsor + rep + attendee + far-future time block + the mutual BEST_FIT
+// request pair, ids prefixed 'am-test-api-') are created in it and removed via
+// Prisma against the SAME db the server uses, so the test is hermetic and the
+// DB is left as found. The active conference may hold real matches too — the
+// sweep can legitimately schedule/log those — so every assertion is pinned to
+// OUR pair (never to global counts or log order).
 //
 //   node scripts/test-auto-match-api.mjs           # server already running
 //   node scripts/test-auto-match-api.mjs --start   # boot next dev, then kill it
@@ -81,6 +85,7 @@ async function login(email, password) {
 }
 const serverUp = async () => { try { return (await fetch(`${BASE}/login`, { redirect: 'manual' })).status < 500 } catch { return false } }
 async function waitFor(cond, ms, label) { const s = Date.now(); while (Date.now() - s < ms) { if (await cond()) return; await new Promise(r => setTimeout(r, 1500)) } throw new Error(`Timed out waiting for ${label}`) }
+const jsonReq = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
 const prisma = makePrisma()
 const PREFIX = 'am-test-api-'
@@ -168,6 +173,65 @@ async function main() {
   ])
   check('no duplicate log events (exactly 1 MATCHED + 1 SCHEDULED for the pair)',
     matchedEvents === 1 && scheduledEvents === 1, `MATCHED=${matchedEvents} SCHEDULED=${scheduledEvents}`)
+
+  // Meeting actions on the pair's auto-scheduled meeting.
+  const mtgRow = await prisma.sponsorMeeting.findFirst({
+    where: { sponsorId: sponsor.id, userId: attendee.id, status: 'CONFIRMED' }, select: { id: true, timeBlockId: true },
+  })
+  if (!mtgRow) { failures++; console.error('  ✗ cannot continue: no confirmed fixture meeting to act on'); return }
+  const MEETING_API = `${BASE}/api/admin/scheduler/auto/meetings/${mtgRow.id}`
+
+  console.log('\n[actions: auth + validation]')
+  const anonPatch = await fetch(MEETING_API, { ...jsonReq('PATCH', { timeBlockId: 'x', room: 'Table 1' }), redirect: 'manual' })
+  check('anon PATCH /auto/meetings/{id} → 401', anonPatch.status === 401, `got ${anonPatch.status}`)
+  const anonCancel = await fetch(`${MEETING_API}/cancel`, { ...jsonReq('POST', {}), redirect: 'manual' })
+  check('anon POST /auto/meetings/{id}/cancel → 401', anonCancel.status === 401, `got ${anonCancel.status}`)
+  const missingRoom = await staff(MEETING_API, jsonReq('PATCH', { timeBlockId: mtgRow.timeBlockId }))
+  check('staff PATCH with missing room → 400', missingRoom.status === 400, `got ${missingRoom.status}`)
+  const bogusRes = await staff(`${BASE}/api/admin/scheduler/auto/meetings/${PREFIX}bogus-${stamp}`, jsonReq('PATCH', { timeBlockId: mtgRow.timeBlockId, room: 'Table 1' }))
+  const bogus = await bogusRes.json().catch(() => ({}))
+  check('staff PATCH bogus id → 404 MEETING_NOT_FOUND', bogusRes.status === 404 && bogus.code === 'MEETING_NOT_FOUND', `status ${bogusRes.status} code ${bogus.code}`)
+
+  console.log('\n[actions: reschedule]')
+  // Pick a genuinely free slot+room from the shared availability endpoint —
+  // 'Table 1' in a hardcoded block could collide with real data.
+  const avail = await (await staff(`${BASE}/api/admin/scheduler/meetings/${mtgRow.id}/availability`)).json().catch(() => null)
+  const slot = avail?.days?.flatMap(d => d.slots ?? [])
+    .find(s => s.available && s.timeBlockId !== avail?.current?.timeBlockId)
+  const freeRoom = slot?.rooms?.find(r => r.available)?.name
+  check('availability offers another free slot+room to move to', !!slot && !!freeRoom, `slot=${slot?.timeBlockId} room=${freeRoom}`)
+  if (!slot || !freeRoom) { console.error('  cannot continue without a free slot'); return }
+  const moveRes = await staff(MEETING_API, jsonReq('PATCH', { timeBlockId: slot.timeBlockId, room: freeRoom }))
+  const movedBody = await moveRes.json().catch(() => null)
+  check('PATCH {timeBlockId, room} → 200 with the updated meeting',
+    moveRes.status === 200 && movedBody?.timeBlockId === slot.timeBlockId && movedBody?.location === freeRoom, `status ${moveRes.status}`)
+  const movedRow = await prisma.sponsorMeeting.findUnique({ where: { id: mtgRow.id }, select: { timeBlockId: true, location: true, status: true } })
+  check('meeting row persisted with the new slot, still CONFIRMED',
+    movedRow?.timeBlockId === slot.timeBlockId && movedRow?.location === freeRoom && movedRow?.status === 'CONFIRMED', JSON.stringify(movedRow))
+  const rescheduledEvents = await prisma.autoMatchEvent.count({ where: { sponsorId: sponsor.id, userId: attendee.id, event: 'RESCHEDULED' } })
+  check('RESCHEDULED event written for the pair', rescheduledEvents === 1, `count=${rescheduledEvents}`)
+
+  console.log('\n[actions: cancel dissolves the match]')
+  const cancelRes = await staff(`${MEETING_API}/cancel`, jsonReq('POST', { reason: 'api-test' }))
+  const cancelBody = await cancelRes.json().catch(() => null)
+  check('POST cancel {reason} → 200 with CANCELLED meeting', cancelRes.status === 200 && cancelBody?.meeting?.status === 'CANCELLED', `status ${cancelRes.status}`)
+  const cancelledRow = await prisma.sponsorMeeting.findUnique({ where: { id: mtgRow.id }, select: { status: true, reason: true } })
+  check('meeting persisted CANCELLED with the reason', cancelledRow?.status === 'CANCELLED' && cancelledRow.reason === 'api-test', JSON.stringify(cancelledRow))
+  const reqStates = await prisma.meetingRequest.findMany({ where: { id: { in: [attReq.id, repReq.id] } }, select: { status: true } })
+  check('both fixture BEST_FIT requests flipped to CANCELLED',
+    reqStates.length === 2 && reqStates.every(r => r.status === 'CANCELLED'), JSON.stringify(reqStates.map(r => r.status)))
+  const cancelledEvents = await prisma.autoMatchEvent.count({ where: { sponsorId: sponsor.id, userId: attendee.id, event: 'CANCELLED' } })
+  check('CANCELLED event written for the pair', cancelledEvents === 1, `count=${cancelledEvents}`)
+  const afterCancel = await (await staff(API)).json().catch(() => null)
+  check('follow-up GET /auto: pair neither ready nor scheduled (gone from the board)',
+    Array.isArray(afterCancel?.matches) && !afterCancel.matches.some(m => m.key === KEY))
+  const resurrect = await (await staff(API)).json().catch(() => null)
+  const liveAfter = await prisma.sponsorMeeting.count({ where: { sponsorId: sponsor.id, userId: attendee.id, status: 'CONFIRMED' } })
+  check('second GET does not resurrect (no new meeting, pair still off the board)',
+    !resurrect?.matches?.some(m => m.key === KEY) && liveAfter === 0, `live=${liveAfter}`)
+  const reCancelRes = await staff(`${MEETING_API}/cancel`, jsonReq('POST', { reason: 'api-test again' }))
+  const reCancel = await reCancelRes.json().catch(() => ({}))
+  check('POST cancel again → 400 BAD_STATUS', reCancelRes.status === 400 && reCancel.code === 'BAD_STATUS', `status ${reCancelRes.status} code ${reCancel.code}`)
 }
 
 main()
