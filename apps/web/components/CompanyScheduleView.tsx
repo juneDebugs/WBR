@@ -283,6 +283,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-36">Time</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-80">Meetings</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Company</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-32">Location</th>
                         <th className="text-right px-4 py-3 w-28">
                           <span className="sr-only">Actions</span>
                         </th>
@@ -298,7 +299,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                             {fmtRangeUTC(slot.startsAt, slot.endsAt)}
                           </td>
                           {slot.meetings.length === 0 ? (
-                            <td className="px-4 py-2.5" colSpan={2}>
+                            <td className="px-4 py-2.5" colSpan={3}>
                               <button
                                 type="button"
                                 onClick={() => openSlotAssign(slot)}
@@ -317,7 +318,6 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                         {initial(m.name)}
                                       </div>
                                       <span className="min-w-0 flex-1 font-medium text-ink truncate">{m.name}</span>
-                                      {m.room && <span className="badge badge-neutral flex-shrink-0">{m.room}</span>}
                                       <span className="flex items-center flex-shrink-0">
                                         <button
                                           type="button"
@@ -354,6 +354,19 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                   {slot.meetings.map(m => (
                                     <div key={m.sponsorMeetingId} className="flex items-center min-h-[36px]">
                                       <span className="text-sm text-ink-2 truncate">{m.company ?? '—'}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <div className="space-y-0.5">
+                                  {slot.meetings.map(m => (
+                                    <div key={m.sponsorMeetingId} className="flex items-center min-h-[36px]">
+                                      {m.room ? (
+                                        <span className="badge badge-neutral">{m.room}</span>
+                                      ) : (
+                                        <span className="text-sm text-ink-3">—</span>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
