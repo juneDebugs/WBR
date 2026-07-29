@@ -281,10 +281,10 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                     <thead className="bg-fill border-b border-hairline">
                       <tr>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-36">Time</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Company</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-56">Company</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-80">Meetings</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-32">Location</th>
-                        <th className="text-right px-4 py-3 w-28">
+                        <th className="text-right px-4 py-3">
                           <span className="sr-only">Actions</span>
                         </th>
                       </tr>
@@ -299,13 +299,24 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                             {fmtRangeUTC(slot.startsAt, slot.endsAt)}
                           </td>
                           {slot.meetings.length === 0 ? (
-                            <td className="px-4 py-2.5" colSpan={3}>
-                              <button
-                                type="button"
-                                onClick={() => openSlotAssign(slot)}
-                                aria-label={`Open slot — ${slot.capacityLeft} spot${slot.capacityLeft === 1 ? '' : 's'} available`}
-                                className="w-full min-h-[44px] bg-success-soft rounded-xl hover:brightness-95 transition"
-                              />
+                            <td className="px-4 py-2.5" colSpan={4}>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => openSlotAssign(slot)}
+                                  aria-label={`Open slot — ${slot.capacityLeft} spot${slot.capacityLeft === 1 ? '' : 's'} available`}
+                                  className="flex-1 min-h-[44px] bg-success-soft rounded-xl hover:brightness-95 transition"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => openSlotAssign(slot)}
+                                  disabled={slot.capacityLeft === 0}
+                                  title={slot.capacityLeft === 0 ? 'Slot full' : undefined}
+                                  className="btn-secondary btn-sm flex-shrink-0"
+                                >
+                                  Assign
+                                </button>
+                              </div>
                             </td>
                           ) : (
                             <>
@@ -322,9 +333,6 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                 <div className="space-y-0.5">
                                   {slot.meetings.map(m => (
                                     <div key={m.sponsorMeetingId} className="group flex items-center gap-2 min-h-[36px]">
-                                      <div className="w-6 h-6 rounded-full bg-fill flex items-center justify-center text-ink-2 font-bold text-caption flex-shrink-0">
-                                        {initial(m.name)}
-                                      </div>
                                       <span className="min-w-0 flex-1 font-medium text-ink truncate">{m.name}</span>
                                       <span className="flex items-center flex-shrink-0">
                                         <button
@@ -370,19 +378,19 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                   ))}
                                 </div>
                               </td>
+                              <td className="px-4 py-3.5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => openSlotAssign(slot)}
+                                  disabled={slot.capacityLeft === 0}
+                                  title={slot.capacityLeft === 0 ? 'Slot full' : undefined}
+                                  className="btn-secondary btn-sm"
+                                >
+                                  Assign
+                                </button>
+                              </td>
                             </>
                           )}
-                          <td className="px-4 py-3.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => openSlotAssign(slot)}
-                              disabled={slot.capacityLeft === 0}
-                              title={slot.capacityLeft === 0 ? 'Slot full' : undefined}
-                              className="btn-secondary btn-sm"
-                            >
-                              Assign
-                            </button>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
