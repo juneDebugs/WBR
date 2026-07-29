@@ -1,6 +1,6 @@
 'use client'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
-import type { DirectoryRow, ScheduleMatrix, CheckInBoard } from '@conference/db'
+import type { DirectoryRow, ScheduleMatrix, CheckInBoard, AutoMatchBoard } from '@conference/db'
 
 // React Query hooks for the admin Companies scheduler tab. Both throw on
 // non-2xx so an error-shaped body (e.g. a 401 after the JWT expires) surfaces
@@ -41,6 +41,21 @@ export function useCheckInBoard(enabled = true) {
       return r.json()
     },
     enabled,
+    staleTime: 5_000,
+    refetchInterval: 30_000,
+  })
+}
+
+// Mutual Best Fit auto-matches. Picks land from two different portals, so the
+// board polls on the check-in cadence to surface new matches without reloads.
+export function useAutoMatchBoard() {
+  return useQuery<AutoMatchBoard>({
+    queryKey: ['scheduler', 'auto'],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/scheduler/auto')
+      if (!r.ok) throw new Error(`Auto-match board request failed: ${r.status}`)
+      return r.json()
+    },
     staleTime: 5_000,
     refetchInterval: 30_000,
   })

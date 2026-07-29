@@ -110,6 +110,25 @@ refetches every 30s so several floor managers converge without manual
 refreshes). Tests: `test:checkin` (engine), `test:checkin:api` (HTTP),
 `e2e:checkin` (Playwright).
 
+### Auto matches (Meetings page → Auto tab)
+
+Fifth URL-param tab, **Auto** (`?tab=auto`): every pair where the sponsor and
+the attendee each picked the other as **Best Fit** through their portals. A
+match is derived live from `MeetingRequest` rows (a `BEST_FIT` request in both
+directions, statuses `PENDING`/`APPROVED`/`CONFIRMED`) — nothing extra is
+persisted, so a pick or a downgrade on either side immediately makes or breaks
+the match. The board splits matches into **Awaiting Schedule** and
+**Scheduled** (slot + room shown), with fit score, matched solutions, and both
+picks' provenance on each card. `Schedule N Matches` previews a dry-run plan,
+then materializes one confirmed meeting per ready pair through the priority
+auto-scheduler (the sponsor-side request is used so the meeting inherits the
+rep who made the pick). Engine: `getAutoMatchBoard` / `scheduleAutoMatches` in
+`packages/db/src/meeting-engine.ts`. API: `GET`/`POST
+/api/admin/scheduler/auto` (same `'meetings'` permission gate). UI:
+`components/AutoMatchBoard.tsx` (React Query, 30s poll). Tests:
+`test:auto-match` (engine), `test:auto-match:api` (HTTP), `e2e:auto-match`
+(Playwright).
+
 ### Scheduled broadcasts (Chat page)
 
 Admins can pre-schedule Global Broadcast messages. `POST/GET /api/chat/scheduled`

@@ -7,16 +7,17 @@ import { PriorityAutoScheduleButton } from '@/components/PriorityAutoScheduleBut
 import { MeetingsTableWithPanel } from '@/components/MeetingsTableWithPanel'
 import CompanySchedulerClient from '@/components/CompanySchedulerClient'
 import { CheckInBoard } from '@/components/CheckInBoard'
+import { AutoMatchBoard } from '@/components/AutoMatchBoard'
 import Image from 'next/image'
 import Link from 'next/link'
 import { fmtTime, TZ } from '@/lib/format'
 import { TIER_COLORS, PRIORITY_LABEL, PRIORITY_BADGE } from '@/lib/meetings-ui'
 
 export default function MeetingsPageClient({ tab: tabParam, status, type, company }: { tab?: string; status?: string; type?: string; company?: string }) {
-  const tab = tabParam === 'schedule' ? 'schedule' : tabParam === 'companies' ? 'companies' : tabParam === 'checkin' ? 'checkin' : 'requests'
-  // The Companies and Check-In tabs fetch their own data (scheduler-hooks) —
-  // don't drag the heavy meetings dataset along just to badge the inactive tabs.
-  const selfContained = tab === 'companies' || tab === 'checkin'
+  const tab = tabParam === 'schedule' ? 'schedule' : tabParam === 'companies' ? 'companies' : tabParam === 'checkin' ? 'checkin' : tabParam === 'auto' ? 'auto' : 'requests'
+  // The Companies, Check-In and Auto tabs fetch their own data (scheduler-hooks)
+  // — don't drag the heavy meetings dataset along just to badge the inactive tabs.
+  const selfContained = tab === 'companies' || tab === 'checkin' || tab === 'auto'
   const { data, isLoading } = useMeetingsData(undefined, { enabled: !selfContained })
   const statusFilter = status?.toUpperCase()
   const typeFilter = type === 'attendee' ? 'attendee' : type === 'sponsor' ? 'sponsor' : undefined
@@ -172,6 +173,12 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
           }`}>
           Check-In
         </Link>
+        <Link href="?tab=auto"
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+            tab === 'auto' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
+          }`}>
+          Auto
+        </Link>
         <Link href="/dashboard/meetings/new" className="ml-auto text-sm px-4 py-2 bg-white border border-hairline rounded-xl text-ink-2 hover:bg-fill font-medium transition-colors">
           + New Time Block
         </Link>
@@ -216,6 +223,9 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
 
       {/* -- CHECK-IN TAB (on-site floor attendance grid) -- */}
       {tab === 'checkin' && <CheckInBoard />}
+
+      {/* -- AUTO TAB (mutual Best Fit matches) -- */}
+      {tab === 'auto' && <AutoMatchBoard />}
 
       {/* -- REQUESTS TAB -- */}
       {tab === 'requests' && (

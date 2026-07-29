@@ -1,0 +1,264 @@
+#!/usr/bin/env node
+// Engine test for mutual Best Fit auto-matching
+// (packages/db/src/meeting-engine.ts — getAutoMatchBoard / scheduleAutoMatches).
+//
+// Runs the real engine functions against the live DB (Turso when creds are in
+// apps/*/.env.local, else local dev.db). Creates a fully throwaway world — an
+// INACTIVE fixture conference with its own sponsors, reps, attendees, time
+// blocks and MeetingRequests (ids prefixed 'am-test-', explicit createdAt for
+// determinism) — and passes conferenceId explicitly to every call, so the real
+// active conference is never touched. Exercises match derivation (mutual
+// BEST_FIT only; one-directional / MED / REJECTED pairs excluded; earliest
+// duplicate rep pick wins), pick metadata (byName, pickedAt, matchedAt =
+// later pick), fit scoring, totals math, dry-run planning (nothing persisted),
+// real scheduling (sponsor-side request preferred → meeting inherits repId,
+// request flips CONFIRMED, earliest free block + Table 1 first), post-schedule
+// board state and ordering, and idempotence. Deletes every fixture row in
+// finally.
+//
+//   node scripts/test-auto-match.mjs
+//
+// PII discipline: prints ids/counts only.
+
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { join, dirname } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const require = createRequire(join(ROOT, 'packages/db/package.json'))
+
+let failures = 0
+function check(name, cond, detail = '') {
+  if (cond) console.log(`  ✓ ${name}`)
+  else { failures++; console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`) }
+}
+function readEnvLocal(app) {
+  const env = {}
+  try {
+    for (const line of readFileSync(join(ROOT, 'apps', app, '.env.local'), 'utf8').split('\n')) {
+      const m = line.match(/^([A-Z_]+)=(.*)$/); if (m) env[m[1]] = m[2].replace(/^"|"$/g, '')
+    }
+  } catch {}
+  return env
+}
+
+function makePrisma() {
+  const env = { ...readEnvLocal('web'), ...readEnvLocal('meetings') }
+  const { PrismaClient } = require('@prisma/client')
+  const url = process.env.TURSO_DATABASE_URL ?? env.TURSO_DATABASE_URL
+  const token = process.env.TURSO_AUTH_TOKEN ?? env.TURSO_AUTH_TOKEN
+  if (url && token && url.startsWith('libsql://')) {
+    const { PrismaLibSQL } = require('@prisma/adapter-libsql')
+    const { createClient } = require('@libsql/client')
+    console.log('→ DB: Turso')
+    return new PrismaClient({ adapter: new PrismaLibSQL(createClient({ url, authToken: token })) })
+  }
+  console.log('→ DB: local dev.db')
+  process.env.DATABASE_URL = `file:${join(ROOT, 'packages/db/prisma/dev.db')}`
+  return new PrismaClient()
+}
+
+const E = await import(pathToFileURL(join(ROOT, 'packages/db/src/meeting-engine.ts')).href)
+const prisma = makePrisma()
+
+// Every fixture row's id (and every fixture user's email) starts with PREFIX,
+// so cleanup() can sweep by prefix even after a crashed earlier run.
+const PREFIX = 'am-test-'
+const stamp = Date.now()
+const fid = s => `${PREFIX}${s}-${stamp}`
+const key = (sponsorId, userId) => `${sponsorId}::${userId}`
+
+async function cleanup() {
+  // Children first; Conference delete cascades TimeBlocks + Sponsors.
+  await prisma.meetingRequest.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
+  await prisma.sponsorMeeting.deleteMany({ where: { userId: { startsWith: PREFIX } } }).catch(() => {})
+  await prisma.user.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
+  await prisma.conference.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
+}
+
+async function main() {
+  console.log('\nFixtures — isolated inactive conference')
+  const conf = await prisma.conference.create({ data: {
+    id: fid('conf'), name: 'Auto-Match Test Conf', active: false,
+    startDate: new Date('2033-06-01T00:00:00Z'), endDate: new Date('2033-06-02T23:59:59Z'),
+  } })
+  const confId = conf.id
+  // Sponsor A has solutions so the (A, u1) match scores > 0; B is plain (score 0);
+  // C exists only to pre-book u2 in tb1, forcing the (B, u2) meeting into tb2.
+  const spA = await prisma.sponsor.create({ data: {
+    id: fid('sponsor-a'), conferenceId: confId, name: 'am-test Apex Corp', tier: 'GOLD',
+    solutionsSeeking: JSON.stringify(['Payments', 'Analytics']),
+    solutionsOffering: JSON.stringify(['CRM']),
+  } })
+  const spB = await prisma.sponsor.create({ data: {
+    id: fid('sponsor-b'), conferenceId: confId, name: 'am-test Basis Inc', tier: 'SILVER',
+  } })
+  const spC = await prisma.sponsor.create({ data: {
+    id: fid('sponsor-c'), conferenceId: confId, name: 'am-test Clutter Co', tier: 'BRONZE',
+  } })
+  const mkUser = (slug, name, extra = {}) => prisma.user.create({ data: {
+    id: fid(`user-${slug}`), email: `${PREFIX}${slug}-${stamp}@example.com`, name, role: 'ATTENDEE', ...extra,
+  } })
+  const rep1 = await mkUser('rep1', 'am-test Rita Rep', { sponsorId: spA.id })
+  const rep2 = await mkUser('rep2', 'am-test Ray Rep', { sponsorId: spA.id })
+  const repB = await mkUser('repb', 'am-test Bea Rep', { sponsorId: spB.id })
+  // u1's solutions overlap sponsor A's seeking/offering → score > 0, matched non-empty.
+  const u1 = await mkUser('u1', 'am-test Uma Buyer', {
+    company: 'am-test Buyer Co',
+    solutionsOffering: JSON.stringify(['Payments']), solutionsSeeking: JSON.stringify(['CRM']),
+  })
+  const u2 = await mkUser('u2', 'am-test Ugo Buyer')
+  const u3 = await mkUser('u3', 'am-test Una Buyer')
+  const u4 = await mkUser('u4', 'am-test Uri Buyer')
+  const tb1 = await prisma.timeBlock.create({ data: { id: fid('tb-1'), conferenceId: confId, startsAt: new Date('2033-06-01T10:00:00Z'), endsAt: new Date('2033-06-01T10:30:00Z') } })
+  const tb2 = await prisma.timeBlock.create({ data: { id: fid('tb-2'), conferenceId: confId, startsAt: new Date('2033-06-01T11:00:00Z'), endsAt: new Date('2033-06-01T11:30:00Z') } })
+  // u2 is pre-booked with sponsor C in tb1, so the scheduler must place (B, u2)
+  // in tb2 — proving the earliest-FREE-block rule and giving the post-schedule
+  // board two distinct startsAt values to sort.
+  await prisma.sponsorMeeting.create({ data: { id: fid('m-busy'), sponsorId: spC.id, userId: u2.id, timeBlockId: tb1.id, status: 'CONFIRMED', location: 'Table 1' } })
+
+  // MeetingRequests — explicit ids and createdAt for full determinism.
+  //   (A, u1)  mutual BEST_FIT; two rep picks (rep2's row INSERTED first but
+  //            CREATED later) → sponsorPick must be rep1's (earliest createdAt).
+  //   (A, u2)  attendee side only → not a match.
+  //   (A, u3)  mutual, but rep side is MED → not a match.
+  //   (A, u4)  mutual BEST_FIT, but rep side REJECTED → not a match.
+  //   (B, u2)  mutual BEST_FIT (rep side APPROVED) → second match, second company.
+  const T_U1_PICK = new Date('2026-01-01T09:00:00Z')
+  const T_REP1_PICK = new Date('2026-01-01T10:00:00Z')
+  const T_REP2_PICK = new Date('2026-01-01T11:00:00Z')
+  const mkReq = (slug, data) => prisma.meetingRequest.create({ data: { id: fid(`req-${slug}`), ...data } })
+  const rRep2U1 = await mkReq('rep2-u1', { requesterId: rep2.id, targetUserId: u1.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: T_REP2_PICK })
+  const rRep1U1 = await mkReq('rep1-u1', { requesterId: rep1.id, targetUserId: u1.id, priority: 'BEST_FIT', status: 'PENDING', message: 'am-test rep note', createdAt: T_REP1_PICK })
+  const rU1A = await mkReq('u1-a', { requesterId: u1.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', message: 'am-test buyer note', createdAt: T_U1_PICK })
+  const rU2A = await mkReq('u2-a', { requesterId: u2.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-02T09:00:00Z') })
+  await mkReq('u3-a', { requesterId: u3.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-02T10:00:00Z') })
+  await mkReq('rep1-u3', { requesterId: rep1.id, targetUserId: u3.id, priority: 'MED', status: 'PENDING', createdAt: new Date('2026-01-02T10:30:00Z') })
+  await mkReq('u4-a', { requesterId: u4.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-02T11:00:00Z') })
+  await mkReq('rep1-u4', { requesterId: rep1.id, targetUserId: u4.id, priority: 'BEST_FIT', status: 'REJECTED', createdAt: new Date('2026-01-02T11:30:00Z') })
+  const rU2B = await mkReq('u2-b', { requesterId: u2.id, targetSponsorId: spB.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-03T09:00:00Z') })
+  const rRepBU2 = await mkReq('repb-u2', { requesterId: repB.id, targetUserId: u2.id, priority: 'BEST_FIT', status: 'APPROVED', createdAt: new Date('2026-01-03T10:00:00Z') })
+  console.log(`  created conference ${confId} (3 sponsors, 7 users, 2 blocks, 1 pre-booked meeting, 10 requests)`)
+
+  console.log('\nBoard — match derivation')
+  let board = await E.getAutoMatchBoard(prisma, confId)
+  const keysOf = b => b.matches.map(m => m.key)
+  check('exactly the two mutual pairs match: (A,u1) and (B,u2)',
+    board.matches.length === 2 && keysOf(board).includes(key(spA.id, u1.id)) && keysOf(board).includes(key(spB.id, u2.id)),
+    `keys=${keysOf(board).map(k => k.replaceAll(PREFIX, '')).join(' ')}`)
+  check('one-directional (A,u2) is not a match', !keysOf(board).includes(key(spA.id, u2.id)))
+  check('mutual-but-MED (A,u3) is not a match', !keysOf(board).includes(key(spA.id, u3.id)))
+  check('mutual-but-REJECTED (A,u4) is not a match', !keysOf(board).includes(key(spA.id, u4.id)))
+  check('totals: matches=2, ready=2, scheduled=0',
+    board.totals.matches === 2 && board.totals.ready === 2 && board.totals.scheduled === 0, JSON.stringify(board.totals))
+
+  const mA = board.matches.find(m => m.key === key(spA.id, u1.id))
+  const mB = board.matches.find(m => m.key === key(spB.id, u2.id))
+  check('(A,u1) is ready (meeting null) and carries sponsor + attendee identity',
+    mA?.meeting === null && mA.sponsor.id === spA.id && mA.sponsor.tier === 'GOLD' &&
+    mA.attendee.id === u1.id && mA.attendee.company === 'am-test Buyer Co')
+  check('(A,u1) sponsorPick is the EARLIEST rep request (rep1, not rep2)',
+    mA?.sponsorPick.requestId === rRep1U1.id, `got ${mA?.sponsorPick.requestId}`)
+  check('(A,u1) sponsorPick.byName = rep name, attendeePick.byName = attendee name',
+    mA?.sponsorPick.byName === rep1.name && mA?.attendeePick.byName === u1.name)
+  check('(A,u1) attendeePick is the attendee→sponsor request with its message',
+    mA?.attendeePick.requestId === rU1A.id && mA?.attendeePick.message === 'am-test buyer note' && mA?.attendeePick.status === 'PENDING')
+  check('(A,u1) matchedAt = the later pick (rep1 createdAt)',
+    mA?.matchedAt === T_REP1_PICK.toISOString(),
+    `matchedAt=${mA?.matchedAt}`)
+  check('(A,u1) pickedAt round-trips both explicit createdAt values',
+    mA?.attendeePick.pickedAt === T_U1_PICK.toISOString() && mA?.sponsorPick.pickedAt === T_REP1_PICK.toISOString())
+  check('(A,u1) score > 0 with non-empty matchedSolutions (Payments overlap)',
+    typeof mA?.score === 'number' && mA.score > 0 && Array.isArray(mA.matchedSolutions) && mA.matchedSolutions.includes('Payments'),
+    `score=${mA?.score} matched=${JSON.stringify(mA?.matchedSolutions)}`)
+  check('(B,u2) matches too (second company) with APPROVED sponsor pick and score 0',
+    !!mB && mB.meeting === null && mB.sponsorPick.requestId === rRepBU2.id && mB.sponsorPick.status === 'APPROVED' &&
+    mB.attendeePick.requestId === rU2B.id && mB.score === 0)
+  check('ready ordering: best score first — (A,u1) before (B,u2)',
+    board.matches[0]?.key === key(spA.id, u1.id) && board.matches[1]?.key === key(spB.id, u2.id))
+
+  console.log('\nscheduleAutoMatches — dry run')
+  const dry = await E.scheduleAutoMatches(prisma, { conferenceId: confId, dryRun: true })
+  check('dryRun flag echoes true with matchedPairs = 2 ready matches', dry.dryRun === true && dry.matchedPairs === 2, JSON.stringify({ dryRun: dry.dryRun, matchedPairs: dry.matchedPairs }))
+  const dryReqIds = dry.scheduled.map(s => s.requestId)
+  check('plan schedules exactly the two matched-pair requests (sponsor-side picks)',
+    dry.scheduled.length === 2 && dryReqIds.includes(rRep1U1.id) && dryReqIds.includes(rRepBU2.id),
+    `requestIds=${dryReqIds.map(id => id.replaceAll(PREFIX, '')).join(' ')}`)
+  check('the one-directional (u2→A) request is NOT in the plan', !dryReqIds.includes(rU2A.id))
+  const dryA = dry.scheduled.find(s => s.requestId === rRep1U1.id)
+  const dryB = dry.scheduled.find(s => s.requestId === rRepBU2.id)
+  check('plan places (A,u1) in the earliest block, Table 1 first',
+    dryA?.timeBlockId === tb1.id && dryA?.room === 'Table 1')
+  check('plan places (B,u2) in tb2 — u2 is pre-booked in tb1', dryB?.timeBlockId === tb2.id, `got ${dryB?.timeBlockId}`)
+  const afterDry = await prisma.sponsorMeeting.count({ where: { userId: { startsWith: PREFIX } } })
+  check('dry run persisted nothing (only the pre-booked meeting exists)', afterDry === 1, `count=${afterDry}`)
+  const reqAfterDry = await prisma.meetingRequest.findUnique({ where: { id: rRep1U1.id }, select: { status: true } })
+  check('dry run left request statuses untouched', reqAfterDry?.status === 'PENDING')
+
+  console.log('\nscheduleAutoMatches — real run')
+  const run = await E.scheduleAutoMatches(prisma, { conferenceId: confId })
+  check('real run: dryRun false, matchedPairs=2, scheduled=2, skipped=0',
+    run.dryRun === false && run.matchedPairs === 2 && run.scheduled.length === 2 && run.skipped.length === 0,
+    JSON.stringify({ matchedPairs: run.matchedPairs, scheduled: run.scheduled.length, skipped: run.skipped.length }))
+  const mtgA = await prisma.sponsorMeeting.findFirst({ where: { sponsorId: spA.id, userId: u1.id }, select: { status: true, repId: true, timeBlockId: true, location: true } })
+  check('(A,u1) meeting persisted CONFIRMED in tb1 / Table 1',
+    mtgA?.status === 'CONFIRMED' && mtgA.timeBlockId === tb1.id && mtgA.location === 'Table 1', JSON.stringify(mtgA))
+  check('(A,u1) meeting inherits repId = the EARLIEST rep (rep1)', mtgA?.repId === rep1.id, `repId=${mtgA?.repId}`)
+  const mtgB = await prisma.sponsorMeeting.findFirst({ where: { sponsorId: spB.id, userId: u2.id }, select: { status: true, repId: true, timeBlockId: true } })
+  check('(B,u2) meeting persisted CONFIRMED in tb2 with repId = repB', mtgB?.status === 'CONFIRMED' && mtgB.timeBlockId === tb2.id && mtgB.repId === repB.id, JSON.stringify(mtgB))
+  const reqStates = Object.fromEntries((await prisma.meetingRequest.findMany({
+    where: { id: { in: [rRep1U1.id, rRep2U1.id, rU1A.id, rRepBU2.id] } }, select: { id: true, status: true, timeBlockId: true },
+  })).map(r => [r.id, r]))
+  check('scheduled sponsor-side requests flipped to CONFIRMED with the booked block',
+    reqStates[rRep1U1.id]?.status === 'CONFIRMED' && reqStates[rRep1U1.id]?.timeBlockId === tb1.id &&
+    reqStates[rRepBU2.id]?.status === 'CONFIRMED' && reqStates[rRepBU2.id]?.timeBlockId === tb2.id)
+  check('the attendee pick and the duplicate rep pick stay PENDING',
+    reqStates[rU1A.id]?.status === 'PENDING' && reqStates[rRep2U1.id]?.status === 'PENDING')
+
+  console.log('\nBoard after scheduling')
+  board = await E.getAutoMatchBoard(prisma, confId)
+  check('totals: matches=2, ready=0, scheduled=2',
+    board.totals.matches === 2 && board.totals.ready === 0 && board.totals.scheduled === 2, JSON.stringify(board.totals))
+  const mA2 = board.matches.find(m => m.key === key(spA.id, u1.id))
+  check('(A,u1) shows its meeting with room + ISO startsAt/endsAt',
+    mA2?.meeting?.room === 'Table 1' && mA2.meeting.timeBlockId === tb1.id &&
+    mA2.meeting.startsAt === tb1.startsAt.toISOString() && mA2.meeting.endsAt === tb1.endsAt.toISOString(),
+    JSON.stringify(mA2?.meeting))
+  check('match survives one side flipping to CONFIRMED (sponsorPick.status)', mA2?.sponsorPick.status === 'CONFIRMED')
+  check('scheduled matches sorted by meeting startsAt: (A,u1) tb1 before (B,u2) tb2',
+    board.matches[0]?.key === key(spA.id, u1.id) && board.matches[1]?.key === key(spB.id, u2.id))
+
+  // A late third pair whose two picks are both status CONFIRMED (legacy state,
+  // no meeting): it matches — so it must sort BEFORE the scheduled pairs — but
+  // has no PENDING/APPROVED pick, so the scheduler must leave it alone.
+  console.log('\nReady-before-scheduled ordering')
+  const u5 = await mkUser('u5', 'am-test Ute Buyer')
+  await mkReq('u5-a', { requesterId: u5.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'CONFIRMED', createdAt: new Date('2026-01-04T09:00:00Z') })
+  await mkReq('rep1-u5', { requesterId: rep1.id, targetUserId: u5.id, priority: 'BEST_FIT', status: 'CONFIRMED', createdAt: new Date('2026-01-04T10:00:00Z') })
+  board = await E.getAutoMatchBoard(prisma, confId)
+  check('totals now: matches=3, ready=1, scheduled=2',
+    board.totals.matches === 3 && board.totals.ready === 1 && board.totals.scheduled === 2, JSON.stringify(board.totals))
+  check('the ready (A,u5) match sorts before both scheduled matches',
+    board.matches[0]?.key === key(spA.id, u5.id) && board.matches[0]?.meeting === null,
+    `order=${keysOf(board).map(k => k.replaceAll(PREFIX, '')).join(' ')}`)
+
+  console.log('\nIdempotence')
+  const again = await E.scheduleAutoMatches(prisma, { conferenceId: confId })
+  check('second run schedules nothing: matchedPairs=0, scheduled=0',
+    again.matchedPairs === 0 && again.scheduled.length === 0 && again.totalEligible === 0, JSON.stringify({ matchedPairs: again.matchedPairs, scheduled: again.scheduled.length }))
+  const finalCount = await prisma.sponsorMeeting.count({ where: { userId: { startsWith: PREFIX } } })
+  check('no extra meetings created (1 pre-booked + 2 scheduled = 3)', finalCount === 3, `count=${finalCount}`)
+}
+
+try {
+  await main()
+} catch (e) {
+  failures++; console.error('  ✗ unexpected error:', e)
+} finally {
+  await cleanup()
+  await prisma.$disconnect()
+}
+
+console.log(`\n${failures === 0 ? '✅ ALL PASSED' : `❌ ${failures} FAILED`}`)
+process.exit(failures === 0 ? 0 : 1)
