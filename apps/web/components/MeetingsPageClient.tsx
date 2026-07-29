@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useMeetingsData } from '@/lib/hooks'
 import { AutoScheduleButton } from '@/components/AutoScheduleButton'
 import { PriorityAutoScheduleButton } from '@/components/PriorityAutoScheduleButton'
@@ -109,6 +109,12 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
 
     return { allConfirmed, sponsorFillRate, scheduleByDay }
   }, [meetingRequests, confirmedSponsorMeetings])
+
+  // Day tabs for the Master Schedule — local view state, defaults to the first day
+  const scheduleDays = useMemo(() => Array.from(scheduleByDay.keys()), [scheduleByDay])
+  const [scheduleDay, setScheduleDay] = useState<string | null>(null)
+  const activeDay = scheduleDay && scheduleByDay.has(scheduleDay) ? scheduleDay : scheduleDays[0]
+  const activeSlotMap = activeDay ? scheduleByDay.get(activeDay) : undefined
 
   if (isLoading && !data && !selfContained) {
     return (
@@ -315,7 +321,26 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
               </Link>
             </div>
           ) : (
-            <div className="bg-white border border-hairline rounded-xl overflow-hidden">
+            <div>
+              {/* Day tabs */}
+              <div className="flex gap-2 flex-wrap mb-3">
+                {scheduleDays.map(day => {
+                  const count = Array.from(scheduleByDay.get(day)!.values()).flat().length
+                  return (
+                    <button key={day} type="button" onClick={() => setScheduleDay(day)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                        day === activeDay
+                          ? 'bg-ink text-white'
+                          : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
+                      }`}>
+                      {new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: TZ })}
+                      <span className="ml-1 opacity-60">{count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="bg-white border border-hairline rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-fill border-b border-hairline">
                   <tr>
@@ -327,19 +352,19 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline">
-                  {Array.from(scheduleByDay.entries()).map(([day, slotMap]) => (
+                  {activeDay && activeSlotMap && (
                     <>
-                      {/* Day separator row */}
-                      <tr key={`day-${day}`} className="bg-fill/80">
+                      {/* Day header row */}
+                      <tr key={`day-${activeDay}`} className="bg-fill/80">
                         <td colSpan={5} className="px-4 py-2 text-xs font-bold text-ink-2 uppercase tracking-widest border-b border-hairline">
-                          {new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TZ })}
+                          {new Date(activeDay + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TZ })}
                           <span className="ml-2 font-normal normal-case text-ink-2">
-                            {'\u00b7'} {Array.from(slotMap.values()).flat().length} meetings
+                            {'\u00b7'} {Array.from(activeSlotMap.values()).flat().length} meetings
                           </span>
                         </td>
                       </tr>
 
-                      {Array.from(slotMap.entries()).map(([slotId, items]) => {
+                      {Array.from(activeSlotMap.entries()).map(([slotId, items]) => {
                         const tb = items[0].timeBlock
                         return items.map((item, i) => (
                           <tr key={item.id} className="hover:bg-fill align-middle">
@@ -433,9 +458,10 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
                         ))
                       })}
                     </>
-                  ))}
+                  )}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>
