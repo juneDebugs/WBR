@@ -443,7 +443,9 @@ vanish, since `misc` only read REJECTED). Tests: `test:admin-scheduler`,
 
 The eTail operational ask "a screen that has all the meetings by time slot …
 check, check" (Directions/discovery transcript 41:01–44:44) became a fourth
-Meetings tab (**Check-In**, `?tab=checkin`) in the admin app rather than a new
+Meetings tab (**Check-In**, `?tab=checkin`; since promoted to its own sidebar
+page at `/dashboard/meetings/check-in`, the old tab URL redirects) in the admin
+app rather than a new
 app or a `/staff` clone: floor managers are admin/staff users already covered by
 the `'meetings'` permission, and the grid is one aggregate query. Attendance is
 persisted as two nullable timestamps on `SponsorMeeting`

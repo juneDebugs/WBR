@@ -91,9 +91,11 @@ Tests: `test:admin-scheduler` (engine), `test:admin-scheduler:api` (HTTP),
 `e2e:admin-scheduler` (Playwright); the HTTP/e2e scripts target :3000 by
 default and honor `SMOKE_BASE_URL` when that port is taken.
 
-### On-site Check-In (Meetings page → Check-In tab)
+### On-site Check-In (sidebar → Meetings → Check-In)
 
-Fourth URL-param tab, **Check-In** (`?tab=checkin`): the on-site floor
+Dedicated page at `/dashboard/meetings/check-in` (a **Check-In** item in the
+sidebar's Meetings section; it started as a `?tab=checkin` URL-param tab on the
+Meetings page, which now redirects here): the on-site floor
 attendance portal. One master grid of every confirmed sponsor meeting for the
 selected day — grouped chronologically by time slot, sorted alphabetically by
 sponsor within each slot — with dual arrival check-offs (**Sponsor arrived** /

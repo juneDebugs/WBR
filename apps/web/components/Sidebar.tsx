@@ -60,6 +60,14 @@ const nav = [
         ),
       },
       {
+        href: '/dashboard/meetings/check-in',
+        label: 'Check-In',
+        icon: (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+            d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        ),
+      },
+      {
         href: '/dashboard/time-blocks',
         label: 'Time Blocks',
         icon: (
@@ -172,6 +180,11 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
         .filter(section => section.items.length > 0)
     : nav
 
+  // Nested destinations (e.g. /dashboard/meetings/check-in under
+  // /dashboard/meetings) mean a plain prefix match would light up both items —
+  // the longest matching href wins.
+  const allHrefs = sections.flatMap(s => s.items.map(it => it.href))
+
   return (
     <aside className="w-56 flex-shrink-0 bg-surface border-r border-hairline h-screen sticky top-0 flex flex-col">
       <div className="px-6 py-5 border-b border-hairline">
@@ -193,7 +206,8 @@ export function Sidebar({ allowedHrefs }: { allowedHrefs?: string[] }) {
               {section.items.map((item) => {
                 const active = item.href === '/dashboard'
                   ? pathname === '/dashboard'
-                  : pathname.startsWith(item.href)
+                  : pathname.startsWith(item.href) &&
+                    !allHrefs.some(h => h.length > item.href.length && h.startsWith(item.href) && pathname.startsWith(h))
                 return (
                   <Link
                     key={item.href}

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// E2E for the ADMIN on-site Check-In tab (apps/web /dashboard/meetings?tab=checkin).
+// E2E for the ADMIN on-site Check-In page (apps/web /dashboard/meetings/check-in).
 // Drives a real browser: login as WBR staff → Check-In tab → find the fixture
 // meeting's day → tick Sponsor arrived (persists to DB) → tick Buyer arrived
 // (row flips to ✓ Completed) → type a floor note (persists) → untick Sponsor
@@ -145,7 +145,7 @@ async function main() {
   await login(page, CREDS)
 
   console.log('\n[check-in board]')
-  await page.goto(`${BASE}/dashboard/meetings?tab=checkin`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
+  await page.goto(`${BASE}/dashboard/meetings/check-in`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
   const dayTabs = page.locator('[role="tablist"][aria-label="Conference day"] [role="tab"]')
   check('day switcher renders', await dayTabs.first().waitFor({ timeout: T }).then(() => true).catch(() => false))
 
