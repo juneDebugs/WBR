@@ -363,7 +363,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                 </div>
                               </td>
                               <td className="px-4 py-2.5">
-                                <div className="flex items-start justify-end gap-3">
+                                <div className="flex items-start justify-end">
                                   <div className="space-y-0.5">
                                     {slot.meetings.map(m => (
                                       <div key={m.sponsorMeetingId} className="flex items-center justify-end gap-1.5 min-h-[36px]">
@@ -400,15 +400,6 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                       </div>
                                     ))}
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => openSlotAssign(slot)}
-                                    disabled={slot.capacityLeft === 0}
-                                    title={slot.capacityLeft === 0 ? 'Slot full' : undefined}
-                                    className="btn-secondary btn-sm flex-shrink-0"
-                                  >
-                                    Assign
-                                  </button>
                                 </div>
                               </td>
                             </>
