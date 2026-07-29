@@ -11,12 +11,10 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
   // Check-In graduated to its own sidebar page; keep old tab links working.
   if (params.tab === 'checkin') redirect('/dashboard/meetings/check-in')
 
-  // The Companies scheduler (bank sidebar + slot grid) needs the full viewport
-  // width; the other tabs keep the reading cap.
   return (
     <>
       <AdminHeader title="Meetings" />
-      <main className={`flex-1 p-6 ${params.tab === 'companies' ? '' : 'max-w-6xl'}`}>
+      <main className="flex-1 p-6">
         <MeetingsPageClient tab={params.tab} status={params.status} type={params.type} company={params.company} view={params.view} />
       </main>
     </>

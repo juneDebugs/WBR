@@ -286,24 +286,43 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
       {/* -- MASTER SCHEDULE TAB -- */}
       {tab === 'schedule' && (
         <div>
-          {/* Sponsor fill-rate overview */}
+          {/* Sponsor fill-rate overview, sectioned by fill level */}
           {sponsorFillRate.length > 0 && (
             <div className="mb-5">
               <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest mb-2">Sponsor Meeting Fill Rate</p>
-              <div className="flex flex-wrap gap-2">
-                {sponsorFillRate.map(sp => {
-                  const pct = Math.min((sp.count / 10) * 100, 100)
-                  const color = sp.count >= 10 ? 'bg-success' : sp.count >= 7 ? 'bg-warning' : 'bg-brand-300'
-                  const textColor = sp.count >= 10 ? 'text-success-ink' : sp.count >= 7 ? 'text-warning' : 'text-ink-2'
-                  const borderColor = sp.count >= 10 ? 'border-success/30' : sp.count >= 7 ? 'border-warning/30' : 'border-hairline'
+              <div className="space-y-3">
+                {([
+                  { label: 'Fully Booked', hint: '10+ meetings', dot: 'bg-success', match: (c: number) => c >= 10 },
+                  { label: 'Almost Full', hint: '7–9 meetings', dot: 'bg-warning', match: (c: number) => c >= 7 && c < 10 },
+                  { label: 'Low Fill', hint: 'under 7 meetings', dot: 'bg-brand-300', match: (c: number) => c < 7 },
+                ] as const).map(section => {
+                  const sponsors = sponsorFillRate.filter(sp => section.match(sp.count))
+                  if (sponsors.length === 0) return null
                   return (
-                    <div key={sp.id} className={`flex items-center gap-2.5 bg-white border ${borderColor} rounded-xl px-3 py-2`}>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-ink leading-tight">{sp.name}</p>
-                        <p className={`text-caption font-bold ${textColor}`}>{sp.count}/10</p>
+                    <div key={section.label}>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${section.dot}`} />
+                        <p className="text-caption font-semibold text-ink-2">{section.label}</p>
+                        <p className="text-caption text-ink-3">{'·'} {sponsors.length} {'·'} {section.hint}</p>
                       </div>
-                      <div className="w-12 h-1.5 bg-fill rounded-full overflow-hidden flex-shrink-0">
-                        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+                      <div className="flex flex-wrap gap-2">
+                        {sponsors.map(sp => {
+                          const pct = Math.min((sp.count / 10) * 100, 100)
+                          const color = sp.count >= 10 ? 'bg-success' : sp.count >= 7 ? 'bg-warning' : 'bg-brand-300'
+                          const textColor = sp.count >= 10 ? 'text-success-ink' : sp.count >= 7 ? 'text-warning' : 'text-ink-2'
+                          const borderColor = sp.count >= 10 ? 'border-success/30' : sp.count >= 7 ? 'border-warning/30' : 'border-hairline'
+                          return (
+                            <div key={sp.id} className={`flex items-center gap-2.5 bg-white border ${borderColor} rounded-xl px-3 py-2`}>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-ink leading-tight">{sp.name}</p>
+                                <p className={`text-caption font-bold ${textColor}`}>{sp.count}/10</p>
+                              </div>
+                              <div className="w-12 h-1.5 bg-fill rounded-full overflow-hidden flex-shrink-0">
+                                <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )
@@ -344,11 +363,12 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
               <table className="w-full text-sm">
                 <thead className="bg-fill border-b border-hairline">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-36">Time</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Attendee</th>
-                    <th className="w-8"></th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Meeting With</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-28">Type</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-[15%]">Time</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-[16%]">Location</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-[27%]">Attendee</th>
+                    <th className="w-12"></th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-[27%]">Meeting With</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Type</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline">
@@ -356,7 +376,7 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
                     <>
                       {/* Day header row */}
                       <tr key={`day-${activeDay}`} className="bg-fill/80">
-                        <td colSpan={5} className="px-4 py-2 text-xs font-bold text-ink-2 uppercase tracking-widest border-b border-hairline">
+                        <td colSpan={6} className="px-6 py-2 text-xs font-bold text-ink-2 uppercase tracking-widest border-b border-hairline">
                           {new Date(activeDay + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TZ })}
                           <span className="ml-2 font-normal normal-case text-ink-2">
                             {'\u00b7'} {Array.from(activeSlotMap.values()).flat().length} meetings
@@ -369,16 +389,13 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
                         return items.map((item, i) => (
                           <tr key={item.id} className="hover:bg-fill align-middle">
                             {/* Time -- only on first row of slot */}
-                            <td className="px-4 py-3.5 whitespace-nowrap align-middle">
+                            <td className="px-6 py-4 whitespace-nowrap align-middle">
                               {i === 0 ? (
                                 <div>
                                   <p className="text-sm font-semibold text-ink">
                                     {fmtTime(tb.startsAt)}
                                     <span className="text-ink-2 font-normal">{'\u2013'}{fmtTime(tb.endsAt, true)}</span>
                                   </p>
-                                  {tb.location && (
-                                    <p className="text-caption text-ink-2 mt-0.5">{tb.location}</p>
-                                  )}
                                   {items.length > 1 && (
                                     <span className="text-caption text-ink-2 bg-fill px-1.5 py-0.5 rounded mt-1 inline-block">
                                       {items.length} parallel
@@ -392,8 +409,13 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
                               )}
                             </td>
 
+                            {/* Location */}
+                            <td className="px-6 py-4 align-middle">
+                              <span className="text-sm text-ink-2">{tb.location || '—'}</span>
+                            </td>
+
                             {/* Attendee */}
-                            <td className="px-4 py-3.5">
+                            <td className="px-6 py-4">
                               <div className="flex items-center gap-2.5">
                                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
                                   {(item.personName ?? '?')[0].toUpperCase()}
@@ -409,7 +431,7 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
                             <td className="text-center text-ink-3 text-base select-none">{'\u2194'}</td>
 
                             {/* Meeting With */}
-                            <td className="px-4 py-3.5">
+                            <td className="px-6 py-4">
                               {item.sponsorName ? (
                                 <div className="flex items-center gap-2.5">
                                   {item.sponsorLogo ? (
@@ -442,7 +464,7 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
                             </td>
 
                             {/* Type */}
-                            <td className="px-4 py-3.5">
+                            <td className="px-6 py-4">
                               <div className="flex flex-col items-start gap-1">
                                 <span className={`badge ${item.type === 'sponsor' ? 'bg-warning-soft text-warning-ink' : 'bg-brand-50 text-brand-700'}`}>
                                   {item.type === 'sponsor' ? 'Sponsor' : 'Peer'}
