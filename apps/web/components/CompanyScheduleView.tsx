@@ -338,7 +338,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                         className={`flex-shrink-0 tabular-nums text-xs font-semibold px-1.5 py-0.5 rounded-md ${
                                           m.confirmedCount >= REQUIRED_MEETINGS_PER_PERSON
                                             ? 'bg-success-soft text-success-ink'
-                                            : 'bg-fill text-ink-2'
+                                            : 'bg-danger-soft text-danger-ink'
                                         }`}
                                         title={`${m.confirmedCount} of ${REQUIRED_MEETINGS_PER_PERSON} required meetings`}
                                         aria-label={`${m.name} has ${m.confirmedCount} of ${REQUIRED_MEETINGS_PER_PERSON} required meetings`}
