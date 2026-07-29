@@ -172,9 +172,6 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
           }`}>
           Companies
         </Link>
-        <Link href="/dashboard/meetings/new" className="ml-auto text-sm px-4 py-2 bg-white border border-hairline rounded-xl text-ink-2 hover:bg-fill font-medium transition-colors">
-          + New Time Block
-        </Link>
       </div>
 
       {/* -- KPI STRIP (request-level; hidden on the company scheduler + auto) -- */}
