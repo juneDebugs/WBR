@@ -18,6 +18,20 @@ const GENERAL_ROOM_ID = 'room-general'
 
 export const MAX_CHAT_CONTENT_LENGTH = 5000
 
+// Users hidden from the People → Feed surface, matched by exact display name.
+// Applied at read time to feed posts, comment lists, AND the feed's comment
+// counts (so "View N comments" never advertises a hidden comment) — their rows
+// stay in the DB, but nothing they write ever renders in the feed. DMs and
+// other surfaces are unaffected.
+export const FEED_HIDDEN_USER_NAMES = ['June Cho']
+
+// Null-safe "not hidden" predicate for the filters above. The explicit
+// `name: null` arm matters: Prisma's notIn (like SQL's NOT IN) silently drops
+// NULL rows, which would hide every user with no display name set.
+const VISIBLE_FEED_USER = {
+  OR: [{ name: null }, { name: { notIn: FEED_HIDDEN_USER_NAMES } }],
+}
+
 // Explicit sender projection used everywhere a message is returned to a
 // client. Never widen this to `sender: true` — the User row carries
 // credentials (password, pushToken) that must not leak into chat payloads.
@@ -102,6 +116,9 @@ export async function ensureGeneralRoom(prismaClient: AnyPrismaClient) {
  * Each message is enriched with the social fields the feed UI renders:
  * `likeCount`, `commentCount`, and `likedByMe` (always false when no
  * `viewerId` is provided).
+ *
+ * Posts by FEED_HIDDEN_USER_NAMES senders are excluded, and `commentCount`
+ * counts only visible commenters — matching what listMessageComments returns.
  */
 export async function listGlobalFeed(
   prismaClient: AnyPrismaClient,
@@ -112,12 +129,14 @@ export async function listGlobalFeed(
   // Cast: the likes/comments relations only exist in the generated Prisma
   // client after the orchestrator re-runs `prisma db push` + generate.
   const messages: any[] = await prismaClient.message.findMany({
-    where: { roomId: GENERAL_ROOM_ID },
+    where: { roomId: GENERAL_ROOM_ID, sender: VISIBLE_FEED_USER },
     orderBy: { createdAt: 'desc' },
     take: limit,
     include: {
       sender: { select: CHAT_SENDER_SELECT },
-      _count: { select: { likes: true, comments: true } },
+      _count: {
+        select: { likes: true, comments: { where: { user: VISIBLE_FEED_USER } } },
+      },
     },
   } as any)
 
@@ -247,7 +266,8 @@ export async function toggleMessageLike(
 
 /**
  * Comments on a general-room feed message, ascending (chronological), each
- * carrying the same safe user projection as message senders.
+ * carrying the same safe user projection as message senders. Comments by
+ * FEED_HIDDEN_USER_NAMES users are excluded.
  */
 export async function listMessageComments(prismaClient: AnyPrismaClient, messageId: string) {
   const message = await findGeneralRoomMessage(prismaClient, messageId)
@@ -255,7 +275,7 @@ export async function listMessageComments(prismaClient: AnyPrismaClient, message
 
   // Cast: messageComment delegate is absent until the client is regenerated.
   const comments = await (prismaClient as any).messageComment.findMany({
-    where: { messageId },
+    where: { messageId, user: VISIBLE_FEED_USER },
     orderBy: { createdAt: 'asc' },
     select: {
       id: true,

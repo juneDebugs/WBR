@@ -31,6 +31,10 @@
 //  11. Friend gate on DMs: getOrCreateDirectRoom refuses a NEW room for a
 //      non-friend pair with code NOT_FRIENDS; the DM sections befriend their
 //      pairs (mutual Follow edges) first.
+//  12. Hidden feed users (FEED_HIDDEN_USER_NAMES): their posts never appear in
+//      listGlobalFeed, their comments never appear in listMessageComments, the
+//      feed's commentCount matches the visible comment list, null-named users
+//      are NOT collateral damage of the notIn filter, and DMs are unaffected.
 //
 //   node scripts/test-home-feed.mjs
 //
@@ -67,6 +71,7 @@ const {
   postMessageComment,
   MAX_CHAT_CONTENT_LENGTH,
   MAX_FEED_IMAGE_CHARS,
+  FEED_HIDDEN_USER_NAMES,
 } = await import(join(ROOT, 'packages/db/src/chat.ts'))
 const { GENERAL_ROOM_ID } = await import(join(ROOT, 'packages/db/src/scheduled-messages.ts'))
 
@@ -471,6 +476,57 @@ console.log('\n[comments]')
   const dmList = await listMessageComments(prisma, dmMessage.id)
   check('listing DM-room comments → Not found',
     dmList.ok === false && dmList.error === 'Not found')
+}
+
+// ─── 12. Hidden feed users ────────────────────────────────────────────────────
+
+console.log('\n[hidden feed users]')
+{
+  check('June Cho is on the hidden list', FEED_HIDDEN_USER_NAMES.includes('June Cho'))
+
+  const hidden = await prisma.user.create({
+    data: { email: 'feed-hidden@example.com', name: 'June Cho', role: 'ATTENDEE' },
+  })
+  const nameless = await prisma.user.create({
+    data: { email: 'feed-nameless@example.com', role: 'ATTENDEE' },
+  })
+
+  // Hidden user's post persists but never surfaces in the feed.
+  const hiddenPost = await postGlobalMessage(prisma, hidden.id, 'you cannot see me')
+  check('hidden user can still write (row persists)', hiddenPost.ok === true)
+  const feed = await listGlobalFeed(prisma, 100, alice.id)
+  check('hidden user\'s post is absent from the feed',
+    !feed.some(m => m.id === hiddenPost.message.id))
+  check('no feed message carries a hidden sender',
+    feed.every(m => !FEED_HIDDEN_USER_NAMES.includes(m.sender?.name)))
+
+  // The notIn filter must not swallow users with no display name.
+  const namelessPost = await postGlobalMessage(prisma, nameless.id, 'anonymous but visible')
+  const feedWithNameless = await listGlobalFeed(prisma, 100)
+  check('null-named user\'s post IS visible (notIn null guard)',
+    feedWithNameless.some(m => m.id === namelessPost.message.id))
+
+  // Hidden user's comment on a visible post: absent from the list, and the
+  // feed's commentCount agrees with the visible list.
+  const target = await postGlobalMessage(prisma, alice.id, 'comment target')
+  await postMessageComment(prisma, target.message.id, bob.id, 'visible comment')
+  await postMessageComment(prisma, target.message.id, hidden.id, 'invisible comment')
+  const listed = await listMessageComments(prisma, target.message.id)
+  check('hidden user\'s comment is absent from the list', listed.ok &&
+    listed.comments.length === 1 && listed.comments[0].user.id === bob.id,
+    listed.ok ? JSON.stringify(listed.comments.map(c => c.user.name)) : JSON.stringify(listed))
+  const enriched = (await listGlobalFeed(prisma, 100)).find(m => m.id === target.message.id)
+  check('commentCount matches the visible list (hidden comment not counted)',
+    enriched?.commentCount === 1, `got ${enriched?.commentCount}`)
+
+  // DMs are NOT a feed surface — a hidden user's existing conversation works.
+  await prisma.follow.create({ data: { followerId: hidden.id, followingId: alice.id } })
+  await prisma.follow.create({ data: { followerId: alice.id, followingId: hidden.id } })
+  const dm = await getOrCreateDirectRoom(prisma, hidden.id, alice.id)
+  const dmSent = await postRoomMessage(prisma, dm.room.id, hidden.id, 'dm still works')
+  const dmRead = await listRoomMessagesForUser(prisma, dm.room.id, alice.id)
+  check('hidden user\'s DMs are unaffected', dmSent.ok === true &&
+    dmRead.ok && dmRead.messages.some(m => m.id === dmSent.message.id))
 }
 
 // ─── Cleanup ─────────────────────────────────────────────────────────────────
