@@ -366,15 +366,20 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                 <div className="flex items-start justify-end gap-3">
                                   <div className="space-y-0.5">
                                     {slot.meetings.map(m => (
-                                      <div key={m.sponsorMeetingId} className="flex items-center justify-end gap-1 min-h-[36px]">
+                                      <div key={m.sponsorMeetingId} className="flex items-center justify-end gap-1.5 min-h-[36px]">
                                         <button
                                           type="button"
                                           aria-label={`Reschedule meeting with ${m.name}`}
-                                          title="Reschedule"
                                           onClick={() => setRescheduleTarget({ sponsorMeetingId: m.sponsorMeetingId, attendeeName: m.name })}
-                                          className="icon-btn-sm icon-btn"
+                                          className="btn-ghost btn-sm inline-flex items-center gap-1.5 font-medium"
                                         >
-                                          {'✎'}
+                                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="flex-shrink-0">
+                                            <path
+                                              d="M2.695 14.762l-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z"
+                                              fill="currentColor"
+                                            />
+                                          </svg>
+                                          Reschedule
                                         </button>
                                         <button
                                           type="button"
