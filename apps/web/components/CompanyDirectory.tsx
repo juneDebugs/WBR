@@ -317,7 +317,7 @@ function DirectoryTableRow({ row, onOpen }: { row: DirectoryRow; onOpen: () => v
             <div className={`meter-fill ${meterClass(row.fillRate)}`} style={{ width: `${Math.min(row.fillRate * 100, 100)}%` }} />
           </div>
           <span className="text-caption tabular-nums text-ink-2 whitespace-nowrap">
-            {row.confirmed}/{FILL_TARGET}
+            {row.confirmed}/{row.requiredMeetings ?? FILL_TARGET}
           </span>
         </div>
       </td>

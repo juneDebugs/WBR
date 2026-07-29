@@ -12,14 +12,18 @@ export const TIER_FALLBACK = 'bg-fill text-ink-2'
 export const PRIORITY_LABEL = { BEST_FIT: 'Best Fit', MED: 'Med', LOW: 'Low' } as const
 export const PRIORITY_BADGE = { BEST_FIT: 'badge badge-brand', MED: 'badge badge-warning', LOW: 'badge badge-neutral' } as const
 
-// Mirrors the engine's FILL_TARGET (packages/db/src/meeting-engine.ts). Kept
-// as a literal because importing a value from @conference/db would pull the
-// barrel — and the Prisma client — into client bundles.
+// Mirrors the engine's FILL_TARGET (packages/db/src/meeting-engine.ts). Now
+// only a FALLBACK for payloads predating the admin-configurable requirements —
+// live views read DirectoryRow.requiredMeetings / ScheduleMatrix.requiredMeetings.
+// Kept as a literal because importing a value from @conference/db would pull
+// the barrel — and the Prisma client — into client bundles.
 export const FILL_TARGET = 10
 
 // Mirrors the engine's REQUIRED_MEETINGS_PER_PERSON — the denominator of the
-// per-person "current / required" widget in the Companies grid. Literal for the
-// same bundle reason as FILL_TARGET above.
+// per-person "current / required" widget in the Companies grid. Like
+// FILL_TARGET, now only a FALLBACK for payloads predating the admin-configurable
+// requirements (ScheduleMatrix.requiredMeetingsPerPerson is the live value).
+// Literal for the same bundle reason as FILL_TARGET above.
 export const REQUIRED_MEETINGS_PER_PERSON = 5
 
 // Fill-meter color thresholds from the HIG spec (docs/prd/meeting-engine-hig-spec.md):

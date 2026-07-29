@@ -640,3 +640,24 @@ model ChatMessagingPermission {
 
   @@id([scope, subjectId])
 }
+
+// ─── Meeting requirement settings ────────────────────────────────────────────
+// Admin-configured meeting requirements (see the admin Meetings settings surface
+// and the "Meeting requirement settings" section of
+// packages/db/src/meeting-engine.ts). One row per control:
+//   scope = 'ATTENDEE_GLOBAL' (subjectId '') — meetings required from each
+//   attendee; 'SPONSOR_DEFAULT' (subjectId '') — default meetings required from
+//   each sponsor company; or 'SPONSOR' (subjectId = Sponsor.id) — per-company
+//   override of that default. `settings` is a JSON object { required: number }.
+//   Like ChatMessagingPermission, this table is also created defensively at
+//   runtime via CREATE TABLE IF NOT EXISTS, so it works before this model is
+//   pushed to Turso; the column shape must match the DDL in meeting-engine.ts
+//   exactly, so `prisma db push` stays a no-op.
+model MeetingRequirementSetting {
+  scope     String
+  subjectId String
+  settings  String // JSON object: { required: number }
+  updatedAt DateTime @updatedAt
+
+  @@id([scope, subjectId])
+}

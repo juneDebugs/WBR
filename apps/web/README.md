@@ -91,6 +91,17 @@ Tests: `test:admin-scheduler` (engine), `test:admin-scheduler:api` (HTTP),
 `e2e:admin-scheduler` (Playwright); the HTTP/e2e scripts target :3000 by
 default and honor `SMOKE_BASE_URL` when that port is taken.
 
+The Companies tab also carries a **Settings** section
+(`?tab=companies&view=settings`, a Directory | Settings segmented nav) for the
+admin-configurable meeting requirements: meetings required from each attendee
+(one global number) and from each sponsor company (a global default plus
+per-company overrides, stored in `MeetingRequirementSetting` and consumed by
+every fill meter / per-person chip). API: `GET/PUT /api/admin/scheduler/settings`
+(same `'meetings'` gate). UI: `CompanyMeetingSettings` + the shared `Stepper`,
+mirroring ChatSettingsPanel's draft/snapshot + sticky-save-bar mechanics.
+Tests: `test:meeting-requirements`, `test:meeting-requirements:api`; Turso DDL
+via `db:migrate-meeting-requirements`.
+
 ### On-site Check-In (sidebar → Meetings → Check-In)
 
 Dedicated page at `/dashboard/meetings/check-in` (a **Check-In** item in the

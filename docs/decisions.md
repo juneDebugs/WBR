@@ -490,6 +490,34 @@ alphabetical by sponsor within a slot; the footer reconciles completed
 
 ---
 
+## Meeting requirements — admin-configurable attendee/sponsor targets (2026-07-29)
+
+The two hardcoded engine constants — `FILL_TARGET` (confirmed meetings each
+sponsor company should fill, 10) and `REQUIRED_MEETINGS_PER_PERSON` (meetings
+each attendee is expected to book, 5) — became admin-editable settings behind a
+new **Settings** section in the Companies tab's nav bar
+(`?tab=companies&view=settings`, a Directory | Settings segmented control).
+Storage copies the `ChatMessagingPermission` precedent verbatim: a
+`MeetingRequirementSetting` table keyed `(scope, subjectId)` with JSON
+`{ required }` payloads — `ATTENDEE_GLOBAL`/`SPONSOR_DEFAULT` rows (subjectId
+`''`) plus per-company `SPONSOR` rows, created defensively at runtime and
+replayed on Turso by the idempotent `db:migrate-meeting-requirements` script.
+The settings code lives inside `meeting-engine.ts` itself (the engine file is
+type-stripped directly by Node test scripts, so it cannot gain relative
+imports); reads fail open to the old constants, writes propagate errors, values
+clamp to integers in [0, 99] and `required: 0` means "no requirement" (fill
+meters read fully met). `getCompanyDirectory` and `getSponsorScheduleMatrix`
+now carry `requiredMeetings` / `requiredMeetingsPerPerson` so every fill meter
+and per-person chip uses the live values; the `meetings-ui.ts` mirror constants
+remain only as fallbacks. The API (`/api/admin/scheduler/settings`, GET/PUT
+behind `requireSchedulerAccess`) returns settings plus the active conference's
+sponsor roster; the panel mirrors ChatSettingsPanel's draft/snapshot +
+sticky-save-bar mechanics with a shared HIG `Stepper`. Per-company overrides
+are diff-only writes; `required: null` deletes the override row. Tests:
+`test:meeting-requirements`, `test:meeting-requirements:api`.
+
+---
+
 ## Cross-references
 
 - [Architecture](architecture.md) — cross-cutting current-state architecture.

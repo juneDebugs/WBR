@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { fmtTime, TZ } from '@/lib/format'
 import { TIER_COLORS, PRIORITY_LABEL, PRIORITY_BADGE } from '@/lib/meetings-ui'
 
-export default function MeetingsPageClient({ tab: tabParam, status, type, company }: { tab?: string; status?: string; type?: string; company?: string }) {
+export default function MeetingsPageClient({ tab: tabParam, status, type, company, view }: { tab?: string; status?: string; type?: string; company?: string; view?: string }) {
   const tab = tabParam === 'schedule' ? 'schedule' : tabParam === 'companies' ? 'companies' : tabParam === 'auto' ? 'auto' : 'requests'
   // The Companies and Auto tabs fetch their own data (scheduler-hooks)
   // — don't drag the heavy meetings dataset along just to badge the inactive tabs.
@@ -209,7 +209,7 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
       )}
 
       {/* -- COMPANIES TAB (company-centric scheduler) -- */}
-      {tab === 'companies' && <CompanySchedulerClient sponsor={company} />}
+      {tab === 'companies' && <CompanySchedulerClient sponsor={company} view={view} />}
 
       {/* -- AUTO TAB (mutual Best Fit matches) -- */}
       {tab === 'auto' && <AutoMatchBoard />}

@@ -34,13 +34,191 @@ export function roomByName(name: string | null | undefined): MeetingRoom | null 
   return MEETING_ROOMS.find(r => r.name === name) ?? null
 }
 
-// Target number of confirmed meetings per company, used for the fill-rate meter.
+// DEFAULT target number of confirmed meetings per company, used for the
+// fill-rate meter. Admins can now change this (and set per-sponsor overrides)
+// via the meeting-requirement settings below; this constant remains the
+// fallback default and is still imported by apps and seed scripts.
 export const FILL_TARGET = 10
 
-// Target number of confirmed meetings each attendee is expected to have across
-// the whole conference. Drives the per-person "current / required" widget in the
-// Companies scheduler grid. Uniform for everyone — no per-person target modeled.
+// DEFAULT target number of confirmed meetings each attendee is expected to have
+// across the whole conference. Drives the per-person "current / required"
+// widget in the Companies scheduler grid. Admin-configurable via the
+// meeting-requirement settings below; kept exported as the fallback default.
 export const REQUIRED_MEETINGS_PER_PERSON = 5
+
+// ── Meeting requirement settings ─────────────────────────────────────────────
+// Admin-configurable meeting requirements (apps/web → Meetings → Settings):
+//   1. Meetings required from each attendee — one global number.
+//   2. Meetings required from each sponsor company — a global default plus
+//      per-sponsor overrides.
+// Persistence mirrors chat-settings.ts / RolePermission: the repo has no
+// migration history, so we own the MeetingRequirementSetting table with a
+// defensive CREATE TABLE IF NOT EXISTS whose column shape matches the model in
+// schema.prisma exactly (a future `prisma db push` is a no-op). Rows are keyed
+// (scope, subjectId): ATTENDEE_GLOBAL and SPONSOR_DEFAULT use subjectId '',
+// SPONSOR uses subjectId = Sponsor.id. `settings` is JSON {"required": <int>}.
+// Reads FAIL OPEN to the constant defaults — a settings hiccup should never
+// break the scheduler read paths. Writes propagate errors.
+
+export interface MeetingRequirementSettings {
+  attendeeRequired: number                 // meetings required from each attendee (global)
+  sponsorDefaultRequired: number           // default meetings required from each sponsor company
+  sponsorOverrides: Record<string, number> // sponsorId -> per-company override of the default
+}
+
+export const DEFAULT_MEETING_REQUIREMENTS: MeetingRequirementSettings = {
+  attendeeRequired: REQUIRED_MEETINGS_PER_PERSON,   // 5
+  sponsorDefaultRequired: FILL_TARGET,              // 10
+  sponsorOverrides: {},
+}
+
+export const REQUIREMENT_SCOPE = {
+  ATTENDEE_GLOBAL: 'ATTENDEE_GLOBAL',
+  SPONSOR_DEFAULT: 'SPONSOR_DEFAULT',
+  SPONSOR: 'SPONSOR',
+} as const
+export type RequirementScope = (typeof REQUIREMENT_SCOPE)[keyof typeof REQUIREMENT_SCOPE]
+
+// Clamp arbitrary/hostile input to an integer in [0, 99]; non-numbers -> fallback.
+export function normalizeRequiredCount(raw: unknown, fallback: number): number {
+  if (raw == null || raw === '') return fallback // Number() would coerce these to 0
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(99, Math.max(0, Math.trunc(n)))
+}
+
+// This sponsor's confirmed-meeting target: per-company override if one exists,
+// otherwise the global sponsor default.
+export function requiredMeetingsForSponsor(settings: MeetingRequirementSettings, sponsorId: string): number {
+  const override = settings.sponsorOverrides[sponsorId]
+  return typeof override === 'number' ? override : settings.sponsorDefaultRequired
+}
+
+const MEETING_REQUIREMENTS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS "MeetingRequirementSetting" (
+  "scope" TEXT NOT NULL,
+  "subjectId" TEXT NOT NULL,
+  "settings" TEXT NOT NULL,
+  "updatedAt" DATETIME NOT NULL,
+  PRIMARY KEY ("scope", "subjectId")
+)`
+
+let requirementsEnsured: Promise<void> | null = null
+// Memoized per process; IF NOT EXISTS makes re-runs harmless if a serverless
+// instance resets the module. Reset on failure so a transient error retries.
+export function ensureMeetingRequirementsTable(prismaClient: PrismaClient): Promise<void> {
+  if (!requirementsEnsured) {
+    requirementsEnsured = prismaClient
+      .$executeRawUnsafe(MEETING_REQUIREMENTS_TABLE_SQL)
+      .then(() => undefined)
+      .catch(err => {
+        requirementsEnsured = null
+        throw err
+      })
+  }
+  return requirementsEnsured
+}
+
+type RequirementRow = { scope: string; subjectId: string; settings: string }
+
+// Pull the integer out of a stored `{"required": <int>}` JSON blob; null if the
+// row is unparsable or non-numeric so the caller can skip / fall back.
+function parseRequired(raw: string): number | null {
+  try {
+    const parsed = JSON.parse(raw)
+    const val = parsed && typeof parsed === 'object' ? (parsed as { required?: unknown }).required : null
+    return typeof val === 'number' && Number.isFinite(val) ? val : null
+  } catch {
+    return null
+  }
+}
+
+// Full snapshot of the meeting-requirement settings. FAILS OPEN to the constant
+// defaults on any error — the scheduler read paths must never break on this.
+export async function getMeetingRequirementSettings(prismaClient: PrismaClient): Promise<MeetingRequirementSettings> {
+  const out: MeetingRequirementSettings = { ...DEFAULT_MEETING_REQUIREMENTS, sponsorOverrides: {} }
+  try {
+    await ensureMeetingRequirementsTable(prismaClient)
+    const rows = await prismaClient.$queryRawUnsafe<RequirementRow[]>(
+      `SELECT "scope", "subjectId", "settings" FROM "MeetingRequirementSetting"`,
+    )
+    for (const row of rows) {
+      const stored = parseRequired(row.settings)
+      if (stored === null) continue // bad JSON / non-numeric — ignore the row
+      if (row.scope === REQUIREMENT_SCOPE.ATTENDEE_GLOBAL) {
+        out.attendeeRequired = normalizeRequiredCount(stored, DEFAULT_MEETING_REQUIREMENTS.attendeeRequired)
+      } else if (row.scope === REQUIREMENT_SCOPE.SPONSOR_DEFAULT) {
+        out.sponsorDefaultRequired = normalizeRequiredCount(stored, DEFAULT_MEETING_REQUIREMENTS.sponsorDefaultRequired)
+      } else if (row.scope === REQUIREMENT_SCOPE.SPONSOR && row.subjectId) {
+        out.sponsorOverrides[row.subjectId] = normalizeRequiredCount(stored, DEFAULT_MEETING_REQUIREMENTS.sponsorDefaultRequired)
+      }
+    }
+  } catch (err) {
+    // Fail open: return the constant defaults rather than break the scheduler.
+    console.error('[meeting-requirements] read failed, returning defaults:', err)
+    return { ...DEFAULT_MEETING_REQUIREMENTS, sponsorOverrides: {} }
+  }
+  return out
+}
+
+// Bulk upsert from the admin settings surface. Only the provided slices are
+// written, so the client can send just what the user actually changed. An
+// override entry with `required == null` DELETEs that sponsor's override row
+// (reverting the company to the global default). Unlike reads, write errors
+// propagate — the admin must know a save didn't land.
+export async function saveMeetingRequirementSettings(
+  prismaClient: PrismaClient,
+  payload: {
+    attendeeRequired?: number
+    sponsorDefaultRequired?: number
+    sponsorOverrides?: { sponsorId: string; required: number | null }[]
+  },
+): Promise<void> {
+  await ensureMeetingRequirementsTable(prismaClient)
+  const now = new Date().toISOString()
+  const upsert = (scope: RequirementScope, subjectId: string, required: number) =>
+    prismaClient.$executeRawUnsafe(
+      `INSERT INTO "MeetingRequirementSetting" ("scope", "subjectId", "settings", "updatedAt")
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT("scope", "subjectId") DO UPDATE SET
+         "settings" = excluded."settings",
+         "updatedAt" = excluded."updatedAt"`,
+      scope,
+      subjectId,
+      JSON.stringify({ required }),
+      now,
+    )
+
+  if (payload.attendeeRequired !== undefined) {
+    await upsert(
+      REQUIREMENT_SCOPE.ATTENDEE_GLOBAL,
+      '',
+      normalizeRequiredCount(payload.attendeeRequired, DEFAULT_MEETING_REQUIREMENTS.attendeeRequired),
+    )
+  }
+  if (payload.sponsorDefaultRequired !== undefined) {
+    await upsert(
+      REQUIREMENT_SCOPE.SPONSOR_DEFAULT,
+      '',
+      normalizeRequiredCount(payload.sponsorDefaultRequired, DEFAULT_MEETING_REQUIREMENTS.sponsorDefaultRequired),
+    )
+  }
+  for (const o of payload.sponsorOverrides ?? []) {
+    if (!o?.sponsorId) continue
+    if (o.required == null) {
+      await prismaClient.$executeRawUnsafe(
+        `DELETE FROM "MeetingRequirementSetting" WHERE "scope" = ? AND "subjectId" = ?`,
+        REQUIREMENT_SCOPE.SPONSOR,
+        o.sponsorId,
+      )
+      continue
+    }
+    await upsert(
+      REQUIREMENT_SCOPE.SPONSOR,
+      o.sponsorId,
+      normalizeRequiredCount(o.required, DEFAULT_MEETING_REQUIREMENTS.sponsorDefaultRequired),
+    )
+  }
+}
 
 // ── Priority tiers ────────────────────────────────────────────────────────────
 // The requester (attendee or sponsor) tags each meeting request with how strong a
@@ -202,11 +380,12 @@ export interface DirectoryRow {
   requests: number
   pending: number
   unscheduled: number
+  requiredMeetings: number   // per-company confirmed-meeting target — admin override or the sponsor default
   fillRate: number
 }
 export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Promise<DirectoryRow[]> {
   const confId = await resolveConferenceId(prisma, conferenceId)
-  const [sponsors, requests, meetings, reps] = await Promise.all([
+  const [sponsors, requests, meetings, reps, settings] = await Promise.all([
     prisma.sponsor.findMany({
       where: { conferenceId: confId },
       select: { id: true, name: true, logoUrl: true, tier: true, createdAt: true },
@@ -229,6 +408,7 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
       _count: { _all: true },
       _max: { updatedAt: true },
     }),
+    getMeetingRequirementSettings(prisma),
   ])
 
   const confirmedBySponsor = new Map<string, number>()
@@ -258,6 +438,7 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
     const a = agg.get(s.id) ?? { requests: 0, pending: 0, unscheduled: 0, made: 0, received: 0 }
     const confirmed = confirmedBySponsor.get(s.id) ?? 0
     const rep = repStats.get(s.id)
+    const required = requiredMeetingsForSponsor(settings, s.id)
     return {
       id: s.id, name: s.name, logoUrl: s.logoUrl, tier: s.tier,
       createdAt: s.createdAt.toISOString(),
@@ -268,7 +449,8 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
       requestsReceived: a.received,
       confirmed,
       requests: a.requests, pending: a.pending, unscheduled: a.unscheduled,
-      fillRate: Math.min(1, confirmed / FILL_TARGET),
+      requiredMeetings: required,
+      fillRate: required > 0 ? Math.min(1, confirmed / required) : 1,
     }
   })
 }
@@ -332,8 +514,8 @@ export interface SlotMeeting {
   image: string | null
   room: string | null
   // This attendee's CONFIRMED meeting count across all companies — the numerator
-  // of the per-person "current / required" widget. Denominator is the constant
-  // REQUIRED_MEETINGS_PER_PERSON.
+  // of the per-person "current / required" widget. Denominator is the matrix's
+  // requiredMeetingsPerPerson (the admin-configured global attendee requirement).
   confirmedCount: number
 }
 export interface MatrixSlot {
@@ -358,6 +540,8 @@ export interface ScheduleMatrix {
   misc: MiscItem[]              // Declined / withdrawn
   days: MatrixDay[]
   confirmedCount: number
+  requiredMeetings: number          // this company's confirmed-meeting target (override or sponsor default)
+  requiredMeetingsPerPerson: number // global attendee requirement (per-person widget denominator)
 }
 
 export async function getSponsorScheduleMatrix(
@@ -373,7 +557,7 @@ export async function getSponsorScheduleMatrix(
   })
   if (!sponsor) throw new EngineError('REQUEST_NOT_FOUND', 'Sponsor not found')
 
-  const [timeBlocks, sponsorMeetings, requests, terminalRequests] = await Promise.all([
+  const [timeBlocks, sponsorMeetings, requests, terminalRequests, requirementSettings] = await Promise.all([
     prisma.timeBlock.findMany({
       where: { conferenceId: confId },
       orderBy: { startsAt: 'asc' },
@@ -432,6 +616,7 @@ export async function getSponsorScheduleMatrix(
         targetUser: { select: { name: true, company: true } },
       },
     }),
+    getMeetingRequirementSettings(prisma),
   ])
 
   const sponsorSeeking = parseSolutions(sponsor.solutionsSeeking)
@@ -580,6 +765,8 @@ export async function getSponsorScheduleMatrix(
     misc,
     days: Array.from(dayMap.values()),
     confirmedCount: sponsorMeetings.length,
+    requiredMeetings: requiredMeetingsForSponsor(requirementSettings, sponsorId),
+    requiredMeetingsPerPerson: requirementSettings.attendeeRequired,
   }
 }
 

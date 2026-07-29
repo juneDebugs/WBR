@@ -3,7 +3,7 @@ import { AdminHeader } from '@/components/AdminHeader'
 import MeetingsPageClient from '@/components/MeetingsPageClient'
 import { permissionDenied } from '@/lib/require-permission'
 
-export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; status?: string; type?: string; company?: string }> }) {
+export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; status?: string; type?: string; company?: string; view?: string }> }) {
   const denied = await permissionDenied('meetings', 'Meetings')
   if (denied) return denied
 
@@ -17,7 +17,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     <>
       <AdminHeader title="Meetings" />
       <main className={`flex-1 p-6 ${params.tab === 'companies' ? '' : 'max-w-6xl'}`}>
-        <MeetingsPageClient tab={params.tab} status={params.status} type={params.type} company={params.company} />
+        <MeetingsPageClient tab={params.tab} status={params.status} type={params.type} company={params.company} view={params.view} />
       </main>
     </>
   )

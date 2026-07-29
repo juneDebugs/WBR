@@ -126,7 +126,9 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
 
   const dayIndex = Math.min(activeDay, Math.max(0, matrix.days.length - 1))
   const day = matrix.days[dayIndex]
-  const fillRate = Math.min(1, matrix.confirmedCount / FILL_TARGET)
+  const fillTarget = matrix.requiredMeetings ?? FILL_TARGET
+  const requiredPerPerson = matrix.requiredMeetingsPerPerson ?? REQUIRED_MEETINGS_PER_PERSON
+  const fillRate = fillTarget > 0 ? Math.min(1, matrix.confirmedCount / fillTarget) : 1
 
   function onTabKey(e: React.KeyboardEvent, i: number) {
     const n = matrix!.days.length
@@ -165,7 +167,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
               <div className={`meter-fill ${meterClass(fillRate)}`} style={{ width: `${fillRate * 100}%` }} />
             </div>
             <span className="text-caption tabular-nums text-ink-2 whitespace-nowrap">
-              {matrix.confirmedCount}/{FILL_TARGET} confirmed
+              {matrix.confirmedCount}/{fillTarget} confirmed
             </span>
           </div>
         </div>
@@ -336,14 +338,14 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                       <span className="min-w-0 truncate font-medium text-ink">{m.name}</span>
                                       <span
                                         className={`flex-shrink-0 tabular-nums text-xs font-semibold px-1.5 py-0.5 rounded-md ${
-                                          m.confirmedCount >= REQUIRED_MEETINGS_PER_PERSON
+                                          m.confirmedCount >= requiredPerPerson
                                             ? 'bg-success-soft text-success-ink'
                                             : 'bg-danger-soft text-danger-ink'
                                         }`}
-                                        title={`${m.confirmedCount} of ${REQUIRED_MEETINGS_PER_PERSON} required meetings`}
-                                        aria-label={`${m.name} has ${m.confirmedCount} of ${REQUIRED_MEETINGS_PER_PERSON} required meetings`}
+                                        title={`${m.confirmedCount} of ${requiredPerPerson} required meetings`}
+                                        aria-label={`${m.name} has ${m.confirmedCount} of ${requiredPerPerson} required meetings`}
                                       >
-                                        {m.confirmedCount} set / {REQUIRED_MEETINGS_PER_PERSON} required
+                                        {m.confirmedCount} set / {requiredPerPerson} required
                                       </span>
                                     </div>
                                   ))}
