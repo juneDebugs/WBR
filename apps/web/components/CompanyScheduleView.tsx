@@ -281,8 +281,8 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                     <thead className="bg-fill border-b border-hairline">
                       <tr>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-36">Time</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Meetings</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-44">Company</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-80">Meetings</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Company</th>
                         <th className="text-right px-4 py-3 w-28">
                           <span className="sr-only">Actions</span>
                         </th>
@@ -297,8 +297,8 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                           <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-ink tabular-nums">
                             {fmtRangeUTC(slot.startsAt, slot.endsAt)}
                           </td>
-                          <td className="px-4 py-2.5">
-                            {slot.meetings.length === 0 ? (
+                          {slot.meetings.length === 0 ? (
+                            <td className="px-4 py-2.5" colSpan={2}>
                               <button
                                 type="button"
                                 onClick={() => openSlotAssign(slot)}
@@ -306,58 +306,60 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                               >
                                 Open — {slot.capacityLeft} spot{slot.capacityLeft === 1 ? '' : 's'}
                               </button>
-                            ) : (
-                              <div className="space-y-0.5">
-                                {slot.meetings.map(m => (
-                                  <div key={m.sponsorMeetingId} className="group flex items-center gap-2 min-h-[36px]">
-                                    <div className="w-6 h-6 rounded-full bg-fill flex items-center justify-center text-ink-2 font-bold text-caption flex-shrink-0">
-                                      {initial(m.name)}
+                            </td>
+                          ) : (
+                            <>
+                              <td className="px-4 py-2.5">
+                                <div className="space-y-0.5">
+                                  {slot.meetings.map(m => (
+                                    <div key={m.sponsorMeetingId} className="group flex items-center gap-2 min-h-[36px]">
+                                      <div className="w-6 h-6 rounded-full bg-fill flex items-center justify-center text-ink-2 font-bold text-caption flex-shrink-0">
+                                        {initial(m.name)}
+                                      </div>
+                                      <span className="min-w-0 flex-1 font-medium text-ink truncate">{m.name}</span>
+                                      {m.room && <span className="badge badge-neutral flex-shrink-0">{m.room}</span>}
+                                      <span className="flex items-center flex-shrink-0">
+                                        <button
+                                          type="button"
+                                          aria-label={`Reschedule meeting with ${m.name}`}
+                                          title="Reschedule"
+                                          onClick={() => setRescheduleTarget({ sponsorMeetingId: m.sponsorMeetingId, attendeeName: m.name })}
+                                          className="icon-btn-sm icon-btn opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
+                                        >
+                                          {'✎'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          aria-label={`Cancel meeting with ${m.name}`}
+                                          title="Cancel"
+                                          onClick={() =>
+                                            setCancelTarget({
+                                              sponsorMeetingId: m.sponsorMeetingId,
+                                              attendeeName: m.name,
+                                              slotLabel: slotLabels.get(slot.timeBlockId) ?? '—',
+                                              room: m.room,
+                                            })
+                                          }
+                                          className="icon-btn-sm icon-btn text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
+                                        >
+                                          {'✕'}
+                                        </button>
+                                      </span>
                                     </div>
-                                    <span className="min-w-0 flex-1 font-medium text-ink truncate">{m.name}</span>
-                                    {m.room && <span className="badge badge-neutral flex-shrink-0">{m.room}</span>}
-                                    <span className="flex items-center flex-shrink-0">
-                                      <button
-                                        type="button"
-                                        aria-label={`Reschedule meeting with ${m.name}`}
-                                        title="Reschedule"
-                                        onClick={() => setRescheduleTarget({ sponsorMeetingId: m.sponsorMeetingId, attendeeName: m.name })}
-                                        className="icon-btn-sm icon-btn opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
-                                      >
-                                        {'✎'}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        aria-label={`Cancel meeting with ${m.name}`}
-                                        title="Cancel"
-                                        onClick={() =>
-                                          setCancelTarget({
-                                            sponsorMeetingId: m.sponsorMeetingId,
-                                            attendeeName: m.name,
-                                            slotLabel: slotLabels.get(slot.timeBlockId) ?? '—',
-                                            room: m.room,
-                                          })
-                                        }
-                                        className="icon-btn-sm icon-btn text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
-                                      >
-                                        {'✕'}
-                                      </button>
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            {slot.meetings.length > 0 && (
-                              <div className="space-y-0.5">
-                                {slot.meetings.map(m => (
-                                  <div key={m.sponsorMeetingId} className="flex items-center min-h-[36px]">
-                                    <span className="text-sm text-ink-2 truncate">{m.company ?? '—'}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </td>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <div className="space-y-0.5">
+                                  {slot.meetings.map(m => (
+                                    <div key={m.sponsorMeetingId} className="flex items-center min-h-[36px]">
+                                      <span className="text-sm text-ink-2 truncate">{m.company ?? '—'}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                            </>
+                          )}
                           <td className="px-4 py-3.5 text-right">
                             <button
                               type="button"
