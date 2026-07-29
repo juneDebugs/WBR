@@ -281,8 +281,8 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                     <thead className="bg-fill border-b border-hairline">
                       <tr>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-36">Time</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-44">Company</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Meetings</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-44">Company</th>
                         <th className="text-right px-4 py-3 w-28">
                           <span className="sr-only">Actions</span>
                         </th>
@@ -296,17 +296,6 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                         >
                           <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-ink tabular-nums">
                             {fmtRangeUTC(slot.startsAt, slot.endsAt)}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            {slot.meetings.length > 0 && (
-                              <div className="space-y-0.5">
-                                {slot.meetings.map(m => (
-                                  <div key={m.sponsorMeetingId} className="flex items-center min-h-[36px]">
-                                    <span className="text-sm text-ink-2 truncate">{m.company ?? '—'}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
                           </td>
                           <td className="px-4 py-2.5">
                             {slot.meetings.length === 0 ? (
@@ -353,6 +342,17 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                         {'✕'}
                                       </button>
                                     </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {slot.meetings.length > 0 && (
+                              <div className="space-y-0.5">
+                                {slot.meetings.map(m => (
+                                  <div key={m.sponsorMeetingId} className="flex items-center min-h-[36px]">
+                                    <span className="text-sm text-ink-2 truncate">{m.company ?? '—'}</span>
                                   </div>
                                 ))}
                               </div>
