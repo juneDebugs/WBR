@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@conference/db'
+import { prisma, requestBoardWhere } from '@conference/db'
 
 // POST /api/schedule-meetings
 // Body: { requestId } — returns available time blocks for both parties
@@ -24,8 +25,10 @@ export async function POST(req: Request) {
 
   // ── Auto-schedule all approved requests ──────────────────────────────────
   if (body.autoScheduleAll) {
+    // Only requests the board shows — Auto-lane Best Fit picks are scheduled
+    // mutually by the auto-match sweep, never by this bulk pass.
     const approved = await prisma.meetingRequest.findMany({
-      where: { status: 'APPROVED', timeBlockId: null },
+      where: { status: 'APPROVED', timeBlockId: null, ...requestBoardWhere },
       include: {
         requester: true,
         targetSponsor: true,
@@ -115,6 +118,7 @@ export async function POST(req: Request) {
       results.push({ requestId: request.id, timeBlockId: available.id })
     }
 
+    if (scheduled > 0) revalidateTag('meetings')
     return NextResponse.json({ scheduled, skipped, results })
   }
 

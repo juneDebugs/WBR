@@ -70,6 +70,7 @@
     "db:migrate-checkin": "node scripts/migrate-checkin.mjs",
     "db:migrate-auto-match": "node scripts/migrate-auto-match.mjs",
     "db:backfill-friends": "node scripts/migrate-friends-backfill.mjs",
+    "db:sweep-auto-matches": "node scripts/sweep-auto-matches.mjs",
     "seed:feed-posts": "node scripts/seed-feed-posts.mjs",
     "seed:unscheduled": "node packages/db/scripts/seed-unscheduled-demo.mjs",
     "seed:auto-matches": "node scripts/seed-auto-matches.mjs",

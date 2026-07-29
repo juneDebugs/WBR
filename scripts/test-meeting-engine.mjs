@@ -92,9 +92,8 @@ async function main() {
   const conf = await prisma.conference.findFirst({ where: { active: true }, select: { id: true } })
   const confId = conf?.id ?? 'conf-2025'
   const sponsor = await prisma.sponsor.findFirst({ where: { conferenceId: confId }, select: { id: true, solutionsSeeking: true } })
-  const blocks = await prisma.timeBlock.findMany({ where: { conferenceId: confId }, orderBy: { startsAt: 'asc' }, take: 3, select: { id: true, startsAt: true, endsAt: true } })
+  const blocks = await prisma.timeBlock.findMany({ where: { conferenceId: confId }, orderBy: { startsAt: 'asc' }, select: { id: true, startsAt: true, endsAt: true } })
   if (!sponsor || blocks.length < 2) { console.error('  ✗ insufficient seed data (need a sponsor + 2 time blocks)'); return }
-  const [slot1, slot2] = blocks
   const sponsorSeeking = E.parseSolutions(sponsor.solutionsSeeking)
 
   // Baseline directory unscheduled count (before fixtures) — for the M3 check.
@@ -131,30 +130,43 @@ async function main() {
   if (sponsorSeeking.length) check('A (matching) ranks ahead of B', bankA.rank < bankB.rank, `A#${bankA?.rank} vs B#${bankB?.rank}`)
   check('confirmedCount starts at 0', bankA.confirmedCount === 0 && bankB.confirmedCount === 0)
 
-  // Availability for A includes slot1 with a free room.
+  // Availability for A — and the slots/tables the rest of the lifecycle uses.
+  // Picked from the availability payload rather than hardcoded (Table 1 @ the
+  // first block): the auto-scheduler books real meetings into the live
+  // schedule, so the test only claims capacity it verified is free.
+  // Capacity-1 tables specifically, so the ROOM_CONFLICT case below holds.
   const availA = await E.getCandidateAvailability(prisma, reqA.id, confId)
-  const slot1Avail = availA.days.flatMap(d => d.slots).find(s => s.timeBlockId === slot1.id)
-  check('availability: slot1 free for A', slot1Avail?.available === true)
-  check('availability: rooms enumerated', slot1Avail?.rooms.length === E.MEETING_ROOMS.length)
+  const availSlots = availA.days.flatMap(d => d.slots)
+  const freeTables = s => s.rooms.filter(r => r.available && r.name.startsWith('Table ')).map(r => r.name)
+  const pick1 = availSlots.find(s => s.available && freeTables(s).length >= 2)
+  const pick2 = availSlots.find(s => s.available && s.timeBlockId !== pick1?.timeBlockId && freeTables(s).length >= 1)
+  if (!pick1 || !pick2) { console.error('  ✗ insufficient free capacity (need a slot with 2 free tables + another with 1)'); return }
+  const blockById = new Map(blocks.map(b => [b.id, b]))
+  const slot1 = blockById.get(pick1.timeBlockId)
+  const slot2 = blockById.get(pick2.timeBlockId)
+  const [roomA1, roomB1] = freeTables(pick1)
+  const roomA2 = freeTables(pick2)[0]
+  check('availability: slot1 free for A', pick1?.available === true)
+  check('availability: rooms enumerated', pick1?.rooms.length === E.MEETING_ROOMS.length)
 
-  // Assign A → Table 1 @ slot1.
-  const mA = await E.assignMeeting(prisma, { requestId: reqA.id, timeBlockId: slot1.id, room: 'Table 1' })
+  // Assign A → a verified-free table @ slot1.
+  const mA = await E.assignMeeting(prisma, { requestId: reqA.id, timeBlockId: slot1.id, room: roomA1 })
   created.meetings.push(mA.id)
-  check('assign A created a CONFIRMED meeting', mA.status === 'CONFIRMED' && mA.location === 'Table 1')
+  check('assign A created a CONFIRMED meeting', mA.status === 'CONFIRMED' && mA.location === roomA1)
   const reqAafter = await prisma.meetingRequest.findUnique({ where: { id: reqA.id }, select: { status: true, timeBlockId: true } })
   check('assign A confirmed the request', reqAafter.status === 'CONFIRMED' && reqAafter.timeBlockId === slot1.id)
 
   mx = await E.getSponsorScheduleMatrix(prisma, sponsor.id, confId)
   check('A left the bank after assign', !mx.bank.find(b => b.requestId === reqA.id))
   const slot1Row = mx.days.flatMap(d => d.slots).find(s => s.timeBlockId === slot1.id)
-  check('slot1 now shows A', !!slot1Row.meetings.find(m => m.userId === userA.id && m.room === 'Table 1'))
+  check('slot1 now shows A', !!slot1Row.meetings.find(m => m.userId === userA.id && m.room === roomA1))
 
   // Conflict paths.
-  await expectThrow('re-assign the same CONFIRMED request → BAD_STATUS', 'BAD_STATUS', () => E.assignMeeting(prisma, { requestId: reqA.id, timeBlockId: slot2.id, room: 'Table 2' }))
+  await expectThrow('re-assign the same CONFIRMED request → BAD_STATUS', 'BAD_STATUS', () => E.assignMeeting(prisma, { requestId: reqA.id, timeBlockId: slot2.id, room: roomA2 }))
   // A second APPROVED request for the same pair must be blocked once A is booked.
   const reqA2 = await prisma.meetingRequest.create({ data: { requesterId: userA.id, targetSponsorId: sponsor.id, status: 'APPROVED' } })
   created.requests.push(reqA2.id)
-  await expectThrow('assign 2nd request for booked pair → ALREADY_SCHEDULED', 'ALREADY_SCHEDULED', () => E.assignMeeting(prisma, { requestId: reqA2.id, timeBlockId: slot2.id, room: 'Table 3' }))
+  await expectThrow('assign 2nd request for booked pair → ALREADY_SCHEDULED', 'ALREADY_SCHEDULED', () => E.assignMeeting(prisma, { requestId: reqA2.id, timeBlockId: slot2.id, room: roomA2 }))
 
   // M3: A is booked, B still APPROVED, reqA2 APPROVED for A's (booked) pair.
   // Directory unscheduled must count only B — not reqA2's already-booked pair.
@@ -162,13 +174,13 @@ async function main() {
   const rowDup = dirDup.find(d => d.id === sponsor.id)
   check('directory unscheduled excludes an already-booked pair (M3)', rowDup.unscheduled === baseUnscheduled + 1, `expected ${baseUnscheduled + 1}, got ${rowDup?.unscheduled}`)
 
-  await expectThrow('assign B to Table 1 @slot1 → ROOM_CONFLICT', 'ROOM_CONFLICT', () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: 'Table 1' }))
+  await expectThrow("assign B to A's table @slot1 → ROOM_CONFLICT", 'ROOM_CONFLICT', () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: roomA1 }))
   await expectThrow('assign with bogus room → UNKNOWN_ROOM', 'UNKNOWN_ROOM', () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: 'Table 999' }))
 
   // Assign B to a different table in the same slot (allowed — separate table).
-  const mB = await E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: 'Table 2' })
+  const mB = await E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: roomB1 })
   created.meetings.push(mB.id)
-  check('assign B to Table 2 @slot1 ok', mB.status === 'CONFIRMED')
+  check('assign B to a second table @slot1 ok', mB.status === 'CONFIRMED')
 
   // Blackout for B over slot2 → candidate busy on reschedule.
   const bo = await prisma.blackoutTime.create({ data: { userId: userB.id, startsAt: slot2.startsAt, endsAt: slot2.endsAt, reason: 'engine-test' } })
@@ -176,11 +188,11 @@ async function main() {
   const availBReschedule = await E.getMeetingRescheduleAvailability(prisma, mB.id, confId)
   const b_slot2 = availBReschedule.days.flatMap(d => d.slots).find(s => s.timeBlockId === slot2.id)
   check('blackout makes slot2 unavailable for B', b_slot2?.available === false && b_slot2?.candidateFree === false)
-  await expectThrow('reschedule B into blackout → CANDIDATE_BUSY', 'CANDIDATE_BUSY', () => E.rescheduleMeeting(prisma, { sponsorMeetingId: mB.id, timeBlockId: slot2.id, room: 'Table 1' }))
+  await expectThrow('reschedule B into blackout → CANDIDATE_BUSY', 'CANDIDATE_BUSY', () => E.rescheduleMeeting(prisma, { sponsorMeetingId: mB.id, timeBlockId: slot2.id, room: roomA2 }))
 
-  // Reschedule A to slot2 / Table 1 (A is free there).
-  const mAmoved = await E.rescheduleMeeting(prisma, { sponsorMeetingId: mA.id, timeBlockId: slot2.id, room: 'Table 1' })
-  check('reschedule A moved the meeting', mAmoved.timeBlockId === slot2.id && mAmoved.location === 'Table 1')
+  // Reschedule A to slot2's verified-free table (A is free there).
+  const mAmoved = await E.rescheduleMeeting(prisma, { sponsorMeetingId: mA.id, timeBlockId: slot2.id, room: roomA2 })
+  check('reschedule A moved the meeting', mAmoved.timeBlockId === slot2.id && mAmoved.location === roomA2)
   const reqAmoved = await prisma.meetingRequest.findUnique({ where: { id: reqA.id }, select: { timeBlockId: true } })
   check('reschedule synced the request timeBlock', reqAmoved.timeBlockId === slot2.id)
 

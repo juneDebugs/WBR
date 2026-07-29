@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { prisma, autoScheduleByPriority } from '@conference/db'
+import { prisma, autoScheduleByPriority, REQUEST_BOARD_PRIORITIES } from '@conference/db'
 import { requireSchedulerAccess } from '@/lib/scheduler-api'
 
 // Priority-tiered auto-scheduler for the admin portal.
@@ -29,7 +29,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await autoScheduleByPriority(prisma, { dryRun, sponsorId, statuses })
+    // Scoped to the requests board's tiers (Med + Low): Best Fit picks are the
+    // Auto lane's to schedule — mutually, via the auto-match sweep.
+    const result = await autoScheduleByPriority(prisma, { dryRun, sponsorId, statuses, priorities: REQUEST_BOARD_PRIORITIES })
     if (!dryRun && result.scheduled.length) revalidateTag('meetings')
     return NextResponse.json(result)
   } catch (err) {

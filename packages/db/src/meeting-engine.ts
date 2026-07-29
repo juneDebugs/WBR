@@ -4,7 +4,7 @@
 // so it MUST stay self-contained: no relative imports of sibling modules, no app
 // imports. The prisma client is always injected by the caller. Only type-only
 // imports (erased at runtime) are allowed.
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 
 // A loose prisma surface so tests can pass either the real client or a subset.
 type Db = PrismaClient
@@ -1079,6 +1079,7 @@ export interface AutoScheduleInput {
   conferenceId?: string
   sponsorId?: string    // limit to one company's booth; omit = every company
   statuses?: string[]   // eligible request statuses; default PENDING + APPROVED
+  priorities?: MeetingPriority[] // eligible tiers; omit = all (the requests-board bulk scheduler passes MED+LOW so it never reaches into the Auto lane)
   requestIds?: string[] // limit to specific requests (the mutual-match scheduler)
   dryRun?: boolean      // simulate only, persist nothing
 }
@@ -1145,6 +1146,7 @@ export async function autoScheduleByPriority(
     prisma.meetingRequest.findMany({
       where: {
         status: { in: statuses },
+        ...(input.priorities ? { priority: { in: input.priorities } } : {}),
         ...(input.requestIds ? { id: { in: input.requestIds } } : {}),
         ...(input.sponsorId
           ? { OR: [{ targetSponsorId: input.sponsorId }, { requester: { sponsorId: input.sponsorId } }] }
@@ -1315,13 +1317,34 @@ export async function autoScheduleByPriority(
   return { dryRun, scheduled, skipped, byTier, totalEligible: cands.length }
 }
 
+// ── Scheduling lanes ────────────────────────────────────────────────────────
+// Every sponsor↔attendee BEST_FIT request belongs to the Auto lane (admin
+// Meetings → Auto): a mutual pair is scheduled automatically, a one-sided pick
+// waits there for reciprocation. The Meeting Requests board owns the rest —
+// MED and LOW requests (full and half matches alike) plus peer-to-peer
+// requests, which have no Auto lane. Both boards build on these shared where
+// fragments so a Best Fit pick can never land in the manual review queue.
+export const autoLaneRequestWhere: Prisma.MeetingRequestWhereInput = {
+  priority: 'BEST_FIT',
+  OR: [
+    { targetSponsorId: { not: null } },                                       // attendee → sponsor pick
+    { targetUserId: { not: null }, requester: { sponsorId: { not: null } } }, // rep → attendee pick
+  ],
+}
+export const requestBoardWhere: Prisma.MeetingRequestWhereInput = { NOT: autoLaneRequestWhere }
+// The tiers the requests-board bulk schedulers may touch (everything but the
+// Auto lane's tier).
+export const REQUEST_BOARD_PRIORITIES: MeetingPriority[] = ['MED', 'LOW']
+
 // ── Mutual Best Fit auto-matching ───────────────────────────────────────────
 // A pair is an "auto match" when BOTH sides independently tagged each other
 // Best Fit through their portals: the attendee filed a BEST_FIT request
 // targeting the sponsor AND one of the sponsor's reps filed a BEST_FIT request
 // targeting that attendee. Matches are derived live from MeetingRequest rows —
 // nothing extra is persisted, so a pick (or a downgrade/rejection) on either
-// side immediately makes or breaks the match.
+// side immediately makes or breaks the match. A pick the other side has not
+// reciprocated yet is a "half match": it stays visible on the Auto board as
+// awaiting reciprocation rather than re-entering the manual review queue.
 export interface AutoMatchPick {
   requestId: string
   status: string   // PENDING | APPROVED | CONFIRMED
@@ -1347,10 +1370,20 @@ export interface AutoMatch {
   matchedSolutions: string[]
   meeting: AutoMatchMeeting | null // the pair's confirmed meeting, once scheduled
 }
+export interface AutoMatchHalf {
+  key: string // `${sponsorId}::${userId}` — same pair identity as AutoMatch
+  sponsor: { id: string; name: string; logoUrl: string | null; tier: string }
+  attendee: { id: string; name: string; company: string | null }
+  pickedBy: 'SPONSOR' | 'ATTENDEE' // which side has picked Best Fit so far
+  pick: AutoMatchPick
+  counterpartPriority: MeetingPriority | null // the other side's strongest live pick, when one exists at Med/Low
+  score: number // solutions fit score (0–100)
+}
 export interface AutoMatchTotals {
   matches: number
   ready: number     // matched, awaiting a meeting
   scheduled: number // matched with a confirmed meeting
+  awaitingReciprocation: number // half matches — one side picked, the other hasn't
 }
 export type AutoMatchEventType = 'MATCHED' | 'SCHEDULED' | 'RESCHEDULED' | 'CANCELLED'
 export interface AutoMatchLogEntry {
@@ -1366,23 +1399,32 @@ export interface AutoMatchLogEntry {
 }
 export interface AutoMatchBoard {
   matches: AutoMatch[] // ready first (best score, then oldest match), then scheduled by meeting time
+  halfMatches: AutoMatchHalf[] // best score first, then oldest pick
   totals: AutoMatchTotals
   log: AutoMatchLogEntry[] // newest first
 }
 
-async function computeAutoMatches(prisma: Db, confId: string): Promise<AutoMatch[]> {
+interface ComputedAutoMatches {
+  matches: AutoMatch[]
+  halfMatches: AutoMatchHalf[]
+}
+
+async function computeAutoMatches(prisma: Db, confId: string): Promise<ComputedAutoMatches> {
   const [sponsors, requests] = await Promise.all([
     prisma.sponsor.findMany({
       where: { conferenceId: confId },
       select: { id: true, name: true, logoUrl: true, tier: true, solutionsSeeking: true, solutionsOffering: true },
     }),
+    // All live requests, not just BEST_FIT: the Med/Low rows tell a half-match
+    // card what the unreciprocated side has picked so far.
     prisma.meetingRequest.findMany({
-      where: { priority: 'BEST_FIT', status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] } },
+      where: { status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] } },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true, requesterId: true, targetUserId: true, targetSponsorId: true,
-        status: true, message: true, createdAt: true,
+        status: true, priority: true, message: true, createdAt: true,
         requester: { select: { sponsorId: true, name: true, company: true, solutionsOffering: true, solutionsSeeking: true } },
+        targetUser: { select: { name: true, company: true, solutionsOffering: true, solutionsSeeking: true } },
       },
     }),
   ])
@@ -1390,24 +1432,41 @@ async function computeAutoMatches(prisma: Db, confId: string): Promise<AutoMatch
 
   // First live BEST_FIT pick per side of each pair. Rows arrive createdAt-asc,
   // so when e.g. two reps of one company pick the same attendee, the earliest
-  // pick represents the sponsor side.
+  // pick represents the sponsor side. Non-Best-Fit rows only contribute the
+  // strongest counterpart tier per side (for half-match cards).
   type Pick = (typeof requests)[number]
   const attendeePicks = new Map<string, Pick>() // attendee → sponsor
   const sponsorPicks = new Map<string, Pick>()  // rep → attendee
+  const attendeeTier = new Map<string, MeetingPriority>() // attendee side's Med/Low pick
+  const sponsorTier = new Map<string, MeetingPriority>()  // sponsor side's Med/Low pick
   for (const req of requests) {
     const parties = resolveParties(req as RequestLike)
     if (!parties || !sponsorById.has(parties.sponsorId)) continue
-    const side = req.targetSponsorId ? attendeePicks : sponsorPicks
+    const attendeeSide = !!req.targetSponsorId
     const key = `${parties.sponsorId}::${parties.userId}`
-    if (!side.has(key)) side.set(key, req)
+    if (req.priority === 'BEST_FIT') {
+      const side = attendeeSide ? attendeePicks : sponsorPicks
+      if (!side.has(key)) side.set(key, req)
+    } else {
+      const tiers = attendeeSide ? attendeeTier : sponsorTier
+      const p = normalizePriority(req.priority)
+      const cur = tiers.get(key)
+      if (!cur || priorityRank(p) < priorityRank(cur)) tiers.set(key, p)
+    }
   }
-  const keys = [...attendeePicks.keys()].filter(k => sponsorPicks.has(k))
-  if (keys.length === 0) return []
+  const matchedKeys = [...attendeePicks.keys()].filter(k => sponsorPicks.has(k))
+  const matchedSet = new Set(matchedKeys)
+  const halfKeys = [...new Set([...attendeePicks.keys(), ...sponsorPicks.keys()])]
+    .filter(k => !matchedSet.has(k))
+  if (matchedKeys.length === 0 && halfKeys.length === 0) return { matches: [], halfMatches: [] }
 
-  // Confirmed meetings for the matched pairs — the same pair notion as the
-  // ALREADY_SCHEDULED guard in assignMeeting (conference-agnostic).
+  // Confirmed meetings for every involved pair — the same pair notion as the
+  // ALREADY_SCHEDULED guard in assignMeeting (conference-agnostic). Matches use
+  // it as their scheduled state; a half whose pair already meets needs no
+  // reciprocation and drops off the board.
+  const involvedUserIds = [...new Set([...matchedKeys, ...halfKeys].map(k => k.split('::')[1]))]
   const confirmed = await prisma.sponsorMeeting.findMany({
-    where: { status: 'CONFIRMED', userId: { in: [...new Set(keys.map(k => k.split('::')[1]))] } },
+    where: { status: 'CONFIRMED', userId: { in: involvedUserIds } },
     select: {
       id: true, sponsorId: true, userId: true, timeBlockId: true, location: true,
       timeBlock: { select: { startsAt: true, endsAt: true } },
@@ -1415,7 +1474,7 @@ async function computeAutoMatches(prisma: Db, confId: string): Promise<AutoMatch
   })
   const meetingByPair = new Map(confirmed.map(m => [`${m.sponsorId}::${m.userId}`, m]))
 
-  const matches: AutoMatch[] = keys.map(key => {
+  const matches: AutoMatch[] = matchedKeys.map(key => {
     const aPick = attendeePicks.get(key)!
     const sPick = sponsorPicks.get(key)!
     const sponsor = sponsorById.get(aPick.targetSponsorId!)!
@@ -1452,7 +1511,37 @@ async function computeAutoMatches(prisma: Db, confId: string): Promise<AutoMatch
     if (!a.meeting) return b.score - a.score || a.matchedAt.localeCompare(b.matchedAt)
     return a.meeting.startsAt.localeCompare(b.meeting!.startsAt)
   })
-  return matches
+
+  const halfMatches: AutoMatchHalf[] = []
+  for (const key of halfKeys) {
+    if (meetingByPair.has(key)) continue // the pair already meets — nothing to reciprocate
+    const pickedBy = attendeePicks.has(key) ? ('ATTENDEE' as const) : ('SPONSOR' as const)
+    const req = (attendeePicks.get(key) ?? sponsorPicks.get(key))!
+    const sponsor = sponsorById.get(key.split('::')[0])!
+    // The candidate (the attendee being met) is the requester on an
+    // attendee-side pick and the target on a sponsor-side pick.
+    const cand = pickedBy === 'ATTENDEE' ? req.requester : req.targetUser
+    const { score } = scoreSolutionsMatch(
+      parseSolutions(sponsor.solutionsSeeking), parseSolutions(sponsor.solutionsOffering),
+      parseSolutions(cand?.solutionsOffering), parseSolutions(cand?.solutionsSeeking),
+    )
+    halfMatches.push({
+      key,
+      sponsor: { id: sponsor.id, name: sponsor.name, logoUrl: sponsor.logoUrl, tier: sponsor.tier },
+      attendee: { id: key.split('::')[1], name: cand?.name ?? 'Unknown', company: cand?.company ?? null },
+      pickedBy,
+      pick: {
+        requestId: req.id, status: req.status, message: req.message,
+        byName: req.requester?.name ?? (pickedBy === 'SPONSOR' ? sponsor.name : 'Unknown'),
+        pickedAt: req.createdAt.toISOString(),
+      },
+      counterpartPriority: (pickedBy === 'ATTENDEE' ? sponsorTier : attendeeTier).get(key) ?? null,
+      score,
+    })
+  }
+  halfMatches.sort((a, b) => b.score - a.score || a.pick.pickedAt.localeCompare(b.pick.pickedAt))
+
+  return { matches, halfMatches }
 }
 
 export async function getAutoMatchLog(prisma: Db, limit = 50): Promise<AutoMatchLogEntry[]> {
@@ -1475,12 +1564,22 @@ export async function getAutoMatchLog(prisma: Db, limit = 50): Promise<AutoMatch
 
 export async function getAutoMatchBoard(prisma: Db, conferenceId?: string): Promise<AutoMatchBoard> {
   const confId = await resolveConferenceId(prisma, conferenceId)
-  const [matches, log] = await Promise.all([
+  const [{ matches, halfMatches }, log] = await Promise.all([
     computeAutoMatches(prisma, confId),
     getAutoMatchLog(prisma),
   ])
   const scheduled = matches.filter(m => m.meeting).length
-  return { matches, totals: { matches: matches.length, ready: matches.length - scheduled, scheduled }, log }
+  return {
+    matches,
+    halfMatches,
+    totals: {
+      matches: matches.length,
+      ready: matches.length - scheduled,
+      scheduled,
+      awaitingReciprocation: halfMatches.length,
+    },
+    log,
+  }
 }
 
 // One schedulable request per ready match — the sponsor-side request when it is
@@ -1505,7 +1604,7 @@ export async function scheduleAutoMatches(
   prisma: Db, input: { conferenceId?: string; dryRun?: boolean } = {},
 ): Promise<AutoMatchScheduleResult> {
   const confId = await resolveConferenceId(prisma, input.conferenceId)
-  const requestIds = readyRequestIds(await computeAutoMatches(prisma, confId))
+  const requestIds = readyRequestIds((await computeAutoMatches(prisma, confId)).matches)
   if (requestIds.length === 0) {
     return {
       dryRun: !!input.dryRun, scheduled: [], skipped: [],
@@ -1529,7 +1628,7 @@ export interface AutoMatchSyncResult {
 }
 export async function syncAutoMatches(prisma: Db, conferenceId?: string): Promise<AutoMatchSyncResult> {
   const confId = await resolveConferenceId(prisma, conferenceId)
-  const matches = await computeAutoMatches(prisma, confId)
+  const { matches } = await computeAutoMatches(prisma, confId)
   if (matches.length === 0) return { scheduled: [], matchedLogged: 0, scheduledLogged: 0 }
 
   const requestIds = readyRequestIds(matches)

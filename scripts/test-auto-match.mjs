@@ -20,9 +20,16 @@
 // rescheduleAutoMatchMeeting (guarded move + RESCHEDULED event) and
 // cancelAutoMatchMeeting (cancel + both-direction pick withdrawal + CANCELLED
 // event, sweep does not resurrect, fresh mutual picks re-match with fresh log
-// entries via the cancellation-aware dedup). The event log is GLOBAL (not
-// conference-scoped), so board.log assertions always filter to fixture pairs —
-// never global length/order. Deletes every fixture row in finally.
+// entries via the cancellation-aware dedup). Also the scheduling lanes: half
+// matches (one-sided Best Fit picks awaiting reciprocation on the board, with
+// pickedBy / counterpartPriority / totals.awaitingReciprocation), the
+// autoLaneRequestWhere / requestBoardWhere fragments partitioning every
+// sponsor↔attendee BEST_FIT row (any status) away from the requests board
+// while MED/LOW and peer-to-peer rows stay, and autoScheduleByPriority's
+// priorities input keeping the MED/LOW bulk scheduler out of the Auto lane.
+// The event log is GLOBAL (not conference-scoped), so board.log assertions
+// always filter to fixture pairs — never global length/order. Deletes every
+// fixture row in finally.
 //
 //   node scripts/test-auto-match.mjs
 //
@@ -150,10 +157,10 @@ async function main() {
   const rRep1U1 = await mkReq('rep1-u1', { requesterId: rep1.id, targetUserId: u1.id, priority: 'BEST_FIT', status: 'PENDING', message: 'am-test rep note', createdAt: T_REP1_PICK })
   const rU1A = await mkReq('u1-a', { requesterId: u1.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', message: 'am-test buyer note', createdAt: T_U1_PICK })
   const rU2A = await mkReq('u2-a', { requesterId: u2.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-02T09:00:00Z') })
-  await mkReq('u3-a', { requesterId: u3.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-02T10:00:00Z') })
-  await mkReq('rep1-u3', { requesterId: rep1.id, targetUserId: u3.id, priority: 'MED', status: 'PENDING', createdAt: new Date('2026-01-02T10:30:00Z') })
-  await mkReq('u4-a', { requesterId: u4.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-02T11:00:00Z') })
-  await mkReq('rep1-u4', { requesterId: rep1.id, targetUserId: u4.id, priority: 'BEST_FIT', status: 'REJECTED', createdAt: new Date('2026-01-02T11:30:00Z') })
+  const rU3A = await mkReq('u3-a', { requesterId: u3.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-02T10:00:00Z') })
+  const rRep1U3 = await mkReq('rep1-u3', { requesterId: rep1.id, targetUserId: u3.id, priority: 'MED', status: 'PENDING', createdAt: new Date('2026-01-02T10:30:00Z') })
+  const rU4A = await mkReq('u4-a', { requesterId: u4.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-02T11:00:00Z') })
+  const rRep1U4 = await mkReq('rep1-u4', { requesterId: rep1.id, targetUserId: u4.id, priority: 'BEST_FIT', status: 'REJECTED', createdAt: new Date('2026-01-02T11:30:00Z') })
   const rU2B = await mkReq('u2-b', { requesterId: u2.id, targetSponsorId: spB.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-03T09:00:00Z') })
   const rRepBU2 = await mkReq('repb-u2', { requesterId: repB.id, targetUserId: u2.id, priority: 'BEST_FIT', status: 'APPROVED', createdAt: new Date('2026-01-03T10:00:00Z') })
   console.log(`  created conference ${confId} (3 sponsors, 7 users, 2 blocks, 1 pre-booked meeting, 10 requests)`)
@@ -167,8 +174,9 @@ async function main() {
   check('one-directional (A,u2) is not a match', !keysOf(board).includes(key(spA.id, u2.id)))
   check('mutual-but-MED (A,u3) is not a match', !keysOf(board).includes(key(spA.id, u3.id)))
   check('mutual-but-REJECTED (A,u4) is not a match', !keysOf(board).includes(key(spA.id, u4.id)))
-  check('totals: matches=2, ready=2, scheduled=0',
-    board.totals.matches === 2 && board.totals.ready === 2 && board.totals.scheduled === 0, JSON.stringify(board.totals))
+  check('totals: matches=2, ready=2, scheduled=0, awaitingReciprocation=3',
+    board.totals.matches === 2 && board.totals.ready === 2 && board.totals.scheduled === 0 &&
+    board.totals.awaitingReciprocation === 3, JSON.stringify(board.totals))
   // The event log is global, so only its shape — and the ABSENCE of fixture
   // entries before any sweep — can be asserted here.
   const ourLog = b => (b.log ?? []).filter(e => e.sponsorId?.startsWith(PREFIX) || e.userId?.startsWith(PREFIX))
@@ -199,6 +207,115 @@ async function main() {
     mB.attendeePick.requestId === rU2B.id && mB.score === 0)
   check('ready ordering: best score first — (A,u1) before (B,u2)',
     board.matches[0]?.key === key(spA.id, u1.id) && board.matches[1]?.key === key(spB.id, u2.id))
+
+  // ── Half matches — one-sided picks awaiting reciprocation ────────────────
+  // The initial fixture world already holds three: (A,u2) attendee pick only,
+  // (A,u3) attendee BEST_FIT + rep MED, (A,u4) attendee BEST_FIT + rep
+  // REJECTED (a dead pick is no counterpart).
+  console.log('\nHalf matches — awaiting reciprocation')
+  const halfKeysOf = b => b.halfMatches.map(h => h.key)
+  check('board carries halfMatches[] with exactly (A,u2), (A,u3), (A,u4)',
+    Array.isArray(board.halfMatches) && board.halfMatches.length === 3 &&
+    [key(spA.id, u2.id), key(spA.id, u3.id), key(spA.id, u4.id)].every(k => halfKeysOf(board).includes(k)),
+    `keys=${halfKeysOf(board).map(k => k.replaceAll(PREFIX, '')).join(' ')}`)
+  const hU2 = board.halfMatches.find(h => h.key === key(spA.id, u2.id))
+  check('(A,u2) one-sided attendee pick: pickedBy ATTENDEE, counterpartPriority null',
+    hU2?.pickedBy === 'ATTENDEE' && hU2?.counterpartPriority === null, JSON.stringify({ pickedBy: hU2?.pickedBy, cp: hU2?.counterpartPriority }))
+  check('(A,u2) carries sponsor + attendee identity and the pick metadata',
+    hU2?.sponsor.id === spA.id && hU2?.sponsor.tier === 'GOLD' && hU2?.attendee.id === u2.id &&
+    hU2?.pick.requestId === rU2A.id && hU2?.pick.status === 'PENDING' && hU2?.pick.byName === u2.name &&
+    hU2?.pick.pickedAt === new Date('2026-01-02T09:00:00Z').toISOString(),
+    JSON.stringify(hU2?.pick ?? null))
+  check('half matches never appear in matches — and mutual pairs never in halfMatches',
+    !keysOf(board).includes(key(spA.id, u2.id)) &&
+    !halfKeysOf(board).includes(key(spA.id, u1.id)) && !halfKeysOf(board).includes(key(spB.id, u2.id)))
+  check('(A,u3) counterpartPriority = MED — the rep side holds a live MED pick',
+    board.halfMatches.find(h => h.key === key(spA.id, u3.id))?.counterpartPriority === 'MED')
+  check('(A,u4) counterpartPriority = null — the REJECTED rep pick is not live',
+    board.halfMatches.find(h => h.key === key(spA.id, u4.id))?.counterpartPriority === null)
+  check('totals.awaitingReciprocation counts the half matches',
+    board.totals.awaitingReciprocation === 3 && board.halfMatches.length === 3, JSON.stringify(board.totals))
+
+  // More lane shapes: a rep-side one-sided pick (A,u7); a MED counterpart
+  // landing on (A,u2); a pick whose pair ALREADY meets (u2 is pre-booked with
+  // C); a peer-to-peer BEST_FIT (no sponsor on either end → no Auto lane);
+  // and a LOW row for the lane / tier-scoping checks below.
+  const u7 = await mkUser('u7', 'am-test Ubu Buyer')
+  const rRep1U7 = await mkReq('rep1-u7', { requesterId: rep1.id, targetUserId: u7.id, priority: 'BEST_FIT', status: 'PENDING', message: 'am-test rep half note', createdAt: new Date('2026-01-03T11:00:00Z') })
+  const rRep2U2Med = await mkReq('rep2-u2-med', { requesterId: rep2.id, targetUserId: u2.id, priority: 'MED', status: 'PENDING', createdAt: new Date('2026-01-03T12:00:00Z') })
+  const rU2C = await mkReq('u2-c', { requesterId: u2.id, targetSponsorId: spC.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-03T13:00:00Z') })
+  const rPeer = await mkReq('u3-u4-peer', { requesterId: u3.id, targetUserId: u4.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-03T14:00:00Z') })
+  const rU3BLow = await mkReq('u3-b-low', { requesterId: u3.id, targetSponsorId: spB.id, priority: 'LOW', status: 'PENDING', createdAt: new Date('2026-01-03T15:00:00Z') })
+  board = await E.getAutoMatchBoard(prisma, confId)
+  const hU7 = board.halfMatches.find(h => h.key === key(spA.id, u7.id))
+  check('one-sided rep pick (A,u7): pickedBy SPONSOR with the rep pick metadata',
+    hU7?.pickedBy === 'SPONSOR' && hU7?.pick.requestId === rRep1U7.id && hU7?.pick.byName === rep1.name &&
+    hU7?.pick.message === 'am-test rep half note' && hU7?.attendee.id === u7.id && hU7?.counterpartPriority === null,
+    JSON.stringify(hU7 ?? null))
+  check('(A,u2) now shows counterpartPriority MED (rep2 filed a MED at u2)',
+    board.halfMatches.find(h => h.key === key(spA.id, u2.id))?.counterpartPriority === 'MED')
+  check('(C,u2) pick is NOT a half match — the pair already has a CONFIRMED meeting',
+    !halfKeysOf(board).includes(key(spC.id, u2.id)))
+  check('peer-to-peer BEST_FIT (u3→u4) creates no half match and no match',
+    board.halfMatches.length === 4 && board.matches.length === 2,
+    `halves=${board.halfMatches.length} matches=${board.matches.length}`)
+  check('half ordering: equal scores fall back to oldest pick first (u2, u3, u4, u7)',
+    halfKeysOf(board).join(' ') === [key(spA.id, u2.id), key(spA.id, u3.id), key(spA.id, u4.id), key(spA.id, u7.id)].join(' '),
+    `keys=${halfKeysOf(board).map(k => k.replaceAll(PREFIX, '')).join(' ')}`)
+  check('totals.awaitingReciprocation = 4 after the rep-side half', board.totals.awaitingReciprocation === 4, JSON.stringify(board.totals))
+
+  // ── Scheduling lanes — the where fragments partition every request ───────
+  console.log('\nScheduling lanes — autoLaneRequestWhere / requestBoardWhere')
+  check("REQUEST_BOARD_PRIORITIES = ['MED','LOW']",
+    Array.isArray(E.REQUEST_BOARD_PRIORITIES) && E.REQUEST_BOARD_PRIORITIES.join(',') === 'MED,LOW',
+    JSON.stringify(E.REQUEST_BOARD_PRIORITIES))
+  const reqScope = { id: { startsWith: `${PREFIX}req-` } }
+  const [boardRows, autoRows, allRows] = await Promise.all([
+    prisma.meetingRequest.findMany({ where: { AND: [reqScope, E.requestBoardWhere] }, select: { id: true } }),
+    prisma.meetingRequest.findMany({ where: { AND: [reqScope, E.autoLaneRequestWhere] }, select: { id: true } }),
+    prisma.meetingRequest.findMany({ where: reqScope, select: { id: true } }),
+  ])
+  const boardIds = new Set(boardRows.map(r => r.id))
+  const autoIds = new Set(autoRows.map(r => r.id))
+  check('board lane excludes attendee→sponsor BEST_FIT rows (u1→A, u2→A, u3→A, u4→A)',
+    !boardIds.has(rU1A.id) && !boardIds.has(rU2A.id) && !boardIds.has(rU3A.id) && !boardIds.has(rU4A.id))
+  check('board lane excludes rep→attendee BEST_FIT rows, ANY status (rep1→u1 PENDING, rep1→u4 REJECTED)',
+    !boardIds.has(rRep1U1.id) && !boardIds.has(rRep1U4.id))
+  check('board lane includes the MED and LOW rows',
+    boardIds.has(rRep1U3.id) && boardIds.has(rRep2U2Med.id) && boardIds.has(rU3BLow.id))
+  check('board lane includes the peer-to-peer BEST_FIT row (no sponsor on either end)', boardIds.has(rPeer.id))
+  check('autoLaneRequestWhere selects exactly the complement (11 + 4 partition all 15 fixture requests)',
+    allRows.length === 15 && autoIds.size === 11 && boardIds.size === 4 &&
+    [...autoIds].every(id => !boardIds.has(id)) &&
+    autoIds.has(rU1A.id) && autoIds.has(rRep1U1.id) && autoIds.has(rU2A.id) && autoIds.has(rRep1U4.id) &&
+    autoIds.has(rRep1U7.id) && autoIds.has(rU2C.id) &&
+    !autoIds.has(rPeer.id) && !autoIds.has(rRep2U2Med.id) && !autoIds.has(rRep1U3.id) && !autoIds.has(rU3BLow.id),
+    `all=${allRows.length} auto=${autoIds.size} board=${boardIds.size}`)
+
+  // ── autoScheduleByPriority — the priorities input keeps Best Fit untouchable
+  console.log('\nautoScheduleByPriority — priorities scoping (dry run)')
+  const tierRun = await E.autoScheduleByPriority(prisma, {
+    conferenceId: confId, requestIds: allRows.map(r => r.id), priorities: ['MED', 'LOW'], dryRun: true,
+  })
+  const tierOf = t => tierRun.byTier.find(x => x.tier === t)
+  check('BEST_FIT tier: eligible=0, scheduled=0 — the Auto lane is out of reach',
+    tierOf('BEST_FIT')?.eligible === 0 && tierOf('BEST_FIT')?.scheduled === 0, JSON.stringify(tierRun.byTier))
+  check('no fixture BEST_FIT request is in the plan',
+    tierRun.scheduled.every(s => s.priority !== 'BEST_FIT') &&
+    ![rU1A.id, rRep1U1.id, rRep2U1.id, rU2A.id, rU2B.id, rRepBU2.id, rRep1U7.id, rU2C.id, rU3A.id, rU4A.id]
+      .some(id => tierRun.scheduled.some(s => s.requestId === id)))
+  check('MED and LOW still schedule: rep1→u3 (MED), rep2→u2 (MED), u3→B (LOW)',
+    tierRun.scheduled.length === 3 &&
+    tierRun.scheduled.some(s => s.requestId === rRep1U3.id) &&
+    tierRun.scheduled.some(s => s.requestId === rRep2U2Med.id) &&
+    tierRun.scheduled.some(s => s.requestId === rU3BLow.id),
+    `requestIds=${tierRun.scheduled.map(s => s.requestId.replaceAll(PREFIX, '')).join(' ')}`)
+  check('tier summaries: MED 2/2, LOW 1/1, totalEligible=3',
+    tierOf('MED')?.eligible === 2 && tierOf('MED')?.scheduled === 2 &&
+    tierOf('LOW')?.eligible === 1 && tierOf('LOW')?.scheduled === 1 && tierRun.totalEligible === 3,
+    JSON.stringify(tierRun.byTier))
+  const afterTierDry = await prisma.sponsorMeeting.count({ where: { userId: { startsWith: PREFIX } } })
+  check('tier dry run persisted nothing', tierRun.dryRun === true && afterTierDry === 1, `count=${afterTierDry}`)
 
   console.log('\nscheduleAutoMatches — dry run')
   const dry = await E.scheduleAutoMatches(prisma, { conferenceId: confId, dryRun: true })
@@ -240,8 +357,9 @@ async function main() {
 
   console.log('\nBoard after scheduling')
   board = await E.getAutoMatchBoard(prisma, confId)
-  check('totals: matches=2, ready=0, scheduled=2',
-    board.totals.matches === 2 && board.totals.ready === 0 && board.totals.scheduled === 2, JSON.stringify(board.totals))
+  check('totals: matches=2, ready=0, scheduled=2 — halves untouched (awaitingReciprocation=4)',
+    board.totals.matches === 2 && board.totals.ready === 0 && board.totals.scheduled === 2 &&
+    board.totals.awaitingReciprocation === 4, JSON.stringify(board.totals))
   const mA2 = board.matches.find(m => m.key === key(spA.id, u1.id))
   check('(A,u1) shows its meeting with room + ISO startsAt/endsAt',
     mA2?.meeting?.room === 'Table 1' && mA2.meeting.timeBlockId === tb1.id &&
@@ -393,6 +511,9 @@ async function main() {
   check('match GONE from the board (neither ready nor scheduled): matches=3, ready=1, scheduled=2',
     !board.matches.some(m => m.key === key(spA.id, u6.id)) &&
     board.totals.matches === 3 && board.totals.ready === 1 && board.totals.scheduled === 2, JSON.stringify(board.totals))
+  check('a cancelled pair (both picks withdrawn) is not a half match either',
+    !board.halfMatches.some(h => h.key === key(spA.id, u6.id)) && board.totals.awaitingReciprocation === 4,
+    JSON.stringify(board.totals))
 
   console.log('\nSweep does not resurrect a cancelled match')
   const syncAfterCancel = await E.syncAutoMatches(prisma, confId)

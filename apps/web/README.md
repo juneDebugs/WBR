@@ -143,8 +143,29 @@ Engine: `getAutoMatchBoard` / `syncAutoMatches` / `scheduleAutoMatches` /
 `PATCH /api/admin/scheduler/auto/meetings/[id]`, `POST
 /api/admin/scheduler/auto/meetings/[id]/cancel` (same `'meetings'` permission
 gate). UI: `components/AutoMatchBoard.tsx` (React Query, 30s poll). Demo data:
-`seed:auto-matches`. Tests: `test:auto-match` (engine), `test:auto-match:api`
-(HTTP), `e2e:auto-match` (Playwright).
+`seed:auto-matches`. Ops: `db:sweep-auto-matches` runs the idempotent sweep
+once from the CLI (backfill after seeding or direct DB writes). Tests:
+`test:auto-match` (engine), `test:auto-match:api` (HTTP), `e2e:auto-match`
+(Playwright).
+
+#### Scheduling lanes — Best Fit never sits in the review queue
+
+Every **sponsor↔attendee `BEST_FIT` request belongs to the Auto lane**, in
+either direction and any status: a mutual pair auto-schedules (above), and a
+**one-sided pick surfaces on the Auto board as "Awaiting Reciprocation"** (a
+half match — card shows who picked, the fit score, and the other side's
+current Med/Low pick when one exists) instead of appearing in the Meeting
+Requests review queue. The Requests board owns everything else: **Med and Low
+requests (full and half matches alike)** plus peer-to-peer attendee requests,
+which have no Auto lane. The rule is encoded once in the engine as Prisma
+where fragments — `autoLaneRequestWhere` / `requestBoardWhere` /
+`REQUEST_BOARD_PRIORITIES` — shared by `GET /api/data/meetings` (which also
+runs the self-healing sweep before every read, so a pair formed by seeds or
+direct DB writes schedules before the board renders), the bulk schedulers
+(`POST /api/auto-schedule` and `POST /api/schedule-meetings` are scoped to
+Med+Low so they never reach into the Auto lane), and
+`PATCH /api/meeting-requests/[id]`, whose Best Fit re-tier hands the request
+to the Auto lane and triggers the sweep immediately.
 
 ### Scheduled broadcasts (Chat page)
 

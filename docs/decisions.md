@@ -439,6 +439,31 @@ vanish, since `misc` only read REJECTED). Tests: `test:admin-scheduler`,
 
 ---
 
+## Scheduling lanes — the Auto lane owns every sponsor↔attendee Best Fit request (2026-07-28)
+
+The mutual-Best-Fit rule (both sides pick each other → the match auto-schedules
+onto the Auto tab and both schedules) left a hole: the admin Meeting Requests
+board queried `MeetingRequest` with no exclusion, so Best Fit picks — mutual
+pairs awaiting the next Auto-tab view, and one-sided picks with nowhere else to
+live — piled up in the "Needs Review" queue as if they wanted manual approval.
+Fixed by splitting scheduling into two lanes with one canonical rule in the
+engine (`autoLaneRequestWhere` / `requestBoardWhere` /
+`REQUEST_BOARD_PRIORITIES` in `packages/db/src/meeting-engine.ts`): every
+sponsor↔attendee `BEST_FIT` request is the Auto lane's — mutual pairs schedule
+automatically, one-sided picks show on the Auto board as **Awaiting
+Reciprocation** half-match cards (`AutoMatchBoard.halfMatches`, with the other
+side's live Med/Low pick surfaced when it exists) — while the Meeting Requests
+board owns Med/Low requests (full and half matches) plus peer-to-peer requests,
+which have no Auto lane. Enforcement is where-fragment reuse, not UI filtering:
+`GET /api/data/meetings` filters with `requestBoardWhere` and runs the
+idempotent `syncAutoMatches` sweep before every read (the same read-path
+dispatch pattern as the Auto board and scheduled broadcasts), the bulk
+schedulers are scoped to `REQUEST_BOARD_PRIORITIES` so "Auto-Schedule by
+Priority"/"All" can never reach into the Auto lane, and an admin Best Fit
+re-tier triggers the sweep in the PATCH route. A one-off CLI sweep
+(`db:sweep-auto-matches`) backfills environments seeded before the rule.
+Tests: `test:auto-match`, `test:auto-match:api`, `e2e:auto-match`.
+
 ## On-site Check-In portal — arrival timestamps on SponsorMeeting, admin-only tab (2026-07-28)
 
 The eTail operational ask "a screen that has all the meetings by time slot …

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { prisma, resolveParties, totalRoomCapacity } from '@conference/db'
+import { revalidateTag } from 'next/cache'
+import { prisma, resolveParties, syncAutoMatches, totalRoomCapacity } from '@conference/db'
 import { requireSchedulerAccess } from '@/lib/scheduler-api'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -98,6 +99,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
   }
 
+  // Re-tiering a request to Best Fit hands it to the Auto lane: run the
+  // auto-match sweep immediately so a pair this pick completes is scheduled
+  // right now, not on the next Auto board view.
+  if (priority === 'BEST_FIT') await syncAutoMatches(prisma).catch(() => {})
+  revalidateTag('meetings')
+
   return NextResponse.json(updated)
 }
 
@@ -120,5 +127,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   }
 
   await prisma.meetingRequest.delete({ where: { id: requestId } })
+  revalidateTag('meetings')
   return NextResponse.json({ ok: true })
 }

@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
-import type { AutoMatch, AutoMatchLogEntry, RescheduleAvailability } from '@conference/db'
+import type { AutoMatch, AutoMatchHalf, AutoMatchLogEntry, RescheduleAvailability } from '@conference/db'
 import { useAutoMatchBoard, invalidateScheduler } from '@/lib/scheduler-hooks'
 import { fmtRangeUTC, fmtTimeUTC } from '@/lib/format'
-import { TIER_COLORS, TIER_FALLBACK } from '@/lib/meetings-ui'
+import { PRIORITY_LABEL, TIER_COLORS, TIER_FALLBACK } from '@/lib/meetings-ui'
 
 const fmtPickDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -61,11 +61,12 @@ export function AutoMatchBoard() {
     <div>
       {/* ── Summary tiles ── */}
       <div className="flex items-end justify-between gap-4 flex-wrap mb-2">
-        <div className="grid grid-cols-3 gap-3 flex-1 max-w-xl">
+        <div className="grid grid-cols-4 gap-3 flex-1 max-w-2xl">
           {([
             { label: 'Mutual Matches', val: board.totals.matches, num: 'text-ink' },
             { label: 'Auto-Scheduled', val: board.totals.scheduled, num: 'text-success-ink' },
             { label: 'Awaiting Slot', val: board.totals.ready, num: board.totals.ready > 0 ? 'text-warning-ink' : 'text-ink' },
+            { label: 'Awaiting Reciprocation', val: board.totals.awaitingReciprocation, num: 'text-ink' },
           ] as const).map(({ label, val, num }) => (
             <div key={label} className="bg-white border border-hairline rounded-xl px-4 py-3">
               <p className="text-caption text-ink-2 font-medium mb-1.5">{label}</p>
@@ -76,12 +77,13 @@ export function AutoMatchBoard() {
       </div>
       <p className="text-caption text-ink-3 mb-5">
         When a sponsor and an attendee each pick the other as Best Fit, the meeting is scheduled automatically.
+        One-sided Best Fit picks wait here until the other side reciprocates.
       </p>
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr),320px] lg:gap-6 space-y-6 lg:space-y-0">
         {/* ── Matches, sectioned by company ── */}
         <div>
-          {companies.length === 0 ? (
+          {companies.length === 0 && board.halfMatches.length === 0 ? (
             <div className="empty-state bg-white border border-hairline rounded-xl">
               <p className="font-medium text-ink">No mutual matches yet</p>
               <p className="text-sm text-ink-2 max-w-md">
@@ -92,12 +94,31 @@ export function AutoMatchBoard() {
                 View all meeting requests {'→'}
               </Link>
             </div>
+          ) : companies.length === 0 ? (
+            <p className="text-sm text-ink-3">
+              No mutual matches yet — a match forms, and its meeting is scheduled automatically, the moment
+              a sponsor and an attendee each pick the other as Best Fit through their portals.
+            </p>
           ) : (
             <div className="space-y-6">
               {companies.map(({ sponsor, matches }) => (
                 <CompanySection key={sponsor.id} sponsor={sponsor} matches={matches} />
               ))}
             </div>
+          )}
+
+          {/* ── Half matches: one side picked Best Fit, the other hasn't yet ── */}
+          {board.halfMatches.length > 0 && (
+            <section aria-label="Best Fit picks awaiting reciprocation" className="mt-6">
+              <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest mb-2">
+                Awaiting Reciprocation {'·'} {board.halfMatches.length}
+              </p>
+              <div className="space-y-2">
+                {board.halfMatches.map(half => (
+                  <HalfMatchCard key={half.key} half={half} />
+                ))}
+              </div>
+            </section>
           )}
         </div>
 
@@ -258,6 +279,63 @@ function MatchCard({ match }: { match: AutoMatch }) {
             <span className="mx-1">{'·'}</span>
             {match.matchedSolutions.slice(0, 3).join(', ')}
             {match.matchedSolutions.length > 3 && ` +${match.matchedSolutions.length - 3}`}
+          </>
+        )}
+      </p>
+    </div>
+  )
+}
+
+// A one-sided Best Fit pick: one side has picked, the other hasn't yet. Every
+// sponsor↔attendee Best Fit pick lives on this board — mutual pairs schedule
+// automatically above; these wait for the other side to reciprocate. No
+// actions: the card resolves organically when the counterpart picks.
+function HalfMatchCard({ half }: { half: AutoMatchHalf }) {
+  const waitingOn = half.pickedBy === 'ATTENDEE' ? half.sponsor.name : half.attendee.name
+  return (
+    <div className="bg-white border border-hairline rounded-xl px-4 py-3">
+      <div className="flex items-center gap-4 flex-wrap">
+        {/* Sponsor */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-48">
+          {half.sponsor.logoUrl ? (
+            <div className="w-7 h-7 rounded-lg border border-hairline bg-white flex items-center justify-center overflow-hidden flex-shrink-0 p-0.5">
+              <Image src={half.sponsor.logoUrl} alt="" width={28} height={28} className="w-full h-full object-contain" />
+            </div>
+          ) : (
+            <div className="w-7 h-7 rounded-lg bg-fill flex items-center justify-center text-ink-2 font-bold text-xs flex-shrink-0">
+              {initial(half.sponsor.name)}
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="font-semibold text-ink leading-tight truncate">{half.sponsor.name}</p>
+            <span className={`badge text-caption flex-shrink-0 ${TIER_COLORS[half.sponsor.tier] ?? TIER_FALLBACK}`}>
+              {half.sponsor.tier}
+            </span>
+          </div>
+        </div>
+
+        {/* Attendee */}
+        <div className="min-w-0 flex-1 basis-48">
+          <p className="font-semibold text-ink leading-tight truncate">{half.attendee.name}</p>
+          {half.attendee.company && <p className="text-xs text-ink-2 truncate">{half.attendee.company}</p>}
+        </div>
+
+        {/* One-directional signal */}
+        <div className="flex flex-col items-center gap-1 flex-shrink-0 ml-auto">
+          <span className="badge badge-neutral whitespace-nowrap">{'→'} Best Fit {'·'} one side</span>
+          {half.score > 0 && <span className="text-caption text-ink-3 tabular-nums">{half.score}% fit</span>}
+        </div>
+      </div>
+
+      {/* Pick provenance + what's awaited */}
+      <p className="text-caption text-ink-3 mt-2">
+        {half.pick.byName} picked Best Fit {fmtPickDate(half.pick.pickedAt)}
+        <span className="mx-1">{'·'}</span>
+        waiting on {waitingOn}
+        {half.counterpartPriority && (
+          <>
+            <span className="mx-1">{'·'}</span>
+            other side picked {PRIORITY_LABEL[half.counterpartPriority]}
           </>
         )}
       </p>
@@ -493,8 +571,8 @@ function CancelDialog({ match, meeting, onClose, onDone, onError }: {
 function BoardSkeleton() {
   return (
     <div>
-      <div className="grid grid-cols-3 gap-3 max-w-xl mb-6">
-        {[...Array(3)].map((_, i) => (
+      <div className="grid grid-cols-4 gap-3 max-w-2xl mb-6">
+        {[...Array(4)].map((_, i) => (
           <div key={i} className="bg-white border border-hairline rounded-xl px-4 py-3">
             <div className="skeleton h-3 w-20 mb-2" />
             <div className="skeleton h-8 w-10" />

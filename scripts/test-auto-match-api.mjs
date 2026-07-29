@@ -13,6 +13,13 @@
 // picked from the shared availability endpoint (RESCHEDULED event), and
 // POST /auto/meetings/{id}/cancel dissolves the match (meeting CANCELLED, both
 // picks withdrawn, CANCELLED event, sweep does not resurrect, re-cancel 400s).
+// Then the scheduling lanes: GET /api/data/meetings never returns an
+// Auto-lane row (sponsor↔attendee BEST_FIT, any status) while MED rows stay;
+// GET /auto carries halfMatches[] + totals.awaitingReciprocation with the
+// fixture one-sided pick on it; and PATCH /api/meeting-requests/{id} re-tiering
+// the MED counterpart to BEST_FIT completes the pair — the route's inline
+// sweep matches AND schedules it (fixtures live in the ACTIVE conference), and
+// the promoted row leaves the requests board.
 // The route always reads the ACTIVE conference, so fixtures (a throwaway
 // sponsor + rep + attendee + far-future time block + the mutual BEST_FIT
 // request pair, ids prefixed 'am-test-api-') are created in it and removed via
@@ -232,6 +239,62 @@ async function main() {
   const reCancelRes = await staff(`${MEETING_API}/cancel`, jsonReq('POST', { reason: 'api-test again' }))
   const reCancel = await reCancelRes.json().catch(() => ({}))
   check('POST cancel again → 400 BAD_STATUS', reCancelRes.status === 400 && reCancel.code === 'BAD_STATUS', `status ${reCancelRes.status} code ${reCancel.code}`)
+
+  // ── Scheduling lanes + half matches ──────────────────────────────────────
+  // A second throwaway attendee forms a one-sided pair with the fixture
+  // sponsor: her BEST_FIT pick belongs to the Auto lane and must NEVER surface
+  // on the requests board, while the rep's MED interest in her stays there.
+  console.log('\n[scheduling lanes: /api/data/meetings hides the Auto lane]')
+  const att2 = await prisma.user.create({ data: { id: fid('user2'), email: `${PREFIX}u2-${stamp}@example.com`, name: 'am-test-api Buyer Two', role: 'ATTENDEE' } })
+  const halfReq = await prisma.meetingRequest.create({ data: { id: fid('req-half'), requesterId: att2.id, targetSponsorId: sponsor.id, priority: 'BEST_FIT', status: 'PENDING' } })
+  const medReq = await prisma.meetingRequest.create({ data: { id: fid('req-med'), requesterId: rep.id, targetUserId: att2.id, priority: 'MED', status: 'PENDING' } })
+  // The meetings payload is cached under the 'meetings' tag; a no-op re-tier
+  // PATCH (MED → MED) revalidates it so the fresh Prisma fixtures are visible.
+  const bust = await staff(`${BASE}/api/meeting-requests/${medReq.id}`, jsonReq('PATCH', { priority: 'MED' }))
+  check('cache-busting PATCH {priority: MED} → 200', bust.status === 200, `got ${bust.status}`)
+  const dataRes = await staff(`${BASE}/api/data/meetings`)
+  const data = await dataRes.json().catch(() => null)
+  check('GET /api/data/meetings → 200 with allMeetingRequests[]',
+    dataRes.status === 200 && Array.isArray(data?.allMeetingRequests), `status ${dataRes.status}`)
+  const boardReqIds = new Set((data?.allMeetingRequests ?? []).map(r => r.id))
+  check('the one-sided BEST_FIT pick is ABSENT from the requests board', !boardReqIds.has(halfReq.id))
+  check('the rep MED request IS on the requests board', boardReqIds.has(medReq.id))
+  check('the cancelled mutual-pair BEST_FIT rows are absent too (lane rule is status-agnostic)',
+    !boardReqIds.has(attReq.id) && !boardReqIds.has(repReq.id))
+
+  console.log('\n[half matches on GET /auto]')
+  const HKEY = `${sponsor.id}::${att2.id}`
+  const hb = await (await staff(API)).json().catch(() => null)
+  check('board carries halfMatches[] and a numeric totals.awaitingReciprocation',
+    Array.isArray(hb?.halfMatches) && typeof hb?.totals?.awaitingReciprocation === 'number',
+    JSON.stringify(hb?.totals ?? null))
+  const half = hb?.halfMatches?.find(h => h.key === HKEY)
+  check('the one-sided pick shows as a half match (pickedBy ATTENDEE, counterpart MED)',
+    half?.pickedBy === 'ATTENDEE' && half?.pick?.requestId === halfReq.id && half?.counterpartPriority === 'MED',
+    JSON.stringify(half ?? null))
+  check('half pair is not in matches; awaitingReciprocation counts it (≥ 1)',
+    !hb?.matches?.some(m => m.key === HKEY) && (hb?.totals?.awaitingReciprocation ?? 0) >= 1)
+
+  console.log('\n[PATCH → BEST_FIT completes the pair]')
+  const promote = await staff(`${BASE}/api/meeting-requests/${medReq.id}`, jsonReq('PATCH', { priority: 'BEST_FIT' }))
+  const promoted = await promote.json().catch(() => null)
+  check('PATCH {priority: BEST_FIT} → 200 with the re-tiered request',
+    promote.status === 200 && promoted?.priority === 'BEST_FIT', `status ${promote.status}`)
+  const after = await (await staff(API)).json().catch(() => null)
+  const nowMatch = after?.matches?.find(m => m.key === HKEY)
+  check('pair is now a mutual match (and gone from halfMatches)',
+    !!nowMatch && !after?.halfMatches?.some(h => h.key === HKEY))
+  check('both picks carried: sponsorPick = the promoted request, attendeePick = the original pick',
+    nowMatch?.sponsorPick?.requestId === medReq.id && nowMatch?.attendeePick?.requestId === halfReq.id)
+  // Fixtures live in the ACTIVE conference (the one the sweep schedules), so
+  // scheduled-ness is asserted here, not just match-visibility.
+  check('the PATCH route\'s inline sweep already scheduled it (meeting non-null with a room)',
+    typeof nowMatch?.meeting?.sponsorMeetingId === 'string' && typeof nowMatch?.meeting?.room === 'string',
+    JSON.stringify(nowMatch?.meeting ?? null))
+  const dataAfter = await (await staff(`${BASE}/api/data/meetings`)).json().catch(() => null)
+  const afterIds = new Set((dataAfter?.allMeetingRequests ?? []).map(r => r.id))
+  check('the promoted request left the requests board (Auto lane now, any status)',
+    !afterIds.has(medReq.id) && !afterIds.has(halfReq.id))
 }
 
 main()
