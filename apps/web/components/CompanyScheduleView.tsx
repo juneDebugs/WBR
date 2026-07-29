@@ -13,9 +13,6 @@ import { CompanyAutoScheduleButton } from '@/components/CompanyAutoScheduleButto
 import { fmtRangeUTC } from '@/lib/format'
 import { TIER_COLORS, TIER_FALLBACK, PRIORITY_LABEL, PRIORITY_BADGE, FILL_TARGET, REQUIRED_MEETINGS_PER_PERSON, meterClass } from '@/lib/meetings-ui'
 
-function interestBadge(level: string) {
-  return level === 'High' ? 'badge badge-success' : level === 'Medium' ? 'badge badge-warning' : 'badge badge-neutral'
-}
 function initial(name: string | null | undefined) {
   return (name?.trim()[0] ?? '?').toUpperCase()
 }
@@ -201,7 +198,6 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
               <BankCard
                 key={b.requestId}
                 item={b}
-                sponsorName={matrix.sponsor.name}
                 selected={selectedId === b.requestId}
                 onToggle={() => setSelectedId(cur => (cur === b.requestId ? null : b.requestId))}
                 onDeselect={() => setSelectedId(cur => (cur === b.requestId ? null : cur))}
@@ -470,7 +466,65 @@ function BackLink() {
 }
 
 function GroupEmpty() {
-  return <p className="px-4 py-2.5 text-xs text-ink-3">None</p>
+  return <p className="py-1 text-xs text-ink-3">None</p>
+}
+
+// ── Tile building blocks (inspiration: header + inset fact panel) ────────────
+// One fact per row: [icon] label ……… value. Values are badges or semibold text.
+function PanelRow({ icon, label, children }: {
+  icon: React.ReactNode
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 min-h-[30px]">
+      <span className="flex items-center gap-1.5 text-xs text-ink-2 flex-shrink-0">
+        <span className="text-ink-3 flex-shrink-0" aria-hidden="true">{icon}</span>
+        {label}
+      </span>
+      <span className="min-w-0 flex items-center justify-end text-right">{children}</span>
+    </div>
+  )
+}
+
+const rowIcon = { width: 13, height: 13, viewBox: '0 0 20 20', fill: 'none', 'aria-hidden': true } as const
+function ClockIcon() {
+  return (
+    <svg {...rowIcon}>
+      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 6.5V10l2.4 1.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+function FlagIcon() {
+  return (
+    <svg {...rowIcon}>
+      <path d="M5.5 17V3.5M5.5 4h8.7l-2.2 3.25 2.2 3.25H5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+function RankIcon() {
+  return (
+    <svg {...rowIcon}>
+      <path d="M4.5 16.5v-6M10 16.5v-13M15.5 16.5v-9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+function CalendarIcon() {
+  return (
+    <svg {...rowIcon}>
+      <rect x="3.5" y="5" width="13" height="11.5" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M3.5 8.5h13M7 3.5v3M13 3.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+function PinIcon() {
+  return (
+    <svg {...rowIcon}>
+      <path d="M10 17.5s-5.5-4.6-5.5-8.6a5.5 5.5 0 1111 0c0 4-5.5 8.6-5.5 8.6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx="10" cy="8.7" r="1.8" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  )
 }
 
 // ── Collapsible sidebar group ────────────────────────────────────────────────
@@ -493,7 +547,7 @@ function DisclosureGroup({ title, count, defaultOpen = false, children }: {
         {title}
         <span className="font-normal text-ink-3 normal-case">· {count}</span>
       </button>
-      {open && <div className="pb-1">{children}</div>}
+      {open && <div className="px-3 pb-3 space-y-2.5">{children}</div>}
     </div>
   )
 }
@@ -505,19 +559,21 @@ function InboundCard({ item, busy, onDecide }: {
   onDecide: (requestId: string, status: 'APPROVED' | 'REJECTED') => void
 }) {
   return (
-    <div className="px-4 py-2.5 border-t border-hairline first:border-t-0">
+    <div className="rounded-2xl border border-hairline bg-white p-3">
       <div className="flex items-center gap-2.5">
         <Avatar name={item.name} image={item.image} />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-ink truncate">{item.name}</p>
+          <p className="text-sm font-semibold text-ink truncate">{item.name}</p>
           {item.company && <p className="text-xs text-ink-2 truncate">{item.company}</p>}
         </div>
       </div>
-      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-        <span className={PRIORITY_BADGE[item.priority]}>{PRIORITY_LABEL[item.priority]}</span>
-        <span className={interestBadge(item.interest)}>{item.interest} interest</span>
+      {item.message && <p className="mt-1.5 text-xs text-ink-2 truncate">{item.message}</p>}
+      <div className="mt-2.5 rounded-xl bg-fill py-1">
+        <PanelRow icon={<FlagIcon />} label="Priority">
+          <span className={PRIORITY_BADGE[item.priority]}>{PRIORITY_LABEL[item.priority]}</span>
+        </PanelRow>
       </div>
-      <div className="flex items-center gap-1.5 mt-2">
+      <div className="flex items-center gap-1.5 mt-2.5">
         <button
           type="button"
           onClick={() => onDecide(item.requestId, 'APPROVED')}
@@ -539,103 +595,57 @@ function InboundCard({ item, busy, onDecide }: {
   )
 }
 
-// ── Unscheduled (APPROVED bank) card with HUD popover ────────────────────────
-function BankCard({ item, sponsorName, selected, onToggle, onDeselect, onAssign }: {
+// ── Unscheduled (APPROVED bank) card ─────────────────────────────────────────
+// The old hover HUD's rows now live in the tile's fact panel, so the popover
+// is gone; clicking the card body still toggles the grid-assign selection.
+function BankCard({ item, selected, onToggle, onDeselect, onAssign }: {
   item: BankItem
-  sponsorName: string
   selected: boolean
   onToggle: () => void
   onDeselect: () => void
   onAssign: () => void
 }) {
-  const [hud, setHud] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  function scheduleHud() {
-    timer.current = setTimeout(() => setHud(true), 300)
-  }
-  function clearHud() {
-    if (timer.current) clearTimeout(timer.current)
-    setHud(false)
-  }
-
   return (
     <div
-      className="relative border-t border-hairline first:border-t-0"
-      onMouseEnter={scheduleHud}
-      onMouseLeave={clearHud}
+      className={`rounded-2xl border bg-white p-3 transition-colors ${
+        selected ? 'border-brand-400 bg-brand-50' : 'border-hairline'
+      }`}
     >
-      <div className="flex items-start gap-2 px-4 py-2.5">
-        <button
-          type="button"
-          onClick={onToggle}
-          onFocus={() => setHud(true)}
-          onBlur={() => setHud(false)}
-          onKeyDown={e => {
-            if (e.key === 'Escape') {
-              setHud(false)
-              onDeselect()
-            }
-          }}
-          aria-pressed={selected}
-          aria-label={`Select ${item.name} for scheduling`}
-          className={`min-w-0 flex-1 min-h-[44px] text-left rounded-xl px-2 py-1.5 -mx-2 transition-colors ${
-            selected ? 'bg-brand-50' : 'hover:bg-fill'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span className="rank-chip flex-shrink-0">{item.rank}/{item.total}</span>
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-ink truncate">
-                {item.name}
-                {selected && <span className="ml-1.5 text-caption font-semibold text-brand-700">Selected</span>}
-              </span>
-              {item.company && <span className="block text-xs text-ink-2 truncate">{item.company}</span>}
-            </span>
+      <button
+        type="button"
+        onClick={onToggle}
+        onKeyDown={e => {
+          if (e.key === 'Escape') onDeselect()
+        }}
+        aria-pressed={selected}
+        aria-label={`Select ${item.name} for scheduling`}
+        className="block w-full text-left"
+      >
+        <div className="flex items-center gap-2.5">
+          <Avatar name={item.name} image={item.image} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-ink truncate">
+              {item.name}
+              {selected && <span className="ml-1.5 text-caption font-semibold text-brand-700">Selected</span>}
+            </p>
+            {item.company && <p className="text-xs text-ink-2 truncate">{item.company}</p>}
           </div>
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <span className={interestBadge(item.interest)}>{item.interest}</span>
-            <span className={PRIORITY_BADGE[item.priority]}>{PRIORITY_LABEL[item.priority]}</span>
-            <span className="text-caption text-ink-2 tabular-nums">{item.confirmedCount} mtg{item.confirmedCount === 1 ? '' : 's'}</span>
-          </div>
-        </button>
-        <button type="button" onClick={onAssign} className="btn-secondary btn-sm flex-shrink-0 mt-1">
-          Assign…
-        </button>
-      </div>
-
-      {/* Non-modal detail HUD — structured content, never the only home of an action */}
-      {hud && (
-        <div
-          role="group"
-          aria-label={`Details for ${item.name}`}
-          className="popover-card absolute left-4 top-full -mt-1 z-40"
-        >
-          <p className="text-sm font-semibold text-ink">{item.name}</p>
-          <dl className="mt-2 space-y-1 text-xs">
-            <div className="flex justify-between gap-3">
-              <dt className="text-ink-2">Rank</dt>
-              <dd className="text-ink tabular-nums">{item.rank} of {item.total}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-ink-2">Interest</dt>
-              <dd><span className={interestBadge(item.interest)}>{item.interest} · {item.interestOutOf5}/5</span></dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-ink-2">Confirmed meetings</dt>
-              <dd className="text-ink tabular-nums">{item.confirmedCount}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-ink-2">Matched solutions</dt>
-              <dd className="text-ink tabular-nums">{item.matched.length}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-ink-2">Source</dt>
-              <dd className="text-ink truncate">{sponsorName}</dd>
-            </div>
-          </dl>
         </div>
-      )}
+        <div className={`mt-2.5 rounded-xl py-1 ${selected ? 'bg-white/70' : 'bg-fill'}`}>
+          <PanelRow icon={<RankIcon />} label="Rank">
+            <span className="text-xs font-semibold text-ink tabular-nums">{item.rank} of {item.total}</span>
+          </PanelRow>
+          <PanelRow icon={<FlagIcon />} label="Priority">
+            <span className={PRIORITY_BADGE[item.priority]}>{PRIORITY_LABEL[item.priority]}</span>
+          </PanelRow>
+          <PanelRow icon={<CalendarIcon />} label="Meetings">
+            <span className="text-xs font-semibold text-ink tabular-nums">{item.confirmedCount} confirmed</span>
+          </PanelRow>
+        </div>
+      </button>
+      <button type="button" onClick={onAssign} className="btn-secondary btn-sm w-full mt-2.5">
+        Assign…
+      </button>
     </div>
   )
 }
@@ -648,21 +658,32 @@ function ScheduledCard({ item, slotLabel, onEdit, onCancel }: {
   onCancel: () => void
 }) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2.5 border-t border-hairline first:border-t-0">
-      <Avatar name={item.name} image={item.image} />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-ink truncate">{item.name}</p>
-        <p className="text-xs text-ink-2 truncate">
-          {slotLabel}
-          {item.room && <span> · {item.room}</span>}
-        </p>
+    <div className="rounded-2xl border border-hairline bg-white p-3">
+      <div className="flex items-center gap-2.5">
+        <Avatar name={item.name} image={item.image} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink truncate">{item.name}</p>
+          {item.company && <p className="text-xs text-ink-2 truncate">{item.company}</p>}
+        </div>
+        <button type="button" onClick={onEdit} aria-label={`Reschedule meeting with ${item.name}`} title="Reschedule" className="icon-btn-sm icon-btn flex-shrink-0">
+          {'✎'}
+        </button>
+        <button type="button" onClick={onCancel} aria-label={`Cancel meeting with ${item.name}`} title="Cancel" className="icon-btn-sm icon-btn text-danger flex-shrink-0">
+          {'✕'}
+        </button>
       </div>
-      <button type="button" onClick={onEdit} aria-label={`Reschedule meeting with ${item.name}`} title="Reschedule" className="icon-btn-sm icon-btn flex-shrink-0">
-        {'✎'}
-      </button>
-      <button type="button" onClick={onCancel} aria-label={`Cancel meeting with ${item.name}`} title="Cancel" className="icon-btn-sm icon-btn text-danger flex-shrink-0">
-        {'✕'}
-      </button>
+      <div className="mt-2.5 rounded-xl bg-fill py-1">
+        <PanelRow icon={<ClockIcon />} label="Time">
+          <span className="text-xs font-semibold text-ink truncate">{slotLabel}</span>
+        </PanelRow>
+        <PanelRow icon={<PinIcon />} label="Location">
+          {item.room ? (
+            <span className="badge badge-neutral">{item.room}</span>
+          ) : (
+            <span className="text-xs text-ink-3">TBD</span>
+          )}
+        </PanelRow>
+      </div>
     </div>
   )
 }
@@ -670,7 +691,7 @@ function ScheduledCard({ item, slotLabel, onEdit, onCancel }: {
 // ── Declined / removed rows ──────────────────────────────────────────────────
 function MiscCard({ item }: { item: MiscItem }) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2.5 border-t border-hairline first:border-t-0">
+    <div className="flex items-center gap-2.5 rounded-2xl border border-hairline bg-white p-3">
       <div className="min-w-0 flex-1">
         <p className="text-sm text-ink-2 truncate">{item.name}</p>
         {item.company && <p className="text-xs text-ink-3 truncate">{item.company}</p>}
@@ -710,7 +731,7 @@ function ScheduleSkeleton() {
       </div>
       <div className="split-view h-[calc(100vh-280px)] min-h-[480px] rounded-xl border border-hairline overflow-hidden bg-surface">
         <div className="split-view-sidebar p-4 space-y-3">
-          {[...Array(6)].map((_, i) => <div key={i} className="skeleton h-14 w-full" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="skeleton h-36 w-full rounded-2xl" />)}
         </div>
         <div className="split-view-main p-4">
           <div className="skeleton h-11 w-64 mb-4" />
