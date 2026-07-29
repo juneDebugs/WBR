@@ -98,10 +98,10 @@ export function SlotRoomPicker({
               const disabled = !slot.available && !isCurrent
               const active = selectedSlot === slot.timeBlockId
               const state = !slot.candidateFree && !isCurrent
-                ? 'Unavailable'
+                ? 'Attendee busy'
                 : !slot.sponsorHasCapacity || freeRooms === 0
                 ? 'Full'
-                : `${freeRooms} room${freeRooms === 1 ? '' : 's'} free`
+                : 'Free'
               return (
                 <div key={slot.timeBlockId}>
                   <button
@@ -120,7 +120,7 @@ export function SlotRoomPicker({
                     <span className="font-medium tabular-nums">{fmtRangeUTC(slot.startsAt, slot.endsAt)}</span>
                     <span className="flex items-center gap-1.5">
                       {isCurrent && <span className="badge badge-neutral">Current</span>}
-                      <span className={`text-xs ${disabled ? 'text-ink-3' : active ? 'text-brand-700 font-medium' : 'text-ink-2'}`}>
+                      <span className={`text-xs ${disabled ? 'text-ink-3' : active ? 'text-brand-700 font-medium' : state === 'Free' ? 'text-success-ink font-medium' : 'text-ink-2'}`}>
                         {state}
                       </span>
                     </span>
