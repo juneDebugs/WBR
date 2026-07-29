@@ -281,7 +281,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                     <thead className="bg-fill border-b border-hairline">
                       <tr>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-36">Time</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-32">Booked</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-44">Company</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Meetings</th>
                         <th className="text-right px-4 py-3 w-28">
                           <span className="sr-only">Actions</span>
@@ -297,18 +297,16 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                           <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-ink tabular-nums">
                             {fmtRangeUTC(slot.startsAt, slot.endsAt)}
                           </td>
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <span className="tabular-nums text-ink-2 whitespace-nowrap">
-                                {slot.meetings.length}/{matrix.totalRoomCapacity}
-                              </span>
-                              <div className="meter w-14 flex-shrink-0">
-                                <div
-                                  className="meter-fill"
-                                  style={{ width: `${matrix.totalRoomCapacity > 0 ? (slot.meetings.length / matrix.totalRoomCapacity) * 100 : 0}%` }}
-                                />
+                          <td className="px-4 py-2.5">
+                            {slot.meetings.length > 0 && (
+                              <div className="space-y-0.5">
+                                {slot.meetings.map(m => (
+                                  <div key={m.sponsorMeetingId} className="flex items-center min-h-[36px]">
+                                    <span className="text-sm text-ink-2 truncate">{m.company ?? '—'}</span>
+                                  </div>
+                                ))}
                               </div>
-                            </div>
+                            )}
                           </td>
                           <td className="px-4 py-2.5">
                             {slot.meetings.length === 0 ? (
@@ -326,10 +324,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                     <div className="w-6 h-6 rounded-full bg-fill flex items-center justify-center text-ink-2 font-bold text-caption flex-shrink-0">
                                       {initial(m.name)}
                                     </div>
-                                    <span className="min-w-0 flex-1">
-                                      <span className="font-medium text-ink">{m.name}</span>
-                                      {m.company && <span className="text-xs text-ink-2 ml-1.5">{m.company}</span>}
-                                    </span>
+                                    <span className="min-w-0 flex-1 font-medium text-ink truncate">{m.name}</span>
                                     {m.room && <span className="badge badge-neutral flex-shrink-0">{m.room}</span>}
                                     <span className="flex items-center flex-shrink-0">
                                       <button
