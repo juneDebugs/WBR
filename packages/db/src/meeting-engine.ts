@@ -37,6 +37,11 @@ export function roomByName(name: string | null | undefined): MeetingRoom | null 
 // Target number of confirmed meetings per company, used for the fill-rate meter.
 export const FILL_TARGET = 10
 
+// Target number of confirmed meetings each attendee is expected to have across
+// the whole conference. Drives the per-person "current / required" widget in the
+// Companies scheduler grid. Uniform for everyone — no per-person target modeled.
+export const REQUIRED_MEETINGS_PER_PERSON = 5
+
 // ── Priority tiers ────────────────────────────────────────────────────────────
 // The requester (attendee or sponsor) tags each meeting request with how strong a
 // fit it is. The auto-scheduler fills Best Fit requests first, then Med, then Low.
@@ -326,6 +331,10 @@ export interface SlotMeeting {
   company: string | null
   image: string | null
   room: string | null
+  // This attendee's CONFIRMED meeting count across all companies — the numerator
+  // of the per-person "current / required" widget. Denominator is the constant
+  // REQUIRED_MEETINGS_PER_PERSON.
+  confirmedCount: number
 }
 export interface MatrixSlot {
   timeBlockId: string
@@ -530,6 +539,7 @@ export async function getSponsorScheduleMatrix(
       sponsorMeetingId: m.id, userId: m.userId,
       name: m.user?.name ?? 'Unknown', company: m.user?.company ?? null,
       image: m.user?.image ?? null, room: m.location,
+      confirmedCount: loadByUser.get(m.userId) ?? 0,
     })
     meetingsByBlock.set(m.timeBlockId, arr)
   }

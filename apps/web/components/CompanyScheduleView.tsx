@@ -11,7 +11,7 @@ import { RescheduleMeetingSheet } from '@/components/RescheduleMeetingSheet'
 import { CancelMeetingDialog } from '@/components/CancelMeetingDialog'
 import { CompanyAutoScheduleButton } from '@/components/CompanyAutoScheduleButton'
 import { fmtRangeUTC } from '@/lib/format'
-import { TIER_COLORS, TIER_FALLBACK, PRIORITY_LABEL, PRIORITY_BADGE, FILL_TARGET, meterClass } from '@/lib/meetings-ui'
+import { TIER_COLORS, TIER_FALLBACK, PRIORITY_LABEL, PRIORITY_BADGE, FILL_TARGET, REQUIRED_MEETINGS_PER_PERSON, meterClass } from '@/lib/meetings-ui'
 
 function interestBadge(level: string) {
   return level === 'High' ? 'badge badge-success' : level === 'Medium' ? 'badge badge-warning' : 'badge badge-neutral'
@@ -332,34 +332,18 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                               <td className="px-4 py-2.5">
                                 <div className="space-y-0.5">
                                   {slot.meetings.map(m => (
-                                    <div key={m.sponsorMeetingId} className="group flex items-center gap-2 min-h-[36px]">
-                                      <span className="min-w-0 flex-1 font-medium text-ink truncate">{m.name}</span>
-                                      <span className="flex items-center flex-shrink-0">
-                                        <button
-                                          type="button"
-                                          aria-label={`Reschedule meeting with ${m.name}`}
-                                          title="Reschedule"
-                                          onClick={() => setRescheduleTarget({ sponsorMeetingId: m.sponsorMeetingId, attendeeName: m.name })}
-                                          className="icon-btn-sm icon-btn opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
-                                        >
-                                          {'✎'}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          aria-label={`Cancel meeting with ${m.name}`}
-                                          title="Cancel"
-                                          onClick={() =>
-                                            setCancelTarget({
-                                              sponsorMeetingId: m.sponsorMeetingId,
-                                              attendeeName: m.name,
-                                              slotLabel: slotLabels.get(slot.timeBlockId) ?? '—',
-                                              room: m.room,
-                                            })
-                                          }
-                                          className="icon-btn-sm icon-btn text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
-                                        >
-                                          {'✕'}
-                                        </button>
+                                    <div key={m.sponsorMeetingId} className="flex items-center gap-2 min-h-[36px]">
+                                      <span className="min-w-0 truncate font-medium text-ink">{m.name}</span>
+                                      <span
+                                        className={`flex-shrink-0 tabular-nums text-xs font-semibold px-1.5 py-0.5 rounded-md ${
+                                          m.confirmedCount >= REQUIRED_MEETINGS_PER_PERSON
+                                            ? 'bg-success-soft text-success-ink'
+                                            : 'bg-fill text-ink-2'
+                                        }`}
+                                        title={`${m.confirmedCount} of ${REQUIRED_MEETINGS_PER_PERSON} required meetings`}
+                                        aria-label={`${m.name} has ${m.confirmedCount} of ${REQUIRED_MEETINGS_PER_PERSON} required meetings`}
+                                      >
+                                        {m.confirmedCount} set / {REQUIRED_MEETINGS_PER_PERSON} required
                                       </span>
                                     </div>
                                   ))}
@@ -378,16 +362,49 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                                   ))}
                                 </div>
                               </td>
-                              <td className="px-4 py-3.5 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => openSlotAssign(slot)}
-                                  disabled={slot.capacityLeft === 0}
-                                  title={slot.capacityLeft === 0 ? 'Slot full' : undefined}
-                                  className="btn-secondary btn-sm"
-                                >
-                                  Assign
-                                </button>
+                              <td className="px-4 py-2.5">
+                                <div className="flex items-start justify-end gap-3">
+                                  <div className="space-y-0.5">
+                                    {slot.meetings.map(m => (
+                                      <div key={m.sponsorMeetingId} className="flex items-center justify-end gap-1 min-h-[36px]">
+                                        <button
+                                          type="button"
+                                          aria-label={`Reschedule meeting with ${m.name}`}
+                                          title="Reschedule"
+                                          onClick={() => setRescheduleTarget({ sponsorMeetingId: m.sponsorMeetingId, attendeeName: m.name })}
+                                          className="icon-btn-sm icon-btn"
+                                        >
+                                          {'✎'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          aria-label={`Cancel meeting with ${m.name}`}
+                                          title="Cancel"
+                                          onClick={() =>
+                                            setCancelTarget({
+                                              sponsorMeetingId: m.sponsorMeetingId,
+                                              attendeeName: m.name,
+                                              slotLabel: slotLabels.get(slot.timeBlockId) ?? '—',
+                                              room: m.room,
+                                            })
+                                          }
+                                          className="icon-btn-sm icon-btn text-danger"
+                                        >
+                                          {'✕'}
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => openSlotAssign(slot)}
+                                    disabled={slot.capacityLeft === 0}
+                                    title={slot.capacityLeft === 0 ? 'Slot full' : undefined}
+                                    className="btn-secondary btn-sm flex-shrink-0"
+                                  >
+                                    Assign
+                                  </button>
+                                </div>
                               </td>
                             </>
                           )}
