@@ -6,14 +6,65 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { DirectoryRow } from '@conference/db'
 import { useCompanyDirectory } from '@/lib/scheduler-hooks'
-import { TIER_COLORS, TIER_FALLBACK, FILL_TARGET, meterClass } from '@/lib/meetings-ui'
+import { FILL_TARGET, meterClass } from '@/lib/meetings-ui'
 import { fmtDate } from '@/lib/format'
 
 type SortKey = 'name' | 'confirmed' | 'fill'
 
+// Section order + visual identity for the tier bands. Unknown tiers fall back
+// to OTHER and render after Bronze.
+const TIER_ORDER = ['PLATINUM', 'GOLD', 'SILVER', 'BRONZE'] as const
+
+const TIER_STYLES: Record<string, { title: string; band: string; gem: string; label: string; count: string }> = {
+  PLATINUM: {
+    title: 'Platinum',
+    band: 'bg-gradient-to-r from-slate-100 via-slate-50 to-white',
+    gem: 'from-slate-300 via-slate-400 to-slate-600',
+    label: 'text-slate-700',
+    count: 'bg-slate-200/70 text-slate-700',
+  },
+  GOLD: {
+    title: 'Gold',
+    band: 'bg-gradient-to-r from-amber-100/80 via-amber-50 to-white',
+    gem: 'from-amber-300 via-amber-400 to-yellow-600',
+    label: 'text-amber-800',
+    count: 'bg-amber-200/60 text-amber-800',
+  },
+  SILVER: {
+    title: 'Silver',
+    band: 'bg-gradient-to-r from-gray-100 via-gray-50 to-white',
+    gem: 'from-gray-200 via-gray-300 to-gray-500',
+    label: 'text-gray-600',
+    count: 'bg-gray-200/70 text-gray-600',
+  },
+  BRONZE: {
+    title: 'Bronze',
+    band: 'bg-gradient-to-r from-orange-100/80 via-orange-50 to-white',
+    gem: 'from-orange-300 via-orange-400 to-orange-700',
+    label: 'text-orange-800',
+    count: 'bg-orange-200/60 text-orange-800',
+  },
+  OTHER: {
+    title: 'Other',
+    band: 'bg-gradient-to-r from-fill via-fill/50 to-white',
+    gem: 'from-ink-3 to-ink-2',
+    label: 'text-ink-2',
+    count: 'bg-fill-2 text-ink-2',
+  },
+}
+
+type TierSection = {
+  tier: string
+  rows: DirectoryRow[]
+  confirmed: number
+  avgFill: number
+}
+
 // HIG grouped table of every sponsor company with request/meeting counts and
-// a fill meter. Each row is one click target that opens the company's
-// schedule matrix (?tab=companies&company=<id>).
+// a fill meter, sectioned by sponsorship tier (Platinum → Gold → Silver →
+// Bronze). Each tier band carries its aggregate confirmed count and average
+// fill; each row is one click target that opens the company's schedule matrix
+// (?tab=companies&company=<id>).
 export function CompanyDirectory() {
   const router = useRouter()
   const { data, isLoading, isError, refetch } = useCompanyDirectory()
@@ -21,7 +72,7 @@ export function CompanyDirectory() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
-  const rows = useMemo(() => {
+  const { sections, matchCount } = useMemo(() => {
     const all = data ?? []
     const q = query.trim().toLowerCase()
     const filtered = q ? all.filter(r => r.name.toLowerCase().includes(q)) : [...all]
@@ -32,7 +83,25 @@ export function CompanyDirectory() {
       else cmp = a.fillRate - b.fillRate
       return sortDir === 'asc' ? cmp : -cmp
     })
-    return filtered
+
+    const byTier = new Map<string, DirectoryRow[]>()
+    for (const row of filtered) {
+      const key = TIER_ORDER.includes(row.tier as (typeof TIER_ORDER)[number]) ? row.tier : 'OTHER'
+      const bucket = byTier.get(key)
+      if (bucket) bucket.push(row)
+      else byTier.set(key, [row])
+    }
+
+    const sections: TierSection[] = [...TIER_ORDER, 'OTHER']
+      .filter(tier => byTier.has(tier))
+      .map(tier => {
+        const rows = byTier.get(tier)!
+        const confirmed = rows.reduce((sum, r) => sum + r.confirmed, 0)
+        const avgFill = Math.round((rows.reduce((sum, r) => sum + r.fillRate, 0) / rows.length) * 100)
+        return { tier, rows, confirmed, avgFill }
+      })
+
+    return { sections, matchCount: filtered.length }
   }, [data, query, sortKey, sortDir])
 
   function toggleSort(key: SortKey) {
@@ -76,7 +145,7 @@ export function CompanyDirectory() {
         />
         {data && (
           <p className="text-caption text-ink-2">
-            {rows.length} of {data.length} companies
+            {matchCount} of {data.length} companies
           </p>
         )}
       </div>
@@ -119,28 +188,36 @@ export function CompanyDirectory() {
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-hairline">
-            {isLoading && !data
-              ? [...Array(6)].map((_, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="skeleton w-8 h-8 rounded-lg" />
-                        <div className="skeleton h-4 w-40" />
-                      </div>
+          {isLoading && !data ? (
+            <tbody className="divide-y divide-hairline">
+              {[...Array(6)].map((_, i) => (
+                <tr key={i}>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="skeleton w-8 h-8 rounded-lg" />
+                      <div className="skeleton h-4 w-40" />
+                    </div>
+                  </td>
+                  {[...Array(6)].map((_, j) => (
+                    <td key={j} className="px-4 py-3.5">
+                      <div className="skeleton h-4 w-12 ml-auto" />
                     </td>
-                    {[...Array(6)].map((_, j) => (
-                      <td key={j} className="px-4 py-3.5">
-                        <div className="skeleton h-4 w-12 ml-auto" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              : rows.map(row => <DirectoryTableRow key={row.id} row={row} onOpen={() => router.push(`?tab=companies&company=${row.id}`)} />)}
-          </tbody>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          ) : (
+            sections.map(section => (
+              <TierSectionBody
+                key={section.tier}
+                section={section}
+                onOpen={id => router.push(`?tab=companies&company=${id}`)}
+              />
+            ))
+          )}
         </table>
 
-        {!isLoading && rows.length === 0 && (
+        {!isLoading && matchCount === 0 && (
           <div className="empty-state">
             <p className="font-medium text-ink">No companies match &ldquo;{query}&rdquo;</p>
             <p className="text-sm text-ink-2">Try a different name.</p>
@@ -148,6 +225,38 @@ export function CompanyDirectory() {
         )}
       </div>
     </div>
+  )
+}
+
+// One <tbody> per tier: a tinted band row announcing the tier with its
+// aggregates, followed by that tier's company rows.
+function TierSectionBody({ section, onOpen }: { section: TierSection; onOpen: (id: string) => void }) {
+  const style = TIER_STYLES[section.tier] ?? TIER_STYLES.OTHER
+  return (
+    <tbody className="divide-y divide-hairline border-t border-hairline">
+      <tr className={style.band}>
+        <th colSpan={8} scope="colgroup" className="px-4 py-2.5 text-left font-normal">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className={`w-4 h-4 rounded bg-gradient-to-br ${style.gem} shadow-sm ring-1 ring-black/10 rotate-45 scale-90`}
+              />
+              <span className={`text-sm font-bold tracking-wide ${style.label}`}>{style.title}</span>
+              <span className={`badge text-caption ${style.count}`}>
+                {section.rows.length} {section.rows.length === 1 ? 'company' : 'companies'}
+              </span>
+            </div>
+            <p className="text-caption tabular-nums text-ink-2">
+              {section.confirmed} confirmed · {section.avgFill}% avg fill
+            </p>
+          </div>
+        </th>
+      </tr>
+      {section.rows.map(row => (
+        <DirectoryTableRow key={row.id} row={row} onOpen={() => onOpen(row.id)} />
+      ))}
+    </tbody>
   )
 }
 
@@ -178,7 +287,6 @@ function DirectoryTableRow({ row, onOpen }: { row: DirectoryRow; onOpen: () => v
             </div>
           )}
           <span className="font-semibold text-ink">{row.name}</span>
-          <span className={`badge text-caption ${TIER_COLORS[row.tier] ?? TIER_FALLBACK}`}>{row.tier}</span>
         </Link>
       </td>
       <td className="px-4 py-3.5">
