@@ -73,6 +73,7 @@
     "seed:feed-posts": "node scripts/seed-feed-posts.mjs",
     "seed:unscheduled": "node packages/db/scripts/seed-unscheduled-demo.mjs",
     "seed:auto-matches": "node scripts/seed-auto-matches.mjs",
+    "seed:meeting-locations": "node scripts/seed-meeting-locations.mjs",
     "db:reset-test-accounts": "node packages/db/scripts/reset-test-accounts.mjs",
     "test:accounts": "node scripts/test-test-accounts.mjs",
     "e2e:accounts": "node scripts/e2e-app-access-all.mjs"
