@@ -303,10 +303,9 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                               <button
                                 type="button"
                                 onClick={() => openSlotAssign(slot)}
-                                className="w-full min-h-[44px] flex items-center justify-center border border-dashed border-hairline rounded-xl text-sm text-ink-2 hover:bg-fill transition-colors"
-                              >
-                                Open — {slot.capacityLeft} spot{slot.capacityLeft === 1 ? '' : 's'}
-                              </button>
+                                aria-label={`Open slot — ${slot.capacityLeft} spot${slot.capacityLeft === 1 ? '' : 's'} available`}
+                                className="w-full min-h-[44px] bg-success-soft rounded-xl hover:brightness-95 transition"
+                              />
                             </td>
                           ) : (
                             <>
