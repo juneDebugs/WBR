@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
-import { prisma } from '@conference/db'
+import { prisma, syncAutoMatches } from '@conference/db'
 import { invalidate } from '@/lib/mem-cache'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -55,6 +55,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
   }
+
+  // A staff re-tier to Best Fit can complete a mutual match, which schedules
+  // the meeting immediately. Idempotent sweep; never fails the update itself.
+  if (priority === 'BEST_FIT') await syncAutoMatches(prisma).catch(() => {})
 
   // Invalidate in-memory cache for affected users
   invalidate(updated.requesterId)

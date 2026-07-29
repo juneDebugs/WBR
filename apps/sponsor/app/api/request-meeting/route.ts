@@ -2,7 +2,15 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@conference/db'
+import { prisma, syncAutoMatches } from '@conference/db'
+
+// A Best Fit pick can complete a mutual match (both sides picked each other),
+// which must schedule the meeting immediately — not wait for an admin. The
+// sweep is idempotent and must never fail the pick itself.
+async function triggerAutoMatch(priority: string) {
+  if (priority !== 'BEST_FIT') return
+  await syncAutoMatches(prisma).catch(() => {})
+}
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -36,6 +44,7 @@ export async function POST(req: Request) {
       where: { id: existing.id },
       data,
     })
+    await triggerAutoMatch(prio)
     return NextResponse.json(updated)
   }
 
@@ -48,6 +57,8 @@ export async function POST(req: Request) {
       status: 'PENDING',
     },
   })
+
+  await triggerAutoMatch(prio)
 
   // Bust meetings cache for the target user's sponsor (if any)
   const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { sponsorId: true } })

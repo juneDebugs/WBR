@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 // E2E for the ADMIN Auto tab (apps/web /dashboard/meetings?tab=auto) — mutual
-// Best Fit auto-matches. Drives a real browser: login as WBR staff → Auto tab →
-// the fixture pair shows up as a "↔ Mutual Best Fit" match awaiting schedule →
-// Schedule N Match(es) opens the preview dialog listing the pair → Confirm
-// Schedule writes a CONFIRMED SponsorMeeting (rep + room inherited from the
-// sponsor-side pick) → the card flips to "✓ Scheduled". Screenshots at every
-// stage. Fixtures (sponsor + rep + attendee + the two BEST_FIT MeetingRequests
-// that form the match, names prefixed 'E2E AutoMatch') are created/removed via
-// Prisma; active conference time blocks are used READ-ONLY.
+// Best Fit auto-matches. Matches schedule AUTOMATICALLY: the tab's GET runs a
+// self-healing sweep before reading the board, so simply loading the page
+// turns the fixture's mutual picks into a CONFIRMED SponsorMeeting. Drives a
+// real browser: login as WBR staff → Auto tab → the fixture company section
+// arrives already "✓ Scheduled" (DB row carries the rep + a room) → activity
+// log shows the pair's MATCHED and SCHEDULED events → stat tiles render.
+// Screenshots at every stage. Fixtures (sponsor + rep + attendee + the two
+// BEST_FIT MeetingRequests that form the match, names prefixed 'E2E AutoMatch')
+// are created/removed via Prisma; active conference time blocks are used
+// READ-ONLY.
 //
 //   node scripts/e2e-auto-match.mjs           # server already running (repo-standard :3000)
 //   node scripts/e2e-auto-match.mjs --start   # boot next dev, then kill it
@@ -79,10 +81,13 @@ async function login(page, creds) {
 const prisma = makePrisma()
 const created = { userIds: [], sponsorIds: [] }
 async function cleanup() {
-  // Fixture meetings hang off the fixture sponsor; requests carry prefixed ids.
-  // Active-conference time blocks are never touched.
+  // Fixture meetings + audit events hang off the fixture sponsor/attendee;
+  // requests carry prefixed ids. Active-conference time blocks are never touched.
   if (created.sponsorIds.length) {
     await prisma.sponsorMeeting.deleteMany({ where: { sponsorId: { in: created.sponsorIds } } }).catch(() => {})
+  }
+  if (created.userIds.length) {
+    await prisma.autoMatchEvent.deleteMany({ where: { userId: { in: created.userIds } } }).catch(() => {})
   }
   await prisma.meetingRequest.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
   if (created.userIds.length) {
@@ -106,14 +111,14 @@ async function main() {
 
   // Fixtures: a fresh sponsor + rep + attendee in the active conference, plus
   // the two BEST_FIT requests (attendee→sponsor, rep→attendee) that make the
-  // pair a mutual match. Blocks are read-only — one must exist so the
-  // scheduler has somewhere to place the meeting.
+  // pair a mutual match. Blocks are read-only — one must exist so the sweep
+  // has somewhere to place the meeting.
   const stamp = Date.now()
   const conf = await prisma.conference.findFirst({ where: { active: true }, select: { id: true } })
   const confId = conf?.id ?? 'conf-2025'
   const block = await prisma.timeBlock.findFirst({ where: { conferenceId: confId }, orderBy: { startsAt: 'asc' }, select: { id: true } })
   check('active conference has a time block (read-only)', !!block)
-  if (!block) throw new Error('no time blocks for the scheduler to place the meeting in')
+  if (!block) throw new Error('no time blocks for the sweep to place the meeting in')
   const sponsor = await prisma.sponsor.create({ data: { id: `${PREFIX}sponsor-${stamp}`, conferenceId: confId, name: COMPANY, tier: 'GOLD' } })
   created.sponsorIds.push(sponsor.id)
   const rep = await prisma.user.create({ data: { id: `${PREFIX}rep-${stamp}`, email: `${PREFIX}rep-${stamp}@example.com`, name: REP, role: 'ATTENDEE', sponsorId: sponsor.id } })
@@ -142,31 +147,22 @@ async function main() {
   console.log('\nLogging in as WBR staff')
   await login(page, CREDS)
 
-  console.log('\n[auto-match board]')
+  console.log('\n[auto-match board — sweep schedules on load]')
   await page.goto(`${BASE}/dashboard/meetings?tab=auto`, { waitUntil: 'domcontentloaded', timeout: 90_000 })
   check('Auto tab pill renders', await page.getByRole('link', { name: 'Auto', exact: true }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
-  check('summary tiles render', await page.getByText('Mutual Matches', { exact: true }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
 
-  // The fixture pair's card: sponsor and attendee names inside one MatchCard.
-  const card = page.locator('div.bg-white.border-hairline').filter({ hasText: COMPANY })
-  check('fixture match card is on the board', await card.first().waitFor({ timeout: T }).then(() => true).catch(() => false))
-  check('attendee shown on the card', await card.filter({ hasText: BUYER }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
-  check('↔ Mutual Best Fit badge present', await card.getByText('↔ Mutual Best Fit').first().waitFor({ timeout: T }).then(() => true).catch(() => false))
-  check('Ready to schedule badge present', await card.getByText('Ready to schedule').first().waitFor({ timeout: T }).then(() => true).catch(() => false))
-  await shot(page, 'auto-match-board.png')
+  // The GET behind the board sweeps before it reads, so the fixture pair
+  // should land already scheduled inside its own company section.
+  const section = page.locator(`section[aria-label="${COMPANY} auto matches"]`)
+  check('fixture company section renders', await section.waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('company heading in the section', await section.getByRole('heading', { name: COMPANY }).waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('attendee shown on the card', await section.getByText(BUYER).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('↔ Mutual Best Fit badge present', await section.getByText('↔ Mutual Best Fit').first().waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('section shows its scheduled tally', await section.getByText(/\d+ of \d+ scheduled/).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
 
-  console.log('\n[schedule preview dialog]')
-  await page.getByRole('button', { name: /^Schedule \d+ Match/ }).click()
-  const dialog = page.getByRole('dialog')
-  check('dialog opens', await dialog.waitFor({ timeout: T }).then(() => true).catch(() => false))
-  check('dialog heading', await dialog.getByRole('heading', { name: 'Schedule Auto Matches' }).waitFor({ timeout: T }).then(() => true).catch(() => false))
-  check('our pair is in the plan', await dialog.getByText(`${COMPANY} ↔ ${BUYER}`).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
-  await shot(page, 'auto-match-dialog.png')
-  await dialog.getByRole('button', { name: 'Confirm Schedule' }).click()
-
-  console.log('\n[confirmed meeting]')
-  // The apply round-trips through the API before the board refetches — poll the
-  // DB for the pair's CONFIRMED meeting, then verify rep + room on the row.
+  console.log('\n[auto-scheduled meeting]')
+  // The sweep wrote the meeting server-side before the board response — poll
+  // the DB for the pair's CONFIRMED row, then verify rep + room on it.
   let meeting = null
   const persisted = await waitFor(async () => {
     meeting = await prisma.sponsorMeeting.findFirst({
@@ -178,9 +174,33 @@ async function main() {
   check('CONFIRMED meeting persists to DB', persisted)
   check('meeting inherits the rep from the sponsor-side pick', meeting?.repId === rep.id, `repId=${meeting?.repId}`)
   check('meeting has a room assigned', !!meeting?.location, `location=${meeting?.location}`)
-  check('card shows ✓ Scheduled', await card.filter({ hasText: '✓ Scheduled' }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
-  check('scheduled confirmation appears', await page.getByText(/✓ \d+ meetings? scheduled/).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
-  await shot(page, 'auto-match-scheduled.png')
+
+  let scheduledVisible = await section.getByText('✓ Scheduled').first().waitFor({ timeout: T }).then(() => true).catch(() => false)
+  if (!scheduledVisible && persisted) {
+    // FALLBACK: the DB has the meeting but this render predates it (React Query
+    // refetches on a 30s cadence) — one reload must surface the scheduled state.
+    console.log('  … "✓ Scheduled" not on the first render; reloading once')
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 })
+    await section.waitFor({ timeout: T }).catch(() => {})
+    scheduledVisible = await section.getByText('✓ Scheduled').first().waitFor({ timeout: T }).then(() => true).catch(() => false)
+  }
+  check('card shows ✓ Scheduled', scheduledVisible)
+  await shot(page, 'auto-match-board.png')
+
+  console.log('\n[activity log]')
+  const log = page.locator('aside[aria-label="Auto-match activity log"]')
+  check('activity log rail renders', await log.waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('Activity heading', await log.getByText('Activity', { exact: true }).waitFor({ timeout: T }).then(() => true).catch(() => false))
+  const pairRows = log.locator('li').filter({ hasText: `${COMPANY} ↔ ${BUYER}` })
+  check('SCHEDULED event logged for the pair', await pairRows.filter({ hasText: 'Meeting auto-scheduled' }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('MATCHED event logged for the pair', await pairRows.filter({ hasText: 'Matched · both picked Best Fit' }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
+  await shot(page, 'auto-match-log.png')
+
+  console.log('\n[stat tiles]')
+  for (const label of ['Mutual Matches', 'Auto-Scheduled', 'Awaiting Slot']) {
+    check(`"${label}" tile renders`, await page.getByText(label, { exact: true }).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
+  }
+  await shot(page, 'auto-match-final.png')
 
   check('no app console errors during the flow', appErrors.length === 0, appErrors.slice(0, 3).join(' | '))
   await browser.close()

@@ -440,6 +440,24 @@ model MeetingRequest {
   @@index([createdAt])
 }
 
+// Audit log for mutual Best Fit auto-matching (admin Meetings → Auto tab).
+// Deliberately relation-free and name-denormalized: the log must survive
+// sponsor/user deletion, and reads never need a join.
+model AutoMatchEvent {
+  id           String    @id @default(cuid())
+  sponsorId    String
+  userId       String
+  sponsorName  String
+  attendeeName String
+  event        String    // MATCHED | SCHEDULED
+  room         String?   // SCHEDULED only
+  startsAt     DateTime? // SCHEDULED only — the meeting's slot start
+  createdAt    DateTime  @default(now())
+
+  @@index([sponsorId, userId])
+  @@index([createdAt])
+}
+
 // ─── Follow ───────────────────────────────────────────────────────────────────
 
 model Follow {

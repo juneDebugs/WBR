@@ -68,6 +68,7 @@
     "db:migrate-engine": "node scripts/migrate-meeting-engine.mjs",
     "db:migrate-priority": "node scripts/migrate-meeting-priority.mjs",
     "db:migrate-checkin": "node scripts/migrate-checkin.mjs",
+    "db:migrate-auto-match": "node scripts/migrate-auto-match.mjs",
     "db:backfill-friends": "node scripts/migrate-friends-backfill.mjs",
     "seed:feed-posts": "node scripts/seed-feed-posts.mjs",
     "seed:unscheduled": "node packages/db/scripts/seed-unscheduled-demo.mjs",

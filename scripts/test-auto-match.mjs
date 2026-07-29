@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Engine test for mutual Best Fit auto-matching
-// (packages/db/src/meeting-engine.ts — getAutoMatchBoard / scheduleAutoMatches).
+// Engine test for mutual Best Fit auto-matching (packages/db/src/meeting-engine.ts
+// — getAutoMatchBoard / scheduleAutoMatches / syncAutoMatches + AutoMatchEvent log).
 //
 // Runs the real engine functions against the live DB (Turso when creds are in
 // apps/*/.env.local, else local dev.db). Creates a fully throwaway world — an
@@ -13,8 +13,12 @@
 // later pick), fit scoring, totals math, dry-run planning (nothing persisted),
 // real scheduling (sponsor-side request preferred → meeting inherits repId,
 // request flips CONFIRMED, earliest free block + Table 1 first), post-schedule
-// board state and ordering, and idempotence. Deletes every fixture row in
-// finally.
+// board state and ordering, idempotence, and the syncAutoMatches sweep
+// (schedules ready pairs, writes MATCHED/SCHEDULED AutoMatchEvent rows,
+// backfills SCHEDULED for pre-existing meetings, skips unschedulable pairs,
+// writes nothing on a second run). The event log is GLOBAL (not conference-
+// scoped), so board.log assertions always filter to fixture pairs — never
+// global length/order. Deletes every fixture row in finally.
 //
 //   node scripts/test-auto-match.mjs
 //
@@ -71,6 +75,7 @@ const key = (sponsorId, userId) => `${sponsorId}::${userId}`
 
 async function cleanup() {
   // Children first; Conference delete cascades TimeBlocks + Sponsors.
+  await prisma.autoMatchEvent.deleteMany({ where: { userId: { startsWith: PREFIX } } }).catch(() => {})
   await prisma.meetingRequest.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
   await prisma.sponsorMeeting.deleteMany({ where: { userId: { startsWith: PREFIX } } }).catch(() => {})
   await prisma.user.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
@@ -152,6 +157,11 @@ async function main() {
   check('mutual-but-REJECTED (A,u4) is not a match', !keysOf(board).includes(key(spA.id, u4.id)))
   check('totals: matches=2, ready=2, scheduled=0',
     board.totals.matches === 2 && board.totals.ready === 2 && board.totals.scheduled === 0, JSON.stringify(board.totals))
+  // The event log is global, so only its shape — and the ABSENCE of fixture
+  // entries before any sweep — can be asserted here.
+  const ourLog = b => (b.log ?? []).filter(e => e.sponsorId?.startsWith(PREFIX) || e.userId?.startsWith(PREFIX))
+  check('board carries a log[] (audit trail), no fixture entries before any sweep',
+    Array.isArray(board.log) && ourLog(board).length === 0, `ours=${ourLog(board).length}`)
 
   const mA = board.matches.find(m => m.key === key(spA.id, u1.id))
   const mB = board.matches.find(m => m.key === key(spB.id, u2.id))
@@ -249,6 +259,67 @@ async function main() {
     again.matchedPairs === 0 && again.scheduled.length === 0 && again.totalEligible === 0, JSON.stringify({ matchedPairs: again.matchedPairs, scheduled: again.scheduled.length }))
   const finalCount = await prisma.sponsorMeeting.count({ where: { userId: { startsWith: PREFIX } } })
   check('no extra meetings created (1 pre-booked + 2 scheduled = 3)', finalCount === 3, `count=${finalCount}`)
+
+  // The sweep the admin GET runs on every board read. State walking in:
+  //   (A,u1) + (B,u2) have meetings created by scheduleAutoMatches → NO events
+  //   yet (backfill targets); (A,u5) is ready but unschedulable (both picks
+  //   CONFIRMED-status, no live pick); (A,u6) is a fresh ready mutual pair the
+  //   sweep must schedule. Within the fixture conference the sync counters are
+  //   exact; only board.log is global.
+  console.log('\nsyncAutoMatches — sweep, log writes, backfill')
+  const u6 = await mkUser('u6', 'am-test Ulf Buyer')
+  await mkReq('u6-a', { requesterId: u6.id, targetSponsorId: spA.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-05T09:00:00Z') })
+  const rRep1U6 = await mkReq('rep1-u6', { requesterId: rep1.id, targetUserId: u6.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-05T10:00:00Z') })
+  const sync = await E.syncAutoMatches(prisma, confId)
+  check('sweep schedules the one ready schedulable pair (A,u6)',
+    sync.scheduled.length === 1 && sync.scheduled[0].requestId === rRep1U6.id && sync.scheduled[0].userId === u6.id,
+    JSON.stringify(sync.scheduled.map(s => s.requestId)))
+  check('sweep counters: matchedLogged=4 (u1,u2,u5,u6), scheduledLogged=3 (u1+u2 backfill, u6 new)',
+    sync.matchedLogged === 4 && sync.scheduledLogged === 3, JSON.stringify({ matchedLogged: sync.matchedLogged, scheduledLogged: sync.scheduledLogged }))
+  const mtgU6 = await prisma.sponsorMeeting.findFirst({ where: { sponsorId: spA.id, userId: u6.id }, select: { status: true, repId: true, timeBlockId: true, location: true } })
+  check('(A,u6) meeting persisted CONFIRMED in tb1 / Table 2 (Table 1 taken by u1), repId = rep1',
+    mtgU6?.status === 'CONFIRMED' && mtgU6.timeBlockId === tb1.id && mtgU6.location === 'Table 2' && mtgU6.repId === rep1.id, JSON.stringify(mtgU6))
+
+  const events = await prisma.autoMatchEvent.findMany({ where: { userId: { startsWith: PREFIX } } })
+  const evOf = (sponsorId, userId, event) => events.filter(e => e.sponsorId === sponsorId && e.userId === userId && e.event === event)
+  check('exactly 7 fixture events written (4 MATCHED + 3 SCHEDULED)',
+    events.length === 7 && events.filter(e => e.event === 'MATCHED').length === 4, `count=${events.length}`)
+  const mU6 = evOf(spA.id, u6.id, 'MATCHED')[0]
+  check('(A,u6) MATCHED event: names populated, room/startsAt null',
+    !!mU6 && mU6.sponsorName === spA.name && mU6.attendeeName === u6.name && mU6.room === null && mU6.startsAt === null)
+  const sU6 = evOf(spA.id, u6.id, 'SCHEDULED')[0]
+  check('(A,u6) SCHEDULED event carries room + slot startsAt',
+    sU6?.room === 'Table 2' && sU6?.startsAt?.getTime() === tb1.startsAt.getTime() && sU6.sponsorName === spA.name && sU6.attendeeName === u6.name)
+  check('backfill: (A,u1) meeting from the earlier scheduleAutoMatches run gets a SCHEDULED event',
+    evOf(spA.id, u1.id, 'SCHEDULED')[0]?.room === 'Table 1' && evOf(spA.id, u1.id, 'SCHEDULED')[0]?.startsAt?.getTime() === tb1.startsAt.getTime())
+  check('backfill: (B,u2) SCHEDULED event carries its tb2 slot',
+    evOf(spB.id, u2.id, 'SCHEDULED')[0]?.startsAt?.getTime() === tb2.startsAt.getTime())
+  check('unschedulable ready pair (A,u5): MATCHED written, no SCHEDULED',
+    evOf(spA.id, u5.id, 'MATCHED').length === 1 && evOf(spA.id, u5.id, 'SCHEDULED').length === 0)
+
+  console.log('\nsyncAutoMatches — idempotence')
+  const sync2 = await E.syncAutoMatches(prisma, confId)
+  check('second sweep schedules nothing and writes nothing',
+    sync2.scheduled.length === 0 && sync2.matchedLogged === 0 && sync2.scheduledLogged === 0, JSON.stringify(sync2))
+  const eventCount2 = await prisma.autoMatchEvent.count({ where: { userId: { startsWith: PREFIX } } })
+  check('fixture event count unchanged after second sweep', eventCount2 === 7, `count=${eventCount2}`)
+  const mtgCount2 = await prisma.sponsorMeeting.count({ where: { userId: { startsWith: PREFIX } } })
+  check('meeting count unchanged after second sweep (3 + u6 = 4)', mtgCount2 === 4, `count=${mtgCount2}`)
+
+  console.log('\nBoard log surface')
+  board = await E.getAutoMatchBoard(prisma, confId)
+  check('totals after sweep: matches=4, ready=1 (u5), scheduled=3',
+    board.totals.matches === 4 && board.totals.ready === 1 && board.totals.scheduled === 3, JSON.stringify(board.totals))
+  const oursInLog = ourLog(board)
+  check('board.log surfaces the fixture events (MATCHED + SCHEDULED for u6 present)',
+    oursInLog.some(e => e.userId === u6.id && e.event === 'MATCHED') &&
+    oursInLog.some(e => e.userId === u6.id && e.event === 'SCHEDULED' && e.room === 'Table 2' && e.startsAt === tb1.startsAt.toISOString()),
+    `ours=${oursInLog.length}`)
+  check('log entries are ISO strings, newest first (createdAt non-increasing)',
+    board.log.every(e => !Number.isNaN(Date.parse(e.createdAt))) &&
+    board.log.every((e, i) => i === 0 || board.log[i - 1].createdAt >= e.createdAt))
+  const viaHelper = (await E.getAutoMatchLog(prisma, 500)).filter(e => e.userId?.startsWith(PREFIX))
+  check('getAutoMatchLog returns the same 7 fixture entries', viaHelper.length === 7, `count=${viaHelper.length}`)
 }
 
 try {

@@ -115,15 +115,22 @@ refreshes). Tests: `test:checkin` (engine), `test:checkin:api` (HTTP),
 Fifth URL-param tab, **Auto** (`?tab=auto`): every pair where the sponsor and
 the attendee each picked the other as **Best Fit** through their portals. A
 match is derived live from `MeetingRequest` rows (a `BEST_FIT` request in both
-directions, statuses `PENDING`/`APPROVED`/`CONFIRMED`) — nothing extra is
-persisted, so a pick or a downgrade on either side immediately makes or breaks
-the match. The board splits matches into **Awaiting Schedule** and
-**Scheduled** (slot + room shown), with fit score, matched solutions, and both
-picks' provenance on each card. `Schedule N Matches` previews a dry-run plan,
-then materializes one confirmed meeting per ready pair through the priority
-auto-scheduler (the sponsor-side request is used so the meeting inherits the
-rep who made the pick). Engine: `getAutoMatchBoard` / `scheduleAutoMatches` in
-`packages/db/src/meeting-engine.ts`. API: `GET`/`POST
+directions, statuses `PENDING`/`APPROVED`/`CONFIRMED`), and **its meeting is
+scheduled automatically** — at pick time (both portal request routes call
+`syncAutoMatches` after a Best Fit create/re-tier) plus a self-healing sweep
+on every board `GET` (the scheduled-broadcasts read-path dispatch pattern),
+which also catches pairs that were unschedulable earlier. The sponsor-side
+request is used so the meeting inherits the rep who made the pick; all engine
+booking constraints apply. Every transition is recorded in the
+**`AutoMatchEvent` audit log** (`MATCHED` when both picks exist, `SCHEDULED`
+with room + slot once the meeting lands, whichever path created it) —
+relation-free and name-denormalized so history survives deletions;
+`db:migrate-auto-match` creates the table on Turso. The board sections
+matches **by company** (tier + `N of M scheduled` per section; cards carry fit
+score, matched solutions, both picks' provenance, and slot/room or an
+"Awaiting slot" state) with the activity log in a side rail. Engine:
+`getAutoMatchBoard` / `syncAutoMatches` / `scheduleAutoMatches` /
+`getAutoMatchLog` in `packages/db/src/meeting-engine.ts`. API: `GET
 /api/admin/scheduler/auto` (same `'meetings'` permission gate). UI:
 `components/AutoMatchBoard.tsx` (React Query, 30s poll). Tests:
 `test:auto-match` (engine), `test:auto-match:api` (HTTP), `e2e:auto-match`

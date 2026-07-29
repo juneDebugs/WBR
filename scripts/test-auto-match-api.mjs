@@ -1,17 +1,21 @@
 #!/usr/bin/env node
-// API integration test for the mutual Best Fit auto-match routes (apps/web,
-// /api/admin/scheduler/auto).
+// API integration test for the mutual Best Fit auto-match route (apps/web,
+// GET /api/admin/scheduler/auto — POST no longer exists).
 //
-// Exercises auth gating + the full HTTP lifecycle (board → dry-run preview →
-// real scheduling → idempotence → validation errors) against a running admin
-// dev server (repo-standard :3000; override with SMOKE_BASE_URL when the port
-// is taken, e.g. SMOKE_BASE_URL=http://localhost:3200). The route always reads
-// the ACTIVE conference, so fixtures (a throwaway sponsor + rep + attendee +
-// far-future time block + the mutual BEST_FIT request pair, ids prefixed
-// 'am-test-api-') are created in it and removed via Prisma against the SAME db
-// the server uses, so the test is hermetic and the DB is left as found. The
-// active conference may hold real matches too, so every scheduling assertion
-// is pinned to OUR pair (never to global counts).
+// Exercises auth gating + the self-healing GET lifecycle against a running
+// admin dev server (repo-standard :3000; override with SMOKE_BASE_URL when the
+// port is taken, e.g. SMOKE_BASE_URL=http://localhost:3200). The GET runs the
+// syncAutoMatches sweep BEFORE reading the board, so the first authenticated
+// GET after the fixtures exist must come back with the fixture pair ALREADY
+// scheduled (meeting + room) and MATCHED/SCHEDULED entries in the audit log;
+// a second GET must change nothing (no duplicate meeting or events). The route
+// always reads the ACTIVE conference, so fixtures (a throwaway sponsor + rep +
+// attendee + far-future time block + the mutual BEST_FIT request pair, ids
+// prefixed 'am-test-api-') are created in it and removed via Prisma against
+// the SAME db the server uses, so the test is hermetic and the DB is left as
+// found. The active conference may hold real matches too — the sweep can
+// legitimately schedule/log those — so every assertion is pinned to OUR pair
+// (never to global counts or log order).
 //
 //   node scripts/test-auto-match-api.mjs           # server already running
 //   node scripts/test-auto-match-api.mjs --start   # boot next dev, then kill it
@@ -77,13 +81,13 @@ async function login(email, password) {
 }
 const serverUp = async () => { try { return (await fetch(`${BASE}/login`, { redirect: 'manual' })).status < 500 } catch { return false } }
 async function waitFor(cond, ms, label) { const s = Date.now(); while (Date.now() - s < ms) { if (await cond()) return; await new Promise(r => setTimeout(r, 1500)) } throw new Error(`Timed out waiting for ${label}`) }
-const jsonPost = body => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
 const prisma = makePrisma()
 const PREFIX = 'am-test-api-'
 const stamp = Date.now()
 const fid = s => `${PREFIX}${s}-${stamp}`
 async function cleanup() {
+  await prisma.autoMatchEvent.deleteMany({ where: { userId: { startsWith: PREFIX } } }).catch(() => {})
   await prisma.meetingRequest.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
   await prisma.sponsorMeeting.deleteMany({ where: { userId: { startsWith: PREFIX } } }).catch(() => {})
   await prisma.user.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
@@ -105,16 +109,17 @@ async function main() {
   console.log('\n[auth gating]')
   const anonGet = await fetch(API, { redirect: 'manual' })
   check('anon GET /auto → 401', anonGet.status === 401, `got ${anonGet.status}`)
-  const anonPost = await fetch(API, { ...jsonPost({ dryRun: true }), redirect: 'manual' })
-  check('anon POST /auto → 401', anonPost.status === 401, `got ${anonPost.status}`)
   const staff = await login(STAFF.email, STAFF.password)
   check('staff login works', !!staff)
   if (!staff) { console.error('  cannot continue without staff auth'); return }
+  const staffPost = await staff(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+  check('staff POST /auto → 405 (route is GET-only now)', staffPost.status === 405, `got ${staffPost.status}`)
 
   // Hermetic fixtures against the SAME db the server uses: a fresh sponsor in
   // the ACTIVE conference (the route resolves it implicitly), a rep + an
   // attendee, a far-future time block nothing else books, and the mutual
-  // BEST_FIT request pair that forms the match.
+  // BEST_FIT request pair that forms the match. Created AFTER the checks above
+  // so the first authenticated GET below is the pair's first-ever sweep.
   const conf = await prisma.conference.findFirst({ where: { active: true }, select: { id: true } })
   const confId = conf?.id ?? 'conf-2025'
   const sponsor = await prisma.sponsor.create({ data: { id: fid('sponsor'), conferenceId: confId, name: 'am-test-api Match Co', tier: 'GOLD' } })
@@ -126,50 +131,43 @@ async function main() {
   const KEY = `${sponsor.id}::${attendee.id}`
   console.log(`  fixtures ready in active conference ${confId} (pair ${KEY})`)
 
-  console.log('\n[board shape]')
+  console.log('\n[self-healing GET: sweep + board]')
   const boardRes = await staff(API)
   const board = await boardRes.json().catch(() => null)
-  check('staff GET /auto → 200 with matches[] + totals', boardRes.status === 200 && Array.isArray(board?.matches) && typeof board?.totals?.matches === 'number', `status ${boardRes.status}`)
+  check('staff GET /auto → 200 with matches[] + totals + log[]',
+    boardRes.status === 200 && Array.isArray(board?.matches) && typeof board?.totals?.matches === 'number' && Array.isArray(board?.log),
+    `status ${boardRes.status}`)
   const match0 = board?.matches?.find(m => m.key === KEY)
-  check('board contains the fixture match, ready (meeting null)', !!match0 && match0.meeting === null && match0.sponsor?.id === sponsor.id)
-  check('fixture match carries both picks with request ids',
-    match0?.sponsorPick?.requestId === repReq.id && match0?.attendeePick?.requestId === attReq.id)
-
-  console.log('\n[dry run]')
-  const dryRes = await staff(API, jsonPost({ dryRun: true }))
-  const dry = await dryRes.json().catch(() => null)
-  check('POST {dryRun:true} → 200 with dryRun:true', dryRes.status === 200 && dry?.dryRun === true, `status ${dryRes.status}`)
-  const dryOurs = dry?.scheduled?.find(s => s.sponsorId === sponsor.id)
-  check('dry-run plan includes our pair (sponsor-side request)', !!dryOurs && dryOurs.requestId === repReq.id && dryOurs.userId === attendee.id)
-  const afterDry = await prisma.sponsorMeeting.count({ where: { sponsorId: sponsor.id } })
-  check('dry run persisted no SponsorMeeting for our sponsor', afterDry === 0, `count=${afterDry}`)
-
-  console.log('\n[real run]')
-  const runRes = await staff(API, jsonPost({}))
-  const run = await runRes.json().catch(() => null)
-  check('POST {} → 200 with dryRun:false', runRes.status === 200 && run?.dryRun === false, `status ${runRes.status}`)
-  check('result schedules our pair', !!run?.scheduled?.find(s => s.requestId === repReq.id))
+  check('fixture match is present and carries both picks',
+    !!match0 && match0.sponsorPick?.requestId === repReq.id && match0.attendeePick?.requestId === attReq.id)
+  check('the sweep already scheduled it: meeting non-null with a room + ISO startsAt',
+    typeof match0?.meeting?.sponsorMeetingId === 'string' && typeof match0?.meeting?.room === 'string' && match0.meeting.room.length > 0 &&
+    !Number.isNaN(Date.parse(match0?.meeting?.startsAt ?? '')), JSON.stringify(match0?.meeting ?? null))
+  const ourLog = b => (b?.log ?? []).filter(e => e.sponsorId === sponsor.id && e.userId === attendee.id)
+  check('board.log carries the pair MATCHED entry (room/startsAt null)',
+    ourLog(board).some(e => e.event === 'MATCHED' && e.room === null && e.startsAt === null), `ours=${ourLog(board).length}`)
+  check('board.log carries the pair SCHEDULED entry (room + ISO startsAt set)',
+    ourLog(board).some(e => e.event === 'SCHEDULED' && typeof e.room === 'string' && !Number.isNaN(Date.parse(e.startsAt ?? ''))))
   const mtg = await prisma.sponsorMeeting.findFirst({ where: { sponsorId: sponsor.id, userId: attendee.id }, select: { status: true, repId: true, location: true } })
-  check('meeting persisted CONFIRMED with a room and repId = the rep',
+  check('meeting persisted CONFIRMED with a room and repId = the rep (sponsor-side pick)',
     mtg?.status === 'CONFIRMED' && typeof mtg.location === 'string' && mtg.location.length > 0 && mtg.repId === rep.id, JSON.stringify(mtg))
-  const after = await (await staff(API)).json().catch(() => null)
-  const matchAfter = after?.matches?.find(m => m.key === KEY)
-  check('follow-up GET shows the match scheduled (meeting with room + startsAt)',
-    !!matchAfter?.meeting?.sponsorMeetingId && typeof matchAfter.meeting.startsAt === 'string' && !Number.isNaN(Date.parse(matchAfter.meeting.startsAt)))
-  check('follow-up GET totals.scheduled ≥ 1', typeof after?.totals?.scheduled === 'number' && after.totals.scheduled >= 1, JSON.stringify(after?.totals))
+  const repReqAfter = await prisma.meetingRequest.findUnique({ where: { id: repReq.id }, select: { status: true } })
+  check('sponsor-side request flipped to CONFIRMED', repReqAfter?.status === 'CONFIRMED', `status=${repReqAfter?.status}`)
 
-  console.log('\n[idempotence]')
-  const againRes = await staff(API, jsonPost({}))
-  const again = await againRes.json().catch(() => null)
-  check('second POST {} does not reschedule our pair', againRes.status === 200 && !again?.scheduled?.some(s => s.sponsorId === sponsor.id), `status ${againRes.status}`)
-  const mtgCount = await prisma.sponsorMeeting.count({ where: { sponsorId: sponsor.id } })
-  check('no duplicate meeting for our pair (count stays 1)', mtgCount === 1, `count=${mtgCount}`)
-
-  console.log('\n[validation errors]')
-  const nonBool = await staff(API, jsonPost({ dryRun: 'yes' }))
-  check("POST {dryRun:'yes'} → 400", nonBool.status === 400, `got ${nonBool.status}`)
-  const badJson = await staff(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: 'not-json' })
-  check('POST invalid JSON body → 400', badJson.status === 400, `got ${badJson.status}`)
+  console.log('\n[second GET is a no-op for the pair]')
+  const again = await (await staff(API)).json().catch(() => null)
+  const matchAgain = again?.matches?.find(m => m.key === KEY)
+  check('pair still shows as scheduled with the same meeting',
+    !!matchAgain?.meeting && matchAgain.meeting.sponsorMeetingId === match0?.meeting?.sponsorMeetingId)
+  check('totals.scheduled ≥ 1', typeof again?.totals?.scheduled === 'number' && again.totals.scheduled >= 1, JSON.stringify(again?.totals))
+  const mtgCount = await prisma.sponsorMeeting.count({ where: { sponsorId: sponsor.id, userId: attendee.id } })
+  check('no duplicate meeting (Prisma count stays 1)', mtgCount === 1, `count=${mtgCount}`)
+  const [matchedEvents, scheduledEvents] = await Promise.all([
+    prisma.autoMatchEvent.count({ where: { sponsorId: sponsor.id, userId: attendee.id, event: 'MATCHED' } }),
+    prisma.autoMatchEvent.count({ where: { sponsorId: sponsor.id, userId: attendee.id, event: 'SCHEDULED' } }),
+  ])
+  check('no duplicate log events (exactly 1 MATCHED + 1 SCHEDULED for the pair)',
+    matchedEvents === 1 && scheduledEvents === 1, `MATCHED=${matchedEvents} SCHEDULED=${scheduledEvents}`)
 }
 
 main()

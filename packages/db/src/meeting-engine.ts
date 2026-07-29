@@ -1352,13 +1352,25 @@ export interface AutoMatchTotals {
   ready: number     // matched, awaiting a meeting
   scheduled: number // matched with a confirmed meeting
 }
+export type AutoMatchEventType = 'MATCHED' | 'SCHEDULED'
+export interface AutoMatchLogEntry {
+  id: string
+  event: AutoMatchEventType
+  sponsorId: string
+  userId: string
+  sponsorName: string
+  attendeeName: string
+  room: string | null      // SCHEDULED only
+  startsAt: string | null  // SCHEDULED only — the meeting's slot start (ISO)
+  createdAt: string
+}
 export interface AutoMatchBoard {
   matches: AutoMatch[] // ready first (best score, then oldest match), then scheduled by meeting time
   totals: AutoMatchTotals
+  log: AutoMatchLogEntry[] // newest first
 }
 
-export async function getAutoMatchBoard(prisma: Db, conferenceId?: string): Promise<AutoMatchBoard> {
-  const confId = await resolveConferenceId(prisma, conferenceId)
+async function computeAutoMatches(prisma: Db, confId: string): Promise<AutoMatch[]> {
   const [sponsors, requests] = await Promise.all([
     prisma.sponsor.findMany({
       where: { conferenceId: confId },
@@ -1390,7 +1402,7 @@ export async function getAutoMatchBoard(prisma: Db, conferenceId?: string): Prom
     if (!side.has(key)) side.set(key, req)
   }
   const keys = [...attendeePicks.keys()].filter(k => sponsorPicks.has(k))
-  if (keys.length === 0) return { matches: [], totals: { matches: 0, ready: 0, scheduled: 0 } }
+  if (keys.length === 0) return []
 
   // Confirmed meetings for the matched pairs — the same pair notion as the
   // ALREADY_SCHEDULED guard in assignMeeting (conference-agnostic).
@@ -1440,15 +1452,52 @@ export async function getAutoMatchBoard(prisma: Db, conferenceId?: string): Prom
     if (!a.meeting) return b.score - a.score || a.matchedAt.localeCompare(b.matchedAt)
     return a.meeting.startsAt.localeCompare(b.meeting!.startsAt)
   })
+  return matches
+}
+
+export async function getAutoMatchLog(prisma: Db, limit = 50): Promise<AutoMatchLogEntry[]> {
+  const rows = await prisma.autoMatchEvent.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  })
+  return rows.map(r => ({
+    id: r.id,
+    event: r.event as AutoMatchEventType,
+    sponsorId: r.sponsorId,
+    userId: r.userId,
+    sponsorName: r.sponsorName,
+    attendeeName: r.attendeeName,
+    room: r.room,
+    startsAt: r.startsAt ? r.startsAt.toISOString() : null,
+    createdAt: r.createdAt.toISOString(),
+  }))
+}
+
+export async function getAutoMatchBoard(prisma: Db, conferenceId?: string): Promise<AutoMatchBoard> {
+  const confId = await resolveConferenceId(prisma, conferenceId)
+  const [matches, log] = await Promise.all([
+    computeAutoMatches(prisma, confId),
+    getAutoMatchLog(prisma),
+  ])
   const scheduled = matches.filter(m => m.meeting).length
-  return { matches, totals: { matches: matches.length, ready: matches.length - scheduled, scheduled } }
+  return { matches, totals: { matches: matches.length, ready: matches.length - scheduled, scheduled }, log }
+}
+
+// One schedulable request per ready match — the sponsor-side request when it is
+// still live, so the created meeting inherits the rep who made the pick.
+function readyRequestIds(matches: AutoMatch[]): string[] {
+  const ids: string[] = []
+  for (const m of matches) {
+    if (m.meeting) continue
+    const pick = [m.sponsorPick, m.attendeePick].find(p => p.status === 'PENDING' || p.status === 'APPROVED')
+    if (pick) ids.push(pick.requestId)
+  }
+  return ids
 }
 
 // Materialize every ready match into a confirmed meeting via the priority
-// auto-scheduler, restricted to exactly one request per matched pair — the
-// sponsor-side request when it is still schedulable, so the meeting inherits
-// the rep who made the pick. All booking constraints (blackouts, one meeting
-// per attendee per block, booth/room capacity) apply unchanged.
+// auto-scheduler. All booking constraints (blackouts, one meeting per attendee
+// per block, booth/room capacity) apply unchanged.
 export interface AutoMatchScheduleResult extends AutoScheduleResult {
   matchedPairs: number // ready matches this run attempted to schedule
 }
@@ -1456,13 +1505,7 @@ export async function scheduleAutoMatches(
   prisma: Db, input: { conferenceId?: string; dryRun?: boolean } = {},
 ): Promise<AutoMatchScheduleResult> {
   const confId = await resolveConferenceId(prisma, input.conferenceId)
-  const board = await getAutoMatchBoard(prisma, confId)
-  const requestIds: string[] = []
-  for (const m of board.matches) {
-    if (m.meeting) continue
-    const pick = [m.sponsorPick, m.attendeePick].find(p => p.status === 'PENDING' || p.status === 'APPROVED')
-    if (pick) requestIds.push(pick.requestId)
-  }
+  const requestIds = readyRequestIds(await computeAutoMatches(prisma, confId))
   if (requestIds.length === 0) {
     return {
       dryRun: !!input.dryRun, scheduled: [], skipped: [],
@@ -1472,4 +1515,55 @@ export async function scheduleAutoMatches(
   }
   const result = await autoScheduleByPriority(prisma, { conferenceId: confId, dryRun: input.dryRun, requestIds })
   return { ...result, matchedPairs: requestIds.length }
+}
+
+// The auto-matching sweep: schedule every ready mutual match, then reconcile
+// the audit log with reality — one MATCHED event per pair, one SCHEDULED event
+// once the pair has a confirmed meeting, whichever path created it (this
+// sweep, a portal pick trigger, or a manual assignment). Idempotent, so it can
+// run on every read of the board and on every Best Fit pick.
+export interface AutoMatchSyncResult {
+  scheduled: AutoScheduledEntry[] // meetings created by this sweep
+  matchedLogged: number           // new MATCHED events written
+  scheduledLogged: number         // new SCHEDULED events written (incl. backfill)
+}
+export async function syncAutoMatches(prisma: Db, conferenceId?: string): Promise<AutoMatchSyncResult> {
+  const confId = await resolveConferenceId(prisma, conferenceId)
+  const matches = await computeAutoMatches(prisma, confId)
+  if (matches.length === 0) return { scheduled: [], matchedLogged: 0, scheduledLogged: 0 }
+
+  const requestIds = readyRequestIds(matches)
+  const run = requestIds.length
+    ? await autoScheduleByPriority(prisma, { conferenceId: confId, requestIds })
+    : null
+
+  const existing = await prisma.autoMatchEvent.findMany({
+    where: { userId: { in: matches.map(m => m.attendee.id) } },
+    select: { sponsorId: true, userId: true, event: true },
+  })
+  const seen = new Set(existing.map(e => `${e.event}|${e.sponsorId}::${e.userId}`))
+  const placedNow = new Map((run?.scheduled ?? []).map(s => [`${s.sponsorId}::${s.userId}`, s]))
+
+  const rows: {
+    sponsorId: string; userId: string; sponsorName: string; attendeeName: string
+    event: AutoMatchEventType; room: string | null; startsAt: Date | null
+  }[] = []
+  for (const m of matches) {
+    const base = { sponsorId: m.sponsor.id, userId: m.attendee.id, sponsorName: m.sponsor.name, attendeeName: m.attendee.name }
+    if (!seen.has(`MATCHED|${m.key}`)) {
+      rows.push({ ...base, event: 'MATCHED', room: null, startsAt: null })
+    }
+    const placed = m.meeting
+      ? { room: m.meeting.room, startsAt: new Date(m.meeting.startsAt) }
+      : placedNow.has(m.key)
+        ? { room: placedNow.get(m.key)!.room, startsAt: new Date(placedNow.get(m.key)!.startsAt) }
+        : null
+    if (placed && !seen.has(`SCHEDULED|${m.key}`)) {
+      rows.push({ ...base, event: 'SCHEDULED', ...placed })
+    }
+  }
+  if (rows.length) await prisma.autoMatchEvent.createMany({ data: rows })
+
+  const matchedLogged = rows.filter(r => r.event === 'MATCHED').length
+  return { scheduled: run?.scheduled ?? [], matchedLogged, scheduledLogged: rows.length - matchedLogged }
 }

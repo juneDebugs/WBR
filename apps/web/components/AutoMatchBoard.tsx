@@ -1,72 +1,44 @@
 'use client'
 
-import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useQueryClient } from '@tanstack/react-query'
-import type { AutoMatch, AutoMatchScheduleResult } from '@conference/db'
-import { useAutoMatchBoard, invalidateScheduler } from '@/lib/scheduler-hooks'
-import { fmtRangeUTC } from '@/lib/format'
+import type { AutoMatch, AutoMatchLogEntry } from '@conference/db'
+import { useAutoMatchBoard } from '@/lib/scheduler-hooks'
+import { fmtRangeUTC, fmtTimeUTC } from '@/lib/format'
 import { TIER_COLORS, TIER_FALLBACK } from '@/lib/meetings-ui'
 
 const fmtPickDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 
+const fmtLogTime = (iso: string) =>
+  new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+
 function initial(name: string | null | undefined) {
   return (name?.trim()[0] ?? '?').toUpperCase()
 }
 
-// Mutual Best Fit matches: pairs where the sponsor and the attendee each picked
-// the other as Best Fit through their portals. Ready matches can be scheduled
-// in one pass (preview → apply); scheduled ones show their slot and room.
+// Group the flat, engine-ordered match list by sponsor company, companies
+// alphabetical, matches keeping engine order (awaiting first, then by slot).
+function groupByCompany(matches: AutoMatch[]) {
+  const groups = new Map<string, { sponsor: AutoMatch['sponsor']; matches: AutoMatch[] }>()
+  for (const m of matches) {
+    let g = groups.get(m.sponsor.id)
+    if (!g) {
+      g = { sponsor: m.sponsor, matches: [] }
+      groups.set(m.sponsor.id, g)
+    }
+    g.matches.push(m)
+  }
+  return Array.from(groups.values()).sort((a, b) => a.sponsor.name.localeCompare(b.sponsor.name))
+}
+
+// Mutual Best Fit matches: when a sponsor and an attendee each pick the other
+// as Best Fit through their portals, the pair matches and the meeting is
+// scheduled automatically (at pick time, with a self-healing sweep on every
+// board read). This board is the record of that automation: matches sectioned
+// by company, plus the audit log of match/schedule events.
 export function AutoMatchBoard() {
-  const queryClient = useQueryClient()
   const { data: board, isLoading, isError, refetch } = useAutoMatchBoard()
-
-  const [preview, setPreview] = useState<AutoMatchScheduleResult | null>(null)
-  const [previewing, setPreviewing] = useState(false)
-  const [applying, setApplying] = useState(false)
-  const [applied, setApplied] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  async function post(dryRun: boolean): Promise<AutoMatchScheduleResult> {
-    const r = await fetch('/api/admin/scheduler/auto', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dryRun ? { dryRun: true } : {}),
-    })
-    const data = await r.json().catch(() => ({}))
-    if (!r.ok) throw new Error(data.error ?? `Scheduling failed (${r.status})`)
-    return data
-  }
-
-  async function openPreview() {
-    setPreviewing(true)
-    setError(null)
-    setApplied(null)
-    try {
-      setPreview(await post(true))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong')
-    } finally {
-      setPreviewing(false)
-    }
-  }
-
-  async function apply() {
-    setApplying(true)
-    setError(null)
-    try {
-      const result = await post(false)
-      setApplied(result.scheduled.length)
-      setPreview(null)
-      invalidateScheduler(queryClient)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong')
-    } finally {
-      setApplying(false)
-    }
-  }
 
   if (isError) {
     return (
@@ -81,18 +53,17 @@ export function AutoMatchBoard() {
 
   if (isLoading || !board) return <BoardSkeleton />
 
-  const ready = board.matches.filter(m => !m.meeting)
-  const scheduled = board.matches.filter(m => m.meeting)
+  const companies = groupByCompany(board.matches)
 
   return (
     <div>
-      {/* ── Summary tiles + bulk action ── */}
-      <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
+      {/* ── Summary tiles ── */}
+      <div className="flex items-end justify-between gap-4 flex-wrap mb-2">
         <div className="grid grid-cols-3 gap-3 flex-1 max-w-xl">
           {([
             { label: 'Mutual Matches', val: board.totals.matches, num: 'text-ink' },
-            { label: 'Awaiting Schedule', val: board.totals.ready, num: board.totals.ready > 0 ? 'text-warning-ink' : 'text-ink' },
-            { label: 'Scheduled', val: board.totals.scheduled, num: 'text-success-ink' },
+            { label: 'Auto-Scheduled', val: board.totals.scheduled, num: 'text-success-ink' },
+            { label: 'Awaiting Slot', val: board.totals.ready, num: board.totals.ready > 0 ? 'text-warning-ink' : 'text-ink' },
           ] as const).map(({ label, val, num }) => (
             <div key={label} className="bg-white border border-hairline rounded-xl px-4 py-3">
               <p className="text-caption text-ink-2 font-medium mb-1.5">{label}</p>
@@ -100,146 +71,92 @@ export function AutoMatchBoard() {
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          {applied !== null && (
-            <span className="text-xs text-success-ink font-medium" aria-live="polite">
-              {'✓'} {applied} meeting{applied === 1 ? '' : 's'} scheduled
-            </span>
-          )}
-          {board.totals.ready > 0 && (
-            <button type="button" onClick={openPreview} disabled={previewing || applying} className="btn-primary btn-sm">
-              {previewing ? 'Working…' : `Schedule ${board.totals.ready} Match${board.totals.ready === 1 ? '' : 'es'}`}
-            </button>
-          )}
-        </div>
       </div>
+      <p className="text-caption text-ink-3 mb-5">
+        When a sponsor and an attendee each pick the other as Best Fit, the meeting is scheduled automatically.
+      </p>
 
-      {error && (
-        <div className="mb-4 flex items-start justify-between gap-3 rounded-xl bg-danger-soft text-danger-ink text-sm px-3 py-2" role="alert">
-          <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} className="font-semibold" aria-label="Dismiss error">
-            {'✕'}
-          </button>
-        </div>
-      )}
-
-      {board.matches.length === 0 ? (
-        <div className="empty-state bg-white border border-hairline rounded-xl">
-          <p className="font-medium text-ink">No mutual matches yet</p>
-          <p className="text-sm text-ink-2 max-w-md">
-            A match appears automatically when a sponsor and an attendee each pick the other as{' '}
-            <span className="font-medium">Best Fit</span> through their portals.
-          </p>
-          <Link href="?tab=requests" className="mt-2 text-primary text-sm hover:underline">
-            View all meeting requests {'→'}
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {ready.length > 0 && (
-            <section aria-label="Matches awaiting schedule">
-              <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest mb-2">
-                Awaiting Schedule <span className="font-normal normal-case">{'·'} {ready.length}</span>
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr),320px] lg:gap-6 space-y-6 lg:space-y-0">
+        {/* ── Matches, sectioned by company ── */}
+        <div>
+          {companies.length === 0 ? (
+            <div className="empty-state bg-white border border-hairline rounded-xl">
+              <p className="font-medium text-ink">No mutual matches yet</p>
+              <p className="text-sm text-ink-2 max-w-md">
+                A match forms — and its meeting is scheduled automatically — the moment a sponsor and an
+                attendee each pick the other as <span className="font-medium">Best Fit</span> through their portals.
               </p>
-              <div className="space-y-2">
-                {ready.map(m => <MatchCard key={m.key} match={m} />)}
-              </div>
-            </section>
-          )}
-          {scheduled.length > 0 && (
-            <section aria-label="Scheduled matches">
-              <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest mb-2">
-                Scheduled <span className="font-normal normal-case">{'·'} {scheduled.length}</span>
-              </p>
-              <div className="space-y-2">
-                {scheduled.map(m => <MatchCard key={m.key} match={m} />)}
-              </div>
-            </section>
-          )}
-        </div>
-      )}
-
-      {/* ── Preview → apply dialog ── */}
-      {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" aria-label="Schedule auto matches" className="bg-surface rounded-2xl p-5 shadow-elevated max-w-md w-full">
-            <h2 className="font-semibold text-ink text-base">Schedule Auto Matches</h2>
-            {preview.scheduled.length === 0 ? (
-              <p className="text-sm text-ink-2 mt-4">
-                None of the {preview.matchedPairs} ready match{preview.matchedPairs === 1 ? '' : 'es'} can be placed
-                right now — the attendees or booths are fully booked.
-              </p>
-            ) : (
-              <>
-                <p className="text-sm text-ink-2 mt-4">
-                  {preview.scheduled.length} of {preview.matchedPairs} ready match{preview.matchedPairs === 1 ? '' : 'es'} will
-                  get a confirmed meeting in the earliest open slot:
-                </p>
-                <ul className="mt-3 space-y-1.5 max-h-56 overflow-y-auto">
-                  {preview.scheduled.map(s => (
-                    <li key={s.requestId} className="flex items-center justify-between gap-3 rounded-2xl bg-fill px-3 py-2 text-xs">
-                      <span className="font-medium text-ink truncate">{s.sponsorName} {'↔'} {s.userName}</span>
-                      <span className="text-ink-2 whitespace-nowrap tabular-nums">{s.room}</span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {preview.skipped.length > 0 && (
-              <p className="text-xs text-ink-3 mt-3">
-                {preview.skipped.length} skipped — no free slot, or the pair already has a meeting.
-              </p>
-            )}
-            <div className="flex justify-end gap-2 mt-5">
-              <button type="button" onClick={() => setPreview(null)} disabled={applying} className="btn-secondary btn-sm">
-                Cancel
-              </button>
-              {preview.scheduled.length > 0 && (
-                <button type="button" onClick={apply} disabled={applying} className="btn-primary btn-sm">
-                  {applying ? 'Working…' : 'Confirm Schedule'}
-                </button>
-              )}
+              <Link href="?tab=requests" className="mt-2 text-primary text-sm hover:underline">
+                View all meeting requests {'→'}
+              </Link>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-6">
+              {companies.map(({ sponsor, matches }) => (
+                <CompanySection key={sponsor.id} sponsor={sponsor} matches={matches} />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* ── Activity log ── */}
+        <aside aria-label="Auto-match activity log">
+          <p className="text-xs font-semibold text-ink-2 uppercase tracking-widest mb-2">Activity</p>
+          <div className="bg-white border border-hairline rounded-xl overflow-hidden">
+            {board.log.length === 0 ? (
+              <p className="text-sm text-ink-3 px-4 py-6 text-center">No activity yet</p>
+            ) : (
+              <ol className="divide-y divide-hairline max-h-[36rem] overflow-y-auto">
+                {board.log.map(entry => (
+                  <LogRow key={entry.id} entry={entry} />
+                ))}
+              </ol>
+            )}
+          </div>
+        </aside>
+      </div>
     </div>
   )
 }
 
-// One matched pair: sponsor ⇄ attendee, both Best Fit picks with their dates,
-// the solutions-fit signal, and the slot/room once the meeting exists.
+function CompanySection({ sponsor, matches }: { sponsor: AutoMatch['sponsor']; matches: AutoMatch[] }) {
+  const scheduled = matches.filter(m => m.meeting).length
+  return (
+    <section aria-label={`${sponsor.name} auto matches`}>
+      <div className="flex items-center gap-2.5 mb-2">
+        {sponsor.logoUrl ? (
+          <div className="w-7 h-7 rounded-lg border border-hairline bg-white flex items-center justify-center overflow-hidden flex-shrink-0 p-0.5">
+            <Image src={sponsor.logoUrl} alt="" width={28} height={28} className="w-full h-full object-contain" />
+          </div>
+        ) : (
+          <div className="w-7 h-7 rounded-lg bg-fill flex items-center justify-center text-ink-2 font-bold text-xs flex-shrink-0">
+            {initial(sponsor.name)}
+          </div>
+        )}
+        <h3 className="font-semibold text-ink">{sponsor.name}</h3>
+        <span className={`badge text-caption ${TIER_COLORS[sponsor.tier] ?? TIER_FALLBACK}`}>{sponsor.tier}</span>
+        <span className={`badge text-caption tabular-nums ml-auto ${scheduled === matches.length ? 'badge-success' : 'badge-neutral'}`}>
+          {scheduled} of {matches.length} scheduled
+        </span>
+      </div>
+      <div className="space-y-2">
+        {matches.map(m => (
+          <MatchCard key={m.key} match={m} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// One matched pair within its company section: the attendee, the mutual-pick
+// signal, both picks' provenance, and the auto-scheduled slot/room (or the
+// waiting state when every slot is currently taken).
 function MatchCard({ match }: { match: AutoMatch }) {
   return (
     <div className="bg-white border border-hairline rounded-xl px-4 py-3">
       <div className="flex items-center gap-4 flex-wrap">
-        {/* Sponsor */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-52">
-          {match.sponsor.logoUrl ? (
-            <div className="w-9 h-9 rounded-lg border border-hairline bg-white flex items-center justify-center overflow-hidden flex-shrink-0 p-0.5">
-              <Image src={match.sponsor.logoUrl} alt="" width={36} height={36} className="w-full h-full object-contain" />
-            </div>
-          ) : (
-            <div className="w-9 h-9 rounded-lg bg-fill flex items-center justify-center text-ink-2 font-bold text-sm flex-shrink-0">
-              {initial(match.sponsor.name)}
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="font-semibold text-ink leading-tight truncate">{match.sponsor.name}</p>
-            <span className={`badge text-caption ${TIER_COLORS[match.sponsor.tier] ?? TIER_FALLBACK}`}>{match.sponsor.tier}</span>
-          </div>
-        </div>
-
-        {/* Mutual badge */}
-        <div className="flex flex-col items-center gap-1 flex-shrink-0">
-          <span className="badge badge-brand whitespace-nowrap">{'↔'} Mutual Best Fit</span>
-          {match.score > 0 && (
-            <span className="text-caption text-ink-3 tabular-nums">{match.score}% fit</span>
-          )}
-        </div>
-
         {/* Attendee */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-52">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-48">
           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
             {initial(match.attendee.name)}
           </div>
@@ -247,6 +164,12 @@ function MatchCard({ match }: { match: AutoMatch }) {
             <p className="font-semibold text-ink leading-tight truncate">{match.attendee.name}</p>
             {match.attendee.company && <p className="text-xs text-ink-2 truncate">{match.attendee.company}</p>}
           </div>
+        </div>
+
+        {/* Mutual badge */}
+        <div className="flex flex-col items-center gap-1 flex-shrink-0">
+          <span className="badge badge-brand whitespace-nowrap">{'↔'} Mutual Best Fit</span>
+          {match.score > 0 && <span className="text-caption text-ink-3 tabular-nums">{match.score}% fit</span>}
         </div>
 
         {/* Outcome */}
@@ -260,7 +183,10 @@ function MatchCard({ match }: { match: AutoMatch }) {
               </p>
             </>
           ) : (
-            <span className="badge badge-warning">Ready to schedule</span>
+            <>
+              <span className="badge badge-warning">Awaiting slot</span>
+              <p className="text-caption text-ink-3 mt-1">Schedules when a slot frees up</p>
+            </>
           )}
         </div>
       </div>
@@ -284,10 +210,41 @@ function MatchCard({ match }: { match: AutoMatch }) {
   )
 }
 
+function LogRow({ entry }: { entry: AutoMatchLogEntry }) {
+  const scheduled = entry.event === 'SCHEDULED'
+  return (
+    <li className="px-4 py-2.5">
+      <div className="flex items-start gap-2">
+        <span
+          aria-hidden="true"
+          className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${scheduled ? 'bg-success' : 'bg-brand'}`}
+        />
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-ink leading-snug">
+            {entry.sponsorName} {'↔'} {entry.attendeeName}
+          </p>
+          <p className="text-caption text-ink-2 leading-snug">
+            {scheduled ? (
+              <>
+                Meeting auto-scheduled
+                {entry.room && <> {'·'} {entry.room}</>}
+                {entry.startsAt && <> {'·'} {fmtTimeUTC(entry.startsAt)}</>}
+              </>
+            ) : (
+              <>Matched {'·'} both picked Best Fit</>
+            )}
+          </p>
+          <p className="text-caption text-ink-3 tabular-nums">{fmtLogTime(entry.createdAt)}</p>
+        </div>
+      </div>
+    </li>
+  )
+}
+
 function BoardSkeleton() {
   return (
     <div>
-      <div className="grid grid-cols-3 gap-3 max-w-xl mb-5">
+      <div className="grid grid-cols-3 gap-3 max-w-xl mb-6">
         {[...Array(3)].map((_, i) => (
           <div key={i} className="bg-white border border-hairline rounded-xl px-4 py-3">
             <div className="skeleton h-3 w-20 mb-2" />
@@ -295,17 +252,19 @@ function BoardSkeleton() {
           </div>
         ))}
       </div>
-      <div className="space-y-2">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white border border-hairline rounded-xl px-4 py-4 flex items-center gap-4">
-            <div className="skeleton w-9 h-9 rounded-lg flex-shrink-0" />
-            <div className="skeleton h-4 w-40" />
-            <div className="skeleton h-4 w-28 mx-auto" />
-            <div className="skeleton w-9 h-9 rounded-full flex-shrink-0" />
-            <div className="skeleton h-4 w-40" />
-            <div className="skeleton h-4 w-24 ml-auto" />
-          </div>
-        ))}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr),320px] lg:gap-6 space-y-6 lg:space-y-0">
+        <div className="space-y-2">
+          <div className="skeleton h-6 w-56 mb-2" />
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-white border border-hairline rounded-xl px-4 py-4 flex items-center gap-4">
+              <div className="skeleton w-9 h-9 rounded-full flex-shrink-0" />
+              <div className="skeleton h-4 w-40" />
+              <div className="skeleton h-4 w-28 mx-auto" />
+              <div className="skeleton h-4 w-24 ml-auto" />
+            </div>
+          ))}
+        </div>
+        <div className="skeleton h-64 rounded-xl" />
       </div>
     </div>
   )

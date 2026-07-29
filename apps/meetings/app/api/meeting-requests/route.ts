@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
-import { prisma } from '@conference/db'
+import { prisma, syncAutoMatches } from '@conference/db'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
 import { invalidate } from '@/lib/mem-cache'
+
+// A Best Fit pick can complete a mutual match (both sides picked each other),
+// which must schedule the meeting immediately — not wait for an admin. The
+// sweep is idempotent and must never fail the pick itself.
+async function triggerAutoMatch(priority: string) {
+  if (priority !== 'BEST_FIT') return
+  await syncAutoMatches(prisma).catch(() => {})
+}
 
 export async function POST(req: Request) {
   if (!rateLimit(`mtg-req:${getClientIp(req)}`, 10, 60_000)) {
@@ -44,6 +52,7 @@ export async function POST(req: Request) {
       const updated = await prisma.meetingRequest.update({
         where: { id: existing.id }, data: { priority: prio },
       })
+      await triggerAutoMatch(prio)
       return NextResponse.json(updated)
     }
     return NextResponse.json({ error: 'Request already exists' }, { status: 409 })
@@ -52,6 +61,7 @@ export async function POST(req: Request) {
   const request = await prisma.meetingRequest.create({
     data: { requesterId: userId, targetUserId, targetSponsorId, message, priority: prio },
   })
+  await triggerAutoMatch(prio)
   // Invalidate in-memory cache for affected users
   invalidate(userId)
   if (targetUserId) invalidate(targetUserId)
