@@ -91,9 +91,9 @@ Tests: `test:admin-scheduler` (engine), `test:admin-scheduler:api` (HTTP),
 `e2e:admin-scheduler` (Playwright); the HTTP/e2e scripts target :3000 by
 default and honor `SMOKE_BASE_URL` when that port is taken.
 
-The Companies tab also carries a **Settings** section
-(`?tab=companies&view=settings`, a Directory | Settings segmented nav) for the
-admin-configurable meeting requirements: meetings required from each attendee
+The tab bar also carries a **Settings** item scoped to the Companies scheduler
+(`?tab=companies&view=settings`) for the admin-configurable meeting
+requirements: meetings required from each attendee
 (one global number) and from each sponsor company (a global default plus
 per-company overrides, stored in `MeetingRequirementSetting` and consumed by
 every fill meter / per-person chip). API: `GET/PUT /api/admin/scheduler/settings`

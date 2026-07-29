@@ -495,8 +495,8 @@ alphabetical by sponsor within a slot; the footer reconciles completed
 The two hardcoded engine constants — `FILL_TARGET` (confirmed meetings each
 sponsor company should fill, 10) and `REQUIRED_MEETINGS_PER_PERSON` (meetings
 each attendee is expected to book, 5) — became admin-editable settings behind a
-new **Settings** section in the Companies tab's nav bar
-(`?tab=companies&view=settings`, a Directory | Settings segmented control).
+new **Settings** item in the Meetings tab bar, scoped to the Companies
+scheduler (`?tab=companies&view=settings`).
 Storage copies the `ChatMessagingPermission` precedent verbatim: a
 `MeetingRequirementSetting` table keyed `(scope, subjectId)` with JSON
 `{ required }` payloads — `ATTENDEE_GLOBAL`/`SPONSOR_DEFAULT` rows (subjectId

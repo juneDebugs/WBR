@@ -168,9 +168,15 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
         </Link>
         <Link href="?tab=companies"
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            tab === 'companies' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
+            tab === 'companies' && view !== 'settings' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
           }`}>
           Companies
+        </Link>
+        <Link href="?tab=companies&view=settings"
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+            tab === 'companies' && view === 'settings' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
+          }`}>
+          Settings
         </Link>
       </div>
 
