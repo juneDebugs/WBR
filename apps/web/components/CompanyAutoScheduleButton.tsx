@@ -34,11 +34,13 @@ export function CompanyAutoScheduleButton({ sponsorId, sponsorName, onSuccess }:
     setOpen(true)
     try {
       // Approved-only: the Inbound (PENDING) queue requires an explicit
-      // approve/decline decision, so auto-schedule fills only the bank.
+      // approve/decline decision, so auto-schedule fills only the bank. ALL
+      // tiers (incl. Best Fit) — an admin working this sponsor wants every
+      // unscheduled approved request placed, not just Med/Low.
       const res = await fetch('/api/auto-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dryRun: true, sponsorId, statuses: ['APPROVED'] }),
+        body: JSON.stringify({ dryRun: true, sponsorId, statuses: ['APPROVED'], priorities: ['BEST_FIT', 'MED', 'LOW'] }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -60,7 +62,7 @@ export function CompanyAutoScheduleButton({ sponsorId, sponsorName, onSuccess }:
       const res = await fetch('/api/auto-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sponsorId, statuses: ['APPROVED'] }),
+        body: JSON.stringify({ sponsorId, statuses: ['APPROVED'], priorities: ['BEST_FIT', 'MED', 'LOW'] }),
       })
       const data = await res.json()
       if (!res.ok) {

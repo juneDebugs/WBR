@@ -1359,18 +1359,21 @@ export function loadBalancePreferred(
   return candidates.reduce((best, c) => (c.confirmedCount < best.confirmedCount ? c : best)).userId
 }
 
-// ── Priority auto-scheduler ───────────────────────────────────────────────────
-// Greedily materializes MeetingRequests into confirmed SponsorMeetings, filling
-// the highest-priority tier first (Best Fit → Med → Low), then best fit score,
-// then oldest request. Honors every constraint assertSlotBookable enforces
-// (candidate blackouts, one meeting per candidate per block, one meeting per
-// sponsor per block) via an in-memory occupancy simulation seeded from the
-// existing confirmed state, so a whole conference is scheduled in one pass.
-// Each candidate lands in the FIRST time block (chronological) that is OPEN for
-// the sponsor and free for the attendee. Before committing, the plan is
-// revalidated against the live DB so a slot taken concurrently (manual assign,
-// second click) is skipped, never double-booked. dryRun returns the same plan
-// without writing — used by the admin preview.
+// ── Load-balancing auto-scheduler ─────────────────────────────────────────────
+// Greedily materializes eligible MeetingRequests into confirmed SponsorMeetings.
+// Ordering (product rule): the attendee with the FEWEST confirmed meetings is
+// scheduled first (least → most, spreading meetings evenly across people), then
+// ties break by priority tier (Best Fit → Med → Low), then fit/rank score, then
+// oldest request. Load is evaluated live, so a meeting pushed this run raises
+// that attendee's load and lighter attendees keep winning. Honors every
+// constraint assertSlotBookable enforces (candidate blackouts, one meeting per
+// candidate per block, one meeting per sponsor per block) via an in-memory
+// occupancy simulation seeded from the existing confirmed state, so a whole
+// conference is scheduled in one pass. Each candidate lands in the FIRST time
+// block (chronological) that is OPEN for the sponsor and free for the attendee.
+// Before committing, the plan is revalidated against the live DB so a slot taken
+// concurrently (manual assign, second click) is skipped, never double-booked.
+// dryRun returns the same plan without writing — used by the admin preview.
 export interface AutoScheduleInput {
   conferenceId?: string
   sponsorId?: string    // limit to one company's booth; omit = every company
@@ -1506,7 +1509,8 @@ export async function autoScheduleByPriority(
     return s
   }
 
-  // Build the eligible, scored, priority-ordered candidate list.
+  // Build the eligible, scored candidate list. Ordering happens dynamically in
+  // the placement loop below (it depends on live per-attendee load).
   interface Cand {
     reqId: string; sponsorId: string; sponsorName: string; userId: string; userName: string
     repId: string | null; priority: MeetingPriority; score: number; createdAt: Date
@@ -1527,11 +1531,25 @@ export async function autoScheduleByPriority(
       priority: normalizePriority(req.priority), score, createdAt: req.createdAt,
     })
   }
-  // Global order: Best Fit tier first (across all companies), then fit, then age.
-  cands.sort((a, b) =>
+
+  // Live per-attendee load = their confirmed SponsorMeetings across all
+  // companies (the "N confirmed" the bank shows), seeded from current state and
+  // incremented as we place, so ordering reflects meetings pushed this run too.
+  const load = new Map<string, number>()
+  for (const m of confirmedMtgs) load.set(m.userId, (load.get(m.userId) ?? 0) + 1)
+  const loadOf = (uid: string) => load.get(uid) ?? 0
+
+  // Ordering (product rule): spread meetings evenly FIRST — the attendee with
+  // the FEWEST confirmed meetings is scheduled first (least → most) — then break
+  // ties by priority tier (Best Fit → Med → Low), then fit/rank score, then
+  // oldest request. Negative = a should be picked before b. Evaluated live on
+  // every pick, so placing a meeting raises that attendee's load and a
+  // heavily-booked attendee keeps yielding to lighter ones across the run.
+  const order = (a: Cand, b: Cand) =>
+    loadOf(a.userId) - loadOf(b.userId) ||
     priorityRank(a.priority) - priorityRank(b.priority) ||
     b.score - a.score ||
-    a.createdAt.getTime() - b.createdAt.getTime())
+    a.createdAt.getTime() - b.createdAt.getTime()
 
   const toSkip = (c: Cand) => ({
     requestId: c.reqId, sponsorId: c.sponsorId, sponsorName: c.sponsorName,
@@ -1542,7 +1560,15 @@ export async function autoScheduleByPriority(
   const skipped: AutoSkippedEntry[] = []
   const repByRequest = new Map<string, string | null>()
 
-  for (const c of cands) {
+  // Greedy: repeatedly take the current least-loaded candidate and push it into
+  // the first open slot that works for both sides. Re-selecting by live load
+  // each pass is what balances the schedule across attendees.
+  const remaining = [...cands]
+  while (remaining.length) {
+    let bi = 0
+    for (let i = 1; i < remaining.length; i++) if (order(remaining[i], remaining[bi]) < 0) bi = i
+    const c = remaining.splice(bi, 1)[0]
+
     const pairKey = `${c.sponsorId}::${c.userId}`
     if (scheduledPairs.has(pairKey)) {
       skipped.push({ ...toSkip(c), reason: 'Already has a meeting with this company' })
@@ -1558,10 +1584,12 @@ export async function autoScheduleByPriority(
       skipped.push({ ...toSkip(c), reason: 'No open slot that works for both sides' })
       continue
     }
-    // Commit to in-memory state so later candidates see this occupancy.
+    // Commit to in-memory state so later candidates see this occupancy and the
+    // attendee's raised load.
     taken.add(placed.id)
     busy.add(placed.id)
     scheduledPairs.add(pairKey)
+    load.set(c.userId, loadOf(c.userId) + 1)
     scheduled.push({
       requestId: c.reqId, sponsorId: c.sponsorId, sponsorName: c.sponsorName,
       userId: c.userId, userName: c.userName, priority: c.priority, score: c.score,

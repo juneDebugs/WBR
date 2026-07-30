@@ -171,6 +171,28 @@ async function main() {
   check('matrix shows the candidate back in the bank', !!mx2.bank?.find(b => b.requestId === reqA.id))
   const recancel = await staff(`${API}/meetings/${meetingId}/cancel`, jsonPost({ preserveRequest: true }))
   check('cancel an already-cancelled meeting → non-2xx', recancel.status >= 400, `got ${recancel.status}`)
+
+  // ── POST /api/auto-schedule — Companies-tab scope (all tiers) ──
+  // The Companies button pulls its WHOLE unscheduled bank, including Best Fit;
+  // the default (no priorities) still excludes Best Fit for the requests board.
+  console.log('\n[auto-schedule scope]')
+  const sponsorAS = await prisma.sponsor.create({ data: { id: fid('sponsor-as'), conferenceId: confId, name: 'Adm Sched API AS Co', tier: 'GOLD' } })
+  const userAS = await prisma.user.create({ data: { id: fid('user-as'), email: `${PREFIX}uas-${stamp}@example.com`, name: 'Adm Sched API AS User', role: 'ATTENDEE' } })
+  await prisma.timeBlock.create({ data: { id: fid('tb-as'), conferenceId: confId, startsAt: new Date('2031-03-11T14:00:00Z'), endsAt: new Date('2031-03-11T14:30:00Z') } })
+  const reqAS = await prisma.meetingRequest.create({ data: { id: fid('req-as'), requesterId: userAS.id, targetSponsorId: sponsorAS.id, status: 'APPROVED', priority: 'BEST_FIT' } })
+  const asUrl = `${BASE}/api/auto-schedule`
+  const planned = (data) => (data.scheduled ?? []).some(s => s.requestId === reqAS.id)
+
+  const defRes = await staff(asUrl, jsonPost({ dryRun: true, sponsorId: sponsorAS.id, statuses: ['APPROVED'] }))
+  const def = await defRes.json().catch(() => ({}))
+  check('default scope (no priorities) does NOT plan the Best Fit request', defRes.status === 200 && !planned(def), `status ${defRes.status} planned ${planned(def)}`)
+
+  const allRes = await staff(asUrl, jsonPost({ dryRun: true, sponsorId: sponsorAS.id, statuses: ['APPROVED'], priorities: ['BEST_FIT', 'MED', 'LOW'] }))
+  const all = await allRes.json().catch(() => ({}))
+  check('all-tiers scope plans the Best Fit request (pull ALL unscheduled)', allRes.status === 200 && planned(all), `status ${allRes.status} planned ${planned(all)}`)
+
+  const badRes = await staff(asUrl, jsonPost({ sponsorId: sponsorAS.id, priorities: ['NONSENSE'] }))
+  check('invalid priorities → 400', badRes.status === 400, `got ${badRes.status}`)
 }
 
 main()

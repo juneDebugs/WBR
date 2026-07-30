@@ -461,12 +461,38 @@ board owns Med/Low requests (full and half matches) plus peer-to-peer requests,
 which have no Auto lane. Enforcement is where-fragment reuse, not UI filtering:
 `GET /api/data/meetings` filters with `requestBoardWhere` and runs the
 idempotent `syncAutoMatches` sweep before every read (the same read-path
-dispatch pattern as the Auto board and scheduled broadcasts), the bulk
-schedulers are scoped to `REQUEST_BOARD_PRIORITIES` so "Auto-Schedule by
-Priority"/"All" can never reach into the Auto lane, and an admin Best Fit
+dispatch pattern as the Auto board and scheduled broadcasts), the **global**
+bulk schedulers default to `REQUEST_BOARD_PRIORITIES` so "Auto-Schedule by
+Priority"/"All" never reach into the Auto lane, and an admin Best Fit
 re-tier triggers the sweep in the PATCH route. A one-off CLI sweep
 (`db:sweep-auto-matches`) backfills environments seeded before the rule.
 Tests: `test:auto-match`, `test:auto-match:api`, `e2e:auto-match`.
+
+**Refinement (2026-07-29):** the *per-sponsor* Companies-tab Auto-Schedule is the
+one bulk path that DOES pull every tier. An admin working a single sponsor's
+schedule wants every unscheduled approved request placed — including Best Fit
+bank items sitting unreciprocated — so `POST /api/auto-schedule` takes an
+optional `priorities` body param and the Companies button passes all three
+tiers; the default (used by the global buttons) still excludes Best Fit.
+Scheduling a Best Fit request here can't conflict with the Auto sweep — exclusive
+slots + the pair guard + the unique index make the second writer a no-op skip.
+
+## Auto-schedule ordering — load balancing first (2026-07-29)
+
+`autoScheduleByPriority` (the engine behind every Auto-Schedule button) used to
+order candidates by priority tier → fit score → age. The product rule is now
+**load-balanced**: the attendee with the FEWEST confirmed meetings is scheduled
+first (least → most), so meetings spread evenly across people instead of piling
+onto a few popular attendees; ties break by priority tier (Best Fit → Med → Low),
+then fit/rank score, then oldest request. The "load" is each attendee's confirmed
+`SponsorMeeting` count across all companies — the same "N confirmed" number the
+Companies bank shows. It is evaluated **live**: placing a meeting raises that
+attendee's load mid-run, so a heavily-booked attendee keeps yielding to lighter
+ones (matters when one attendee has requests to several sponsors in a global
+pass). Implemented as a greedy select-min loop rather than a one-shot sort. This
+is why, in the Companies bank, a rank-3 attendee with 0 meetings is scheduled
+ahead of a rank-1 attendee with 5. Verified by the load-balancing section of
+`test:priority` and the all-tiers scope checks in `test:admin-scheduler:api`.
 
 ## On-site Check-In portal — arrival timestamps on SponsorMeeting, admin-only tab (2026-07-28)
 

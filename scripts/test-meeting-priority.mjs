@@ -86,7 +86,7 @@ async function main() {
   console.log('\nIntegration — priority auto-scheduler')
   const conf = await prisma.conference.findFirst({ where: { active: true }, select: { id: true } })
   const confId = conf?.id ?? 'conf-2025'
-  const blocks = await prisma.timeBlock.findMany({ where: { conferenceId: confId }, orderBy: { startsAt: 'asc' }, take: 6, select: { id: true, startsAt: true, endsAt: true } })
+  const blocks = await prisma.timeBlock.findMany({ where: { conferenceId: confId }, orderBy: { startsAt: 'asc' }, take: 10, select: { id: true, startsAt: true, endsAt: true } })
   if (blocks.length < 4) { console.error('  ✗ insufficient seed data (need ≥4 time blocks)'); return }
   const [slot1, slot2, slot3] = blocks
 
@@ -303,6 +303,58 @@ async function main() {
   const nextSlot = await E.findFirstOpenSlot(prisma, sponsorF.id, uF.id, confId)
   check('skips sponsor-taken slot1 and attendee-busy slot2 → slot3',
     nextSlot?.timeBlockId === slot3.id, `tb=${nextSlot?.timeBlockId}`)
+
+  // ── Load balancing: least-loaded attendee first, THEN priority, THEN score ──
+  // The core product rule. Mirrors the screenshot (Felix, 5 meetings/rank-1 vs
+  // Joel, 0 meetings/rank-3 → Joel scheduled first). Fresh sponsor, three
+  // candidates competing for its open slots:
+  //   • uLightBF  — 0 meetings, BEST_FIT, weaker fit score
+  //   • uLightMed — 0 meetings, MED,      weaker fit score
+  //   • uHeavy    — 3 meetings, BEST_FIT, PERFECT fit score (best tier + rank)
+  // Least-load-first must schedule uLightBF then uLightMed then uHeavy — i.e.
+  // uHeavy lands LAST despite the best tier and score, purely because it is the
+  // most-booked attendee; and at equal load Best Fit beats Med.
+  if (blocks.length >= 7) {
+    console.log('\nLoad balancing — fewest meetings first, then priority, then rank score')
+    const [b1, b2, b3, , b5, b6, b7] = blocks
+    const lbSponsor = await prisma.sponsor.create({
+      data: { conferenceId: confId, name: `LB Co ${stamp}`, tier: 'GOLD', solutionsSeeking: JSON.stringify(skills) },
+    })
+    created.sponsors.push(lbSponsor.id)
+    const full = JSON.stringify(skills)                       // both skills → perfect score
+    const partial = JSON.stringify([skills[0]])               // one skill  → weaker score
+    const mkUser = async (tag, offering) => {
+      const u = await prisma.user.create({ data: { email: `test-prio-lb-${tag}-${stamp}@example.com`, name: `LB ${tag}`, role: 'ATTENDEE', solutionsOffering: offering } })
+      created.users.push(u.id)
+      return u
+    }
+    const uLightBF = await mkUser('lightbf', partial)
+    const uLightMed = await mkUser('lightmed', partial)
+    const uHeavy = await mkUser('heavy', full)
+    // uHeavy already has 3 confirmed meetings with three OTHER sponsors, placed
+    // in later blocks (b5/b6/b7) so uHeavy is still free at b1..b3.
+    for (const [i, b] of [b5, b6, b7].entries()) {
+      const hs = await prisma.sponsor.create({ data: { conferenceId: confId, name: `LB Heavy ${i} ${stamp}`, tier: 'BRONZE' } })
+      created.sponsors.push(hs.id)
+      await prisma.sponsorMeeting.create({ data: { sponsorId: hs.id, userId: uHeavy.id, timeBlockId: b.id, status: 'CONFIRMED' } })
+    }
+    const rLBF = await prisma.meetingRequest.create({ data: { requesterId: uLightBF.id, targetSponsorId: lbSponsor.id, status: 'APPROVED', priority: 'BEST_FIT' } })
+    const rLMed = await prisma.meetingRequest.create({ data: { requesterId: uLightMed.id, targetSponsorId: lbSponsor.id, status: 'APPROVED', priority: 'MED' } })
+    const rHeavy = await prisma.meetingRequest.create({ data: { requesterId: uHeavy.id, targetSponsorId: lbSponsor.id, status: 'APPROVED', priority: 'BEST_FIT' } })
+    created.requests.push(rLBF.id, rLMed.id, rHeavy.id)
+
+    // All tiers (the Companies-tab "pull ALL unscheduled" scope).
+    const lb = await E.autoScheduleByPriority(prisma, { sponsorId: lbSponsor.id, conferenceId: confId, statuses: ['APPROVED'] })
+    const at = (uid) => lb.scheduled.find(s => s.userId === uid)?.timeBlockId
+    check('all three scheduled (all tiers pulled, incl Best Fit)', lb.scheduled.length === 3, `got ${lb.scheduled.length}`)
+    check('least-loaded Best Fit first → earliest block b1', at(uLightBF.id) === b1.id, `tb=${at(uLightBF.id)}`)
+    check('equal load: Med after Best Fit → b2', at(uLightMed.id) === b2.id, `tb=${at(uLightMed.id)}`)
+    check('most-booked attendee LAST despite best tier+score → b3', at(uHeavy.id) === b3.id, `tb=${at(uHeavy.id)}`)
+    check('load beats priority: 0-meeting Med scheduled before 3-meeting Best Fit',
+      blocks.findIndex(b => b.id === at(uLightMed.id)) < blocks.findIndex(b => b.id === at(uHeavy.id)))
+  } else {
+    console.log('\n(skipping load-balancing section — need ≥7 time blocks)')
+  }
 }
 
 try {

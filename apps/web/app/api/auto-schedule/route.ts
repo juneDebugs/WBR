@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { prisma, autoScheduleByPriority, REQUEST_BOARD_PRIORITIES } from '@conference/db'
+import { prisma, autoScheduleByPriority, REQUEST_BOARD_PRIORITIES, type MeetingPriority } from '@conference/db'
 import { requireSchedulerAccess } from '@/lib/scheduler-api'
 
 // Priority-tiered auto-scheduler for the admin portal.
@@ -27,11 +27,25 @@ export async function POST(req: Request) {
     }
     statuses = body.statuses
   }
+  let priorities: string[] | undefined
+  if (body?.priorities !== undefined) {
+    const VALID = ['BEST_FIT', 'MED', 'LOW']
+    if (!Array.isArray(body.priorities) || body.priorities.length === 0 ||
+        !body.priorities.every((p: unknown) => typeof p === 'string' && VALID.includes(p))) {
+      return NextResponse.json({ error: 'priorities must be a non-empty array of BEST_FIT/MED/LOW' }, { status: 400 })
+    }
+    priorities = body.priorities
+  }
 
   try {
-    // Scoped to the requests board's tiers (Med + Low): Best Fit picks are the
-    // Auto lane's to schedule — mutually, via the auto-match sweep.
-    const result = await autoScheduleByPriority(prisma, { dryRun, sponsorId, statuses, priorities: REQUEST_BOARD_PRIORITIES })
+    // Default scope is the requests-board tiers (Med + Low) — Best Fit picks are
+    // the Auto lane's to schedule mutually via the auto-match sweep. The
+    // Companies tab passes all three tiers to pull its whole unscheduled bank
+    // (an admin working one sponsor wants every approved request placed).
+    const result = await autoScheduleByPriority(prisma, {
+      dryRun, sponsorId, statuses,
+      priorities: (priorities ?? REQUEST_BOARD_PRIORITIES) as MeetingPriority[],
+    })
     if (!dryRun && result.scheduled.length) revalidateTag('meetings')
     return NextResponse.json(result)
   } catch (err) {
