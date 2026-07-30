@@ -112,8 +112,7 @@ attendance portal. One master grid of every confirmed sponsor meeting for the
 selected day — grouped chronologically by time slot, sorted alphabetically by
 sponsor within each slot — with dual arrival check-offs (**Sponsor arrived** /
 **Buyer arrived**), an internal per-meeting floor note (stored on
-`SponsorMeeting.notes`), and a footer reconciliation bar (completed vs total,
-per-party arrival counts, awaiting). Arrivals persist as
+`SponsorMeeting.notes`). Arrivals persist as
 `SponsorMeeting.sponsorArrivedAt` / `buyerArrivedAt` timestamps
 (`db:migrate-checkin` adds the columns). Engine: `getCheckInBoard` /
 `setMeetingCheckIn` in `packages/db/src/meeting-engine.ts`. API:
@@ -121,8 +120,27 @@ per-party arrival counts, awaiting). Arrivals persist as
 (same `'meetings'` permission gate as the rest of the scheduler). UI:
 `components/CheckInBoard.tsx` (optimistic React Query mutations; the board
 refetches every 30s so several floor managers converge without manual
-refreshes). Tests: `test:checkin` (engine), `test:checkin:api` (HTTP),
-`e2e:checkin` (Playwright).
+refreshes).
+
+Above the floor grid sits a **dashboard** (`components/CheckInDashboard.tsx`)
+derived entirely from the same board payload, scoped by the same day tabs:
+a per-slot **Check-In Tracker** lollipop chart (brand stem + dot = fully
+checked in, light track = scheduled; the live / next-up slot is highlighted
+with a value pill; hover/focus tooltips per column) with a hero completion %,
+a **Time Slots** accordion list (live/upcoming/ended badges, per-slot meter,
+capped with internal scroll), a **Needs Attention** chase list of half-arrived
+meetings with a one-tap ✓ that checks in the missing party, a dark
+**Conference at a glance** all-days totals card that jumps to the floor grid,
+an **Arrival Progress** tick-strip card (sponsors / buyers / completed vs
+the day's meetings), and a full-width **day summary bar** (the reconciliation
+strip — meetings-happened headline + meter, per-party arrival counts, all-days
+rollup; formerly the table's sticky footer, docked at the bottom of the
+dashboard 2026-07-30). Pure derivation helpers live in
+`lib/checkin-dashboard.ts`. Tests: `test:checkin` (engine), `test:checkin:api`
+(HTTP), `test:checkin-dashboard` (dashboard derivation unit tests),
+`e2e:checkin` (Playwright, includes dashboard render + chase-list quick
+check-in); `scripts/visual-checkin-dashboard.mjs` seeds throwaway fixtures and
+captures per-card screenshots for visual QA.
 
 ### Auto matches (Meetings page → Auto tab)
 

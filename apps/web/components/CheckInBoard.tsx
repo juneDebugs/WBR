@@ -6,7 +6,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { CheckInBoard as CheckInBoardData, CheckInDay, CheckInMeeting, CheckInTotals } from '@conference/db'
 import { useCheckInBoard } from '@/lib/scheduler-hooks'
 import { fmtSlotRange, TZ } from '@/lib/format'
-import { TIER_COLORS, TIER_FALLBACK, meterClass } from '@/lib/meetings-ui'
+import { TIER_COLORS, TIER_FALLBACK } from '@/lib/meetings-ui'
+import { CheckInDashboard } from '@/components/CheckInDashboard'
 
 const KEY = ['scheduler', 'checkin'] as const
 
@@ -179,8 +180,12 @@ export function CheckInBoard() {
         </div>
       )}
 
-      {/* ── Master attendance grid ── */}
+      {/* ── Day dashboard + master attendance grid ── */}
       <div id="checkin-day-panel" role="tabpanel" aria-labelledby={`checkin-day-tab-${dayIndex}`} className="mt-4">
+        {/* Keyed by day so the slot accordion re-opens on the new day's highlight */}
+        <CheckInDashboard key={day.dayKey} board={board} day={day} onCheckIn={save} />
+
+        <h2 id="floor-board" className="section-title mt-6 mb-2 scroll-mt-4">Floor Board</h2>
         <div className="bg-white border border-hairline rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-fill border-b border-hairline">
@@ -200,28 +205,6 @@ export function CheckInBoard() {
               ))}
             </tbody>
           </table>
-        </div>
-
-        {/* ── Attendance reconciliation footer ── */}
-        <div className="material-bar sticky bottom-0 mt-4 border border-hairline rounded-xl shadow-card px-4 py-3">
-          <div className="flex items-center gap-4 flex-wrap">
-            <span className="text-sm font-semibold text-ink whitespace-nowrap">
-              {day.label}: <span className="tabular-nums">{day.totals.completed}/{day.totals.meetings}</span> meetings happened
-            </span>
-            <div className="meter w-40 flex-shrink-0">
-              <div
-                className={`meter-fill ${meterClass(day.totals.meetings > 0 ? day.totals.completed / day.totals.meetings : 0)}`}
-                style={{ width: `${day.totals.meetings > 0 ? (day.totals.completed / day.totals.meetings) * 100 : 0}%` }}
-              />
-            </div>
-            <span className="text-sm text-ink-2 tabular-nums whitespace-nowrap">Sponsor arrived {day.totals.sponsorArrived}</span>
-            <span className="text-sm text-ink-2 tabular-nums whitespace-nowrap">Buyer arrived {day.totals.buyerArrived}</span>
-            <span className="text-sm text-ink-2 tabular-nums whitespace-nowrap">Awaiting {day.totals.awaiting}</span>
-          </div>
-          <p className="text-caption text-ink-3 tabular-nums mt-1">
-            All days: {board.totals.completed} of {board.totals.meetings} completed · {board.totals.sponsorArrived} sponsor arrivals ·{' '}
-            {board.totals.buyerArrived} buyer arrivals · {board.totals.awaiting} awaiting
-          </p>
         </div>
       </div>
     </div>
@@ -421,6 +404,20 @@ function BoardSkeleton() {
   return (
     <div>
       <div className="skeleton h-11 w-72 mb-4" />
+      {/* Dashboard placeholders (tracker + slots column, then the small cards) */}
+      <div className="grid gap-4 xl:grid-cols-3 mb-6">
+        <div className="flex flex-col gap-4 xl:col-span-2">
+          <div className="skeleton h-72 w-full rounded-2xl" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="skeleton h-44 w-full rounded-2xl" />
+            <div className="skeleton h-44 w-full rounded-2xl" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="skeleton flex-1 min-h-[16rem] w-full rounded-2xl" />
+          <div className="skeleton h-44 w-full rounded-2xl" />
+        </div>
+      </div>
       <div className="bg-white border border-hairline rounded-xl overflow-hidden">
         <div className="bg-fill border-b border-hairline h-10" />
         {[...Array(8)].map((_, i) => (

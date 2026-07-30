@@ -44,6 +44,7 @@
     "e2e:admin-scheduler": "node scripts/e2e-admin-scheduler.mjs",
     "test:checkin": "node scripts/test-checkin.mjs",
     "test:checkin:api": "node scripts/test-checkin-api.mjs",
+    "test:checkin-dashboard": "node scripts/test-checkin-dashboard.mjs",
     "e2e:checkin": "node scripts/e2e-checkin.mjs",
     "test:auto-match": "node scripts/test-auto-match.mjs",
     "test:auto-match:api": "node scripts/test-auto-match-api.mjs",

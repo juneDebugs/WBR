@@ -164,6 +164,40 @@ async function main() {
   check('attendee shown on the row', await page.getByText(BUYER).first().waitFor({ timeout: T }).then(() => true).catch(() => false))
   await shot(page, 'checkin-board.png')
 
+  console.log('\n[dashboard]')
+  const tracker = page.getByRole('heading', { name: 'Check-In Tracker' })
+  check('tracker card renders', await tracker.waitFor({ timeout: T }).then(() => true).catch(() => false))
+  for (const name of ['Time Slots', 'Needs Attention', 'Arrival Progress', 'Conference at a glance']) {
+    check(`${name} card renders`, await page.getByRole('heading', { name }).isVisible().catch(() => false))
+  }
+  check('tracker hero completion % renders', await page.locator('section[aria-label="Check-in tracker"] p.text-5xl').innerText().then(t => /^\d+%$/.test(t)).catch(() => false))
+  const floorHeading = page.locator('#floor-board')
+  check('Floor Board heading anchors the table', await floorHeading.isVisible().catch(() => false))
+  // Reconciliation strip is docked in the dashboard (no sticky table footer anymore)
+  const summaryBar = page.locator('section[aria-label="Day summary"]')
+  check('day summary bar renders in the dashboard', await summaryBar.getByText(/meetings happened/).isVisible().catch(() => false))
+  check('summary bar carries the all-days rollup', await summaryBar.getByText(/^All days:/).isVisible().catch(() => false))
+  const summaryBox = await summaryBar.boundingBox().catch(() => null)
+  const floorBox2 = await floorHeading.boundingBox().catch(() => null)
+  check('summary bar sits above the floor board', !!summaryBox && !!floorBox2 && summaryBox.y < floorBox2.y)
+  const trackerBox = await tracker.boundingBox().catch(() => null)
+  const floorBox = await floorHeading.boundingBox().catch(() => null)
+  check('check-in table sits below the dashboard', !!trackerBox && !!floorBox && trackerBox.y < floorBox.y)
+  // Tracker chart tooltip: hover a slot column; the tooltip must render its
+  // tally INSIDE the chart scroller (the overflow-x strip clips vertically,
+  // so a mispositioned tooltip would be invisible even though it "exists").
+  const trackerSection = page.locator('section[aria-label="Check-in tracker"]')
+  await trackerSection.locator('button[aria-label*="checked in"]').first().hover().catch(() => {})
+  const tooltipLine = trackerSection.getByText(/^\d+ of \d+ checked in$/).first()
+  check('slot column tooltip appears on hover', await tooltipLine.isVisible().catch(() => false))
+  const tipBox = await tooltipLine.boundingBox().catch(() => null)
+  const stripBox = await trackerSection.locator('div.overflow-x-auto').boundingBox().catch(() => null)
+  check('tooltip sits inside the chart strip (not clipped)', !!tipBox && !!stripBox &&
+    tipBox.y >= stripBox.y && tipBox.y + tipBox.height <= stripBox.y + stripBox.height &&
+    tipBox.x >= stripBox.x && tipBox.x + tipBox.width <= stripBox.x + stripBox.width,
+    JSON.stringify({ tipBox, stripBox }))
+  await shot(page, 'checkin-dashboard.png')
+
   console.log('\n[sponsor arrival]')
   const sponsorBox = page.getByRole('checkbox', { name: new RegExp(`Sponsor arrived — ${COMPANY}`) })
   check('sponsor checkbox present + unchecked', await sponsorBox.isChecked().then(v => !v).catch(() => false))
@@ -189,6 +223,18 @@ async function main() {
   check('untick clears the timestamp', await meetingEventually(prisma, meeting.id, m => m.sponsorArrivedAt === null, 'sponsorArrivedAt cleared'))
   check('note survives the arrival untick', await meetingEventually(prisma, meeting.id, m => m.notes === NOTE, 'note intact'))
   await shot(page, 'checkin-final.png')
+
+  // The fixture is now buyer-only (half-arrived) → it must surface in the
+  // dashboard's Needs Attention chase list, and its quick ✓ marks the sponsor.
+  console.log('\n[dashboard quick check-in]')
+  const chaseBtn = page.getByRole('button', { name: new RegExp(`Mark sponsor arrived — ${COMPANY}`) })
+  check('half-arrived fixture appears in Needs Attention', await chaseBtn.waitFor({ timeout: T }).then(() => true).catch(() => false))
+  check('chase row says Awaiting sponsor', await page.getByText('Awaiting sponsor').first().isVisible().catch(() => false))
+  await shot(page, 'checkin-needs-attention.png')
+  await chaseBtn.click()
+  check('quick ✓ persists the sponsor arrival', await meetingEventually(prisma, meeting.id, m => !!m.sponsorArrivedAt, 'sponsorArrivedAt set via dashboard'))
+  check('fixture leaves the chase list once complete', await chaseBtn.waitFor({ state: 'detached', timeout: T }).then(() => true).catch(() => false))
+  await shot(page, 'checkin-dashboard-after.png')
 
   check('no app console errors during the flow', appErrors.length === 0, appErrors.slice(0, 3).join(' | '))
   await browser.close()
