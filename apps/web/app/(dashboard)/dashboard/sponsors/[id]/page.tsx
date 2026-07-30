@@ -15,6 +15,19 @@ const TIER_STYLES: Record<string, string> = {
   BRONZE:   'bg-orange-100 text-orange-700 border border-orange-300',
 }
 
+function initial(name: string | null | undefined) {
+  return (name?.trim()[0] ?? '?').toUpperCase()
+}
+
+// ATTENDEE → "Attendee". Reps who aren't plain attendees (sponsor/speaker/
+// organizer) get a brand-tinted chip so their standing reads at a glance.
+function roleLabel(role: string) {
+  return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
+}
+const ROLE_BADGE: Record<string, string> = {
+  ATTENDEE: 'badge-neutral',
+}
+
 async function updateSponsor(sponsorId: string, formData: FormData) {
   'use server'
   await prisma.sponsor.update({
@@ -90,7 +103,7 @@ export default async function SponsorDetailPage({ params, searchParams }: {
   const conflictMessage = conflict
     ? CONFLICT_MESSAGES[conflict] ?? 'That slot could not be booked — it is no longer open.'
     : null
-  const [sponsor, users, timeBlocks] = await Promise.all([
+  const [sponsor, users, timeBlocks, team] = await Promise.all([
     prisma.sponsor.findUnique({
       where: { id },
       include: {
@@ -105,6 +118,13 @@ export default async function SponsorDetailPage({ params, searchParams }: {
     }),
     prisma.user.findMany({ orderBy: { name: 'asc' } }),
     prisma.timeBlock.findMany({ orderBy: { startsAt: 'asc' } }),
+    // The sponsor's own people (User.sponsorId === this company). These are the
+    // reps/staff shown in the Team roster card below.
+    prisma.user.findMany({
+      where: { sponsorId: id },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
+    }),
   ])
 
   if (!sponsor) notFound()
@@ -193,8 +213,75 @@ export default async function SponsorDetailPage({ params, searchParams }: {
             </div>
           </div>
 
-          {/* Right: Meetings */}
+          {/* Right: Team + Meetings */}
           <div className="col-span-2 space-y-5">
+            {/* Team roster — the sponsor's own people (User.sponsorId === sponsor) */}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700">
+                  Team at {sponsor.name}
+                </h2>
+                <span className="text-xs text-ink-2 tabular-nums">
+                  {team.length} {team.length === 1 ? 'member' : 'members'}
+                </span>
+              </div>
+
+              {team.length === 0 ? (
+                <div className="px-5 py-10 text-center">
+                  <p className="text-sm text-gray-500">No team members linked to this company yet.</p>
+                  <p className="text-xs text-ink-2 mt-1">
+                    People are added here when their account is linked to {sponsor.name}.
+                  </p>
+                </div>
+              ) : (
+                <ul className="p-4 grid grid-cols-2 gap-3">
+                  {team.map(member => {
+                    const isPrimary =
+                      !!sponsor.contactEmail &&
+                      member.email?.toLowerCase() === sponsor.contactEmail.toLowerCase()
+                    return (
+                      <li
+                        key={member.id}
+                        className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-colors hover:border-primary/40 hover:bg-gray-50"
+                      >
+                        <div className="rounded-full bg-gradient-to-b from-[#a5b4fc] to-[#4f46e5] p-[2px] flex-shrink-0 shadow-sm">
+                          {member.image ? (
+                            <img
+                              src={member.image}
+                              alt=""
+                              className="w-11 h-11 rounded-full object-cover block"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-base">
+                              {initial(member.name)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-semibold text-gray-900 text-sm truncate">
+                              {member.name ?? '—'}
+                            </p>
+                            {isPrimary && (
+                              <span className="badge badge-brand flex-shrink-0 text-[10px] px-1.5 py-0 uppercase tracking-wide font-semibold">Primary</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-ink-2 truncate">
+                            {member.jobTitle ?? 'Team member'}
+                          </p>
+                          <div className="mt-1">
+                            <span className={`badge ${ROLE_BADGE[member.role] ?? 'badge-brand'} text-[10px] px-1.5 py-0 uppercase tracking-wide font-semibold`}>
+                              {roleLabel(member.role)}
+                            </span>
+                          </div>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+
             {/* Schedule new meeting */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <h2 className="text-sm font-semibold text-gray-700 mb-4">Schedule a 1-1 Meeting</h2>
