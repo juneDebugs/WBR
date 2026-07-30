@@ -8,6 +8,7 @@ import {
   listGlobalFeed,
   postGlobalMessage,
 } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 // GET — fetch messages from the shared general room
 export async function GET() {
@@ -27,6 +28,8 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const { content, imageUrl } = await req.json()
 

@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, getFriendStatus, applyFriendAction, type FriendAction } from '@conference/db'
 import { actorFromSession, guardFriendRequest } from '@/lib/messaging-guard'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 // GET — friend status between the current user and [userId]
 export async function GET(
@@ -28,6 +29,8 @@ export async function POST(
   const { userId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const currentUserId = session.user.id
 

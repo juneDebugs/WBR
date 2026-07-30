@@ -2,10 +2,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromHeaders()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const { id } = await req.json()
   if (!id || typeof id !== 'string') return NextResponse.json({ error: 'Missing id' }, { status: 400 })
