@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
-import { prisma, resolveParties, syncAutoMatches, assertBlockOpen, EngineError, engineErrorHttpStatus } from '@conference/db'
+import { prisma, resolveParties, syncAutoMatches, assertBlockOpen, commitOrConflict, EngineError, engineErrorHttpStatus } from '@conference/db'
 import { invalidate } from '@/lib/mem-cache'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -82,7 +82,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       data: { sponsorId: parties.sponsorId, userId: parties.userId, repId: parties.repId, timeBlockId, status: 'CONFIRMED' },
     }))
   }
-  const [updated] = await prisma.$transaction(ops)
+  let updated
+  try {
+    // commitOrConflict maps the DB exclusive-slot index (the backstop for a
+    // true concurrent write that slips past the guard above) to a typed 409.
+    ;[updated] = await commitOrConflict(() => prisma.$transaction(ops))
+  } catch (e) {
+    if (e instanceof EngineError) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: engineErrorHttpStatus(e.code) })
+    }
+    throw e
+  }
 
   // A staff re-tier to Best Fit can complete a mutual match, which schedules
   // the meeting immediately. Idempotent sweep; never fails the update itself.

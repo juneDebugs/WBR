@@ -1,5 +1,5 @@
 export const revalidate = 60
-import { prisma, assertBlockOpen, EngineError } from '@conference/db'
+import { prisma, assertBlockOpen, commitOrConflict, EngineError } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { SponsorLogo } from '@/components/SponsorLogo'
 import { redirect, notFound } from 'next/navigation'
@@ -56,13 +56,15 @@ async function scheduleMeeting(sponsorId: string, formData: FormData) {
   if (pairExisting) redirect(`/dashboard/sponsors/${sponsorId}?conflict=ALREADY_SCHEDULED`)
   try {
     await assertBlockOpen(prisma, sponsorId, userId, timeBlockId)
+    // commitOrConflict maps the DB exclusive-slot index (the backstop for a
+    // true concurrent write that slips past assertBlockOpen) to a typed error.
+    await commitOrConflict(() => prisma.sponsorMeeting.create({
+      data: { sponsorId, userId, timeBlockId, notes, status: 'CONFIRMED' },
+    }))
   } catch (e) {
     if (e instanceof EngineError) redirect(`/dashboard/sponsors/${sponsorId}?conflict=${e.code}`)
     throw e
   }
-  await prisma.sponsorMeeting.create({
-    data: { sponsorId, userId, timeBlockId, notes, status: 'CONFIRMED' },
-  })
   revalidatePath(`/dashboard/sponsors/${sponsorId}`)
   redirect(`/dashboard/sponsors/${sponsorId}`)
 }

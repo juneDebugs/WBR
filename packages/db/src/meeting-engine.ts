@@ -318,6 +318,63 @@ export function engineErrorHttpStatus(code: EngineErrorCode): number {
   return 400
 }
 
+// ── DB-level exclusive-slot backstop ─────────────────────────────────────────
+// Partial unique indexes on SponsorMeeting enforce the exclusive-slot invariant
+// at the database, closing the sub-millisecond TOCTOU window the application
+// guards (assertBlockOpen, the pairExisting checks) cannot: two truly
+// simultaneous writes both pass their read-then-write checks, but only one can
+// survive the index. Created by scripts/migrate-exclusive-slot-indexes.mjs
+// (which must run AFTER migrate-exclusive-slots.mjs has normalized any legacy
+// duplicates, or index creation fails). Names are referenced by the migration
+// and matched in the constraint translator below.
+export const EXCLUSIVE_SLOT_INDEXES = {
+  sponsorBlock: 'SponsorMeeting_sponsor_block_confirmed_uq', // (sponsorId, timeBlockId) WHERE status='CONFIRMED'
+  userBlock: 'SponsorMeeting_user_block_confirmed_uq',       // (userId, timeBlockId)   WHERE status='CONFIRMED'
+  sponsorUser: 'SponsorMeeting_sponsor_user_confirmed_uq',   // (sponsorId, userId)     WHERE status='CONFIRMED'
+} as const
+
+// Translate a unique-constraint violation on one of the exclusive-slot indexes
+// into the matching typed EngineError, so an index-caught race surfaces as a
+// clean 409 (via engineErrorHttpStatus) instead of a raw 500. Recognizes both
+// Prisma's P2002 shape and the libSQL adapter's raw "UNIQUE constraint failed"
+// message. Returns null for any other error, which the caller should rethrow.
+export function exclusiveSlotConstraintError(err: unknown): EngineError | null {
+  const e = err as { code?: string; message?: string; meta?: { target?: unknown } }
+  const isUnique = e?.code === 'P2002' ||
+    (typeof e?.message === 'string' && e.message.includes('UNIQUE constraint failed'))
+  if (!isUnique) return null
+  // The violation identifier is reported either as the index NAME (Prisma may
+  // surface it) or as the raw "table.col, table.col" column list (libSQL). Match
+  // both, and require the exact column PAIR so an unrelated unique violation
+  // (e.g. a primary-key collision) returns null and propagates as a 500 rather
+  // than being masked as a scheduling conflict. Column checks are
+  // case-sensitive, so the "SponsorMeeting" table prefix never matches the
+  // lowercase "sponsorId" column token.
+  const hay = (Array.isArray(e?.meta?.target)
+    ? (e!.meta!.target as unknown[]).join(',')
+    : String(e?.meta?.target ?? '')) + ' ' + (e?.message ?? '')
+  const col = (c: string) => hay.includes(c)
+  if (hay.includes(EXCLUSIVE_SLOT_INDEXES.userBlock) || (col('userId') && col('timeBlockId') && !col('sponsorId')))
+    return new EngineError('CANDIDATE_BUSY', 'The attendee already has a meeting in that time block')
+  if (hay.includes(EXCLUSIVE_SLOT_INDEXES.sponsorUser) || (col('sponsorId') && col('userId') && !col('timeBlockId')))
+    return new EngineError('ALREADY_SCHEDULED', 'This pairing already has a confirmed meeting')
+  if (hay.includes(EXCLUSIVE_SLOT_INDEXES.sponsorBlock) || (col('sponsorId') && col('timeBlockId') && !col('userId')))
+    return new EngineError('SPONSOR_FULL', 'The company already has a meeting in that time block')
+  return null
+}
+
+// Run a write and, if it fails on an exclusive-slot index, rethrow the mapped
+// EngineError so every caller gets the same typed conflict the guards produce.
+export async function commitOrConflict<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (err) {
+    const conflict = exclusiveSlotConstraintError(err)
+    if (conflict) throw conflict
+    throw err
+  }
+}
+
 // ── Party resolution ────────────────────────────────────────────────────────
 // A request "belongs" to a sponsor when either the request targets the sponsor
 // (an attendee → sponsor ask) or the requester is a rep of the sponsor
@@ -1028,7 +1085,7 @@ export async function assignMeeting(prisma: Db, input: AssignInput) {
 
   await assertSlotBookable(prisma, parties.sponsorId, parties.userId, input.timeBlockId, input.room)
 
-  const [meeting] = await prisma.$transaction([
+  const [meeting] = await commitOrConflict(() => prisma.$transaction([
     prisma.sponsorMeeting.create({
       data: {
         sponsorId: parties.sponsorId,
@@ -1043,7 +1100,7 @@ export async function assignMeeting(prisma: Db, input: AssignInput) {
       where: { id: req.id },
       data: { status: 'CONFIRMED', timeBlockId: input.timeBlockId },
     }),
-  ])
+  ]))
   return meeting
 }
 
@@ -1089,7 +1146,7 @@ export async function rescheduleMeeting(prisma: Db, input: RescheduleInput) {
       where: { id: linked.id }, data: { timeBlockId: input.timeBlockId },
     }))
   }
-  const [meeting] = await prisma.$transaction(writes)
+  const [meeting] = await commitOrConflict(() => prisma.$transaction(writes))
   return meeting
 }
 
@@ -1568,21 +1625,42 @@ export async function autoScheduleByPriority(
       freshSponsorBusy.add(`${s.sponsorId}::${s.timeBlockId}`)
       survivors.push(s)
     }
-    scheduled = survivors
-
-    const writes: any[] = []
-    for (const s of scheduled) {
-      writes.push(prisma.sponsorMeeting.create({
-        data: {
-          sponsorId: s.sponsorId, userId: s.userId, repId: repByRequest.get(s.requestId) ?? null,
-          timeBlockId: s.timeBlockId, location: s.room, status: 'CONFIRMED',
-        },
-      }))
-      writes.push(prisma.meetingRequest.update({
-        where: { id: s.requestId }, data: { status: 'CONFIRMED', timeBlockId: s.timeBlockId },
-      }))
+    // Per-pair commits (not one batch transaction) so the DB-level backstop
+    // can reject a single raced pair without rolling back every other booking:
+    // if the exclusive-slot index rejects a write (a concurrent writer beat us
+    // between the revalidation read and this commit), that pair moves to
+    // skipped and the rest still land. A NON-conflict error (e.g. a dropped
+    // connection) is rethrown — earlier pairs stay committed and the caller
+    // gets a 500, which is honest about an outage (vs. masking it as spurious
+    // "slot taken" skips) and safe to retry: the pair guards skip what landed.
+    const committed: AutoScheduledEntry[] = []
+    for (const s of survivors) {
+      try {
+        await commitOrConflict(() => prisma.$transaction([
+          prisma.sponsorMeeting.create({
+            data: {
+              sponsorId: s.sponsorId, userId: s.userId, repId: repByRequest.get(s.requestId) ?? null,
+              timeBlockId: s.timeBlockId, location: s.room, status: 'CONFIRMED',
+            },
+          }),
+          prisma.meetingRequest.update({
+            where: { id: s.requestId }, data: { status: 'CONFIRMED', timeBlockId: s.timeBlockId },
+          }),
+        ]))
+        committed.push(s)
+      } catch (err) {
+        if (err instanceof EngineError) {
+          skipped.push({
+            requestId: s.requestId, sponsorId: s.sponsorId, sponsorName: s.sponsorName,
+            userId: s.userId, userName: s.userName, priority: s.priority,
+            reason: 'Slot was taken while scheduling — run auto-schedule again',
+          })
+          continue
+        }
+        throw err
+      }
     }
-    if (writes.length) await prisma.$transaction(writes)
+    scheduled = committed
   }
 
   const byTier: TierSummary[] = MEETING_PRIORITIES.map(tier => ({

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { prisma, resolveParties, syncAutoMatches, assertBlockOpen, EngineError, engineErrorHttpStatus } from '@conference/db'
+import { prisma, resolveParties, syncAutoMatches, assertBlockOpen, commitOrConflict, EngineError, engineErrorHttpStatus } from '@conference/db'
 import { requireSchedulerAccess } from '@/lib/scheduler-api'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -87,7 +87,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       data: { sponsorId: parties.sponsorId, userId: parties.userId, repId: parties.repId, timeBlockId, status: 'CONFIRMED' },
     }))
   }
-  const [updated] = await prisma.$transaction(ops)
+  let updated
+  try {
+    // commitOrConflict maps the DB exclusive-slot index (the backstop for a
+    // true concurrent write that slips past the guard above) to a typed 409.
+    ;[updated] = await commitOrConflict(() => prisma.$transaction(ops))
+  } catch (e) {
+    if (e instanceof EngineError) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: engineErrorHttpStatus(e.code) })
+    }
+    throw e
+  }
 
   // Re-tiering a request to Best Fit hands it to the Auto lane: run the
   // auto-match sweep immediately so a pair this pick completes is scheduled

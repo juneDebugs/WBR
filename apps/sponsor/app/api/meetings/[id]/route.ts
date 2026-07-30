@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
-import { prisma, findFirstOpenSlot, assertBlockOpen, EngineError, MEETING_ROOMS } from '@conference/db'
+import { prisma, findFirstOpenSlot, assertBlockOpen, commitOrConflict, engineErrorHttpStatus, EngineError, MEETING_ROOMS } from '@conference/db'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -71,7 +71,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       data: { sponsorId, userId: attendeeId, timeBlockId, location: room, status: 'CONFIRMED' },
     }))
   }
-  const [updated] = await prisma.$transaction(ops)
+  let updated
+  try {
+    // commitOrConflict maps the DB exclusive-slot index (the backstop for a
+    // true concurrent write that slips past the guard above) to a typed 409.
+    ;[updated] = await commitOrConflict(() => prisma.$transaction(ops))
+  } catch (e) {
+    if (e instanceof EngineError) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: engineErrorHttpStatus(e.code) })
+    }
+    throw e
+  }
 
   if (sponsorId) revalidateTag(`meetings-${sponsorId}`)
 
