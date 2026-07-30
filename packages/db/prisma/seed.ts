@@ -476,14 +476,30 @@ async function main() {
 
   // The Brand-tier account is Steph Curry (restored from the old
   // demo-attendee-steph seed user), now mapped onto the Brand login.
-  const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string; bio?: string; image?: string; solutionsSeeking?: string; solutionsOffering?: string }[] = [
-    { id: 'test-wbr', email: 'wbr@test.com', name: 'WBR', role: 'ORGANIZER', password: testHash, company: 'WBR', jobTitle: 'Conference Organizer' },
-    { id: 'test-brand', email: 'stephcurry@test.com', name: 'Steph Curry', role: 'BRAND', password: testHash, company: 'Golden State Warriors', jobTitle: 'Point Guard', bio: 'Point guard for the Golden State Warriors. At WBR to scout commerce, brand, and loyalty tooling for the next signature drop.', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&q=80&fit=crop&crop=face', solutionsSeeking: JSON.stringify(['AI & Automation','Personalization','Analytics & Reporting']), solutionsOffering: JSON.stringify(['Email Marketing','Loyalty & Rewards']) },
-    { id: 'test-sponsor', email: 'sponsor@test.com', name: 'Sponsor', role: 'SPONSOR', password: testHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor ERP', jobTitle: 'Partner Manager' },
+  // ── Attendee onboarding gate: every attendee-facing account needs the full
+  // required set, or it lands on the onboarding checklist instead of the app.
+  //
+  // Required set (apps/attendee/lib/profile-completeness.ts): name, jobTitle,
+  // company, companySize, annualRevenue, and >=1 solutionsSeeking. Before this
+  // was added, the seed set neither companySize nor annualRevenue at all, so a
+  // reseed produced ~1000 attendees blocked on two fields each.
+  const COMPANY_SIZES = ['STARTUP', 'SMB', 'MIDMARKET', 'ENTERPRISE'] as const
+  const REVENUE_RANGES = ['<1M', '1M-10M', '10M-50M', '50M-250M', '250M+'] as const
+
+  const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string; bio?: string; image?: string; companySize?: string; annualRevenue?: string; solutionsSeeking?: string; solutionsOffering?: string }[] = [
+    { id: 'test-wbr', email: 'wbr@test.com', name: 'WBR', role: 'ORGANIZER', password: testHash, company: 'WBR', jobTitle: 'Conference Organizer', companySize: 'SMB', annualRevenue: '1M-10M' },
+    { id: 'test-brand', email: 'stephcurry@test.com', name: 'Steph Curry', role: 'BRAND', password: testHash, company: 'Golden State Warriors', jobTitle: 'Point Guard', bio: 'Point guard for the Golden State Warriors. At WBR to scout commerce, brand, and loyalty tooling for the next signature drop.', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&q=80&fit=crop&crop=face', companySize: 'ENTERPRISE', annualRevenue: '250M+', solutionsSeeking: JSON.stringify(['AI & Automation','Personalization','Analytics & Reporting']), solutionsOffering: JSON.stringify(['Email Marketing','Loyalty & Rewards']) },
+    { id: 'test-sponsor', email: 'sponsor@test.com', name: 'Sponsor', role: 'SPONSOR', password: testHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor ERP', jobTitle: 'Partner Manager', companySize: 'MIDMARKET', annualRevenue: '10M-50M' },
+    // Deliberately INCOMPLETE — the one account that is meant to hit the
+    // onboarding gate, so the gate can be demonstrated on cue instead of being
+    // discovered by accident on someone else's login. Complete in every field
+    // except solutionsSeeking, which is an explicitly empty array. Do not
+    // "fix" this account; it is doing its job when it is blocked.
+    { id: 'test-onboarding-demo', email: 'onboarding-demo@test.com', name: 'Onboarding Gate Demo', role: 'ATTENDEE', password: testHash, company: 'Gate Demo Co', jobTitle: 'Head of eCommerce', companySize: 'MIDMARKET', annualRevenue: '10M-50M', solutionsSeeking: JSON.stringify([]) },
   ]
 
   // Helper: upsert user by email, handling existing IDs gracefully
-  async function upsertUser(data: { id: string; email: string; name: string; role: string; password?: string; sponsorId?: string; company?: string; jobTitle?: string; bio?: string; image?: string; solutionsSeeking?: string; solutionsOffering?: string }) {
+  async function upsertUser(data: { id: string; email: string; name: string; role: string; password?: string; sponsorId?: string; company?: string; jobTitle?: string; bio?: string; image?: string; companySize?: string; annualRevenue?: string; solutionsSeeking?: string; solutionsOffering?: string }) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
     if (existing) {
       await prisma.user.update({
@@ -497,6 +513,8 @@ async function main() {
           ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
           ...(data.bio ? { bio: data.bio } : {}),
           ...(data.image ? { image: data.image } : {}),
+          ...(data.companySize ? { companySize: data.companySize } : {}),
+          ...(data.annualRevenue ? { annualRevenue: data.annualRevenue } : {}),
           ...(data.solutionsSeeking ? { solutionsSeeking: data.solutionsSeeking } : {}),
           ...(data.solutionsOffering ? { solutionsOffering: data.solutionsOffering } : {}),
         },
@@ -519,6 +537,8 @@ async function main() {
           ...(data.jobTitle ? { jobTitle: data.jobTitle } : {}),
           ...(data.bio ? { bio: data.bio } : {}),
           ...(data.image ? { image: data.image } : {}),
+          ...(data.companySize ? { companySize: data.companySize } : {}),
+          ...(data.annualRevenue ? { annualRevenue: data.annualRevenue } : {}),
           ...(data.solutionsSeeking ? { solutionsSeeking: data.solutionsSeeking } : {}),
           ...(data.solutionsOffering ? { solutionsOffering: data.solutionsOffering } : {}),
         },
@@ -538,6 +558,8 @@ async function main() {
         jobTitle: data.jobTitle,
         bio: data.bio,
         image: data.image,
+        companySize: data.companySize,
+        annualRevenue: data.annualRevenue,
         solutionsSeeking: data.solutionsSeeking,
         solutionsOffering: data.solutionsOffering,
       },
@@ -692,6 +714,10 @@ async function main() {
         company,
         jobTitle,
         image: attendeeHeadshot(genIdx + demoUsers.length + attendeeUsers.length),
+        // Required by the attendee onboarding gate — without these two, every
+        // generated attendee lands on the onboarding checklist instead of the app.
+        companySize: COMPANY_SIZES[genIdx % COMPANY_SIZES.length],
+        annualRevenue: REVENUE_RANGES[genIdx % REVENUE_RANGES.length],
         solutionsSeeking: JSON.stringify(seeking),
         solutionsOffering: JSON.stringify(offering),
       })
@@ -700,6 +726,16 @@ async function main() {
   }
 
   // ── Clean up users not in seed ──────────────────────────────────────────
+  //
+  // ⚠️ DESTRUCTIVE ON A LIVE DEMO DATABASE. This deletes every user whose id is
+  // not in the list below. As of 2026-07-29 the working demo dataset was NOT
+  // produced by this script — its ~560 loginable accounts carry cuid-style ids
+  // and real vendor-domain emails, none of the `gen-attendee-*` ids generated
+  // here — so running this seed against it wipes the entire demo population and
+  // replaces it with freshly generated accounts.
+  //
+  // To repair specific profile fields without destroying accounts, use
+  // scripts/backfill-onboarding-required-fields.mjs instead.
   const allSeededIds = [
     ...demoUsers.map(u => u.id),
     ...attendeeUsers.map(u => u.id),
