@@ -8,6 +8,7 @@ import {
   listRoomMessagesForUser,
   postRoomMessage,
 } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 // GET /api/chat/rooms/[roomId]/messages
 export async function GET(
@@ -40,6 +41,8 @@ export async function POST(
   const { roomId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const { content } = await request.json()
 

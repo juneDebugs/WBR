@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { signOut } from 'next-auth/react'
 import Image from 'next/image'
 import { SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS } from '@/lib/solutions'
+import { parseArrayField } from '@/lib/profile-completeness'
 
 function toggle<T>(arr: T[], val: T): T[] {
   return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]
@@ -33,6 +35,8 @@ interface Props {
 }
 
 export function SetupClient({ userId, userName, userImage, userBio, userJobTitle, userCompany, userWebsite, userCompanySize, userAnnualRevenue, userSolutionsOffering, userSolutionsSeeking, blackouts: initialBlackouts }: Props) {
+  const router = useRouter()
+
   // Photo state
   const [photoUrl, setPhotoUrl] = useState(userImage ?? '')
   const [photoSaving, setPhotoSaving] = useState(false)
@@ -48,8 +52,16 @@ export function SetupClient({ userId, userName, userImage, userBio, userJobTitle
     website: userWebsite ?? '',
     companySize: userCompanySize ?? '',
     annualRevenue: userAnnualRevenue ?? '',
-    solutionsOffering: userSolutionsOffering ? JSON.parse(userSolutionsOffering) as string[] : [],
-    solutionsSeeking: userSolutionsSeeking ? JSON.parse(userSolutionsSeeking) as string[] : [],
+    // parseArrayField rather than a bare JSON.parse. These columns hold
+    // JSON-encoded arrays as text, and a malformed value used to throw during
+    // render and leave this screen blank — measured with solutionsOffering set
+    // to "{": the Settings heading never appeared and the page reduced to 127
+    // characters of body text. solutionsOffering is optional, so a malformed
+    // value there does not trip the onboarding gate, which made it reachable by
+    // an otherwise-complete attendee. Reuses the completeness policy's parser so
+    // there is one definition of "what this column means" rather than two.
+    solutionsOffering: parseArrayField(userSolutionsOffering),
+    solutionsSeeking: parseArrayField(userSolutionsSeeking),
   })
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
@@ -99,6 +111,13 @@ export function SetupClient({ userId, userName, userImage, userBio, userJobTitle
       })
       setProfileSaved(true)
       setTimeout(() => setProfileSaved(false), 2500)
+      // Drop the browser's cached pages so the onboarding gate re-reads this
+      // profile on the next navigation. Without this, clearing a required field
+      // here would not re-block until a full page reload: next.config.js sets
+      // experimental.staleTimes.dynamic = 300, so an already-visited section is
+      // reused for five minutes without the server being asked. See the gate in
+      // app/(authenticated)/(app)/layout.tsx.
+      router.refresh()
     } finally {
       setProfileSaving(false)
     }

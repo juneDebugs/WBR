@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, toggleMessageLike } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 // POST — toggle the signed-in user's like on a general-room feed message.
 // DM-room message ids 404 (likes are a feed-only feature).
@@ -12,6 +13,8 @@ export async function POST(
   const { messageId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const result = await toggleMessageLike(prisma, messageId, session.user.id)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 404 })

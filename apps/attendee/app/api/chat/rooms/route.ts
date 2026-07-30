@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, getOrCreateDirectRoom } from '@conference/db'
 import { actorFromSession, guardNewDirectRoom } from '@/lib/messaging-guard'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 // GET /api/chat/rooms — list rooms the current user is a member of
 export async function GET() {
@@ -31,6 +32,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const { targetUserId } = await request.json()
   if (!targetUserId) return NextResponse.json({ error: 'Missing targetUserId' }, { status: 400 })

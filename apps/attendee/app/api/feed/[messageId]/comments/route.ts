@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, listMessageComments, postMessageComment } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 // GET — list comments on a general-room feed message, ascending.
 // DM-room message ids 404 (comments are a feed-only feature).
@@ -27,6 +28,8 @@ export async function POST(
   const { messageId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const { content } = await req.json()
 
