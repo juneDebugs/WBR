@@ -42,6 +42,10 @@ When a procedure does not succeed or a production-side issue surfaces, the sympt
 
 Wipe the SQLite database and reseed with the standard demo dataset (~1000 attendees, 72 speakers, 20 sponsors, plus all conference, sponsor, meeting, and chat seed data).
 
+> ⚠️ **This replaces the account population; it does not top it up.** `seed.ts` deletes every user whose id it did not itself generate. The working demo dataset was **not** produced by the seed — its accounts carry cuid-style ids and real vendor-domain emails, none of the `gen-attendee-*` ids the seed creates. Measured on a copy: reseeding removed **2,516 users** before creating its own. Any account someone has been demoing with, or shared with a stakeholder, disappears.
+>
+> **Before a customer demo, do not reseed to fix a data problem.** If accounts are stuck on the attendee onboarding checklist, their profiles are incomplete — repair them in place with `pnpm db:backfill-onboarding`, which fills only missing fields, is safe to re-run, and verifies itself by re-reading. One account, `onboarding-demo@test.com`, is deliberately left incomplete so the gate can be demonstrated on purpose; the script leaves it alone. See [`docs/smoketests/phase-1-attendee-onboarding-gate.md`](smoketests/phase-1-attendee-onboarding-gate.md).
+
 ```bash
 # 1. From repo root: stop any running dev servers, then remove BOTH local SQLite files
 #    plus the per-app copies. The two packages/db files exist because db:push and the

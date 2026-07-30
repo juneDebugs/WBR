@@ -487,9 +487,9 @@ async function main() {
   const REVENUE_RANGES = ['<1M', '1M-10M', '10M-50M', '50M-250M', '250M+'] as const
 
   const demoUsers: { id: string; email: string; name: string; role: string; password: string; sponsorId?: string; company?: string; jobTitle?: string; bio?: string; image?: string; companySize?: string; annualRevenue?: string; solutionsSeeking?: string; solutionsOffering?: string }[] = [
-    { id: 'test-wbr', email: 'wbr@test.com', name: 'WBR', role: 'ORGANIZER', password: testHash, company: 'WBR', jobTitle: 'Conference Organizer', companySize: 'SMB', annualRevenue: '1M-10M' },
+    { id: 'test-wbr', email: 'wbr@test.com', name: 'WBR', role: 'ORGANIZER', password: testHash, company: 'WBR', jobTitle: 'Conference Organizer', companySize: 'SMB', annualRevenue: '1M-10M', solutionsSeeking: JSON.stringify(['Analytics & Reporting','AI & Automation']) },
     { id: 'test-brand', email: 'stephcurry@test.com', name: 'Steph Curry', role: 'BRAND', password: testHash, company: 'Golden State Warriors', jobTitle: 'Point Guard', bio: 'Point guard for the Golden State Warriors. At WBR to scout commerce, brand, and loyalty tooling for the next signature drop.', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&q=80&fit=crop&crop=face', companySize: 'ENTERPRISE', annualRevenue: '250M+', solutionsSeeking: JSON.stringify(['AI & Automation','Personalization','Analytics & Reporting']), solutionsOffering: JSON.stringify(['Email Marketing','Loyalty & Rewards']) },
-    { id: 'test-sponsor', email: 'sponsor@test.com', name: 'Sponsor', role: 'SPONSOR', password: testHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor ERP', jobTitle: 'Partner Manager', companySize: 'MIDMARKET', annualRevenue: '10M-50M' },
+    { id: 'test-sponsor', email: 'sponsor@test.com', name: 'Sponsor', role: 'SPONSOR', password: testHash, sponsorId: 'cmngb2h4h0007vm28mbcpxjg5', company: 'Tailor ERP', jobTitle: 'Partner Manager', companySize: 'MIDMARKET', annualRevenue: '10M-50M', solutionsSeeking: JSON.stringify(['B2B Commerce','Marketplace Integration']) },
     // Deliberately INCOMPLETE — the one account that is meant to hit the
     // onboarding gate, so the gate can be demonstrated on cue instead of being
     // discovered by accident on someone else's login. Complete in every field

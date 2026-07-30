@@ -39,7 +39,16 @@ NOT MODIFIED (deliberately out of scope):
 
 - **R1-F2 (claimed AC-FAILING, REJECTED).** Claimed committing the smoketest doc would trip the blocklist on the literal `.claude`.
 
-  **Adjudication: DISPROVED empirically.** Ran the actual hook scanner (`~/.config/tailor/git-hooks/lib/scan-diff-for-blocklist` against `~/.config/tailor/customer-blocklist.txt`) over the real diff: **clean**, with a positive control confirming the scanner works (it flagged other terms and exited 1). `.claude` is on the blocklist but cannot match, because word-boundary matching does not anchor before a leading dot — an effectively dead entry, reported separately to the blocklist owner.
+  **Adjudication: DISPROVED empirically.** Ran the actual hook scanner (`~/.config/tailor/git-hooks/lib/scan-diff-for-blocklist` against `~/.config/tailor/customer-blocklist.txt`) over the real diff: **clean**, with a positive control confirming the scanner works (it flagged other terms and exited 1).
+
+  **How the `.claude` rule actually behaves** — measured, after an initial wrong reading of it. The scanner applies it two ways, and only one of them fires:
+
+  | `.claude` appears as | Blocked |
+  |---|---|
+  | a **filename** in the diff (e.g. `.claude/settings.local.json`) | **yes** |
+  | **prose content** mentioning a `.claude/…` path | no |
+
+  So the entry is not dead — it does exactly what its own comment in the blocklist says, guarding against internal-folder filename leaks. It simply does not catch prose that quotes such a path, which is why the committed smoketest doc referencing `.claude/plans/…` would not have been blocked. An earlier draft of this log claimed the entry could never match; that was wrong and is corrected here.
 
   **Partial credit.** It pointed at something real by accident: the doc cited gitignored `.claude/…` paths, so a committed doc would reference files no other reader has. Rewritten to the convention prior logs use ("engineer-local … (gitignored)").
 
