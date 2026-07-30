@@ -155,15 +155,15 @@ export function CompanyDirectory() {
           {/* Fixed layout so the data columns share the width evenly instead of
               the auto-layout dumping all slack into the Company column. */}
           <colgroup>
-            <col className="w-[16%]" />
-            <col className="w-[12%]" />
-            <col className="w-[11%]" />
-            <col className="w-[11%]" />
-            <col className="w-[10%]" />
-            <col className="w-[9%]" />
-            <col className="w-[11%]" />
-            <col className="w-[8%]" />
-            <col className="w-[12%]" />
+            <col className="w-[15%]" />{/* Company */}
+            <col className="w-[11%]" />{/* Last login */}
+            <col className="w-[11%]" />{/* Num of logins */}
+            <col className="w-[11%]" />{/* Requests received */}
+            <col className="w-[11%]" />{/* Requests made */}
+            <col className="w-[10%]" />{/* Pending */}
+            <col className="w-[10%]" />{/* Unscheduled */}
+            <col className="w-[10%]" />{/* Confirmed */}
+            <col className="w-[11%]" />{/* Meeting fill */}
           </colgroup>
           <thead className="bg-fill border-b border-hairline">
             <tr>
