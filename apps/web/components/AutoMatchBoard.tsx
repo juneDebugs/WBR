@@ -190,8 +190,18 @@ function MatchCard({ match }: { match: AutoMatch }) {
       <div className="flex items-center gap-4 flex-wrap">
         {/* Attendee */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-48">
-          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
-            {initial(match.attendee.name)}
+          <div className="rounded-full bg-gradient-to-b from-[#a5b4fc] to-[#4f46e5] p-[2px] flex-shrink-0 shadow-sm">
+            {match.attendee.image ? (
+              <img
+                src={match.attendee.image}
+                alt=""
+                className="w-9 h-9 rounded-full object-cover block"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                {initial(match.attendee.name)}
+              </div>
+            )}
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-ink leading-tight truncate">{match.attendee.name}</p>

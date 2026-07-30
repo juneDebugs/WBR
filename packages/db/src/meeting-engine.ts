@@ -1746,7 +1746,7 @@ export interface AutoMatchMeeting {
 export interface AutoMatch {
   key: string // `${sponsorId}::${userId}` — the engine's pair identity
   sponsor: { id: string; name: string; logoUrl: string | null; tier: string }
-  attendee: { id: string; name: string; company: string | null }
+  attendee: { id: string; name: string; company: string | null; image: string | null }
   sponsorPick: AutoMatchPick  // rep → attendee
   attendeePick: AutoMatchPick // attendee → sponsor
   matchedAt: string           // the later of the two picks — when the match formed
@@ -1757,7 +1757,7 @@ export interface AutoMatch {
 export interface AutoMatchHalf {
   key: string // `${sponsorId}::${userId}` — same pair identity as AutoMatch
   sponsor: { id: string; name: string; logoUrl: string | null; tier: string }
-  attendee: { id: string; name: string; company: string | null }
+  attendee: { id: string; name: string; company: string | null; image: string | null }
   pickedBy: 'SPONSOR' | 'ATTENDEE' // which side has picked Best Fit so far
   pick: AutoMatchPick
   counterpartPriority: MeetingPriority | null // the other side's strongest live pick, when one exists at Med/Low
@@ -1807,8 +1807,8 @@ async function computeAutoMatches(prisma: Db, confId: string): Promise<ComputedA
       select: {
         id: true, requesterId: true, targetUserId: true, targetSponsorId: true,
         status: true, priority: true, message: true, createdAt: true,
-        requester: { select: { sponsorId: true, name: true, company: true, solutionsOffering: true, solutionsSeeking: true } },
-        targetUser: { select: { name: true, company: true, solutionsOffering: true, solutionsSeeking: true } },
+        requester: { select: { sponsorId: true, name: true, company: true, image: true, solutionsOffering: true, solutionsSeeking: true } },
+        targetUser: { select: { name: true, company: true, image: true, solutionsOffering: true, solutionsSeeking: true } },
       },
     }),
   ])
@@ -1871,7 +1871,7 @@ async function computeAutoMatches(prisma: Db, confId: string): Promise<ComputedA
     return {
       key,
       sponsor: { id: sponsor.id, name: sponsor.name, logoUrl: sponsor.logoUrl, tier: sponsor.tier },
-      attendee: { id: aPick.requesterId, name: attendee?.name ?? 'Unknown', company: attendee?.company ?? null },
+      attendee: { id: aPick.requesterId, name: attendee?.name ?? 'Unknown', company: attendee?.company ?? null, image: attendee?.image ?? null },
       sponsorPick: {
         requestId: sPick.id, status: sPick.status, message: sPick.message,
         byName: sPick.requester?.name ?? sponsor.name, pickedAt: sPick.createdAt.toISOString(),
@@ -1912,7 +1912,7 @@ async function computeAutoMatches(prisma: Db, confId: string): Promise<ComputedA
     halfMatches.push({
       key,
       sponsor: { id: sponsor.id, name: sponsor.name, logoUrl: sponsor.logoUrl, tier: sponsor.tier },
-      attendee: { id: key.split('::')[1], name: cand?.name ?? 'Unknown', company: cand?.company ?? null },
+      attendee: { id: key.split('::')[1], name: cand?.name ?? 'Unknown', company: cand?.company ?? null, image: cand?.image ?? null },
       pickedBy,
       pick: {
         requestId: req.id, status: req.status, message: req.message,

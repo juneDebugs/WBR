@@ -42,8 +42,8 @@ type MeetingRequest = {
   message: string | null
   timeBlockId: string | null
   timeBlock: { id: string; startsAt: string | Date; endsAt: string | Date; location: string | null } | null
-  requester: { id: string; name: string | null; email: string | null; company: string | null; role: string }
-  targetUser: { id: string; name: string | null; email: string | null; company: string | null; role: string } | null
+  requester: { id: string; name: string | null; email: string | null; company: string | null; role: string; image?: string | null }
+  targetUser: { id: string; name: string | null; email: string | null; company: string | null; role: string; image?: string | null } | null
   targetSponsor: { id: string; name: string; logoUrl: string | null; tier: string } | null
 }
 
@@ -163,10 +163,20 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-caption font-bold text-primary">
-                          {(r.requester.name ?? r.requester.email ?? '?')[0].toUpperCase()}
-                        </span>
+                      <div className="rounded-full bg-gradient-to-b from-[#a5b4fc] to-[#4f46e5] p-[2px] flex-shrink-0 shadow-sm">
+                        {r.requester.image ? (
+                          <img
+                            src={r.requester.image}
+                            alt=""
+                            className="w-7 h-7 rounded-full object-cover block"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="text-caption font-bold text-primary">
+                              {(r.requester.name ?? r.requester.email ?? '?')[0].toUpperCase()}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="min-w-0">
                         <p className="font-semibold text-ink leading-tight">{r.requester.name ?? '—'}</p>

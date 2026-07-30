@@ -12,8 +12,8 @@ const getCachedMeetingsData = unstable_cache(
       prisma.meetingRequest.findMany({
         where: requestBoardWhere,
         include: {
-          requester: { select: { id: true, name: true, email: true, company: true, role: true } },
-          targetUser: { select: { id: true, name: true, email: true, company: true, role: true } },
+          requester: { select: { id: true, name: true, email: true, company: true, role: true, image: true } },
+          targetUser: { select: { id: true, name: true, email: true, company: true, role: true, image: true } },
           targetSponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
           timeBlock: true,
         },
