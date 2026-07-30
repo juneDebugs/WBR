@@ -151,7 +151,20 @@ export function CompanyDirectory() {
       </div>
 
       <div className="bg-white border border-hairline rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+          {/* Fixed layout so the data columns share the width evenly instead of
+              the auto-layout dumping all slack into the Company column. */}
+          <colgroup>
+            <col className="w-[16%]" />
+            <col className="w-[12%]" />
+            <col className="w-[11%]" />
+            <col className="w-[11%]" />
+            <col className="w-[10%]" />
+            <col className="w-[9%]" />
+            <col className="w-[11%]" />
+            <col className="w-[8%]" />
+            <col className="w-[12%]" />
+          </colgroup>
           <thead className="bg-fill border-b border-hairline">
             <tr>
               <th className="text-left px-4 py-3" aria-sort={ariaSort('name')}>
@@ -178,7 +191,7 @@ export function CompanyDirectory() {
                   Confirmed{sortIndicator('confirmed')}
                 </button>
               </th>
-              <th className="text-left px-4 py-3 w-40" aria-sort={ariaSort('fill')}>
+              <th className="text-left px-4 py-3" aria-sort={ariaSort('fill')}>
                 <button
                   type="button"
                   onClick={() => toggleSort('fill')}
@@ -287,7 +300,7 @@ function DirectoryTableRow({ row, onOpen }: { row: DirectoryRow; onOpen: () => v
               {row.name[0]?.toUpperCase() ?? '?'}
             </div>
           )}
-          <span className="font-semibold text-ink">{row.name}</span>
+          <span className="font-semibold text-ink truncate min-w-0" title={row.name}>{row.name}</span>
         </Link>
       </td>
       <td className="px-4 py-3.5">
