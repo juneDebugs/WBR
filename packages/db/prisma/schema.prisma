@@ -62,6 +62,7 @@ model User {
   role          String    @default("ATTENDEE") // ATTENDEE | SPEAKER | ORGANIZER
   password      String?
   pushToken     String?
+  loginCount    Int       @default(0) // total successful sign-ins; incremented in each app's authorize()/signIn
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   companySize      String?   // STARTUP | SMB | MIDMARKET | ENTERPRISE

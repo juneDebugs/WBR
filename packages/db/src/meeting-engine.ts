@@ -624,6 +624,7 @@ export interface DirectoryRow {
   createdAt: string          // Company "Created"
   lastLogin: string | null   // most recent rep activity (proxy)
   numLogins: number          // number of company reps (proxy for login count)
+  loginCount: number         // total successful sign-ins across the company's reps
   receiveRequests: boolean   // company accepts meeting requests
   requestsMade: number       // requests this company's reps sent to attendees
   requestsReceived: number   // requests targeting this company
@@ -659,6 +660,7 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
       where: { sponsorId: { not: null } },
       _count: { _all: true },
       _max: { updatedAt: true },
+      _sum: { loginCount: true },
     }),
     getMeetingRequirementSettings(prisma),
   ])
@@ -670,8 +672,8 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
     scheduledPairs.add(`${m.sponsorId}::${m.userId}`)
   }
 
-  const repStats = new Map<string, { count: number; lastLogin: Date | null }>()
-  for (const r of reps) if (r.sponsorId) repStats.set(r.sponsorId, { count: r._count._all, lastLogin: r._max.updatedAt ?? null })
+  const repStats = new Map<string, { count: number; lastLogin: Date | null; logins: number }>()
+  for (const r of reps) if (r.sponsorId) repStats.set(r.sponsorId, { count: r._count._all, lastLogin: r._max.updatedAt ?? null, logins: r._sum.loginCount ?? 0 })
 
   const agg = new Map<string, { requests: number; pending: number; unscheduled: number; made: number; received: number }>()
   for (const r of requests) {
@@ -696,6 +698,7 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
       createdAt: s.createdAt.toISOString(),
       lastLogin: rep?.lastLogin ? rep.lastLogin.toISOString() : null,
       numLogins: rep?.count ?? 0,
+      loginCount: rep?.logins ?? 0,
       receiveRequests: true,
       requestsMade: a.made,
       requestsReceived: a.received,

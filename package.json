@@ -80,6 +80,7 @@
     "db:migrate-meeting-tables": "node scripts/migrate-meeting-tables.mjs",
     "db:migrate-exclusive-slots": "node scripts/migrate-exclusive-slots.mjs",
     "db:migrate-exclusive-slot-indexes": "node scripts/migrate-exclusive-slot-indexes.mjs",
+    "db:migrate-login-count": "node scripts/migrate-login-count.mjs",
     "db:backfill-friends": "node scripts/migrate-friends-backfill.mjs",
     "db:sweep-auto-matches": "node scripts/sweep-auto-matches.mjs",
     "seed:feed-posts": "node scripts/seed-feed-posts.mjs",
