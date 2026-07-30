@@ -103,6 +103,27 @@ mirroring ChatSettingsPanel's draft/snapshot + sticky-save-bar mechanics.
 Tests: `test:meeting-requirements`, `test:meeting-requirements:api`; Turso DDL
 via `db:migrate-meeting-requirements`.
 
+Below the requirements panels, the same Settings view houses **Meeting Tables**
+(`MeetingTablesSettings`): the admin-managed physical table inventory plus a
+conference-wide assignment board of every confirmed meeting by day and time
+block. Inventory rows live in `MeetingTableSetting` (defensive
+`CREATE TABLE IF NOT EXISTS`; zero rows fail open to the constant
+`MEETING_ROOMS` defaults, and the first write op seeds them). Renames migrate
+`SponsorMeeting.location`; removal is blocked while confirmed meetings sit at
+the table (`TABLE_IN_USE`) and the last table can never be removed. Assignment
+capacity is a GLOBAL per-block guard (`TABLE_TAKEN`, cross-sponsor — unlike the
+per-sponsor availability grid), so the board is where legacy double-bookings
+surface; one-click auto-assign fills unassigned meetings and (opt-in) moves
+conflicts. Engine: `getMeetingTables` / `saveMeetingTables` / `getTableBoard` /
+`setMeetingTable` / `autoAssignTables` in
+[`packages/db/src/meeting-engine.ts`](../../packages/db/src/meeting-engine.ts);
+every rooms consumer (matrix `rooms`, availability sheets, `UNKNOWN_ROOM`
+validation, auto-schedule default room, the sponsor-portal approve flow) reads
+the live inventory. API: `GET/PUT /api/admin/scheduler/tables`,
+`PUT …/tables/assign`, `POST …/tables/auto-assign` (same `'meetings'` gate).
+Tests: `test:meeting-tables`, `test:meeting-tables:api`, `e2e:meeting-tables`
+(Playwright).
+
 ### On-site Check-In (sidebar → Meetings → Check-In)
 
 Dedicated page at `/dashboard/meetings/check-in` (a **Check-In** item in the

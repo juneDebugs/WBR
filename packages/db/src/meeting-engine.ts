@@ -226,6 +226,182 @@ export async function saveMeetingRequirementSettings(
   }
 }
 
+// ── Meeting tables (admin-managed inventory) ─────────────────────────────────
+// The physical table inventory (apps/web → Meetings → Settings → Meeting
+// Tables). MEETING_ROOMS above remains the constant DEFAULT set; admins can
+// add / rename / resize / remove tables, persisted one row per table in
+// MeetingTableSetting (defensive CREATE TABLE IF NOT EXISTS, column shape
+// matching schema.prisma exactly — same pattern as MeetingRequirementSetting).
+// Reads FAIL OPEN to MEETING_ROOMS: zero rows means "never customized" and a
+// read error must never break a scheduler path. The first write op seeds the
+// default set so subsequent ops edit real rows. Renames migrate every
+// SponsorMeeting.location that carries the old label, so existing assignments
+// follow the table. Write errors propagate.
+
+export const MAX_TABLE_NAME_LENGTH = 40
+
+// Trim + cap a table label; null when empty/non-string so callers can reject.
+export function normalizeTableName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const name = raw.trim().slice(0, MAX_TABLE_NAME_LENGTH).trim()
+  return name.length > 0 ? name : null
+}
+
+// Clamp arbitrary/hostile input to an integer capacity in [1, 99].
+export function normalizeTableCapacity(raw: unknown, fallback = 1): number {
+  if (raw == null || raw === '') return fallback
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(99, Math.max(1, Math.trunc(n)))
+}
+
+const MEETING_TABLES_TABLE_SQL = `CREATE TABLE IF NOT EXISTS "MeetingTableSetting" (
+  "name" TEXT NOT NULL PRIMARY KEY,
+  "capacity" INTEGER NOT NULL,
+  "position" INTEGER NOT NULL,
+  "updatedAt" DATETIME NOT NULL
+)`
+
+let meetingTablesEnsured: Promise<void> | null = null
+// Memoized per process; IF NOT EXISTS makes re-runs harmless. Reset on failure
+// so a transient error retries instead of poisoning the module for its lifetime.
+export function ensureMeetingTablesTable(prismaClient: PrismaClient): Promise<void> {
+  if (!meetingTablesEnsured) {
+    meetingTablesEnsured = prismaClient
+      .$executeRawUnsafe(MEETING_TABLES_TABLE_SQL)
+      .then(() => undefined)
+      .catch(err => {
+        meetingTablesEnsured = null
+        throw err
+      })
+  }
+  return meetingTablesEnsured
+}
+
+// Raw SELECT shape. INTEGER columns come back as BigInt through the raw-query
+// path on some drivers, so both numeric fields go through Number().
+type MeetingTableRow = { name: string; capacity: number | bigint; position: number | bigint }
+
+async function readMeetingTableRows(prismaClient: PrismaClient): Promise<{ name: string; capacity: number; position: number }[]> {
+  const rows = await prismaClient.$queryRawUnsafe<MeetingTableRow[]>(
+    `SELECT "name", "capacity", "position" FROM "MeetingTableSetting" ORDER BY "position" ASC, "name" ASC`,
+  )
+  const out: { name: string; capacity: number; position: number }[] = []
+  for (const row of rows) {
+    const name = normalizeTableName(row.name)
+    if (!name) continue // hand-edited junk row — skip rather than break
+    out.push({ name, capacity: normalizeTableCapacity(Number(row.capacity)), position: Number(row.position) })
+  }
+  return out
+}
+
+// The current table inventory. FAILS OPEN to MEETING_ROOMS on any error, and
+// zero rows also means the defaults (the inventory has never been customized).
+export async function getMeetingTables(prismaClient: PrismaClient): Promise<MeetingRoom[]> {
+  try {
+    await ensureMeetingTablesTable(prismaClient)
+    const rows = await readMeetingTableRows(prismaClient)
+    if (rows.length === 0) return MEETING_ROOMS.map(r => ({ ...r }))
+    return rows.map(r => ({ name: r.name, capacity: r.capacity }))
+  } catch (err) {
+    console.error('[meeting-tables] read failed, returning defaults:', err)
+    return MEETING_ROOMS.map(r => ({ ...r }))
+  }
+}
+
+// First write op against a never-customized inventory materializes the default
+// set, so edits always operate on real rows and reads stay coherent.
+async function seedDefaultTablesIfEmpty(prismaClient: PrismaClient): Promise<void> {
+  const rows = await prismaClient.$queryRawUnsafe<{ n: number | bigint }[]>(
+    `SELECT COUNT(*) AS n FROM "MeetingTableSetting"`,
+  )
+  if (Number(rows[0]?.n ?? 0) > 0) return
+  const now = new Date().toISOString()
+  for (let i = 0; i < MEETING_ROOMS.length; i++) {
+    await prismaClient.$executeRawUnsafe(
+      `INSERT INTO "MeetingTableSetting" ("name", "capacity", "position", "updatedAt")
+       VALUES (?, ?, ?, ?) ON CONFLICT("name") DO NOTHING`,
+      MEETING_ROOMS[i].name, MEETING_ROOMS[i].capacity, i, now,
+    )
+  }
+}
+
+export type MeetingTableOp =
+  | { op: 'add'; name: string; capacity?: number }
+  | { op: 'update'; name: string; newName?: string; capacity?: number }
+  | { op: 'remove'; name: string }
+
+// Apply one inventory operation and return the fresh inventory. Guards:
+//   add    — DUPLICATE_TABLE on a (case-insensitive) name clash.
+//   update — TABLE_NOT_FOUND for an unknown table; renames also migrate every
+//            SponsorMeeting.location carrying the old label (all statuses, so
+//            history follows the rename).
+//   remove — TABLE_NOT_FOUND / LAST_TABLE (the inventory can never go empty:
+//            engine paths rely on tables[0] as the default assignment) /
+//            TABLE_IN_USE while any CONFIRMED meeting still sits at the table.
+export async function saveMeetingTables(prismaClient: PrismaClient, op: MeetingTableOp): Promise<MeetingRoom[]> {
+  await ensureMeetingTablesTable(prismaClient)
+  await seedDefaultTablesIfEmpty(prismaClient)
+  const now = new Date().toISOString()
+  const existing = await readMeetingTableRows(prismaClient)
+  const byLower = new Map(existing.map(t => [t.name.toLowerCase(), t]))
+
+  if (op.op === 'add') {
+    const name = normalizeTableName(op.name)
+    if (!name) throw new EngineError('BAD_STATUS', 'Table name is required')
+    if (byLower.has(name.toLowerCase())) {
+      throw new EngineError('DUPLICATE_TABLE', `A table named “${byLower.get(name.toLowerCase())!.name}” already exists`)
+    }
+    const position = existing.length ? Math.max(...existing.map(t => t.position)) + 1 : 0
+    await prismaClient.$executeRawUnsafe(
+      `INSERT INTO "MeetingTableSetting" ("name", "capacity", "position", "updatedAt") VALUES (?, ?, ?, ?)`,
+      name, normalizeTableCapacity(op.capacity ?? 1), position, now,
+    )
+  } else if (op.op === 'update') {
+    const name = normalizeTableName(op.name)
+    const row = name ? existing.find(t => t.name === name) : undefined
+    if (!row) throw new EngineError('TABLE_NOT_FOUND', `No table named “${op.name}”`)
+    const wantsRename = op.newName !== undefined
+    const newName = wantsRename ? normalizeTableName(op.newName) : row.name
+    if (!newName) throw new EngineError('BAD_STATUS', 'New table name is required')
+    if (newName !== row.name) {
+      const clash = byLower.get(newName.toLowerCase())
+      if (clash && clash.name !== row.name) {
+        throw new EngineError('DUPLICATE_TABLE', `A table named “${clash.name}” already exists`)
+      }
+    }
+    const capacity = op.capacity !== undefined ? normalizeTableCapacity(op.capacity) : row.capacity
+    await prismaClient.$executeRawUnsafe(
+      `UPDATE "MeetingTableSetting" SET "name" = ?, "capacity" = ?, "updatedAt" = ? WHERE "name" = ?`,
+      newName, capacity, now, row.name,
+    )
+    if (newName !== row.name) {
+      // Existing assignments follow the rename.
+      await prismaClient.$executeRawUnsafe(
+        `UPDATE "SponsorMeeting" SET "location" = ? WHERE "location" = ?`,
+        newName, row.name,
+      )
+    }
+  } else {
+    const name = normalizeTableName(op.name)
+    const row = name ? existing.find(t => t.name === name) : undefined
+    if (!row) throw new EngineError('TABLE_NOT_FOUND', `No table named “${op.name}”`)
+    if (existing.length <= 1) throw new EngineError('LAST_TABLE', 'At least one table must remain')
+    const assigned = await prismaClient.sponsorMeeting.count({
+      where: { status: 'CONFIRMED', location: row.name },
+    })
+    if (assigned > 0) {
+      throw new EngineError(
+        'TABLE_IN_USE',
+        `${assigned} confirmed meeting${assigned === 1 ? ' is' : 's are'} assigned to “${row.name}” — reassign or unassign them first`,
+      )
+    }
+    await prismaClient.$executeRawUnsafe(`DELETE FROM "MeetingTableSetting" WHERE "name" = ?`, row.name)
+  }
+
+  return getMeetingTables(prismaClient)
+}
+
 // ── Priority tiers ────────────────────────────────────────────────────────────
 // The requester (attendee or sponsor) tags each meeting request with how strong a
 // fit it is. The auto-scheduler fills Best Fit requests first, then Med, then Low.
@@ -297,6 +473,11 @@ export type EngineErrorCode =
   | 'CANDIDATE_BUSY'
   | 'SPONSOR_FULL'
   | 'ALREADY_SCHEDULED'
+  | 'TABLE_NOT_FOUND'
+  | 'DUPLICATE_TABLE'
+  | 'TABLE_IN_USE'
+  | 'TABLE_TAKEN'
+  | 'LAST_TABLE'
 export class EngineError extends Error {
   code: EngineErrorCode
   constructor(code: EngineErrorCode, message?: string) {
@@ -310,8 +491,10 @@ export class EngineError extends Error {
 // error vocabulary, not of any one app — both the admin scheduler API and the
 // staff console API derive their responses from this single map so a new code
 // can never return 409 in one portal and 400 in the other.
-const NOT_FOUND_CODES: readonly EngineErrorCode[] = ['REQUEST_NOT_FOUND', 'MEETING_NOT_FOUND']
-const CONFLICT_CODES: readonly EngineErrorCode[] = ['CANDIDATE_BUSY', 'SPONSOR_FULL', 'ALREADY_SCHEDULED']
+const NOT_FOUND_CODES: readonly EngineErrorCode[] = ['REQUEST_NOT_FOUND', 'MEETING_NOT_FOUND', 'TABLE_NOT_FOUND']
+const CONFLICT_CODES: readonly EngineErrorCode[] = [
+  'CANDIDATE_BUSY', 'SPONSOR_FULL', 'ALREADY_SCHEDULED', 'DUPLICATE_TABLE', 'TABLE_IN_USE', 'TABLE_TAKEN',
+]
 export function engineErrorHttpStatus(code: EngineErrorCode): number {
   if (NOT_FOUND_CODES.includes(code)) return 404
   if (CONFLICT_CODES.includes(code)) return 409
@@ -635,7 +818,7 @@ export async function getSponsorScheduleMatrix(
   })
   if (!sponsor) throw new EngineError('REQUEST_NOT_FOUND', 'Sponsor not found')
 
-  const [timeBlocks, sponsorMeetings, requests, terminalRequests, requirementSettings, teamUsers] = await Promise.all([
+  const [timeBlocks, sponsorMeetings, requests, terminalRequests, requirementSettings, teamUsers, tables] = await Promise.all([
     prisma.timeBlock.findMany({
       where: { conferenceId: confId },
       orderBy: { startsAt: 'asc' },
@@ -700,6 +883,7 @@ export async function getSponsorScheduleMatrix(
       orderBy: { name: 'asc' },
       select: { id: true, name: true, jobTitle: true, image: true },
     }),
+    getMeetingTables(prisma),
   ])
 
   const sponsorSeeking = parseSolutions(sponsor.solutionsSeeking)
@@ -843,7 +1027,7 @@ export async function getSponsorScheduleMatrix(
     team: teamUsers.map(u => ({
       userId: u.id, name: u.name ?? 'Unknown', jobTitle: u.jobTitle, image: u.image,
     })),
-    rooms: MEETING_ROOMS,
+    rooms: tables,
     slotCapacity: MEETINGS_PER_BLOCK,
     bank,
     pending,
@@ -889,7 +1073,7 @@ export interface CandidateAvailability {
 async function computeAvailability(
   prisma: Db, sponsorId: string, userId: string, confId: string, excludeMeetingId?: string,
 ): Promise<AvailabilityDay[]> {
-  const [timeBlocks, blackouts, candidateSponsorMtgs, candidateMeetings, sponsorMtgs] = await Promise.all([
+  const [timeBlocks, blackouts, candidateSponsorMtgs, candidateMeetings, sponsorMtgs, tables] = await Promise.all([
     prisma.timeBlock.findMany({
       where: { conferenceId: confId }, orderBy: { startsAt: 'asc' },
       select: { id: true, startsAt: true, endsAt: true },
@@ -912,6 +1096,7 @@ async function computeAvailability(
       where: { sponsorId, status: 'CONFIRMED', ...(excludeMeetingId ? { id: { not: excludeMeetingId } } : {}) },
       select: { timeBlockId: true, location: true },
     }),
+    getMeetingTables(prisma),
   ])
 
   const candidateBusyBlocks = new Set<string>([
@@ -936,7 +1121,7 @@ async function computeAvailability(
     const sponsorCount = sponsorCountByBlock.get(tb.id) ?? 0
     const sponsorHasCapacity = sponsorCount < MEETINGS_PER_BLOCK
     const roomMap = sponsorRoomByBlock.get(tb.id) ?? new Map<string, number>()
-    const rooms: RoomAvailability[] = MEETING_ROOMS.map(r => {
+    const rooms: RoomAvailability[] = tables.map(r => {
       const occupancy = roomMap.get(r.name) ?? 0
       return { name: r.name, capacity: r.capacity, occupancy, available: occupancy < r.capacity }
     })
@@ -1036,7 +1221,10 @@ export async function assertBlockOpen(
 async function assertSlotBookable(
   prisma: Db, sponsorId: string, userId: string, timeBlockId: string, room: string, excludeMeetingId?: string,
 ) {
-  if (!roomByName(room)) throw new EngineError('UNKNOWN_ROOM', `Unknown room: ${room}`)
+  // Validate against the live admin-managed inventory, not the constant
+  // defaults, so custom tables are bookable and removed ones are not.
+  const tables = await getMeetingTables(prisma)
+  if (!tables.some(t => t.name === room)) throw new EngineError('UNKNOWN_ROOM', `Unknown room: ${room}`)
   await assertBlockOpen(prisma, sponsorId, userId, timeBlockId, excludeMeetingId)
 }
 
@@ -1048,10 +1236,13 @@ export async function findFirstOpenSlot(
   prisma: Db, sponsorId: string, userId: string, conferenceId?: string,
 ): Promise<{ timeBlockId: string; room: string } | null> {
   const confId = await resolveConferenceId(prisma, conferenceId)
-  const days = await computeAvailability(prisma, sponsorId, userId, confId)
+  const [days, tables] = await Promise.all([
+    computeAvailability(prisma, sponsorId, userId, confId),
+    getMeetingTables(prisma),
+  ])
   for (const day of days) {
     const slot = day.slots.find(s => s.available)
-    if (slot) return { timeBlockId: slot.timeBlockId, room: MEETING_ROOMS[0].name }
+    if (slot) return { timeBlockId: slot.timeBlockId, room: tables[0].name }
   }
   return null
 }
@@ -1349,6 +1540,260 @@ export async function setMeetingCheckIn(prisma: Db, input: CheckInUpdate) {
   }
 }
 
+// ── Table assignment board (Meetings → Settings → Meeting Tables) ────────────
+// A conference-wide view of every CONFIRMED meeting's table: day → time block →
+// meetings, with per-block occupancy against the admin-managed inventory.
+// Tables are a GLOBAL resource per block (unlike the per-sponsor availability
+// grid), so two different sponsors booked at "Table 1" in the same block is a
+// conflict — this board is where such double-bookings surface and get fixed.
+export interface TableBoardMeeting {
+  sponsorMeetingId: string
+  sponsorId: string
+  sponsorName: string
+  sponsorLogo: string | null
+  sponsorTier: string
+  attendeeName: string
+  attendeeCompany: string | null
+  table: string | null      // SponsorMeeting.location
+  tableKnown: boolean       // false when location names a table not in the inventory
+}
+export interface TableBoardSlot {
+  timeBlockId: string
+  startsAt: string
+  endsAt: string
+  meetings: TableBoardMeeting[] // by table (unassigned last), then sponsor, then attendee
+  conflictTables: string[]      // inventory tables over capacity in this block
+  unassigned: number
+}
+export interface TableBoardDay {
+  dayKey: string
+  label: string
+  slots: TableBoardSlot[]
+}
+export interface TableBoardTable extends MeetingRoom {
+  assignedCount: number // confirmed meetings at this table across the conference
+}
+export interface TableBoardTotals {
+  meetings: number
+  assigned: number     // at a table that exists in the inventory
+  unassigned: number   // no table at all
+  unknownTable: number // at a label the inventory no longer contains
+  conflicts: number    // (block, table) pairs over capacity
+}
+export interface TableBoard {
+  tables: TableBoardTable[]
+  days: TableBoardDay[]
+  totals: TableBoardTotals
+}
+
+export async function getTableBoard(prisma: Db, conferenceId?: string): Promise<TableBoard> {
+  const confId = await resolveConferenceId(prisma, conferenceId)
+  const [tables, timeBlocks, meetings] = await Promise.all([
+    getMeetingTables(prisma),
+    prisma.timeBlock.findMany({
+      where: { conferenceId: confId },
+      orderBy: { startsAt: 'asc' },
+      select: { id: true, startsAt: true, endsAt: true },
+    }),
+    prisma.sponsorMeeting.findMany({
+      where: { status: 'CONFIRMED', timeBlock: { conferenceId: confId } },
+      select: {
+        id: true, sponsorId: true, timeBlockId: true, location: true,
+        sponsor: { select: { name: true, logoUrl: true, tier: true } },
+        user: { select: { name: true, company: true } },
+      },
+    }),
+  ])
+  const known = new Set(tables.map(t => t.name))
+  const capacityOf = new Map(tables.map(t => [t.name, t.capacity]))
+
+  const byBlock = new Map<string, TableBoardMeeting[]>()
+  for (const m of meetings) {
+    const row: TableBoardMeeting = {
+      sponsorMeetingId: m.id,
+      sponsorId: m.sponsorId,
+      sponsorName: m.sponsor?.name ?? 'Unknown',
+      sponsorLogo: m.sponsor?.logoUrl ?? null,
+      sponsorTier: m.sponsor?.tier ?? 'BRONZE',
+      attendeeName: m.user?.name ?? 'Unknown',
+      attendeeCompany: m.user?.company ?? null,
+      table: m.location,
+      tableKnown: m.location === null || known.has(m.location),
+    }
+    const arr = byBlock.get(m.timeBlockId) ?? []
+    arr.push(row)
+    byBlock.set(m.timeBlockId, arr)
+  }
+
+  const assignedByTable = new Map<string, number>()
+  const totals: TableBoardTotals = { meetings: 0, assigned: 0, unassigned: 0, unknownTable: 0, conflicts: 0 }
+  const dayMap = new Map<string, TableBoardDay>()
+  for (const tb of timeBlocks) {
+    const slotMeetings = byBlock.get(tb.id)
+    if (!slotMeetings?.length) continue // like the check-in grid, only slots with meetings
+    slotMeetings.sort((a, b) => {
+      if ((a.table === null) !== (b.table === null)) return a.table === null ? 1 : -1
+      return (a.table ?? '').localeCompare(b.table ?? '') ||
+        a.sponsorName.localeCompare(b.sponsorName) ||
+        a.attendeeName.localeCompare(b.attendeeName)
+    })
+
+    const occupancy = new Map<string, number>()
+    let unassigned = 0
+    for (const m of slotMeetings) {
+      totals.meetings++
+      if (m.table === null) { unassigned++; totals.unassigned++; continue }
+      if (!known.has(m.table)) { totals.unknownTable++; continue }
+      totals.assigned++
+      occupancy.set(m.table, (occupancy.get(m.table) ?? 0) + 1)
+      assignedByTable.set(m.table, (assignedByTable.get(m.table) ?? 0) + 1)
+    }
+    const conflictTables = [...occupancy.entries()]
+      .filter(([name, count]) => count > (capacityOf.get(name) ?? 1))
+      .map(([name]) => name)
+      .sort((a, b) => a.localeCompare(b))
+    totals.conflicts += conflictTables.length
+
+    const key = dayKeyOf(tb.startsAt)
+    let day = dayMap.get(key)
+    if (!day) {
+      day = { dayKey: key, label: dayLabel(tb.startsAt), slots: [] }
+      dayMap.set(key, day)
+    }
+    day.slots.push({
+      timeBlockId: tb.id,
+      startsAt: tb.startsAt.toISOString(),
+      endsAt: tb.endsAt.toISOString(),
+      meetings: slotMeetings,
+      conflictTables,
+      unassigned,
+    })
+  }
+
+  return {
+    tables: tables.map(t => ({ ...t, assignedCount: assignedByTable.get(t.name) ?? 0 })),
+    days: Array.from(dayMap.values()),
+    totals,
+  }
+}
+
+// Assign one confirmed meeting to a table (or clear it with table: null).
+// The capacity guard is GLOBAL per block: every sponsor's confirmed meetings
+// at that table in that block count against its capacity.
+export interface SetMeetingTableInput {
+  sponsorMeetingId: string
+  table: string | null
+}
+export async function setMeetingTable(prisma: Db, input: SetMeetingTableInput) {
+  const m = await prisma.sponsorMeeting.findUnique({
+    where: { id: input.sponsorMeetingId },
+    select: { id: true, timeBlockId: true, status: true },
+  })
+  if (!m) throw new EngineError('MEETING_NOT_FOUND')
+  if (m.status !== 'CONFIRMED') throw new EngineError('BAD_STATUS', 'Only confirmed meetings can be assigned a table')
+
+  let location: string | null = null
+  if (input.table !== null) {
+    const name = normalizeTableName(input.table)
+    if (!name) throw new EngineError('BAD_STATUS', 'Table name is required')
+    const tables = await getMeetingTables(prisma)
+    const t = tables.find(x => x.name === name)
+    if (!t) throw new EngineError('UNKNOWN_ROOM', `Unknown table: ${name}`)
+    const occupied = await prisma.sponsorMeeting.count({
+      where: { status: 'CONFIRMED', timeBlockId: m.timeBlockId, location: t.name, id: { not: m.id } },
+    })
+    if (occupied >= t.capacity) {
+      throw new EngineError('TABLE_TAKEN', `“${t.name}” is already full in that time block`)
+    }
+    location = t.name
+  }
+  return prisma.sponsorMeeting.update({
+    where: { id: m.id },
+    data: { location },
+    select: { id: true, timeBlockId: true, location: true },
+  })
+}
+
+// Fill tables across the whole conference: every unassigned confirmed meeting
+// (plus meetings stranded on labels the inventory no longer contains, and —
+// with includeConflicts — the over-capacity extras) gets the first table with
+// free capacity in its block. Deterministic: blocks chronological, meetings by
+// sponsor then attendee then id, tables in inventory order. Meetings that fit
+// nowhere are left untouched and counted as unplaced.
+export interface AutoAssignTablesInput {
+  includeConflicts?: boolean
+  conferenceId?: string
+}
+export interface AutoAssignTablesResult {
+  assigned: number   // locations written
+  unplaced: number   // needed a table but every table in the block was full
+  totalMeetings: number
+}
+export async function autoAssignTables(prisma: Db, input: AutoAssignTablesInput = {}): Promise<AutoAssignTablesResult> {
+  const confId = await resolveConferenceId(prisma, input.conferenceId)
+  const [tables, meetings] = await Promise.all([
+    getMeetingTables(prisma),
+    prisma.sponsorMeeting.findMany({
+      where: { status: 'CONFIRMED', timeBlock: { conferenceId: confId } },
+      select: {
+        id: true, timeBlockId: true, location: true,
+        timeBlock: { select: { startsAt: true } },
+        sponsor: { select: { name: true } },
+        user: { select: { name: true } },
+      },
+    }),
+  ])
+  const capacityOf = new Map(tables.map(t => [t.name, t.capacity]))
+
+  const byBlock = new Map<string, typeof meetings>()
+  for (const m of meetings) {
+    const arr = byBlock.get(m.timeBlockId) ?? []
+    arr.push(m)
+    byBlock.set(m.timeBlockId, arr)
+  }
+  const blocks = [...byBlock.entries()].sort(
+    (a, b) => (a[1][0].timeBlock?.startsAt.getTime() ?? 0) - (b[1][0].timeBlock?.startsAt.getTime() ?? 0),
+  )
+
+  const updates: { id: string; location: string }[] = []
+  let unplaced = 0
+  for (const [, rows] of blocks) {
+    rows.sort((a, b) =>
+      (a.sponsor?.name ?? '').localeCompare(b.sponsor?.name ?? '') ||
+      (a.user?.name ?? '').localeCompare(b.user?.name ?? '') ||
+      a.id.localeCompare(b.id))
+
+    // Keepers hold their current table up to its capacity; the rest need a seat.
+    const occupancy = new Map<string, number>()
+    const pending: typeof rows = []
+    for (const m of rows) {
+      if (m.location && capacityOf.has(m.location)) {
+        const used = occupancy.get(m.location) ?? 0
+        if (used < capacityOf.get(m.location)!) {
+          occupancy.set(m.location, used + 1)
+          continue
+        }
+        // Over-capacity extra — only touched when the caller opts in.
+        if (input.includeConflicts) pending.push(m)
+        continue
+      }
+      // Unassigned, or stranded on a label the inventory no longer contains.
+      pending.push(m)
+    }
+    for (const m of pending) {
+      const t = tables.find(x => (occupancy.get(x.name) ?? 0) < x.capacity)
+      if (!t) { unplaced++; continue }
+      occupancy.set(t.name, (occupancy.get(t.name) ?? 0) + 1)
+      updates.push({ id: m.id, location: t.name })
+    }
+  }
+
+  for (const u of updates) {
+    await prisma.sponsorMeeting.update({ where: { id: u.id }, data: { location: u.location } })
+  }
+  return { assigned: updates.length, unplaced, totalMeetings: meetings.length }
+}
+
 // ── Load-balancing hint ─────────────────────────────────────────────────────
 // Given candidate loads, recommend scheduling the one with the fewest meetings
 // (spreads attention across attendees). Returns the userId to prefer.
@@ -1424,7 +1869,7 @@ export async function autoScheduleByPriority(
   const statuses = input.statuses ?? ['PENDING', 'APPROVED']
   const dryRun = !!input.dryRun
 
-  const [timeBlocks, sponsors, confirmedMtgs, peerMeetings, blackouts, requests] = await Promise.all([
+  const [timeBlocks, sponsors, confirmedMtgs, peerMeetings, blackouts, requests, tables] = await Promise.all([
     prisma.timeBlock.findMany({
       where: { conferenceId: confId }, orderBy: { startsAt: 'asc' },
       select: { id: true, startsAt: true, endsAt: true },
@@ -1459,6 +1904,7 @@ export async function autoScheduleByPriority(
         targetUser: { select: { name: true, solutionsOffering: true, solutionsSeeking: true } },
       },
     }),
+    getMeetingTables(prisma),
   ])
 
   const sponsorById = new Map(sponsors.map(s => [s.id, s]))
@@ -1593,7 +2039,7 @@ export async function autoScheduleByPriority(
     scheduled.push({
       requestId: c.reqId, sponsorId: c.sponsorId, sponsorName: c.sponsorName,
       userId: c.userId, userName: c.userName, priority: c.priority, score: c.score,
-      timeBlockId: placed.id, startsAt: placed.startsAt.toISOString(), room: MEETING_ROOMS[0].name,
+      timeBlockId: placed.id, startsAt: placed.startsAt.toISOString(), room: tables[0].name,
     })
     repByRequest.set(c.reqId, c.repId)
   }
