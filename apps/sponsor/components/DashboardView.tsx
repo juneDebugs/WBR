@@ -229,7 +229,7 @@ export function DashboardView() {
                   {m.person?.image ? (<img src={m.person.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />) : (<div className="w-10 h-10 rounded-full bg-success-soft flex items-center justify-center flex-shrink-0"><span className="text-sm font-semibold text-success-ink">{(m.person?.name ?? '?')[0]}</span></div>)}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-ink truncate">{m.person?.name ?? 'Attendee'}</p>
-                    <p className="text-xs text-ink-2 mt-0.5">{starts.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {starts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}{m.location ? ` · ${m.location}` : ''}</p>
+                    <p className="text-xs text-ink-2 mt-0.5">{starts.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })} · {starts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Los_Angeles' })}{m.location ? ` · ${m.location}` : ''}</p>
                   </div>
                   <span className="text-sm font-medium text-success-ink flex-shrink-0">Confirmed</span>
                 </div>

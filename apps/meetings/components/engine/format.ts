@@ -1,7 +1,9 @@
-// Times are stored as UTC ISO; the whole console groups + labels days in UTC,
-// so render times in UTC too for internal consistency across the matrix.
+// Times are stored as UTC instants; the engine groups + labels days in the
+// event timezone (packages/db/src/meeting-engine.ts EVENT_TZ), so render
+// times in the event timezone too for internal consistency across the matrix.
+const EVENT_TZ = 'America/Los_Angeles'
 const TIME_FMT = new Intl.DateTimeFormat('en-US', {
-  hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+  hour: 'numeric', minute: '2-digit', timeZone: EVENT_TZ,
 })
 export function fmtTime(iso: string): string {
   return TIME_FMT.format(new Date(iso))
@@ -21,10 +23,10 @@ export function fillMeterClass(rate: number): string {
   return rate >= 0.8 ? 'success' : rate >= 0.5 ? 'warning' : 'danger'
 }
 
-// eTail-style datestamps, all in UTC to match day grouping.
-const DATE_FMT = new Intl.DateTimeFormat('en-US', { year: '2-digit', month: '2-digit', day: '2-digit', timeZone: 'UTC' })
+// eTail-style datestamps, in the event timezone to match day grouping.
+const DATE_FMT = new Intl.DateTimeFormat('en-US', { year: '2-digit', month: '2-digit', day: '2-digit', timeZone: EVENT_TZ })
 const DATETIME_FMT = new Intl.DateTimeFormat('en-US', {
-  year: '2-digit', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+  year: '2-digit', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', timeZone: EVENT_TZ,
 })
 export function fmtDate(iso: string | null): string {
   if (!iso) return '—'

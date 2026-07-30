@@ -10,7 +10,7 @@ import { AssignMeetingSheet } from '@/components/AssignMeetingSheet'
 import { RescheduleMeetingSheet } from '@/components/RescheduleMeetingSheet'
 import { CancelMeetingDialog } from '@/components/CancelMeetingDialog'
 import { CompanyAutoScheduleButton } from '@/components/CompanyAutoScheduleButton'
-import { fmtRangeUTC } from '@/lib/format'
+import { fmtSlotRange } from '@/lib/format'
 import { TIER_COLORS, TIER_FALLBACK, PRIORITY_LABEL, PRIORITY_BADGE, FILL_TARGET, REQUIRED_MEETINGS_PER_PERSON, meterClass } from '@/lib/meetings-ui'
 
 function initial(name: string | null | undefined) {
@@ -48,7 +48,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
     const map = new Map<string, string>()
     for (const day of matrix?.days ?? []) {
       for (const slot of day.slots) {
-        map.set(slot.timeBlockId, `${day.label} · ${fmtRangeUTC(slot.startsAt, slot.endsAt)}`)
+        map.set(slot.timeBlockId, `${day.label} · ${fmtSlotRange(slot.startsAt, slot.endsAt)}`)
       }
     }
     return map
@@ -294,7 +294,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
                           className={`align-top transition-colors ${flashSlot === slot.timeBlockId ? 'bg-success-soft' : ''}`}
                         >
                           <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-ink tabular-nums">
-                            {fmtRangeUTC(slot.startsAt, slot.endsAt)}
+                            {fmtSlotRange(slot.startsAt, slot.endsAt)}
                           </td>
                           {slot.meetings.length === 0 ? (
                             <td className="px-4 py-2.5" colSpan={4}>

@@ -3,7 +3,7 @@
 import { useEffect, useId } from 'react'
 import type { AvailabilityDay, AvailabilitySlot } from '@conference/db'
 import { useDialogFocus } from '@/lib/useDialogFocus'
-import { fmtRangeUTC } from '@/lib/format'
+import { fmtSlotRange } from '@/lib/format'
 
 function freeRoomCount(slot: AvailabilitySlot) {
   return slot.rooms.filter(r => r.available).length
@@ -117,7 +117,7 @@ export function SlotRoomPicker({
                         : 'border-hairline bg-white text-ink hover:bg-fill'
                     }`}
                   >
-                    <span className="font-medium tabular-nums">{fmtRangeUTC(slot.startsAt, slot.endsAt)}</span>
+                    <span className="font-medium tabular-nums">{fmtSlotRange(slot.startsAt, slot.endsAt)}</span>
                     <span className="flex items-center gap-1.5">
                       {isCurrent && <span className="badge badge-neutral">Current</span>}
                       <span className={`text-xs ${disabled ? 'text-ink-3' : active ? 'text-brand-700 font-medium' : state === 'Free' ? 'text-success-ink font-medium' : 'text-ink-2'}`}>

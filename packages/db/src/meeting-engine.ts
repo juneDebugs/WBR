@@ -347,11 +347,18 @@ export function resolveParties(req: RequestLike): ResolvedParties | null {
 function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
   return aStart.getTime() < bEnd.getTime() && bStart.getTime() < aEnd.getTime()
 }
+// Slots are stored as real UTC instants; days are grouped and labeled in the
+// event timezone so every surface reads in local conference time (e.g. a block
+// stored at 18:00Z is an 11 AM PDT slot and belongs to that PDT day).
+export const EVENT_TZ = 'America/Los_Angeles'
+const DAY_KEY_FMT = new Intl.DateTimeFormat('en-CA', {
+  year: 'numeric', month: '2-digit', day: '2-digit', timeZone: EVENT_TZ,
+})
 function dayKeyOf(d: Date): string {
-  return d.toISOString().slice(0, 10) // yyyy-mm-dd (UTC)
+  return DAY_KEY_FMT.format(d) // yyyy-mm-dd in EVENT_TZ
 }
 const DAY_LABEL_FMT = new Intl.DateTimeFormat('en-US', {
-  weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
+  weekday: 'short', month: 'short', day: 'numeric', timeZone: EVENT_TZ,
 })
 export function dayLabel(d: Date): string {
   return DAY_LABEL_FMT.format(d)

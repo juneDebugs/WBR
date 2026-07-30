@@ -3,12 +3,14 @@
 import { useMemo } from 'react'
 import { useMeetingsData } from '@/lib/hooks'
 
+const EVENT_TZ = 'America/Los_Angeles'
+
 function formatSlot(start: string, end: string) {
   const s = new Date(start)
   const e = new Date(end)
   return {
-    date: s.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
-    time: `${s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} – ${e.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`,
+    date: s.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: EVENT_TZ }),
+    time: `${s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: EVENT_TZ })} – ${e.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: EVENT_TZ })}`,
   }
 }
 
@@ -51,7 +53,7 @@ export function ScheduleView() {
 
     const grouped = new Map<string, MeetingItem[]>()
     for (const item of items) {
-      const key = new Date(item.startsAt).toDateString()
+      const key = new Date(item.startsAt).toLocaleDateString('en-CA', { timeZone: EVENT_TZ })
       if (!grouped.has(key)) grouped.set(key, [])
       grouped.get(key)!.push(item)
     }

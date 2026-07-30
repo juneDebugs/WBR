@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { CheckInBoard as CheckInBoardData, CheckInDay, CheckInMeeting, CheckInTotals } from '@conference/db'
 import { useCheckInBoard } from '@/lib/scheduler-hooks'
-import { fmtRangeUTC } from '@/lib/format'
+import { fmtSlotRange, TZ } from '@/lib/format'
 import { TIER_COLORS, TIER_FALLBACK, meterClass } from '@/lib/meetings-ui'
 
 const KEY = ['scheduler', 'checkin'] as const
@@ -121,7 +121,10 @@ export function CheckInBoard() {
     )
   }
 
-  const todayKey = new Date().toISOString().slice(0, 10) // engine dayKeys are UTC
+  // engine dayKeys are yyyy-mm-dd in the event timezone
+  const todayKey = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ,
+  }).format(new Date())
   const day: CheckInDay =
     board.days.find(d => d.dayKey === dayKey) ??
     board.days.find(d => d.dayKey === todayKey) ??
@@ -237,7 +240,7 @@ function SlotRows({ slot, onSave }: {
       <tr className="bg-fill/80">
         <td colSpan={7} className="px-4 py-2 border-b border-hairline">
           <span className="text-xs font-bold text-ink-2 uppercase tracking-widest tabular-nums">
-            {fmtRangeUTC(slot.startsAt, slot.endsAt)}
+            {fmtSlotRange(slot.startsAt, slot.endsAt)}
           </span>
           <span className={`ml-2 badge text-caption tabular-nums ${allDone ? 'badge-success' : 'badge-neutral'}`}>
             {slot.completed} of {slot.meetings.length} checked in

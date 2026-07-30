@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AutoMatch, AutoMatchHalf, AutoMatchLogEntry, RescheduleAvailability } from '@conference/db'
 import { useAutoMatchBoard, invalidateScheduler } from '@/lib/scheduler-hooks'
-import { fmtRangeUTC, fmtTimeUTC } from '@/lib/format'
+import { fmtSlotRange, fmtSlotTime } from '@/lib/format'
 import { PRIORITY_LABEL, TIER_COLORS, TIER_FALLBACK } from '@/lib/meetings-ui'
 
 const fmtPickDate = (iso: string) =>
@@ -211,7 +211,7 @@ function MatchCard({ match }: { match: AutoMatch }) {
             <>
               <span className="badge badge-success">{'✓'} Scheduled</span>
               <p className="text-xs text-ink-2 tabular-nums mt-1">
-                {fmtRangeUTC(match.meeting.startsAt, match.meeting.endsAt)}
+                {fmtSlotRange(match.meeting.startsAt, match.meeting.endsAt)}
                 {match.meeting.room && <span className="text-ink-3"> {'·'} {match.meeting.room}</span>}
               </p>
               <div className="flex justify-end gap-1 mt-1">
@@ -364,7 +364,7 @@ function LogRow({ entry }: { entry: AutoMatchLogEntry }) {
           <p className="text-caption text-ink-2 leading-snug">
             {style.label}
             {showSlot && entry.room && <> {'·'} {entry.room}</>}
-            {showSlot && entry.startsAt && <> {'·'} {fmtTimeUTC(entry.startsAt)}</>}
+            {showSlot && entry.startsAt && <> {'·'} {fmtSlotTime(entry.startsAt)}</>}
           </p>
           <p className="text-caption text-ink-3 tabular-nums">{fmtLogTime(entry.createdAt)}</p>
         </div>
@@ -433,7 +433,7 @@ function RescheduleSheet({ match, meeting, onClose, onDone, onError }: {
       <div role="dialog" aria-modal="true" aria-label="Reschedule meeting" className="bg-surface rounded-2xl p-5 shadow-elevated max-w-md w-full">
         <h2 className="font-semibold text-ink text-base">Reschedule Meeting</h2>
         <p className="text-sm text-ink-2 mt-1">
-          {match.sponsor.name} {'↔'} {match.attendee.name} {'·'} currently {fmtRangeUTC(meeting.startsAt, meeting.endsAt)}
+          {match.sponsor.name} {'↔'} {match.attendee.name} {'·'} currently {fmtSlotRange(meeting.startsAt, meeting.endsAt)}
           {meeting.room && <> {'·'} {meeting.room}</>}
         </p>
 
@@ -473,7 +473,7 @@ function RescheduleSheet({ match, meeting, onClose, onDone, onError }: {
                                 : 'bg-fill border-transparent text-ink-3 cursor-not-allowed'
                           }`}
                         >
-                          <span className="tabular-nums">{fmtRangeUTC(slot.startsAt, slot.endsAt)}</span>
+                          <span className="tabular-nums">{fmtSlotRange(slot.startsAt, slot.endsAt)}</span>
                           {isCurrent && <span className={`ml-1 ${active ? 'opacity-80' : 'text-ink-3'}`}>{'·'} current</span>}
                         </button>
                       )
@@ -541,7 +541,7 @@ function CancelDialog({ match, meeting, onClose, onDone, onError }: {
       <div role="dialog" aria-modal="true" aria-label="Cancel meeting" className="bg-surface rounded-2xl p-5 shadow-elevated max-w-md w-full">
         <h2 className="font-semibold text-ink text-base">Cancel Meeting?</h2>
         <p className="text-sm text-ink-2 mt-2">
-          {match.sponsor.name} {'↔'} {match.attendee.name} {'·'} {fmtRangeUTC(meeting.startsAt, meeting.endsAt)}
+          {match.sponsor.name} {'↔'} {match.attendee.name} {'·'} {fmtSlotRange(meeting.startsAt, meeting.endsAt)}
           {meeting.room && <> {'·'} {meeting.room}</>}
         </p>
         <p className="text-sm text-ink-2 mt-2">

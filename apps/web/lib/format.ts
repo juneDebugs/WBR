@@ -12,16 +12,14 @@ export function fmtDate(d: string | Date) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TZ })
 }
 
-// UTC variants for the meeting-engine surfaces (Companies tab). The engine
-// stores, groups, and labels schedule days in UTC (see packages/db/src/
-// meeting-engine.ts dayKeyOf/dayLabel and the staff console in apps/meetings),
-// so those grids must format times in UTC too — rendering them in TZ would
-// put slots under day tabs they don't belong to. Note this intentionally
-// differs from fmtTime above; the Master Schedule tab's TZ rendering predates
-// the engine and is tracked as a known display divergence.
-export function fmtTimeUTC(iso: string | Date) {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
+// Slot-time variants for the meeting-engine surfaces (Companies tab, check-in,
+// auto match). Slots are stored as real UTC instants and the engine groups and
+// labels schedule days in the event timezone (see packages/db/src/
+// meeting-engine.ts EVENT_TZ/dayKeyOf/dayLabel), so these render in TZ too —
+// the same wall-clock times as the Master Schedule tab.
+export function fmtSlotTime(iso: string | Date) {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TZ })
 }
-export function fmtRangeUTC(startIso: string | Date, endIso: string | Date) {
-  return `${fmtTimeUTC(startIso)}–${fmtTimeUTC(endIso)}`
+export function fmtSlotRange(startIso: string | Date, endIso: string | Date) {
+  return `${fmtSlotTime(startIso)}–${fmtSlotTime(endIso)}`
 }

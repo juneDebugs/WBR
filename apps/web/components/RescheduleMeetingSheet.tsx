@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RescheduleAvailability } from '@conference/db'
 import { SchedulerSheet, SheetSkeleton, SlotRoomPicker } from '@/components/SlotRoomPicker'
-import { fmtRangeUTC } from '@/lib/format'
+import { fmtSlotRange } from '@/lib/format'
 
 interface Props {
   sponsorMeetingId: string
@@ -47,7 +47,7 @@ export function RescheduleMeetingSheet({ sponsorMeetingId, attendeeName, onClose
     for (const day of avail.days) {
       const s = day.slots.find(x => x.timeBlockId === avail.current.timeBlockId)
       if (s) {
-        currentLabel = `Currently ${day.label} · ${fmtRangeUTC(s.startsAt, s.endsAt)}${avail.current.room ? ` · ${avail.current.room}` : ''}`
+        currentLabel = `Currently ${day.label} · ${fmtSlotRange(s.startsAt, s.endsAt)}${avail.current.room ? ` · ${avail.current.room}` : ''}`
         break
       }
     }
