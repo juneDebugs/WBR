@@ -67,6 +67,17 @@ export function CompanyAutoScheduleButton({ sponsorId, sponsorName, onSuccess }:
         setError(data.error ?? 'Something went wrong')
         return
       }
+      // Commit-time revalidation can drop placements whose slot was taken
+      // while scheduling — surface the shortfall instead of closing as if
+      // everything booked.
+      const planned = preview?.scheduled.length ?? 0
+      const booked = data.scheduled?.length ?? 0
+      if (booked < planned) {
+        setPreview(data)
+        setError(`Scheduled ${booked} of ${planned} — some slots were taken while scheduling. Run auto-schedule again for the rest.`)
+        onSuccess()
+        return
+      }
       setOpen(false)
       onSuccess()
     } catch {

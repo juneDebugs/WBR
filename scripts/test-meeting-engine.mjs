@@ -73,7 +73,8 @@ function unitTests() {
   check('resolveParties rep→attendee', (() => { const r = E.resolveParties({ requesterId: 'rep', targetUserId: 'u2', targetSponsorId: null, requester: { sponsorId: 's9' } }); return r?.sponsorId === 's9' && r?.userId === 'u2' && r?.repId === 'rep' })())
   check('resolveParties non-sponsor → null', E.resolveParties({ requesterId: 'u1', targetUserId: 'u2', targetSponsorId: null }) === null)
   check('loadBalancePreferred picks fewest', E.loadBalancePreferred([{ userId: 'a', confirmedCount: 5 }, { userId: 'b', confirmedCount: 2 }]) === 'b')
-  check('totalRoomCapacity = sum', E.totalRoomCapacity === E.MEETING_ROOMS.reduce((s, r) => s + r.capacity, 0))
+  check('MEETING_ROOMS are labels with capacities', E.MEETING_ROOMS.length > 0 && E.MEETING_ROOMS.every(r => r.name && r.capacity >= 1))
+  check('MEETINGS_PER_BLOCK = 1 (exclusive slots)', E.MEETINGS_PER_BLOCK === 1)
 }
 
 // ── Integration with fixtures ───────────────────────────────────────────────
@@ -130,24 +131,28 @@ async function main() {
   if (sponsorSeeking.length) check('A (matching) ranks ahead of B', bankA.rank < bankB.rank, `A#${bankA?.rank} vs B#${bankB?.rank}`)
   check('confirmedCount starts at 0', bankA.confirmedCount === 0 && bankB.confirmedCount === 0)
 
-  // Availability for A — and the slots/tables the rest of the lifecycle uses.
-  // Picked from the availability payload rather than hardcoded (Table 1 @ the
-  // first block): the auto-scheduler books real meetings into the live
-  // schedule, so the test only claims capacity it verified is free.
-  // Capacity-1 tables specifically, so the ROOM_CONFLICT case below holds.
+  // Availability for A — and the slots the rest of the lifecycle uses.
+  // Picked from the availability payload rather than hardcoded (the first
+  // blocks): the auto-scheduler books real meetings into the live schedule, so
+  // the test only claims blocks it verified are OPEN for the sponsor. Slots
+  // are exclusive (one confirmed meeting per sponsor per block), so the test
+  // needs THREE distinct open blocks: slot1 for A, slot3 for B, and slot2 kept
+  // free as the blackout/reschedule target.
   const availA = await E.getCandidateAvailability(prisma, reqA.id, confId)
   const availSlots = availA.days.flatMap(d => d.slots)
   const freeTables = s => s.rooms.filter(r => r.available && r.name.startsWith('Table ')).map(r => r.name)
-  const pick1 = availSlots.find(s => s.available && freeTables(s).length >= 2)
-  const pick2 = availSlots.find(s => s.available && s.timeBlockId !== pick1?.timeBlockId && freeTables(s).length >= 1)
-  if (!pick1 || !pick2) { console.error('  ✗ insufficient free capacity (need a slot with 2 free tables + another with 1)'); return }
+  const [pick1, pick2, pick3] = availSlots.filter(s => s.available && freeTables(s).length >= 1)
+  if (!pick1 || !pick2 || !pick3) { console.error('  ✗ insufficient free capacity (need 3 blocks open for the sponsor)'); return }
   const blockById = new Map(blocks.map(b => [b.id, b]))
   const slot1 = blockById.get(pick1.timeBlockId)
   const slot2 = blockById.get(pick2.timeBlockId)
-  const [roomA1, roomB1] = freeTables(pick1)
+  const slot3 = blockById.get(pick3.timeBlockId)
+  const roomA1 = freeTables(pick1)[0]
   const roomA2 = freeTables(pick2)[0]
+  const roomB3 = freeTables(pick3)[0]
   check('availability: slot1 free for A', pick1?.available === true)
   check('availability: rooms enumerated', pick1?.rooms.length === E.MEETING_ROOMS.length)
+  check('availability: open slot reports sponsorHasCapacity', pick1?.sponsorHasCapacity === true)
 
   // Assign A → a verified-free table @ slot1.
   const mA = await E.assignMeeting(prisma, { requestId: reqA.id, timeBlockId: slot1.id, room: roomA1 })
@@ -157,9 +162,11 @@ async function main() {
   check('assign A confirmed the request', reqAafter.status === 'CONFIRMED' && reqAafter.timeBlockId === slot1.id)
 
   mx = await E.getSponsorScheduleMatrix(prisma, sponsor.id, confId)
+  check('matrix slotCapacity = 1 (exclusive slots)', mx.slotCapacity === 1, `got ${mx.slotCapacity}`)
   check('A left the bank after assign', !mx.bank.find(b => b.requestId === reqA.id))
   const slot1Row = mx.days.flatMap(d => d.slots).find(s => s.timeBlockId === slot1.id)
   check('slot1 now shows A', !!slot1Row.meetings.find(m => m.userId === userA.id && m.room === roomA1))
+  check('slot1 capacityLeft = 0 (block booked)', slot1Row?.capacityLeft === 0, `got ${slot1Row?.capacityLeft}`)
 
   // Conflict paths.
   await expectThrow('re-assign the same CONFIRMED request → BAD_STATUS', 'BAD_STATUS', () => E.assignMeeting(prisma, { requestId: reqA.id, timeBlockId: slot2.id, room: roomA2 }))
@@ -174,13 +181,19 @@ async function main() {
   const rowDup = dirDup.find(d => d.id === sponsor.id)
   check('directory unscheduled excludes an already-booked pair (M3)', rowDup.unscheduled === baseUnscheduled + 1, `expected ${baseUnscheduled + 1}, got ${rowDup?.unscheduled}`)
 
-  await expectThrow("assign B to A's table @slot1 → ROOM_CONFLICT", 'ROOM_CONFLICT', () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: roomA1 }))
-  await expectThrow('assign with bogus room → UNKNOWN_ROOM', 'UNKNOWN_ROOM', () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: 'Table 999' }))
+  // Exclusive slots: the block is closed for B even at a DIFFERENT table.
+  const availB = await E.getCandidateAvailability(prisma, reqB.id, confId)
+  const bSlot1 = availB.days.flatMap(d => d.slots).find(s => s.timeBlockId === slot1.id)
+  check("availability for B: A's block lost sponsorHasCapacity", bSlot1?.sponsorHasCapacity === false && bSlot1?.available === false,
+    `hasCapacity=${bSlot1?.sponsorHasCapacity} available=${bSlot1?.available}`)
+  const roomB1 = freeTables(pick1).find(r => r !== roomA1) ?? roomA1
+  await expectThrow("assign B to a different table in A's block @slot1 → SPONSOR_FULL", 'SPONSOR_FULL', () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: roomB1 }))
+  await expectThrow('assign with bogus room → UNKNOWN_ROOM', 'UNKNOWN_ROOM', () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot3.id, room: 'Table 999' }))
 
-  // Assign B to a different table in the same slot (allowed — separate table).
-  const mB = await E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot1.id, room: roomB1 })
+  // Assign B into a different OPEN block (slots are exclusive per sponsor).
+  const mB = await E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: slot3.id, room: roomB3 })
   created.meetings.push(mB.id)
-  check('assign B to a second table @slot1 ok', mB.status === 'CONFIRMED')
+  check('assign B into a different open block @slot3 ok', mB.status === 'CONFIRMED')
 
   // Blackout for B over slot2 → candidate busy on reschedule.
   const bo = await prisma.blackoutTime.create({ data: { userId: userB.id, startsAt: slot2.startsAt, endsAt: slot2.endsAt, reason: 'engine-test' } })

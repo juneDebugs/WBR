@@ -1,5 +1,5 @@
 export const revalidate = 60
-import { prisma } from '@conference/db'
+import { prisma, assertBlockOpen, EngineError } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { SponsorLogo } from '@/components/SponsorLogo'
 import { redirect, notFound } from 'next/navigation'
@@ -45,10 +45,26 @@ async function scheduleMeeting(sponsorId: string, formData: FormData) {
   const timeBlockId = formData.get('timeBlockId') as string
   const notes = (formData.get('notes') as string) || null
 
+  // Exclusive slots: one confirmed meeting per pair, and the block must be
+  // open for this sponsor and free for the attendee (same engine rules as the
+  // Companies scheduler). Conflicts bounce back to the form with a banner
+  // instead of writing a double booking.
+  const pairExisting = await prisma.sponsorMeeting.findFirst({
+    where: { sponsorId, userId, status: 'CONFIRMED' },
+    select: { id: true },
+  })
+  if (pairExisting) redirect(`/dashboard/sponsors/${sponsorId}?conflict=ALREADY_SCHEDULED`)
+  try {
+    await assertBlockOpen(prisma, sponsorId, userId, timeBlockId)
+  } catch (e) {
+    if (e instanceof EngineError) redirect(`/dashboard/sponsors/${sponsorId}?conflict=${e.code}`)
+    throw e
+  }
   await prisma.sponsorMeeting.create({
     data: { sponsorId, userId, timeBlockId, notes, status: 'CONFIRMED' },
   })
   revalidatePath(`/dashboard/sponsors/${sponsorId}`)
+  redirect(`/dashboard/sponsors/${sponsorId}`)
 }
 
 async function cancelMeeting(meetingId: string, sponsorId: string) {
@@ -57,13 +73,29 @@ async function cancelMeeting(meetingId: string, sponsorId: string) {
   revalidatePath(`/dashboard/sponsors/${sponsorId}`)
 }
 
-export default async function SponsorDetailPage({ params }: { params: Promise<{ id: string }> }) {
+const CONFLICT_MESSAGES: Record<string, string> = {
+  CANDIDATE_BUSY: 'That attendee is already booked or unavailable in that time slot.',
+  SPONSOR_FULL: 'This company already has a meeting in that time slot.',
+  ALREADY_SCHEDULED: 'That attendee already has a confirmed meeting with this company.',
+}
+
+export default async function SponsorDetailPage({ params, searchParams }: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ conflict?: string }>
+}) {
   const { id } = await params
+  const { conflict } = await searchParams
+  const conflictMessage = conflict
+    ? CONFLICT_MESSAGES[conflict] ?? 'That slot could not be booked — it is no longer open.'
+    : null
   const [sponsor, users, timeBlocks] = await Promise.all([
     prisma.sponsor.findUnique({
       where: { id },
       include: {
+        // Only live bookings: engine cancels keep the row with status
+        // CANCELLED, and a cancelled meeting must not read as "(taken)".
         meetings: {
+          where: { status: 'CONFIRMED' },
           include: { user: true, timeBlock: true },
           orderBy: { timeBlock: { startsAt: 'asc' } },
         },
@@ -164,6 +196,11 @@ export default async function SponsorDetailPage({ params }: { params: Promise<{ 
             {/* Schedule new meeting */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <h2 className="text-sm font-semibold text-gray-700 mb-4">Schedule a 1-1 Meeting</h2>
+              {conflictMessage && (
+                <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2" role="alert">
+                  {conflictMessage}
+                </div>
+              )}
               <form action={doSchedule} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>

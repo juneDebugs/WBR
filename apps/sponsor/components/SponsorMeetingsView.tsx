@@ -93,6 +93,7 @@ export function SponsorMeetingsView() {
   const invalidate = useInvalidate()
   const [tab, setTab] = useState<Tab>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
 
   // Apply optimistic status overrides
@@ -101,6 +102,7 @@ export function SponsorMeetingsView() {
 
   async function updateStatus(requestId: string, status: string) {
     setActionLoading(requestId)
+    setActionError(null)
     setLocalUpdates(prev => ({ ...prev, [requestId]: status }))
     try {
       const res = await fetch(`/api/meetings/${requestId}`, {
@@ -109,7 +111,10 @@ export function SponsorMeetingsView() {
         body: JSON.stringify({ status }),
       })
       if (!res.ok) {
+        // Roll back the optimistic flip AND say why, instead of a silent snap-back.
         setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
+        const body = await res.json().catch(() => ({}))
+        setActionError(body.error ?? 'That change could not be saved — please try again.')
       } else {
         invalidate.meetings()
         invalidate.sponsor()
@@ -213,6 +218,12 @@ export function SponsorMeetingsView() {
           <p className="text-sm text-ink-2 mt-1">All meeting requests — inbound from attendees and sent by your team</p>
         </div>
       </div>
+
+      {actionError && (
+        <div className="rounded-xl bg-danger-soft text-danger-ink text-sm px-3 py-2" role="alert">
+          {actionError}
+        </div>
+      )}
 
       <div className="flex gap-1 border-b border-hairline">
         {tabs.map(t => (

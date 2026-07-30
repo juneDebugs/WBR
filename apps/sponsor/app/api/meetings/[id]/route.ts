@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@conference/db'
+import { prisma, findFirstOpenSlot, assertBlockOpen, EngineError, MEETING_ROOMS } from '@conference/db'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -27,60 +27,52 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // If confirming or approving, auto-assign a time block and create SponsorMeeting
-  let timeBlockId = request.timeBlockId
-  if ((status === 'CONFIRMED' || status === 'APPROVED') && !timeBlockId) {
-    // Find occupied time blocks for both the requester and the sponsor
-    const [requesterBusy, sponsorBusy] = await Promise.all([
-      prisma.meetingRequest.findMany({
-        where: { OR: [{ requesterId: request.requesterId }, { targetUserId: request.requesterId }], timeBlockId: { not: null }, status: { in: ['CONFIRMED', 'APPROVED'] } },
-        select: { timeBlockId: true },
-      }),
-      prisma.sponsorMeeting.findMany({
-        where: { sponsorId: request.targetSponsorId ?? user.sponsorId },
-        select: { timeBlockId: true },
-      }),
-    ])
-
-    const busySet = new Set([
-      ...requesterBusy.map(r => r.timeBlockId).filter(Boolean),
-      ...sponsorBusy.map(r => r.timeBlockId),
-    ])
-
-    // Find first available time block
-    const available = await prisma.timeBlock.findFirst({
-      where: { id: { notIn: [...busySet] as string[] } },
-      orderBy: { startsAt: 'asc' },
+  // On approve/confirm, book the FIRST time block that is OPEN for the
+  // sponsor and free for the requester — the same exclusive-slot rule the
+  // admin Companies scheduler enforces (blackouts and peer meetings included).
+  // A stored request block is used when it is still open; when it has gone
+  // stale (someone else took it) we fall back to the next open slot instead
+  // of dead-ending. No open slot at all → the status still updates and the
+  // request stays blockless for the admin scheduler to place later. A pair
+  // that already has a confirmed meeting keeps it — no second meeting.
+  const sponsorId = request.targetSponsorId ?? user.sponsorId
+  const attendeeId = request.requesterId
+  let timeBlockId: string | null = null
+  let room: string | null = null
+  if ((status === 'CONFIRMED' || status === 'APPROVED') && sponsorId) {
+    const pairMeeting = await prisma.sponsorMeeting.findFirst({
+      where: { sponsorId, userId: attendeeId, status: 'CONFIRMED' },
+      select: { id: true },
     })
-
-    if (available) {
-      timeBlockId = available.id
-    }
-  }
-
-  const updated = await prisma.meetingRequest.update({
-    where: { id },
-    data: { status, ...(timeBlockId ? { timeBlockId } : {}) },
-  })
-
-  // Create SponsorMeeting if confirmed/approved with a time block and involves a sponsor
-  if ((status === 'CONFIRMED' || status === 'APPROVED') && timeBlockId) {
-    const sponsorId = request.targetSponsorId ?? user.sponsorId
-    const attendeeId = request.requesterId
-
-    if (sponsorId && attendeeId) {
-      const existing = await prisma.sponsorMeeting.findFirst({
-        where: { sponsorId, userId: attendeeId, timeBlockId },
-      })
-      if (!existing) {
-        await prisma.sponsorMeeting.create({
-          data: { sponsorId, userId: attendeeId, timeBlockId, status: 'CONFIRMED' },
-        })
+    if (!pairMeeting) {
+      if (request.timeBlockId) {
+        const storedStillOpen = await assertBlockOpen(prisma, sponsorId, attendeeId, request.timeBlockId)
+          .then(() => true)
+          .catch(e => { if (e instanceof EngineError) return false; throw e })
+        if (storedStillOpen) { timeBlockId = request.timeBlockId; room = MEETING_ROOMS[0].name }
+      }
+      if (!timeBlockId) {
+        const slot = await findFirstOpenSlot(prisma, sponsorId, attendeeId)
+        if (slot) { timeBlockId = slot.timeBlockId; room = slot.room }
       }
     }
   }
 
-  const sponsorId = request.targetSponsorId ?? user.sponsorId
+  // The status update and the booking commit together — a crash between the
+  // two can never leave a CONFIRMED request with no meeting behind it.
+  const ops: any[] = [
+    prisma.meetingRequest.update({
+      where: { id },
+      data: { status, ...(timeBlockId ? { timeBlockId } : {}) },
+    }),
+  ]
+  if (timeBlockId && sponsorId) {
+    ops.push(prisma.sponsorMeeting.create({
+      data: { sponsorId, userId: attendeeId, timeBlockId, location: room, status: 'CONFIRMED' },
+    }))
+  }
+  const [updated] = await prisma.$transaction(ops)
+
   if (sponsorId) revalidateTag(`meetings-${sponsorId}`)
 
   return NextResponse.json(updated)

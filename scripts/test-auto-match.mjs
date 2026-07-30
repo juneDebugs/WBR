@@ -12,7 +12,9 @@
 // duplicate rep pick wins), pick metadata (byName, pickedAt, matchedAt =
 // later pick), fit scoring, totals math, dry-run planning (nothing persisted),
 // real scheduling (sponsor-side request preferred → meeting inherits repId,
-// request flips CONFIRMED, earliest free block + Table 1 first), post-schedule
+// request flips CONFIRMED, first block OPEN for the sponsor and free for the
+// attendee — slots are EXCLUSIVE, MEETINGS_PER_BLOCK = 1, room always
+// 'Table 1'), post-schedule
 // board state and ordering, idempotence, the syncAutoMatches sweep (schedules
 // ready pairs, writes MATCHED/SCHEDULED AutoMatchEvent rows, backfills
 // SCHEDULED for pre-existing meetings, skips unschedulable pairs, writes
@@ -137,9 +139,12 @@ async function main() {
   const u4 = await mkUser('u4', 'am-test Uri Buyer')
   const tb1 = await prisma.timeBlock.create({ data: { id: fid('tb-1'), conferenceId: confId, startsAt: new Date('2033-06-01T10:00:00Z'), endsAt: new Date('2033-06-01T10:30:00Z') } })
   const tb2 = await prisma.timeBlock.create({ data: { id: fid('tb-2'), conferenceId: confId, startsAt: new Date('2033-06-01T11:00:00Z'), endsAt: new Date('2033-06-01T11:30:00Z') } })
+  // tb3 exists as a reschedule target: with exclusive slots, tb1 (sponsor A →
+  // u1) and tb2 (sponsor A → u6, sweep-scheduled) are both closed to sponsor A.
+  const tb3 = await prisma.timeBlock.create({ data: { id: fid('tb-3'), conferenceId: confId, startsAt: new Date('2033-06-01T12:00:00Z'), endsAt: new Date('2033-06-01T12:30:00Z') } })
   // u2 is pre-booked with sponsor C in tb1, so the scheduler must place (B, u2)
-  // in tb2 — proving the earliest-FREE-block rule and giving the post-schedule
-  // board two distinct startsAt values to sort.
+  // in tb2 — proving the earliest-open-and-free-block rule and giving the
+  // post-schedule board two distinct startsAt values to sort.
   await prisma.sponsorMeeting.create({ data: { id: fid('m-busy'), sponsorId: spC.id, userId: u2.id, timeBlockId: tb1.id, status: 'CONFIRMED', location: 'Table 1' } })
 
   // MeetingRequests — explicit ids and createdAt for full determinism.
@@ -163,7 +168,7 @@ async function main() {
   const rRep1U4 = await mkReq('rep1-u4', { requesterId: rep1.id, targetUserId: u4.id, priority: 'BEST_FIT', status: 'REJECTED', createdAt: new Date('2026-01-02T11:30:00Z') })
   const rU2B = await mkReq('u2-b', { requesterId: u2.id, targetSponsorId: spB.id, priority: 'BEST_FIT', status: 'PENDING', createdAt: new Date('2026-01-03T09:00:00Z') })
   const rRepBU2 = await mkReq('repb-u2', { requesterId: repB.id, targetUserId: u2.id, priority: 'BEST_FIT', status: 'APPROVED', createdAt: new Date('2026-01-03T10:00:00Z') })
-  console.log(`  created conference ${confId} (3 sponsors, 7 users, 2 blocks, 1 pre-booked meeting, 10 requests)`)
+  console.log(`  created conference ${confId} (3 sponsors, 7 users, 3 blocks, 1 pre-booked meeting, 10 requests)`)
 
   console.log('\nBoard — match derivation')
   let board = await E.getAutoMatchBoard(prisma, confId)
@@ -266,6 +271,8 @@ async function main() {
 
   // ── Scheduling lanes — the where fragments partition every request ───────
   console.log('\nScheduling lanes — autoLaneRequestWhere / requestBoardWhere')
+  check('MEETINGS_PER_BLOCK = 1 — time slots are exclusive per sponsor',
+    E.MEETINGS_PER_BLOCK === 1, `got ${E.MEETINGS_PER_BLOCK}`)
   check("REQUEST_BOARD_PRIORITIES = ['MED','LOW']",
     Array.isArray(E.REQUEST_BOARD_PRIORITIES) && E.REQUEST_BOARD_PRIORITIES.join(',') === 'MED,LOW',
     JSON.stringify(E.REQUEST_BOARD_PRIORITIES))
@@ -327,9 +334,10 @@ async function main() {
   check('the one-directional (u2→A) request is NOT in the plan', !dryReqIds.includes(rU2A.id))
   const dryA = dry.scheduled.find(s => s.requestId === rRep1U1.id)
   const dryB = dry.scheduled.find(s => s.requestId === rRepBU2.id)
-  check('plan places (A,u1) in the earliest block, Table 1 first',
+  check('plan places (A,u1) in the earliest open block, room always Table 1',
     dryA?.timeBlockId === tb1.id && dryA?.room === 'Table 1')
-  check('plan places (B,u2) in tb2 — u2 is pre-booked in tb1', dryB?.timeBlockId === tb2.id, `got ${dryB?.timeBlockId}`)
+  check('plan places (B,u2) in tb2 (Table 1) — u2 is pre-booked in tb1',
+    dryB?.timeBlockId === tb2.id && dryB?.room === 'Table 1', `got ${dryB?.timeBlockId}/${dryB?.room}`)
   const afterDry = await prisma.sponsorMeeting.count({ where: { userId: { startsWith: PREFIX } } })
   check('dry run persisted nothing (only the pre-booked meeting exists)', afterDry === 1, `count=${afterDry}`)
   const reqAfterDry = await prisma.meetingRequest.findUnique({ where: { id: rRep1U1.id }, select: { status: true } })
@@ -407,8 +415,11 @@ async function main() {
   check('sweep counters: matchedLogged=4 (u1,u2,u5,u6), scheduledLogged=3 (u1+u2 backfill, u6 new)',
     sync.matchedLogged === 4 && sync.scheduledLogged === 3, JSON.stringify({ matchedLogged: sync.matchedLogged, scheduledLogged: sync.scheduledLogged }))
   const mtgU6 = await prisma.sponsorMeeting.findFirst({ where: { sponsorId: spA.id, userId: u6.id }, select: { status: true, repId: true, timeBlockId: true, location: true } })
-  check('(A,u6) meeting persisted CONFIRMED in tb1 / Table 2 (Table 1 taken by u1), repId = rep1',
-    mtgU6?.status === 'CONFIRMED' && mtgU6.timeBlockId === tb1.id && mtgU6.location === 'Table 2' && mtgU6.repId === rep1.id, JSON.stringify(mtgU6))
+  check('(A,u6) meeting persisted CONFIRMED in tb2 / Table 1 (tb1 is CLOSED for sponsor A — u1 holds it), repId = rep1',
+    mtgU6?.status === 'CONFIRMED' && mtgU6.timeBlockId === tb2.id && mtgU6.location === 'Table 1' && mtgU6.repId === rep1.id, JSON.stringify(mtgU6))
+  check('exclusivity: sponsor A\'s two meetings (u1, u6) sit in two DIFFERENT blocks',
+    mtgA?.timeBlockId === tb1.id && mtgU6?.timeBlockId !== mtgA?.timeBlockId,
+    `u1=${mtgA?.timeBlockId} u6=${mtgU6?.timeBlockId}`)
 
   const events = await prisma.autoMatchEvent.findMany({ where: { userId: { startsWith: PREFIX } } })
   const evOf = (sponsorId, userId, event) => events.filter(e => e.sponsorId === sponsorId && e.userId === userId && e.event === event)
@@ -418,8 +429,8 @@ async function main() {
   check('(A,u6) MATCHED event: names populated, room/startsAt null',
     !!mU6 && mU6.sponsorName === spA.name && mU6.attendeeName === u6.name && mU6.room === null && mU6.startsAt === null)
   const sU6 = evOf(spA.id, u6.id, 'SCHEDULED')[0]
-  check('(A,u6) SCHEDULED event carries room + slot startsAt',
-    sU6?.room === 'Table 2' && sU6?.startsAt?.getTime() === tb1.startsAt.getTime() && sU6.sponsorName === spA.name && sU6.attendeeName === u6.name)
+  check('(A,u6) SCHEDULED event carries room + slot startsAt (tb2 / Table 1)',
+    sU6?.room === 'Table 1' && sU6?.startsAt?.getTime() === tb2.startsAt.getTime() && sU6.sponsorName === spA.name && sU6.attendeeName === u6.name)
   check('backfill: (A,u1) meeting from the earlier scheduleAutoMatches run gets a SCHEDULED event',
     evOf(spA.id, u1.id, 'SCHEDULED')[0]?.room === 'Table 1' && evOf(spA.id, u1.id, 'SCHEDULED')[0]?.startsAt?.getTime() === tb1.startsAt.getTime())
   check('backfill: (B,u2) SCHEDULED event carries its tb2 slot',
@@ -443,7 +454,7 @@ async function main() {
   const oursInLog = ourLog(board)
   check('board.log surfaces the fixture events (MATCHED + SCHEDULED for u6 present)',
     oursInLog.some(e => e.userId === u6.id && e.event === 'MATCHED') &&
-    oursInLog.some(e => e.userId === u6.id && e.event === 'SCHEDULED' && e.room === 'Table 2' && e.startsAt === tb1.startsAt.toISOString()),
+    oursInLog.some(e => e.userId === u6.id && e.event === 'SCHEDULED' && e.room === 'Table 1' && e.startsAt === tb2.startsAt.toISOString()),
     `ours=${oursInLog.length}`)
   check('log entries are ISO strings, newest first (createdAt non-increasing)',
     board.log.every(e => !Number.isNaN(Date.parse(e.createdAt))) &&
@@ -452,35 +463,38 @@ async function main() {
   check('getAutoMatchLog returns the same 7 fixture entries', viaHelper.length === 7, `count=${viaHelper.length}`)
 
   // ── Board meeting actions ────────────────────────────────────────────────
-  // (A,u6) was scheduled by the sweep at tb1/Table 2 — move it, then cancel
-  // it, then re-form the match with fresh picks. Pair-scoped event counters
-  // via evOf() keep every assertion deterministic.
+  // (A,u6) was scheduled by the sweep at tb2/Table 1 — move it to tb3 (the
+  // only remaining block OPEN for sponsor A), then cancel it, then re-form the
+  // match with fresh picks. Pair-scoped event counters via evOf() keep every
+  // assertion deterministic.
   console.log('\nrescheduleAutoMatchMeeting')
   const mtgU6Row = await prisma.sponsorMeeting.findFirst({
     where: { sponsorId: spA.id, userId: u6.id, status: 'CONFIRMED' }, select: { id: true },
   })
-  const moved = await E.rescheduleAutoMatchMeeting(prisma, { sponsorMeetingId: mtgU6Row.id, timeBlockId: tb2.id, room: 'Table 1' })
-  check('returns the updated meeting (tb2 / Table 1)',
-    moved?.timeBlockId === tb2.id && moved?.location === 'Table 1', JSON.stringify({ tb: moved?.timeBlockId, room: moved?.location }))
+  const moved = await E.rescheduleAutoMatchMeeting(prisma, { sponsorMeetingId: mtgU6Row.id, timeBlockId: tb3.id, room: 'Table 1' })
+  check('returns the updated meeting (tb3 / Table 1)',
+    moved?.timeBlockId === tb3.id && moved?.location === 'Table 1', JSON.stringify({ tb: moved?.timeBlockId, room: moved?.location }))
   const movedRow = await prisma.sponsorMeeting.findUnique({ where: { id: mtgU6Row.id }, select: { timeBlockId: true, location: true, status: true } })
   check('meeting row persisted with the new slot, still CONFIRMED',
-    movedRow?.timeBlockId === tb2.id && movedRow?.location === 'Table 1' && movedRow?.status === 'CONFIRMED', JSON.stringify(movedRow))
+    movedRow?.timeBlockId === tb3.id && movedRow?.location === 'Table 1' && movedRow?.status === 'CONFIRMED', JSON.stringify(movedRow))
   const eventsOf = (sponsorId, userId, event) =>
     prisma.autoMatchEvent.findMany({ where: { sponsorId, userId, event } })
   const rescheduledEvents = await eventsOf(spA.id, u6.id, 'RESCHEDULED')
   check('RESCHEDULED event written with the new room + new slot startsAt',
     rescheduledEvents.length === 1 && rescheduledEvents[0].room === 'Table 1' &&
-    rescheduledEvents[0].startsAt?.getTime() === tb2.startsAt.getTime() &&
+    rescheduledEvents[0].startsAt?.getTime() === tb3.startsAt.getTime() &&
     rescheduledEvents[0].sponsorName === spA.name && rescheduledEvents[0].attendeeName === u6.name)
   board = await E.getAutoMatchBoard(prisma, confId)
   const movedMatch = board.matches.find(m => m.key === key(spA.id, u6.id))
   check('board shows the match still scheduled, at the NEW slot',
-    movedMatch?.meeting?.timeBlockId === tb2.id && movedMatch.meeting.room === 'Table 1' &&
-    movedMatch.meeting.startsAt === tb2.startsAt.toISOString(), JSON.stringify(movedMatch?.meeting ?? null))
+    movedMatch?.meeting?.timeBlockId === tb3.id && movedMatch.meeting.room === 'Table 1' &&
+    movedMatch.meeting.startsAt === tb3.startsAt.toISOString(), JSON.stringify(movedMatch?.meeting ?? null))
 
   console.log('\nreschedule — typed errors')
   await expectThrow('unknown room → UNKNOWN_ROOM', 'UNKNOWN_ROOM',
     () => E.rescheduleAutoMatchMeeting(prisma, { sponsorMeetingId: mtgU6Row.id, timeBlockId: tb1.id, room: 'Table 99' }))
+  await expectThrow('moving (A,u6) onto tb1 where sponsor A already meets u1 → SPONSOR_FULL (exclusive slots)', 'SPONSOR_FULL',
+    () => E.rescheduleAutoMatchMeeting(prisma, { sponsorMeetingId: mtgU6Row.id, timeBlockId: tb1.id, room: 'Table 1' }))
   const mtgBRow = await prisma.sponsorMeeting.findFirst({
     where: { sponsorId: spB.id, userId: u2.id, status: 'CONFIRMED' }, select: { id: true },
   })
@@ -532,8 +546,9 @@ async function main() {
   const syncRematch = await E.syncAutoMatches(prisma, confId)
   check('sweep re-schedules the re-formed pair via the fresh sponsor-side pick',
     syncRematch.scheduled.length === 1 && syncRematch.scheduled[0].requestId === rRep1U6b.id, JSON.stringify(syncRematch.scheduled.map(s => s.requestId)))
-  check('re-scheduled back into tb1 / Table 2 (Table 1 still held by u1)',
-    syncRematch.scheduled[0]?.timeBlockId === tb1.id && syncRematch.scheduled[0]?.room === 'Table 2')
+  check('re-scheduled into tb2 / Table 1 — the first block OPEN for sponsor A (tb1 still held by u1)',
+    syncRematch.scheduled[0]?.timeBlockId === tb2.id && syncRematch.scheduled[0]?.room === 'Table 1',
+    JSON.stringify({ tb: syncRematch.scheduled[0]?.timeBlockId, room: syncRematch.scheduled[0]?.room }))
   check('fresh MATCHED + SCHEDULED logged despite the pair\'s older events',
     syncRematch.matchedLogged === 1 && syncRematch.scheduledLogged === 1, JSON.stringify({ matchedLogged: syncRematch.matchedLogged, scheduledLogged: syncRematch.scheduledLogged }))
   const [m2, s2, r2c, c2] = await Promise.all([
@@ -547,8 +562,26 @@ async function main() {
   check('exactly one live meeting again for the pair', liveU6 === 1, `count=${liveU6}`)
   board = await E.getAutoMatchBoard(prisma, confId)
   check('board shows the re-formed match scheduled again: matches=4, ready=1, scheduled=3',
-    board.matches.find(m => m.key === key(spA.id, u6.id))?.meeting?.timeBlockId === tb1.id &&
+    board.matches.find(m => m.key === key(spA.id, u6.id))?.meeting?.timeBlockId === tb2.id &&
     board.totals.matches === 4 && board.totals.ready === 1 && board.totals.scheduled === 3, JSON.stringify(board.totals))
+
+  // ── Exclusivity invariant — the end state itself proves one-per-block ─────
+  console.log('\nExclusivity invariant (final state)')
+  const liveMtgs = await prisma.sponsorMeeting.findMany({
+    where: { userId: { startsWith: PREFIX }, status: 'CONFIRMED' },
+    select: { sponsorId: true, userId: true, timeBlockId: true },
+  })
+  const dupes = rows => {
+    const seen = new Set(); const d = []
+    for (const k of rows) { if (seen.has(k)) d.push(k); seen.add(k) }
+    return d
+  }
+  const sponsorDupes = dupes(liveMtgs.map(m => `${m.sponsorId}@${m.timeBlockId}`))
+  const attendeeDupes = dupes(liveMtgs.map(m => `${m.userId}@${m.timeBlockId}`))
+  check('no sponsor holds two CONFIRMED meetings in the same block',
+    sponsorDupes.length === 0, sponsorDupes.map(k => k.replaceAll(PREFIX, '')).join(' '))
+  check('no attendee holds two CONFIRMED meetings in the same block',
+    attendeeDupes.length === 0, attendeeDupes.map(k => k.replaceAll(PREFIX, '')).join(' '))
 }
 
 try {

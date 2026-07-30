@@ -119,8 +119,8 @@ async function main() {
   check('GET companies/[id] → 200', mxRes.status === 200, `got ${mxRes.status}`)
   check('matrix shape: sponsor + days/bank/pending arrays',
     mx.sponsor?.id === first.id && Array.isArray(mx.days) && Array.isArray(mx.bank) && Array.isArray(mx.pending))
-  check('matrix rooms length 9 / totalRoomCapacity 12', mx.rooms?.length === 9 && mx.totalRoomCapacity === 12,
-    `rooms=${mx.rooms?.length} cap=${mx.totalRoomCapacity}`)
+  check('matrix rooms length 9 / slotCapacity 1 (exclusive slots)', mx.rooms?.length === 9 && mx.slotCapacity === 1,
+    `rooms=${mx.rooms?.length} cap=${mx.slotCapacity}`)
 
   console.log('\n[availability validation]')
   check('availability with bogus requestId → 404', (await staff(`${API}/availability?requestId=${PREFIX}bogus`)).status === 404)
@@ -134,8 +134,10 @@ async function main() {
   const user = await prisma.user.create({ data: { id: fid('user'), email: `${PREFIX}u-${stamp}@example.com`, name: 'Adm Sched API Test User', role: 'ATTENDEE' } })
   const tb1 = await prisma.timeBlock.create({ data: { id: fid('tb-1'), conferenceId: confId, startsAt: new Date('2031-03-10T14:00:00Z'), endsAt: new Date('2031-03-10T14:30:00Z') } })
   const tb2 = await prisma.timeBlock.create({ data: { id: fid('tb-2'), conferenceId: confId, startsAt: new Date('2031-03-10T15:00:00Z'), endsAt: new Date('2031-03-10T15:30:00Z') } })
+  const userB = await prisma.user.create({ data: { id: fid('user-b'), email: `${PREFIX}ub-${stamp}@example.com`, name: 'Adm Sched API Test User B', role: 'ATTENDEE' } })
   const reqA = await prisma.meetingRequest.create({ data: { id: fid('req-a'), requesterId: user.id, targetSponsorId: sponsor.id, status: 'APPROVED' } })
   const reqA2 = await prisma.meetingRequest.create({ data: { id: fid('req-a2'), requesterId: user.id, targetSponsorId: sponsor.id, status: 'APPROVED' } })
+  const reqB = await prisma.meetingRequest.create({ data: { id: fid('req-b'), requesterId: userB.id, targetSponsorId: sponsor.id, status: 'APPROVED' } })
 
   console.log('\n[availability → assign → conflict]')
   const availRes = await staff(`${API}/availability?requestId=${reqA.id}`)
@@ -152,6 +154,11 @@ async function main() {
   const dupRes = await staff(`${API}/meetings/assign`, jsonPost({ requestId: reqA2.id, timeBlockId: tb2.id, room }))
   const dup = await dupRes.json().catch(() => ({}))
   check('assign a 2nd request for the same pair → 409 ALREADY_SCHEDULED', dupRes.status === 409 && dup.code === 'ALREADY_SCHEDULED', `status ${dupRes.status} code ${dup.code}`)
+  // Slots are exclusive: another attendee into the SAME block (even a
+  // different table) → 409 SPONSOR_FULL.
+  const fullRes = await staff(`${API}/meetings/assign`, jsonPost({ requestId: reqB.id, timeBlockId: tb1.id, room: 'Table 2' }))
+  const full = await fullRes.json().catch(() => ({}))
+  check('assign B into the booked block → 409 SPONSOR_FULL', fullRes.status === 409 && full.code === 'SPONSOR_FULL', `status ${fullRes.status} code ${full.code}`)
   if (!meetingId) return
 
   console.log('\n[reschedule → cancel]')

@@ -72,6 +72,7 @@
     "db:migrate-checkin": "node scripts/migrate-checkin.mjs",
     "db:migrate-auto-match": "node scripts/migrate-auto-match.mjs",
     "db:migrate-meeting-requirements": "node scripts/migrate-meeting-requirements.mjs",
+    "db:migrate-exclusive-slots": "node scripts/migrate-exclusive-slots.mjs",
     "db:backfill-friends": "node scripts/migrate-friends-backfill.mjs",
     "db:sweep-auto-matches": "node scripts/sweep-auto-matches.mjs",
     "seed:feed-posts": "node scripts/seed-feed-posts.mjs",

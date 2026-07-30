@@ -5,8 +5,9 @@ contract check, no perf-bar claims are made by this feature):
 
 1. The meeting-engine capability is reachable from the admin app: company
    directory → per-company schedule matrix → assign / reschedule / cancel.
-2. Engine invariants hold over HTTP: room capacity, candidate-busy, booth
-   capacity, one-confirmed-meeting-per-pair, cancel preserve-vs-remove.
+2. Engine invariants hold over HTTP: exclusive slots (one meeting per sponsor
+   per block), candidate-busy, one-confirmed-meeting-per-pair, cancel
+   preserve-vs-remove.
 3. Permission gating: every `/api/admin/scheduler/*` route (and the reused
    `/api/meeting-requests/[id]` + `/api/auto-schedule`) rejects anonymous and
    permission-lacking callers.
@@ -24,7 +25,7 @@ Run: `node scripts/test-admin-scheduler.mjs`
 
 Pass criterion: exit 0; 30 ✓ assertions covering directory aggregates, bank
 ranking (tier before score), day grouping, capacity math, assign/reschedule/
-cancel round-trips, conflict rejections (`ROOM_CONFLICT`, `ALREADY_SCHEDULED`,
+cancel round-trips, conflict rejections (`SPONSOR_FULL`, `ALREADY_SCHEDULED`,
 `CANDIDATE_BUSY`), cancel(preserve) → request back in bank, and
 cancel(remove) → request listed in `matrix.misc` as `Removed`.
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma, requestBoardWhere } from '@conference/db'
+import { prisma, autoScheduleByPriority, REQUEST_BOARD_PRIORITIES } from '@conference/db'
 
 // POST /api/schedule-meetings
 // Body: { requestId } — returns available time blocks for both parties
@@ -25,101 +25,80 @@ export async function POST(req: Request) {
 
   // ── Auto-schedule all approved requests ──────────────────────────────────
   if (body.autoScheduleAll) {
-    // Only requests the board shows — Auto-lane Best Fit picks are scheduled
-    // mutually by the auto-match sweep, never by this bulk pass.
-    const approved = await prisma.meetingRequest.findMany({
-      where: { status: 'APPROVED', timeBlockId: null, ...requestBoardWhere },
-      include: {
-        requester: true,
-        targetSponsor: true,
-        targetUser: true,
+    // One scheduler for every bulk pass: the shared engine enforces exclusive
+    // slots (one meeting per sponsor per block, attendee free at the block,
+    // blackouts, commit-time revalidation). Scoped to the requests board's
+    // tiers — Auto-lane Best Fit picks are scheduled mutually by the
+    // auto-match sweep, never by this bulk pass.
+    const result = await autoScheduleByPriority(prisma, {
+      conferenceId, statuses: ['APPROVED'], priorities: REQUEST_BOARD_PRIORITIES,
+    })
+
+    // Peer-to-peer requests (attendee ↔ attendee, no sponsor on either side)
+    // have no booth and no Auto lane, so the engine cannot resolve them —
+    // schedule them here under the same exclusive rule: the first block where
+    // BOTH attendees are free (meetings, confirmed request holds, blackouts).
+    const peers = await prisma.meetingRequest.findMany({
+      where: {
+        status: 'APPROVED', timeBlockId: null,
+        targetSponsorId: null, targetUserId: { not: null },
+        requester: { sponsorId: null },
       },
       orderBy: { createdAt: 'asc' },
+      select: { id: true, requesterId: true, targetUserId: true },
     })
-
-    // Build a real-time map of occupied slots as we schedule
-    const occupiedByUser = new Map<string, Set<string>>()      // userId → Set<timeBlockId>
-    const occupiedBySponsor = new Map<string, Set<string>>()   // sponsorId → Set<timeBlockId>
-
-    // Pre-load already confirmed meetings
-    const existingConfirmed = await prisma.meetingRequest.findMany({
-      where: { status: 'CONFIRMED', timeBlockId: { not: null } },
-      select: { requesterId: true, targetUserId: true, targetSponsorId: true, timeBlockId: true },
-    })
-    const existingSponsorMeetings = await prisma.sponsorMeeting.findMany({
-      where: { status: 'CONFIRMED' },
-      select: { userId: true, sponsorId: true, timeBlockId: true },
-    })
-
-    for (const r of existingConfirmed) {
-      if (r.timeBlockId) {
-        addOccupied(occupiedByUser, r.requesterId, r.timeBlockId)
-        if (r.targetUserId) addOccupied(occupiedByUser, r.targetUserId, r.timeBlockId)
-        if (r.targetSponsorId) addOccupied(occupiedBySponsor, r.targetSponsorId, r.timeBlockId)
+    const peerResults: { requestId: string; timeBlockId: string | null; reason?: string }[] = []
+    let peerScheduled = 0
+    if (peers.length) {
+      const userIds = [...new Set(peers.flatMap(p => [p.requesterId, p.targetUserId!]))]
+      const [timeBlocks, sponsorMtgs, peerMtgs, confirmedReqs, blackouts] = await Promise.all([
+        prisma.timeBlock.findMany({ where: { conferenceId }, orderBy: { startsAt: 'asc' }, select: { id: true, startsAt: true, endsAt: true } }),
+        prisma.sponsorMeeting.findMany({ where: { status: 'CONFIRMED', userId: { in: userIds } }, select: { userId: true, timeBlockId: true } }),
+        prisma.meeting.findMany({
+          where: { status: { in: ['PENDING', 'CONFIRMED'] }, OR: [{ attendeeAId: { in: userIds } }, { attendeeBId: { in: userIds } }] },
+          select: { attendeeAId: true, attendeeBId: true, timeBlockId: true },
+        }),
+        prisma.meetingRequest.findMany({
+          where: { status: 'CONFIRMED', timeBlockId: { not: null }, OR: [{ requesterId: { in: userIds } }, { targetUserId: { in: userIds } }] },
+          select: { requesterId: true, targetUserId: true, timeBlockId: true },
+        }),
+        prisma.blackoutTime.findMany({ where: { userId: { in: userIds } }, select: { userId: true, startsAt: true, endsAt: true } }),
+      ])
+      const busy = new Map<string, Set<string>>()
+      const mark = (u: string | null, b: string | null) => {
+        if (!u || !b) return
+        let s = busy.get(u); if (!s) { s = new Set(); busy.set(u, s) }
+        s.add(b)
       }
-    }
-    for (const sm of existingSponsorMeetings) {
-      addOccupied(occupiedByUser, sm.userId, sm.timeBlockId)
-      addOccupied(occupiedBySponsor, sm.sponsorId, sm.timeBlockId)
-    }
-
-    const allTimeBlocks = await prisma.timeBlock.findMany({
-      where: { conferenceId },
-      orderBy: { startsAt: 'asc' },
-    })
-
-    let scheduled = 0
-    let skipped = 0
-    const results: { requestId: string; timeBlockId: string | null; reason?: string }[] = []
-
-    for (const request of approved) {
-      const requesterOccupied = occupiedByUser.get(request.requesterId) ?? new Set()
-      const targetOccupied = request.targetUserId
-        ? (occupiedByUser.get(request.targetUserId) ?? new Set())
-        : request.targetSponsorId
-        ? (occupiedBySponsor.get(request.targetSponsorId) ?? new Set())
-        : new Set<string>()
-
-      const available = allTimeBlocks.find(tb =>
-        !requesterOccupied.has(tb.id) && !targetOccupied.has(tb.id)
-      )
-
-      if (!available) {
-        skipped++
-        results.push({ requestId: request.id, timeBlockId: null, reason: 'No mutual availability' })
-        continue
+      for (const m of sponsorMtgs) mark(m.userId, m.timeBlockId)
+      for (const m of peerMtgs) { mark(m.attendeeAId, m.timeBlockId); mark(m.attendeeBId, m.timeBlockId) }
+      for (const r of confirmedReqs) { mark(r.requesterId, r.timeBlockId); mark(r.targetUserId, r.timeBlockId) }
+      const blocked = (u: string, tb: { startsAt: Date; endsAt: Date }) =>
+        blackouts.some(b => b.userId === u && b.startsAt < tb.endsAt && tb.startsAt < b.endsAt)
+      const writes = []
+      for (const p of peers) {
+        const a = p.requesterId, z = p.targetUserId!
+        const slot = timeBlocks.find(tb =>
+          !busy.get(a)?.has(tb.id) && !busy.get(z)?.has(tb.id) && !blocked(a, tb) && !blocked(z, tb))
+        if (!slot) { peerResults.push({ requestId: p.id, timeBlockId: null, reason: 'No open slot that works for both sides' }); continue }
+        mark(a, slot.id); mark(z, slot.id)
+        peerScheduled++
+        peerResults.push({ requestId: p.id, timeBlockId: slot.id })
+        writes.push(prisma.meetingRequest.update({ where: { id: p.id }, data: { status: 'CONFIRMED', timeBlockId: slot.id } }))
       }
-
-      await prisma.meetingRequest.update({
-        where: { id: request.id },
-        data: { status: 'CONFIRMED', timeBlockId: available.id },
-      })
-
-      // Create SponsorMeeting if applicable
-      const sponsorId = request.targetSponsorId ?? (request.requester as any).sponsorId ?? null
-      const attendeeId = request.targetUserId ?? (sponsorId ? request.requesterId : null)
-      if (sponsorId && attendeeId) {
-        const existing = await prisma.sponsorMeeting.findFirst({
-          where: { sponsorId, userId: attendeeId, timeBlockId: available.id },
-        })
-        if (!existing) {
-          await prisma.sponsorMeeting.create({
-            data: { sponsorId, userId: attendeeId, timeBlockId: available.id, status: 'CONFIRMED' },
-          })
-        }
-      }
-
-      // Mark slot as occupied for next iterations
-      addOccupied(occupiedByUser, request.requesterId, available.id)
-      if (request.targetUserId) addOccupied(occupiedByUser, request.targetUserId, available.id)
-      if (request.targetSponsorId) addOccupied(occupiedBySponsor, request.targetSponsorId, available.id)
-
-      scheduled++
-      results.push({ requestId: request.id, timeBlockId: available.id })
+      if (writes.length) await prisma.$transaction(writes)
     }
 
-    if (scheduled > 0) revalidateTag('meetings')
-    return NextResponse.json({ scheduled, skipped, results })
+    if (result.scheduled.length + peerScheduled > 0) revalidateTag('meetings')
+    return NextResponse.json({
+      scheduled: result.scheduled.length + peerScheduled,
+      skipped: result.skipped.length + (peerResults.length - peerScheduled),
+      results: [
+        ...result.scheduled.map(s => ({ requestId: s.requestId, timeBlockId: s.timeBlockId })),
+        ...result.skipped.map(s => ({ requestId: s.requestId, timeBlockId: null, reason: s.reason })),
+        ...peerResults,
+      ],
+    })
   }
 
   // ── Get available slots for a specific request ────────────────────────────
@@ -132,10 +111,15 @@ export async function POST(req: Request) {
   })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Find all occupied slots for requester
-  const [requesterMeetings, targetUserMeetings, targetSponsorMeetings] = await Promise.all([
+  // Find all occupied slots for requester (their requests AND their booked
+  // sponsor meetings — a slot with either is not available)
+  const [requesterMeetings, requesterSponsorMtgs, targetUserMeetings, targetSponsorMeetings] = await Promise.all([
     prisma.meetingRequest.findMany({
       where: { status: 'CONFIRMED', timeBlockId: { not: null }, requesterId: request.requesterId },
+      select: { timeBlockId: true },
+    }),
+    prisma.sponsorMeeting.findMany({
+      where: { status: 'CONFIRMED', userId: request.requesterId },
       select: { timeBlockId: true },
     }),
     request.targetUserId ? prisma.meetingRequest.findMany({
@@ -151,7 +135,10 @@ export async function POST(req: Request) {
     }) : Promise.resolve([]),
   ])
 
-  const busyRequester = new Set(requesterMeetings.map(m => m.timeBlockId!))
+  const busyRequester = new Set([
+    ...requesterMeetings.map(m => m.timeBlockId!),
+    ...requesterSponsorMtgs.map(m => m.timeBlockId),
+  ])
   const busyTarget = new Set([
     ...targetUserMeetings.map(m => m.timeBlockId!),
     ...targetSponsorMeetings.map(m => m.timeBlockId),
@@ -175,9 +162,4 @@ export async function POST(req: Request) {
   const firstAvailable = availableSlots.find(s => s.bothFree)
 
   return NextResponse.json({ availableSlots, firstAvailable })
-}
-
-function addOccupied(map: Map<string, Set<string>>, key: string, value: string) {
-  if (!map.has(key)) map.set(key, new Set())
-  map.get(key)!.add(value)
 }

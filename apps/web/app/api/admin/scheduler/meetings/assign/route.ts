@@ -5,7 +5,7 @@ import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api
 
 // Assign an approved/pending request to a slot + room, creating the meeting.
 //   POST { requestId, timeBlockId, room } → SponsorMeeting
-// Conflicts (CANDIDATE_BUSY, ROOM_CONFLICT, SPONSOR_FULL, ALREADY_SCHEDULED) → 409.
+// Conflicts (CANDIDATE_BUSY, SPONSOR_FULL, ALREADY_SCHEDULED) → 409.
 export async function POST(req: Request) {
   const gate = await requireSchedulerAccess()
   if ('error' in gate) return gate.error

@@ -10,9 +10,12 @@ import type { Prisma, PrismaClient } from '@prisma/client'
 type Db = PrismaClient
 
 // ── Rooms / tables ──────────────────────────────────────────────────────────
-// A sponsor's booth is modeled as a fixed set of tables + a shared lounge.
-// Occupancy is scoped per sponsor: the same room can host different sponsors,
-// but one sponsor cannot double-book a table in the same time block.
+// Time slots are EXCLUSIVE: a sponsor holds at most ONE confirmed meeting per
+// time block (MEETINGS_PER_BLOCK below), and an attendee at most one meeting
+// of any kind per block. A slot with a meeting is closed — never double-booked.
+// MEETING_ROOMS survives as the set of physical table labels a meeting can be
+// pinned to (the Location column, check-in floor grid, assign/reschedule
+// pickers); it no longer grants extra per-block capacity.
 export interface MeetingRoom {
   name: string
   capacity: number
@@ -28,7 +31,10 @@ export const MEETING_ROOMS: MeetingRoom[] = [
   { name: 'Table 8', capacity: 1 },
   { name: 'Networking Lounge', capacity: 4 },
 ]
-export const totalRoomCapacity = MEETING_ROOMS.reduce((s, r) => s + r.capacity, 0)
+// A time slot is exclusive per sponsor: one confirmed meeting closes the block.
+// Every capacity gate (matrix, availability, guards, auto-scheduler) derives
+// from this constant.
+export const MEETINGS_PER_BLOCK = 1
 export function roomByName(name: string | null | undefined): MeetingRoom | null {
   if (!name) return null
   return MEETING_ROOMS.find(r => r.name === name) ?? null
@@ -289,7 +295,6 @@ export type EngineErrorCode =
   | 'BAD_STATUS'
   | 'UNKNOWN_ROOM'
   | 'CANDIDATE_BUSY'
-  | 'ROOM_CONFLICT'
   | 'SPONSOR_FULL'
   | 'ALREADY_SCHEDULED'
 export class EngineError extends Error {
@@ -306,7 +311,7 @@ export class EngineError extends Error {
 // staff console API derive their responses from this single map so a new code
 // can never return 409 in one portal and 400 in the other.
 const NOT_FOUND_CODES: readonly EngineErrorCode[] = ['REQUEST_NOT_FOUND', 'MEETING_NOT_FOUND']
-const CONFLICT_CODES: readonly EngineErrorCode[] = ['CANDIDATE_BUSY', 'ROOM_CONFLICT', 'SPONSOR_FULL', 'ALREADY_SCHEDULED']
+const CONFLICT_CODES: readonly EngineErrorCode[] = ['CANDIDATE_BUSY', 'SPONSOR_FULL', 'ALREADY_SCHEDULED']
 export function engineErrorHttpStatus(code: EngineErrorCode): number {
   if (NOT_FOUND_CODES.includes(code)) return 404
   if (CONFLICT_CODES.includes(code)) return 409
@@ -548,8 +553,8 @@ export interface SponsorTeamMember {
 export interface ScheduleMatrix {
   sponsor: { id: string; name: string; logoUrl: string | null; tier: string }
   team: SponsorTeamMember[]
-  rooms: MeetingRoom[]
-  totalRoomCapacity: number
+  rooms: MeetingRoom[]          // physical table labels (display only)
+  slotCapacity: number          // meetings a sponsor may hold per block (exclusive: 1)
   bank: BankItem[]              // Unscheduled — APPROVED, awaiting a slot
   pending: PendingItem[]        // Unscheduled — PENDING (Inbound)
   alreadyScheduled: ScheduledItem[]
@@ -763,7 +768,7 @@ export async function getSponsorScheduleMatrix(
       startsAt: tb.startsAt.toISOString(),
       endsAt: tb.endsAt.toISOString(),
       meetings,
-      capacityLeft: Math.max(0, totalRoomCapacity - meetings.length),
+      capacityLeft: Math.max(0, MEETINGS_PER_BLOCK - meetings.length),
     })
   }
 
@@ -782,7 +787,7 @@ export async function getSponsorScheduleMatrix(
       userId: u.id, name: u.name ?? 'Unknown', jobTitle: u.jobTitle, image: u.image,
     })),
     rooms: MEETING_ROOMS,
-    totalRoomCapacity,
+    slotCapacity: MEETINGS_PER_BLOCK,
     bank,
     pending,
     alreadyScheduled,
@@ -872,7 +877,7 @@ async function computeAvailability(
     const hasBlackout = blackouts.some(b => overlaps(tb.startsAt, tb.endsAt, b.startsAt, b.endsAt))
     const candidateFree = !hasBlackout && !candidateBusyBlocks.has(tb.id)
     const sponsorCount = sponsorCountByBlock.get(tb.id) ?? 0
-    const sponsorHasCapacity = sponsorCount < totalRoomCapacity
+    const sponsorHasCapacity = sponsorCount < MEETINGS_PER_BLOCK
     const roomMap = sponsorRoomByBlock.get(tb.id) ?? new Map<string, number>()
     const rooms: RoomAvailability[] = MEETING_ROOMS.map(r => {
       const occupancy = roomMap.get(r.name) ?? 0
@@ -933,18 +938,19 @@ export async function getMeetingRescheduleAvailability(
 }
 
 // ── Guarded mutations ───────────────────────────────────────────────────────
-async function assertSlotBookable(
-  prisma: Db, sponsorId: string, userId: string, timeBlockId: string, room: string, excludeMeetingId?: string,
+// The single bookability rule, shared by every write path (engine mutations
+// below AND the legacy confirm routes in apps/web, apps/meetings, apps/sponsor):
+// the attendee must be free at the block (no confirmed sponsor meeting, no peer
+// meeting, no blackout) and the block must be OPEN for the sponsor (exclusive
+// slots — MEETINGS_PER_BLOCK). Throws EngineError on any violation.
+export async function assertBlockOpen(
+  prisma: Db, sponsorId: string, userId: string, timeBlockId: string, excludeMeetingId?: string,
 ) {
-  if (!roomByName(room)) throw new EngineError('UNKNOWN_ROOM', `Unknown room: ${room}`)
-  const roomDef = roomByName(room)!
-
   const tb = await prisma.timeBlock.findUnique({
     where: { id: timeBlockId }, select: { startsAt: true, endsAt: true },
   })
   if (!tb) throw new EngineError('BAD_STATUS', 'Time block not found')
 
-  // Candidate free? (blackout + own confirmed meetings anywhere)
   const [blackouts, candMtgs, candMeetings, sponsorMtgs] = await Promise.all([
     prisma.blackoutTime.findMany({ where: { userId }, select: { startsAt: true, endsAt: true } }),
     prisma.sponsorMeeting.findMany({
@@ -955,9 +961,8 @@ async function assertSlotBookable(
       where: { status: { in: ['PENDING', 'CONFIRMED'] }, OR: [{ attendeeAId: userId }, { attendeeBId: userId }] },
       select: { timeBlockId: true },
     }),
-    prisma.sponsorMeeting.findMany({
+    prisma.sponsorMeeting.count({
       where: { sponsorId, timeBlockId, status: 'CONFIRMED', ...(excludeMeetingId ? { id: { not: excludeMeetingId } } : {}) },
-      select: { location: true },
     }),
   ])
   const hasBlackout = blackouts.some(b => overlaps(tb.startsAt, tb.endsAt, b.startsAt, b.endsAt))
@@ -966,13 +971,32 @@ async function assertSlotBookable(
     candMeetings.some(m => m.timeBlockId === timeBlockId)
   if (candidateBusy) throw new EngineError('CANDIDATE_BUSY', 'Attendee is already booked or unavailable at that time')
 
-  if (sponsorMtgs.length >= totalRoomCapacity) {
-    throw new EngineError('SPONSOR_FULL', 'The company has no free tables in that time block')
+  if (sponsorMtgs >= MEETINGS_PER_BLOCK) {
+    throw new EngineError('SPONSOR_FULL', 'The company already has a meeting in that time block')
   }
-  const roomOccupancy = sponsorMtgs.filter(m => m.location === room).length
-  if (roomOccupancy >= roomDef.capacity) {
-    throw new EngineError('ROOM_CONFLICT', `${room} is already fully booked in that time block`)
+}
+
+async function assertSlotBookable(
+  prisma: Db, sponsorId: string, userId: string, timeBlockId: string, room: string, excludeMeetingId?: string,
+) {
+  if (!roomByName(room)) throw new EngineError('UNKNOWN_ROOM', `Unknown room: ${room}`)
+  await assertBlockOpen(prisma, sponsorId, userId, timeBlockId, excludeMeetingId)
+}
+
+// First chronological time block that is OPEN for the sponsor and free for the
+// attendee, or null when none exists. Used by legacy auto-assign paths (the
+// sponsor-portal approve flow) so they follow the exact same rule as the
+// Companies scheduler.
+export async function findFirstOpenSlot(
+  prisma: Db, sponsorId: string, userId: string, conferenceId?: string,
+): Promise<{ timeBlockId: string; room: string } | null> {
+  const confId = await resolveConferenceId(prisma, conferenceId)
+  const days = await computeAvailability(prisma, sponsorId, userId, confId)
+  for (const day of days) {
+    const slot = day.slots.find(s => s.available)
+    if (slot) return { timeBlockId: slot.timeBlockId, room: MEETING_ROOMS[0].name }
   }
+  return null
 }
 
 export interface AssignInput {
@@ -1282,10 +1306,14 @@ export function loadBalancePreferred(
 // Greedily materializes MeetingRequests into confirmed SponsorMeetings, filling
 // the highest-priority tier first (Best Fit → Med → Low), then best fit score,
 // then oldest request. Honors every constraint assertSlotBookable enforces
-// (candidate blackouts, one meeting per candidate per block, per-sponsor booth
-// capacity, per-room capacity) via an in-memory occupancy simulation seeded from
-// the existing confirmed state, so a whole conference is scheduled in one pass.
-// dryRun returns the same plan without writing — used by the admin preview.
+// (candidate blackouts, one meeting per candidate per block, one meeting per
+// sponsor per block) via an in-memory occupancy simulation seeded from the
+// existing confirmed state, so a whole conference is scheduled in one pass.
+// Each candidate lands in the FIRST time block (chronological) that is OPEN for
+// the sponsor and free for the attendee. Before committing, the plan is
+// revalidated against the live DB so a slot taken concurrently (manual assign,
+// second click) is skipped, never double-booked. dryRun returns the same plan
+// without writing — used by the admin preview.
 export interface AutoScheduleInput {
   conferenceId?: string
   sponsorId?: string    // limit to one company's booth; omit = every company
@@ -1347,7 +1375,7 @@ export async function autoScheduleByPriority(
     }),
     prisma.sponsorMeeting.findMany({
       where: { status: 'CONFIRMED' },
-      select: { sponsorId: true, userId: true, timeBlockId: true, location: true },
+      select: { sponsorId: true, userId: true, timeBlockId: true },
     }),
     prisma.meeting.findMany({
       where: { status: { in: ['PENDING', 'CONFIRMED'] } },
@@ -1376,34 +1404,22 @@ export async function autoScheduleByPriority(
   const sponsorById = new Map(sponsors.map(s => [s.id, s]))
   const sponsorIdSet = new Set(sponsors.map(s => s.id))
 
-  // In-memory occupancy, seeded from the existing confirmed state.
-  const sponsorBlockCount = new Map<string, Map<string, number>>()          // sponsor → block → count
-  const sponsorBlockRoom = new Map<string, Map<string, Map<string, number>>>() // sponsor → block → room → count
-  const candidateBusy = new Map<string, Set<string>>()                      // user → busy blocks
-  const scheduledPairs = new Set<string>()                                  // `${sponsorId}::${userId}`
+  // In-memory occupancy, seeded from the existing confirmed state. Slots are
+  // exclusive, so a sponsor's occupancy is simply the set of taken blocks.
+  const sponsorBusy = new Map<string, Set<string>>()   // sponsor → taken blocks
+  const candidateBusy = new Map<string, Set<string>>() // user → busy blocks
+  const scheduledPairs = new Set<string>()             // `${sponsorId}::${userId}`
 
-  const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1)
-  const busyOf = (uid: string): Set<string> => {
-    let s = candidateBusy.get(uid)
-    if (!s) { s = new Set(); candidateBusy.set(uid, s) }
+  const setOf = (map: Map<string, Set<string>>, key: string): Set<string> => {
+    let s = map.get(key)
+    if (!s) { s = new Set(); map.set(key, s) }
     return s
   }
-  const sBlock = (sid: string): Map<string, number> => {
-    let m = sponsorBlockCount.get(sid)
-    if (!m) { m = new Map(); sponsorBlockCount.set(sid, m) }
-    return m
-  }
-  const sRoom = (sid: string, tb: string): Map<string, number> => {
-    let byBlock = sponsorBlockRoom.get(sid)
-    if (!byBlock) { byBlock = new Map(); sponsorBlockRoom.set(sid, byBlock) }
-    let m = byBlock.get(tb)
-    if (!m) { m = new Map(); byBlock.set(tb, m) }
-    return m
-  }
+  const busyOf = (uid: string) => setOf(candidateBusy, uid)
+  const sponsorTaken = (sid: string) => setOf(sponsorBusy, sid)
 
   for (const m of confirmedMtgs) {
-    bump(sBlock(m.sponsorId), m.timeBlockId)
-    if (m.location) bump(sRoom(m.sponsorId, m.timeBlockId), m.location)
+    sponsorTaken(m.sponsorId).add(m.timeBlockId)
     busyOf(m.userId).add(m.timeBlockId)
     scheduledPairs.add(`${m.sponsorId}::${m.userId}`)
   }
@@ -1465,10 +1481,9 @@ export async function autoScheduleByPriority(
     userId: c.userId, userName: c.userName, priority: c.priority,
   })
 
-  const scheduled: AutoScheduledEntry[] = []
+  let scheduled: AutoScheduledEntry[] = []
   const skipped: AutoSkippedEntry[] = []
-  const writes: any[] = []
-  const tbById = new Map(timeBlocks.map(tb => [tb.id, tb]))
+  const repByRequest = new Map<string, string | null>()
 
   for (const c of cands) {
     const pairKey = `${c.sponsorId}::${c.userId}`
@@ -1478,45 +1493,97 @@ export async function autoScheduleByPriority(
     }
     const busy = busyOf(c.userId)
     const blocked = blockedOf(c.userId)
-    let placed: { timeBlockId: string; room: string } | null = null
-    for (const tb of timeBlocks) {
-      if (busy.has(tb.id) || blocked.has(tb.id)) continue
-      if ((sBlock(c.sponsorId).get(tb.id) ?? 0) >= totalRoomCapacity) continue
-      const roomCounts = sRoom(c.sponsorId, tb.id)
-      const room = MEETING_ROOMS.find(r => (roomCounts.get(r.name) ?? 0) < r.capacity)
-      if (!room) continue
-      placed = { timeBlockId: tb.id, room: room.name }
-      break
-    }
+    const taken = sponsorTaken(c.sponsorId)
+    // First chronological block that is OPEN for the sponsor and free for the
+    // attendee. An open block has no meeting, so the first table is the room.
+    const placed = timeBlocks.find(tb => !busy.has(tb.id) && !blocked.has(tb.id) && !taken.has(tb.id))
     if (!placed) {
-      skipped.push({ ...toSkip(c), reason: 'No free slot (candidate or company fully booked)' })
+      skipped.push({ ...toSkip(c), reason: 'No open slot that works for both sides' })
       continue
     }
     // Commit to in-memory state so later candidates see this occupancy.
-    bump(sBlock(c.sponsorId), placed.timeBlockId)
-    bump(sRoom(c.sponsorId, placed.timeBlockId), placed.room)
-    busy.add(placed.timeBlockId)
+    taken.add(placed.id)
+    busy.add(placed.id)
     scheduledPairs.add(pairKey)
-    const tb = tbById.get(placed.timeBlockId)!
     scheduled.push({
       requestId: c.reqId, sponsorId: c.sponsorId, sponsorName: c.sponsorName,
       userId: c.userId, userName: c.userName, priority: c.priority, score: c.score,
-      timeBlockId: placed.timeBlockId, startsAt: tb.startsAt.toISOString(), room: placed.room,
+      timeBlockId: placed.id, startsAt: placed.startsAt.toISOString(), room: MEETING_ROOMS[0].name,
     })
-    if (!dryRun) {
+    repByRequest.set(c.reqId, c.repId)
+  }
+
+  if (!dryRun && scheduled.length) {
+    // Commit-time revalidation: the plan above was computed from a read
+    // snapshot, so a concurrent manual assignment, reschedule, or second
+    // auto-schedule run may have taken one of these slots in the meantime.
+    // Re-read the occupancy the plan depends on and drop any placement that
+    // no longer fits — a double booking is never written; a rerun re-places
+    // the dropped request in its next free slot.
+    const planBlockIds = [...new Set(scheduled.map(s => s.timeBlockId))]
+    const planUserIds = [...new Set(scheduled.map(s => s.userId))]
+    const [freshSponsorMtgs, freshPeerMtgs] = await Promise.all([
+      prisma.sponsorMeeting.findMany({
+        where: {
+          status: 'CONFIRMED',
+          OR: [{ timeBlockId: { in: planBlockIds } }, { userId: { in: planUserIds } }],
+        },
+        select: { sponsorId: true, userId: true, timeBlockId: true },
+      }),
+      prisma.meeting.findMany({
+        where: { status: { in: ['PENDING', 'CONFIRMED'] }, timeBlockId: { in: planBlockIds } },
+        select: { attendeeAId: true, attendeeBId: true, timeBlockId: true },
+      }),
+    ])
+    const freshUserBusy = new Set<string>()    // `${userId}::${block}`
+    const freshPairs = new Set<string>()       // `${sponsorId}::${userId}`
+    const freshSponsorBusy = new Set<string>() // `${sponsorId}::${block}`
+    for (const m of freshSponsorMtgs) {
+      freshUserBusy.add(`${m.userId}::${m.timeBlockId}`)
+      freshPairs.add(`${m.sponsorId}::${m.userId}`)
+      freshSponsorBusy.add(`${m.sponsorId}::${m.timeBlockId}`)
+    }
+    for (const pm of freshPeerMtgs) {
+      freshUserBusy.add(`${pm.attendeeAId}::${pm.timeBlockId}`)
+      freshUserBusy.add(`${pm.attendeeBId}::${pm.timeBlockId}`)
+    }
+    const survivors: AutoScheduledEntry[] = []
+    for (const s of scheduled) {
+      const conflict =
+        freshPairs.has(`${s.sponsorId}::${s.userId}`) ||
+        freshUserBusy.has(`${s.userId}::${s.timeBlockId}`) ||
+        freshSponsorBusy.has(`${s.sponsorId}::${s.timeBlockId}`)
+      if (conflict) {
+        skipped.push({
+          requestId: s.requestId, sponsorId: s.sponsorId, sponsorName: s.sponsorName,
+          userId: s.userId, userName: s.userName, priority: s.priority,
+          reason: 'Slot was taken while scheduling — run auto-schedule again',
+        })
+        continue
+      }
+      // Claim the surviving placement so a later plan entry can't reuse the
+      // same block for this sponsor or attendee.
+      freshUserBusy.add(`${s.userId}::${s.timeBlockId}`)
+      freshPairs.add(`${s.sponsorId}::${s.userId}`)
+      freshSponsorBusy.add(`${s.sponsorId}::${s.timeBlockId}`)
+      survivors.push(s)
+    }
+    scheduled = survivors
+
+    const writes: any[] = []
+    for (const s of scheduled) {
       writes.push(prisma.sponsorMeeting.create({
         data: {
-          sponsorId: c.sponsorId, userId: c.userId, repId: c.repId,
-          timeBlockId: placed.timeBlockId, location: placed.room, status: 'CONFIRMED',
+          sponsorId: s.sponsorId, userId: s.userId, repId: repByRequest.get(s.requestId) ?? null,
+          timeBlockId: s.timeBlockId, location: s.room, status: 'CONFIRMED',
         },
       }))
       writes.push(prisma.meetingRequest.update({
-        where: { id: c.reqId }, data: { status: 'CONFIRMED', timeBlockId: placed.timeBlockId },
+        where: { id: s.requestId }, data: { status: 'CONFIRMED', timeBlockId: s.timeBlockId },
       }))
     }
+    if (writes.length) await prisma.$transaction(writes)
   }
-
-  if (!dryRun && writes.length) await prisma.$transaction(writes)
 
   const byTier: TierSummary[] = MEETING_PRIORITIES.map(tier => ({
     tier,

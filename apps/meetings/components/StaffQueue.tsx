@@ -18,11 +18,13 @@ export function StaffQueue({ requests: initialRequests, timeBlocks }: { requests
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [selectedTimeBlock, setSelectedTimeBlock] = useState<string>('')
   const [loading, setLoading] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const queryClient = useQueryClient()
 
   async function updateStatus(id: string, status: string, timeBlockId?: string) {
     setLoading(id)
+    setError(null)
     try {
       const res = await fetch(`/api/meeting-requests/${id}`, {
         method: 'PATCH',
@@ -37,7 +39,14 @@ export function StaffQueue({ requests: initialRequests, timeBlocks }: { requests
         queryClient.invalidateQueries({ queryKey: ['meetings'] })
         queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         router.refresh()
+      } else {
+        // Exclusive slots: the route 409s when the block is taken or the pair
+        // already met — say so instead of failing silently.
+        const body = await res.json().catch(() => ({}))
+        setError(body.error ?? 'That change could not be saved — the slot may no longer be open.')
       }
+    } catch {
+      setError('Network error — please try again.')
     } finally {
       setLoading(null)
     }
@@ -57,6 +66,12 @@ export function StaffQueue({ requests: initialRequests, timeBlocks }: { requests
         <h1 className="text-title3 text-ink">Meeting Request Queue</h1>
         <span className="text-sm text-ink-2">{requests.length} total</span>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-xl bg-danger-soft text-danger-ink text-sm px-3 py-2" role="alert">
+          {error}
+        </div>
+      )}
 
       {/* Status filter tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1">

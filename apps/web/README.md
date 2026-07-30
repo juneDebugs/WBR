@@ -77,7 +77,8 @@ the eTail-styled `/staff` console in apps/meetings. Directory of sponsor compani
 (request counts, confirmed meetings, fill meter) → per-company split view: request
 bank sidebar (Inbound approve/decline, Unscheduled ranked by priority tier + fit
 score, Scheduled, Declined/Removed) and a day-segmented slot grid. Assign and
-reschedule run through availability-driven side sheets with per-room occupancy;
+reschedule run through availability-driven side sheets (exclusive slots: one
+meeting per company per time block; rooms are physical table labels);
 cancel is an alert dialog with preserve-request ("Return to Bank") vs remove
 semantics; per-company priority auto-schedule wraps `POST /api/auto-schedule` with
 a dry-run preview. API: `GET/POST/PATCH /api/admin/scheduler/*`

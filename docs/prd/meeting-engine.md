@@ -19,7 +19,7 @@ Replace the flat request queue with a **company-centric scheduling console** mod
 | Rank 4/19 | rank of this request among sponsor's active requests, by interest |
 | Interest (High/Med/Low) | derived from solution-match score |
 | "; 7" confirmed count | count of the candidate's CONFIRMED `SponsorMeeting`s (their load) |
-| Occupancy alert | active meetings at (room, timeBlock) ≥ room capacity |
+| Occupancy alert | block already holds a meeting for the sponsor (exclusive slots) |
 | Load balancing (3 vs 7) | prefer candidate/room with fewer confirmed meetings |
 | Cancel "No" (preserve request) | `SponsorMeeting.status=CANCELLED`, request → `APPROVED` (back to bank) |
 
@@ -35,7 +35,7 @@ Applied locally via `prisma db push`; applied to Turso via `scripts/migrate-meet
 
 Pure, prisma-injected functions (no app imports), unit-testable from TS source:
 
-- `MEETING_ROOMS: { name, capacity }[]` + `totalRoomCapacity`.
+- `MEETING_ROOMS: { name, capacity }[]` (physical table labels) + `MEETINGS_PER_BLOCK = 1` (exclusive slots).
 - `interestLevel(score)` → `'High' | 'Medium' | 'Low'` (High ≥ 67, Medium ≥ 34, else Low).
 - `scoreRequestInterest(request, sponsor)` → 0–100 (ports `scoreSponsorVsAttendee`, solutions overlap; +size/industry not required).
 - `getCompanyDirectory(prisma, conferenceId)` → per-sponsor `{ id, name, logoUrl, tier, requests, unscheduled, confirmed, fillRate }`.
@@ -43,14 +43,14 @@ Pure, prisma-injected functions (no app imports), unit-testable from TS source:
   - `bank[]`: `{ requestId, userId, name, company, rank, total, interest, interestScore, confirmedCount }`.
   - `days[]`: `{ dayKey, label, slots[] }`; slot: `{ timeBlockId, startsAt, endsAt, meetings[], capacityLeft }`.
 - `getCandidateAvailability(prisma, requestId, conferenceId)` → `{ days[] }` of mutually-free slots + per-room occupancy.
-- `assignMeeting(prisma, { requestId, timeBlockId, room, repId? })` → creates SponsorMeeting + confirms request. Enforces candidate-free, room-capacity, sponsor-capacity. Throws typed `EngineError` on conflict.
+- `assignMeeting(prisma, { requestId, timeBlockId, room, repId? })` → creates SponsorMeeting + confirms request. Enforces candidate-free and exclusive slots (one meeting per sponsor per block). Throws typed `EngineError` on conflict.
 - `rescheduleMeeting(prisma, { sponsorMeetingId, timeBlockId, room })` → moves meeting + syncs request. Same guards (excluding self).
 - `cancelMeeting(prisma, { sponsorMeetingId, preserveRequest, reason?, notes? })` → cancels meeting; request → `APPROVED` (preserve) or `CANCELLED`.
 
-Availability rules:
+Availability rules (exclusive slots, 2026-07-29):
 - Candidate free at a block = no overlapping `BlackoutTime` AND no other CONFIRMED `SponsorMeeting`/`Meeting` in that block.
-- Sponsor free at a block = active SponsorMeetings for sponsor at block < `totalRoomCapacity`.
-- Room free at (room, block) = active SponsorMeetings with that location at block < room capacity.
+- Sponsor free at a block = ZERO active SponsorMeetings for the sponsor at that block (`MEETINGS_PER_BLOCK = 1`). A slot with a meeting is closed — a sponsor never holds two meetings in one time block.
+- Rooms (`MEETING_ROOMS`) survive as physical table labels on a meeting (`location`); they no longer grant extra per-block capacity. `assertBlockOpen` is the exported single guard every write path (engine mutations and the legacy confirm routes in apps/web, apps/meetings, apps/sponsor) runs through; `findFirstOpenSlot` gives legacy auto-assign paths the same first-open-slot rule the auto-scheduler uses. `scripts/migrate-exclusive-slots.mjs` repairs pre-existing stacked/double-booked rows.
 
 ## 5. API — `apps/meetings/app/api/staff/*` (STAFF-gated, header identity)
 
@@ -76,4 +76,4 @@ Peer-to-peer (non-sponsor) meeting scheduling; attendee self-service; changing t
 ## 8. Known limitations (accepted for demo scale)
 
 - **TOCTOU race** — conflict checks (`assertSlotBookable`, ALREADY_SCHEDULED) run just before the write transaction, not inside a serialized lock. Two truly-concurrent staff assigns could double-book a table or a pair. Accepted: the console has few operators. A durable fix is partial unique indexes (`UNIQUE(sponsorId,timeBlockId,location) WHERE status='CONFIRMED'`, `UNIQUE(sponsorId,userId) WHERE status='CONFIRMED'`) — **not added yet** because the seed already contains 23 duplicate CONFIRMED (sponsor,user) pairs, so the pair index would fail to create until that data is normalized.
-- **Rep availability is not a constraint.** The booth is modeled as table-based capacity (`MEETING_ROOMS`); a specific `repId` is recorded but not treated as a 1-at-a-time resource. Only the attendee side (blackouts + own meetings) and the sponsor's table capacity are enforced.
+- **Rep availability is not a constraint.** A specific `repId` is recorded but not treated as a 1-at-a-time resource. Only the attendee side (blackouts + own meetings) and the sponsor's exclusive slot (one meeting per block) are enforced — with slots exclusive per sponsor, a rep can no longer be double-booked within one company's schedule, only across companies if they rep for several.

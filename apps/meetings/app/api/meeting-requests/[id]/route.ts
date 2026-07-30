@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
-import { prisma, syncAutoMatches } from '@conference/db'
+import { prisma, resolveParties, syncAutoMatches, assertBlockOpen, EngineError, engineErrorHttpStatus } from '@conference/db'
 import { invalidate } from '@/lib/mem-cache'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -28,33 +28,61 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // Only STAFF can approve/reject/confirm/re-tier
   if (role !== 'STAFF') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const updated = await prisma.meetingRequest.update({
-    where: { id },
-    data: {
-      ...(status !== undefined ? { status } : {}),
-      ...(priority !== undefined ? { priority } : {}),
-      ...(timeBlockId ? { timeBlockId } : {}),
-    },
-    include: { requester: true, targetUser: true, targetSponsor: true, timeBlock: true },
-  })
-
-  // If confirmed with a time block and involves a sponsor, create SponsorMeeting
+  // Confirming into a slot must respect the engine invariants (exclusive
+  // slots: one meeting per sponsor per block, attendee free at the block, one
+  // confirmed meeting per pair) — this path used to create SponsorMeetings
+  // unguarded, which is how double-booked slots got into the DB. The SAME
+  // resolved pair is guarded and booked, so the checked party is always the
+  // booked party.
+  let parties: ReturnType<typeof resolveParties> = null
   if (status === 'CONFIRMED' && timeBlockId) {
-    const sponsorId = updated.targetSponsorId ?? updated.requester?.sponsorId ?? null
-    const attendeeId = updated.targetUserId ?? (updated.requester?.sponsorId ? null : updated.requesterId)
-
-    if (sponsorId && attendeeId) {
-      // Check not already created
-      const existing = await prisma.sponsorMeeting.findFirst({
-        where: { sponsorId, userId: attendeeId, timeBlockId },
+    const current = await prisma.meetingRequest.findUnique({
+      where: { id },
+      select: {
+        requesterId: true, targetUserId: true, targetSponsorId: true,
+        requester: { select: { sponsorId: true } },
+      },
+    })
+    if (!current) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
+    parties = resolveParties(current)
+    if (parties) {
+      const pairExisting = await prisma.sponsorMeeting.findFirst({
+        where: { sponsorId: parties.sponsorId, userId: parties.userId, status: 'CONFIRMED' },
+        select: { id: true },
       })
-      if (!existing) {
-        await prisma.sponsorMeeting.create({
-          data: { sponsorId, userId: attendeeId, timeBlockId, status: 'CONFIRMED' },
-        })
+      if (pairExisting) {
+        return NextResponse.json({ error: 'This attendee already has a confirmed meeting with this company', code: 'ALREADY_SCHEDULED' }, { status: 409 })
+      }
+      try {
+        await assertBlockOpen(prisma, parties.sponsorId, parties.userId, timeBlockId)
+      } catch (e) {
+        if (e instanceof EngineError) {
+          return NextResponse.json({ error: e.message, code: e.code }, { status: engineErrorHttpStatus(e.code) })
+        }
+        throw e
       }
     }
   }
+
+  // The status update and the booking commit together — a crash between the
+  // two can never leave a CONFIRMED request with no meeting behind it.
+  const ops: any[] = [
+    prisma.meetingRequest.update({
+      where: { id },
+      data: {
+        ...(status !== undefined ? { status } : {}),
+        ...(priority !== undefined ? { priority } : {}),
+        ...(timeBlockId ? { timeBlockId } : {}),
+      },
+      include: { requester: true, targetUser: true, targetSponsor: true, timeBlock: true },
+    }),
+  ]
+  if (status === 'CONFIRMED' && timeBlockId && parties) {
+    ops.push(prisma.sponsorMeeting.create({
+      data: { sponsorId: parties.sponsorId, userId: parties.userId, repId: parties.repId, timeBlockId, status: 'CONFIRMED' },
+    }))
+  }
+  const [updated] = await prisma.$transaction(ops)
 
   // A staff re-tier to Best Fit can complete a mutual match, which schedules
   // the meeting immediately. Idempotent sweep; never fails the update itself.

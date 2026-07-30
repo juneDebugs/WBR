@@ -87,8 +87,14 @@ async function main() {
   } })
   const confId = conf.id
   // Sponsor names deliberately out of creation order to prove alphabetical sorting.
+  // Two distinct sponsor rows share the 'Zebra Corp' display name so one slot can
+  // exercise the attendee-name tie-break WITHOUT any single sponsor holding two
+  // meetings in the same block (slots are exclusive: one meeting per sponsor per block).
   const zebra = await prisma.sponsor.create({ data: {
     id: fid('sponsor-z'), conferenceId: confId, name: 'chk-test Zebra Corp', tier: 'GOLD',
+  } })
+  const zebra2 = await prisma.sponsor.create({ data: {
+    id: fid('sponsor-z2'), conferenceId: confId, name: 'chk-test Zebra Corp', tier: 'GOLD',
   } })
   const alpha = await prisma.sponsor.create({ data: {
     id: fid('sponsor-a'), conferenceId: confId, name: 'chk-test Alpha Inc', tier: 'SILVER',
@@ -108,15 +114,16 @@ async function main() {
   const tbEmpty = await prisma.timeBlock.create({ data: { id: fid('tb-empty'), conferenceId: confId, startsAt: new Date('2032-04-05T15:00:00Z'), endsAt: new Date('2032-04-05T15:30:00Z') } })
   const tb1b = await prisma.timeBlock.create({ data: { id: fid('tb-1b'), conferenceId: confId, startsAt: new Date('2032-04-05T16:00:00Z'), endsAt: new Date('2032-04-05T16:30:00Z') } })
   const tb2 = await prisma.timeBlock.create({ data: { id: fid('tb-2'), conferenceId: confId, startsAt: new Date('2032-04-06T14:00:00Z'), endsAt: new Date('2032-04-06T14:30:00Z') } })
-  // tb1 holds three CONFIRMED meetings covering both sort keys:
+  // tb1 holds three CONFIRMED meetings covering both sort keys — three DISTINCT
+  // sponsors (two sharing the Zebra name), so the exclusive-slot invariant holds:
   //   Alpha/Bob → Zebra/Amy → Zebra/Cara  (sponsorName, then attendeeName)
   const mAlphaBob = await prisma.sponsorMeeting.create({ data: { id: fid('m-alpha-bob'), sponsorId: alpha.id, userId: bob.id, timeBlockId: tb1.id, status: 'CONFIRMED', location: 'Table 1' } })
-  const mZebraCara = await prisma.sponsorMeeting.create({ data: { id: fid('m-zebra-cara'), sponsorId: zebra.id, userId: cara.id, timeBlockId: tb1.id, status: 'CONFIRMED', location: 'Table 2' } })
+  const mZebraCara = await prisma.sponsorMeeting.create({ data: { id: fid('m-zebra-cara'), sponsorId: zebra2.id, userId: cara.id, timeBlockId: tb1.id, status: 'CONFIRMED', location: 'Table 2' } })
   const mZebraAmy = await prisma.sponsorMeeting.create({ data: { id: fid('m-zebra-amy'), sponsorId: zebra.id, userId: amy.id, timeBlockId: tb1.id, status: 'CONFIRMED', location: 'Table 3' } })
   const mDay1Late = await prisma.sponsorMeeting.create({ data: { id: fid('m-late'), sponsorId: alpha.id, userId: cara.id, timeBlockId: tb1b.id, status: 'CONFIRMED', location: 'Table 1' } })
   const mDay2 = await prisma.sponsorMeeting.create({ data: { id: fid('m-day2'), sponsorId: zebra.id, userId: bob.id, timeBlockId: tb2.id, status: 'CONFIRMED', location: 'Table 1' } })
   const mCancelled = await prisma.sponsorMeeting.create({ data: { id: fid('m-cancelled'), sponsorId: alpha.id, userId: amy.id, timeBlockId: tbEmpty.id, status: 'CANCELLED', reason: 'chk-test' } })
-  console.log(`  created conference ${confId} (2 sponsors, 3 users, 4 blocks, 5 confirmed + 1 cancelled meetings)`)
+  console.log(`  created conference ${confId} (3 sponsors, 3 users, 4 blocks, 5 confirmed + 1 cancelled meetings)`)
 
   console.log('\nBoard structure')
   let board = await E.getCheckInBoard(prisma, confId)

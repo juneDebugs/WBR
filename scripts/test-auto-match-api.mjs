@@ -7,8 +7,12 @@
 // port is taken, e.g. SMOKE_BASE_URL=http://localhost:3200). The GET runs the
 // syncAutoMatches sweep BEFORE reading the board, so the first authenticated
 // GET after the fixtures exist must come back with the fixture pair ALREADY
-// scheduled (meeting + room) and MATCHED/SCHEDULED entries in the audit log;
-// a second GET must change nothing (no duplicate meeting or events). Then the
+// scheduled (meeting + room) and MATCHED/SCHEDULED entries in the audit log.
+// Time slots are EXCLUSIVE (MEETINGS_PER_BLOCK = 1): a sponsor holds at most
+// one confirmed meeting per block, the auto-scheduler places each pair in the
+// first block open for the sponsor AND free for the attendee, and it always
+// assigns 'Table 1' — rooms survive only as labels on the meeting row.
+// A second GET must change nothing (no duplicate meeting or events). Then the
 // meeting actions: PATCH /auto/meetings/{id} moves the meeting to a slot+room
 // picked from the shared availability endpoint (RESCHEDULED event), and
 // POST /auto/meetings/{id}/cancel dissolves the match (meeting CANCELLED, both
@@ -152,8 +156,8 @@ async function main() {
   const match0 = board?.matches?.find(m => m.key === KEY)
   check('fixture match is present and carries both picks',
     !!match0 && match0.sponsorPick?.requestId === repReq.id && match0.attendeePick?.requestId === attReq.id)
-  check('the sweep already scheduled it: meeting non-null with a room + ISO startsAt',
-    typeof match0?.meeting?.sponsorMeetingId === 'string' && typeof match0?.meeting?.room === 'string' && match0.meeting.room.length > 0 &&
+  check('the sweep already scheduled it: meeting non-null, room = Table 1 (auto-scheduler always assigns it), ISO startsAt',
+    typeof match0?.meeting?.sponsorMeetingId === 'string' && match0?.meeting?.room === 'Table 1' &&
     !Number.isNaN(Date.parse(match0?.meeting?.startsAt ?? '')), JSON.stringify(match0?.meeting ?? null))
   const ourLog = b => (b?.log ?? []).filter(e => e.sponsorId === sponsor.id && e.userId === attendee.id)
   check('board.log carries the pair MATCHED entry (room/startsAt null)',
@@ -161,8 +165,8 @@ async function main() {
   check('board.log carries the pair SCHEDULED entry (room + ISO startsAt set)',
     ourLog(board).some(e => e.event === 'SCHEDULED' && typeof e.room === 'string' && !Number.isNaN(Date.parse(e.startsAt ?? ''))))
   const mtg = await prisma.sponsorMeeting.findFirst({ where: { sponsorId: sponsor.id, userId: attendee.id }, select: { status: true, repId: true, location: true } })
-  check('meeting persisted CONFIRMED with a room and repId = the rep (sponsor-side pick)',
-    mtg?.status === 'CONFIRMED' && typeof mtg.location === 'string' && mtg.location.length > 0 && mtg.repId === rep.id, JSON.stringify(mtg))
+  check('meeting persisted CONFIRMED at Table 1 with repId = the rep (sponsor-side pick)',
+    mtg?.status === 'CONFIRMED' && mtg.location === 'Table 1' && mtg.repId === rep.id, JSON.stringify(mtg))
   const repReqAfter = await prisma.meetingRequest.findUnique({ where: { id: repReq.id }, select: { status: true } })
   check('sponsor-side request flipped to CONFIRMED', repReqAfter?.status === 'CONFIRMED', `status=${repReqAfter?.status}`)
 
@@ -288,13 +292,34 @@ async function main() {
     nowMatch?.sponsorPick?.requestId === medReq.id && nowMatch?.attendeePick?.requestId === halfReq.id)
   // Fixtures live in the ACTIVE conference (the one the sweep schedules), so
   // scheduled-ness is asserted here, not just match-visibility.
-  check('the PATCH route\'s inline sweep already scheduled it (meeting non-null with a room)',
-    typeof nowMatch?.meeting?.sponsorMeetingId === 'string' && typeof nowMatch?.meeting?.room === 'string',
+  check('the PATCH route\'s inline sweep already scheduled it (meeting non-null, room = Table 1)',
+    typeof nowMatch?.meeting?.sponsorMeetingId === 'string' && nowMatch?.meeting?.room === 'Table 1',
     JSON.stringify(nowMatch?.meeting ?? null))
   const dataAfter = await (await staff(`${BASE}/api/data/meetings`)).json().catch(() => null)
   const afterIds = new Set((dataAfter?.allMeetingRequests ?? []).map(r => r.id))
   check('the promoted request left the requests board (Auto lane now, any status)',
     !afterIds.has(medReq.id) && !afterIds.has(halfReq.id))
+
+  // ── Exclusivity invariant — slots are exclusive per sponsor and attendee ──
+  // Every CONFIRMED meeting the fixtures produced (first pair's meeting was
+  // cancelled; att2's sweep-scheduled one remains, possibly moved) must leave
+  // the fixture sponsor with at most ONE confirmed meeting per time block, and
+  // each fixture attendee likewise.
+  console.log('\n[exclusivity: one confirmed meeting per block]')
+  const finalMtgs = await prisma.sponsorMeeting.findMany({
+    where: { sponsorId: sponsor.id, status: 'CONFIRMED' },
+    select: { userId: true, timeBlockId: true },
+  })
+  const sponsorBlocks = finalMtgs.map(m => m.timeBlockId)
+  check('fixture sponsor holds at most one CONFIRMED meeting per time block',
+    new Set(sponsorBlocks).size === sponsorBlocks.length, `blocks=${sponsorBlocks.join(' ')}`)
+  const attendeeMtgs = await prisma.sponsorMeeting.findMany({
+    where: { userId: { startsWith: PREFIX }, status: 'CONFIRMED' },
+    select: { userId: true, timeBlockId: true },
+  })
+  const attendeeKeys = attendeeMtgs.map(m => `${m.userId}@${m.timeBlockId}`)
+  check('no fixture attendee holds two CONFIRMED meetings in the same block',
+    new Set(attendeeKeys).size === attendeeKeys.length, attendeeKeys.join(' '))
 }
 
 main()

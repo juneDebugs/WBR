@@ -112,9 +112,6 @@ async function main() {
   if (!sponsorId) return
 
   // Fixture: an attendee + APPROVED request targeting that company.
-  const conf = await prisma.conference.findFirst({ where: { active: true }, select: { id: true } })
-  const confId = conf?.id ?? 'conf-2025'
-  const blocks = await prisma.timeBlock.findMany({ where: { conferenceId: confId }, orderBy: { startsAt: 'asc' }, take: 3, select: { id: true } })
   const stamp = Date.now()
   const userA = await prisma.user.create({ data: { email: `test-api-a-${stamp}@example.com`, name: 'API Test A', role: 'ATTENDEE' } })
   const userB = await prisma.user.create({ data: { email: `test-api-b-${stamp}@example.com`, name: 'API Test B', role: 'ATTENDEE' } })
@@ -139,15 +136,18 @@ async function main() {
   check('POST assign → 200 with a meeting', assignRes.status === 200 && !!assign.meeting?.id)
   const meetingId = assign.meeting?.id
 
-  // Assign B to the same room+slot → 409 ROOM_CONFLICT.
-  const conflictRes = await staff(`${BASE}/api/staff/meetings/assign`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ requestId: reqB.id, timeBlockId: freeSlot.timeBlockId, room: 'Table 1' }) })
-  check('assign B to same room/slot → 409 ROOM_CONFLICT', conflictRes.status === 409, `got ${conflictRes.status}`)
+  // Slots are exclusive: assign B into the SAME block (even a different table)
+  // → 409 SPONSOR_FULL.
+  const conflictRes = await staff(`${BASE}/api/staff/meetings/assign`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ requestId: reqB.id, timeBlockId: freeSlot.timeBlockId, room: 'Table 2' }) })
+  const conflict = await conflictRes.json().catch(() => ({}))
+  check('assign B into the booked block → 409 SPONSOR_FULL', conflictRes.status === 409 && conflict.code === 'SPONSOR_FULL', `got ${conflictRes.status} code ${conflict.code}`)
 
-  // Reschedule A to a different block.
-  const otherBlock = blocks.map(b => b.id).find(id => id !== freeSlot.timeBlockId)
-  if (meetingId && otherBlock) {
-    const reschedRes = await staff(`${BASE}/api/staff/meetings/${meetingId}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ timeBlockId: otherBlock, room: 'Table 2' }) })
-    check('PATCH reschedule → 200', reschedRes.status === 200, `got ${reschedRes.status}`)
+  // Reschedule A to a different block that availability said is OPEN for the
+  // sponsor (an arbitrary block may already hold a confirmed meeting).
+  const otherSlot = avail.days?.flatMap(d => d.slots).find(s => s.available && s.timeBlockId !== freeSlot.timeBlockId)
+  if (meetingId && otherSlot) {
+    const reschedRes = await staff(`${BASE}/api/staff/meetings/${meetingId}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ timeBlockId: otherSlot.timeBlockId, room: 'Table 2' }) })
+    check('PATCH reschedule to another open block → 200', reschedRes.status === 200, `got ${reschedRes.status}`)
   }
 
   // Cancel A with preserve → request returns to the bank.

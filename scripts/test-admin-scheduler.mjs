@@ -125,7 +125,7 @@ async function main() {
 
   console.log('\nMatrix — bank / pending / misc / slots')
   let mx = await E.getSponsorScheduleMatrix(prisma, sponsor.id, confId)
-  check('matrix rooms enumerate 9 rooms / capacity 12', mx.rooms.length === 9 && mx.totalRoomCapacity === 12, `rooms=${mx.rooms.length} cap=${mx.totalRoomCapacity}`)
+  check('matrix rooms enumerate 9 rooms / slotCapacity 1 (exclusive slots)', mx.rooms.length === 9 && mx.slotCapacity === 1, `rooms=${mx.rooms.length} cap=${mx.slotCapacity}`)
   const bankA = mx.bank.find(b => b.requestId === reqA.id)
   const bankB = mx.bank.find(b => b.requestId === reqB.id)
   check('pending vs bank split (A+B in bank, P in pending)',
@@ -136,7 +136,7 @@ async function main() {
     mx.days.length === 2 && mx.days[0].slots.length === 2 && mx.days[1].slots.length === 1,
     `days=${mx.days.length} slots=${mx.days.map(d => d.slots.length).join(',')}`)
   const slot1Before = mx.days.flatMap(d => d.slots).find(s => s.timeBlockId === tb1.id)
-  check('capacityLeft starts at 12 (empty slot)', slot1Before?.capacityLeft === 12, `got ${slot1Before?.capacityLeft}`)
+  check('capacityLeft starts at 1 (empty slot, exclusive)', slot1Before?.capacityLeft === 1, `got ${slot1Before?.capacityLeft}`)
   check('REJECTED request appears in misc as Declined',
     mx.misc.some(m => m.requestId === reqR.id && m.status === 'Declined'),
     JSON.stringify(mx.misc.map(m => m.status)))
@@ -150,8 +150,8 @@ async function main() {
   check('bank shrank and alreadyScheduled grew',
     !mx.bank.find(b => b.requestId === reqA.id) && mx.alreadyScheduled.some(s => s.sponsorMeetingId === mA.id && s.userId === userA.id))
   const slot1After = mx.days.flatMap(d => d.slots).find(s => s.timeBlockId === tb1.id)
-  check('slot tb1 shows A with its room / capacityLeft = 11',
-    !!slot1After?.meetings.find(m => m.userId === userA.id && m.room === 'Table 1') && slot1After?.capacityLeft === 11,
+  check('slot tb1 shows A with its room / capacityLeft = 0 (block booked)',
+    !!slot1After?.meetings.find(m => m.userId === userA.id && m.room === 'Table 1') && slot1After?.capacityLeft === 0,
     `capacityLeft=${slot1After?.capacityLeft}`)
   const dir2 = await E.getCompanyDirectory(prisma, confId)
   const row2 = dir2.find(d => d.id === sponsor.id)
@@ -160,8 +160,8 @@ async function main() {
     `confirmed=${row2?.confirmed} fill=${row2?.fillRate} unscheduled=${row2?.unscheduled}`)
 
   console.log('\nConflicts')
-  await expectThrow('assign B to Table 1 @ tb1 (capacity-1 room taken) → ROOM_CONFLICT', 'ROOM_CONFLICT',
-    () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: tb1.id, room: 'Table 1' }))
+  await expectThrow('assign B @ tb1 even at a different table (block exclusive) → SPONSOR_FULL', 'SPONSOR_FULL',
+    () => E.assignMeeting(prisma, { requestId: reqB.id, timeBlockId: tb1.id, room: 'Table 2' }))
   const reqA2 = await prisma.meetingRequest.create({ data: { id: fid('req-a2'), requesterId: userA.id, targetSponsorId: sponsor.id, status: 'APPROVED' } })
   await expectThrow('assign a 2nd request for the booked pair → ALREADY_SCHEDULED', 'ALREADY_SCHEDULED',
     () => E.assignMeeting(prisma, { requestId: reqA2.id, timeBlockId: tb2.id, room: 'Table 2' }))
@@ -170,11 +170,15 @@ async function main() {
     () => E.assignMeeting(prisma, { requestId: reqA3.id, timeBlockId: tb1.id, room: 'Table 1' }))
 
   console.log('\nReschedule')
+  // Same block, different table label: allowed (excludeMeetingId lets the
+  // meeting's own booking not count against the exclusive slot).
+  const mAsameBlock = await E.rescheduleMeeting(prisma, { sponsorMeetingId: mA.id, timeBlockId: tb1.id, room: 'Table 2' })
+  check('reschedule within the same block to another table ok', mAsameBlock.timeBlockId === tb1.id && mAsameBlock.location === 'Table 2')
   const mAmoved = await E.rescheduleMeeting(prisma, { sponsorMeetingId: mA.id, timeBlockId: tb2.id, room: 'Table 1' })
   check('reschedule moved the meeting to tb2 / Table 1', mAmoved.timeBlockId === tb2.id && mAmoved.location === 'Table 1')
   mx = await E.getSponsorScheduleMatrix(prisma, sponsor.id, confId)
   const slot1Freed = mx.days.flatMap(d => d.slots).find(s => s.timeBlockId === tb1.id)
-  check('old slot tb1 freed (capacityLeft back to 12)', slot1Freed?.meetings.length === 0 && slot1Freed?.capacityLeft === 12)
+  check('old slot tb1 freed (capacityLeft back to 1)', slot1Freed?.meetings.length === 0 && slot1Freed?.capacityLeft === 1)
   const reqAmoved = await prisma.meetingRequest.findUnique({ where: { id: reqA.id }, select: { timeBlockId: true } })
   check('reschedule synced request.timeBlockId', reqAmoved.timeBlockId === tb2.id)
 
