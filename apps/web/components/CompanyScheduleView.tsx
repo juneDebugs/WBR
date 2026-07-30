@@ -578,7 +578,7 @@ function InboundCard({ item, busy, onDecide }: {
           type="button"
           onClick={() => onDecide(item.requestId, 'APPROVED')}
           disabled={busy}
-          className="btn-secondary btn-sm flex-1"
+          className="btn-primary btn-sm flex-1"
         >
           {busy ? 'Saving…' : 'Approve'}
         </button>
@@ -643,8 +643,8 @@ function BankCard({ item, selected, onToggle, onDeselect, onAssign }: {
           </PanelRow>
         </div>
       </button>
-      <button type="button" onClick={onAssign} className="btn-secondary btn-sm w-full mt-2.5">
-        Assign…
+      <button type="button" onClick={onAssign} className="btn-primary btn-sm w-full mt-2.5">
+        Assign
       </button>
     </div>
   )

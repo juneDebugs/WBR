@@ -65,9 +65,8 @@ export function AutoScheduleButton({ approvedCount }: Props) {
           </>
         ) : (
           <>
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M13 10V3L4 14h7v7l9-11h-7z" />
+            <svg className="w-5 h-5 text-yellow-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             Auto-Schedule All{approvedCount ? ` (${approvedCount})` : ''}
           </>

@@ -78,7 +78,10 @@ export function CompanyAutoScheduleButton({ sponsorId, sponsorName, onSuccess }:
 
   return (
     <>
-      <button type="button" onClick={openPreview} disabled={previewing} className="btn-secondary">
+      <button type="button" onClick={openPreview} disabled={previewing} className="btn-primary">
+        <svg className="w-5 h-5 text-yellow-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
         Auto-schedule
       </button>
 
