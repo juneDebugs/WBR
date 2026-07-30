@@ -95,7 +95,14 @@ const TAILOR_SPONSOR_ID = 'cmngb2h4h0007vm28mbcpxjg5'
 
 const HEADSHOT = (id) => `https://images.unsplash.com/${id}?w=400&h=400&q=80&fit=crop&crop=face`
 
-// ── The 3 canonical test accounts ─────────────────────────────────────────────
+// ── The 4 canonical test accounts ─────────────────────────────────────────────
+// Keep in sync with packages/db/src/test-accounts.ts (the runtime-enforced copy)
+// and packages/db/prisma/seed.ts (demoUsers).
+//
+// companySize / annualRevenue / solutionsSeeking are REQUIRED by the attendee
+// app's onboarding gate. An account missing any of them is routed to the
+// onboarding checklist instead of the app — including the ORGANIZER and SPONSOR
+// accounts, since the attendee app admits those roles too.
 const ACCOUNTS = [
   {
     id: 'test-wbr',
@@ -107,6 +114,9 @@ const ACCOUNTS = [
     jobTitle: 'Conference Organizer',
     sponsorId: null,
     image: HEADSHOT('photo-1560250097-0b93528c311a'),
+    companySize: 'SMB',
+    annualRevenue: '1M-10M',
+    solutionsSeeking: JSON.stringify(['Analytics & Reporting', 'AI & Automation']),
   },
   {
     // The Brand-tier account, restored as Steph Curry (was demo-attendee-steph).
@@ -120,6 +130,8 @@ const ACCOUNTS = [
     bio: 'Point guard for the Golden State Warriors. At WBR to scout commerce, brand, and loyalty tooling for the next signature drop.',
     sponsorId: null,
     image: HEADSHOT('photo-1507003211169-0a1dd7228f2d'),
+    companySize: 'ENTERPRISE',
+    annualRevenue: '250M+',
     solutionsSeeking: JSON.stringify(['AI & Automation', 'Personalization', 'Analytics & Reporting']),
     solutionsOffering: JSON.stringify(['Email Marketing', 'Loyalty & Rewards']),
   },
@@ -133,6 +145,26 @@ const ACCOUNTS = [
     jobTitle: 'Partner Manager',
     sponsorId: TAILOR_SPONSOR_ID,
     image: HEADSHOT('photo-1519085360753-af0119f7cbe7'),
+    companySize: 'MIDMARKET',
+    annualRevenue: '10M-50M',
+    solutionsSeeking: JSON.stringify(['B2B Commerce', 'Marketplace Integration']),
+  },
+  {
+    // DELIBERATELY INCOMPLETE — the one account meant to hit the onboarding
+    // gate, so it can be demonstrated on cue. Do NOT "fix" it; it is working
+    // when it is blocked. solutionsSeeking is an explicitly empty array.
+    id: 'test-onboarding-demo',
+    email: 'onboarding-demo@test.com',
+    password: 'password123',
+    name: 'Onboarding Gate Demo',
+    role: 'ATTENDEE',
+    company: 'Gate Demo Co',
+    jobTitle: 'Head of eCommerce',
+    sponsorId: null,
+    image: HEADSHOT('photo-1507003211169-0a1dd7228f2d'),
+    companySize: 'MIDMARKET',
+    annualRevenue: '10M-50M',
+    solutionsSeeking: JSON.stringify([]),
   },
 ]
 
@@ -177,6 +209,10 @@ async function main() {
         sponsorId: a.sponsorId,
         image: a.image,
         ...(a.bio ? { bio: a.bio } : {}),
+        // Required by the attendee onboarding gate — without these, a reset
+        // recreates accounts that are immediately blocked by it.
+        ...(a.companySize ? { companySize: a.companySize } : {}),
+        ...(a.annualRevenue ? { annualRevenue: a.annualRevenue } : {}),
         ...(a.solutionsSeeking ? { solutionsSeeking: a.solutionsSeeking } : {}),
         ...(a.solutionsOffering ? { solutionsOffering: a.solutionsOffering } : {}),
       }
