@@ -86,6 +86,10 @@ DATABASE_URL="file:./packages/db/prisma/dev.db" \
   packages/db/prisma/seed.ts
 ```
 
+> ⚠️ **Seeding is destructive to an existing dataset — it is a first-clone step, not a repair tool.** `seed.ts` deletes every user whose id it did not itself generate. Measured on a copy of the working demo database: it removed **2,516 users** before recreating its own ~1,000. If your database already has demo content you care about, seeding replaces it with a different population — different ids, different emails.
+>
+> To repair specific profile fields **without** deleting accounts, use `pnpm db:backfill-onboarding` (fills only what is missing; idempotent; verifies itself). Reach for the seed only when you genuinely want a fresh dataset.
+
 > **Shortcut alternative (with a caveat).** Once the local DB is initialized, `pnpm db:push`, `pnpm db:seed`, and `pnpm db:studio` from the repo root proxy through to `packages/db`. The proxied scripts use `DATABASE_URL="file:./dev.db"` from `packages/db` cwd, which resolves to `packages/db/dev.db` — **not** the `packages/db/prisma/dev.db` file the inline first-clone setup above targets and the apps' `.env.local` templates point at. The two files can drift. See [`packages/db/README.md`](packages/db/README.md) §Local-dev DB location for the full picture + the Turso-targeted variant scripts.
 
 ### Run the apps locally
@@ -132,8 +136,13 @@ After `dev.sh` reports servers running, each app should redirect an unauthentica
 | WBR | `wbr@test.com` | `password123` | ORGANIZER | Admin, Meetings, Sponsor, Mobile (all four) |
 | Brand | `stephcurry@test.com` | `password123` | BRAND | Meetings, Mobile |
 | Sponsor | `sponsor@test.com` | `password123` | SPONSOR (`sponsorId` → Tailor ERP) | Sponsor, Mobile |
+| Onboarding Gate Demo | `onboarding-demo@test.com` | `password123` | ATTENDEE | Mobile — **lands on the onboarding checklist by design** |
 
 Every app gates login by account access: Admin admits WBR only; Meetings admits Brand + WBR; Sponsor admits Sponsor + WBR; Mobile (attendee) admits all three.
+
+> **`onboarding-demo@test.com` is meant to be blocked.** The attendee app enforces a required profile set (name, job title, company, company size, annual revenue, and at least one "solutions seeking"); anyone missing a field is routed to a checklist instead of the app. This account is complete except for its solutions, so it demonstrates that gate on cue rather than having it turn up unannounced on someone else's login. **Do not "fix" it** — it is working when it is blocked. Every other account above passes the gate.
+>
+> If a *different* account is unexpectedly stuck on the checklist, its profile is genuinely incomplete. Repair the whole dataset with `pnpm db:backfill-onboarding`, which fills only missing fields, leaves this demo account alone, and verifies itself by re-reading. See [`docs/smoketests/phase-1-attendee-onboarding-gate.md`](docs/smoketests/phase-1-attendee-onboarding-gate.md).
 
 ### Debugging
 

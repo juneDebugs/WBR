@@ -3,7 +3,7 @@ import { hashPassword, verifyPassword } from './password'
 
 // ─── Canonical demo/test accounts — single source of truth ───────────────────
 //
-// These three accounts back the login page on every app and every e2e/smoke
+// These four accounts back the login page on every app and every e2e/smoke
 // script. They live as ordinary rows in the shared Turso DB, which means the
 // pile of ad-hoc maintenance scripts in packages/db/scripts/ (set-dummy-
 // passwords, diversify-users, fill-all-combos, …) and manual "account resets"
@@ -19,7 +19,9 @@ import { hashPassword, verifyPassword } from './password'
 //
 // Keep this list in sync with packages/db/prisma/seed.ts (demoUsers) and
 // packages/db/scripts/reset-test-accounts.mjs (ACCOUNTS). All three describe
-// the same three accounts; this one is the runtime-enforced copy.
+// the same four accounts; this one is the runtime-enforced copy. Three of them
+// pass the attendee onboarding gate; onboarding-demo@test.com is deliberately
+// left blocked by it — see its entry below.
 
 // The Tailor ERP sponsor company the Sponsor account links to (see seed.ts).
 export const TAILOR_SPONSOR_ID = 'cmngb2h4h0007vm28mbcpxjg5'
@@ -37,6 +39,14 @@ export interface CanonicalTestAccount {
   sponsorId: string | null
   image: string
   bio?: string
+  // Required by the attendee app's onboarding gate, along with name, jobTitle
+  // and company above. An account missing any of them is routed to the
+  // onboarding checklist instead of the app — including ORGANIZER and SPONSOR
+  // accounts, since the attendee app admits those roles too. Before these were
+  // added, a self-healed wbr@ or sponsor@ account could sign in to the attendee
+  // app and immediately be blocked by it.
+  companySize?: string
+  annualRevenue?: string
   solutionsSeeking?: string
   solutionsOffering?: string
 }
@@ -52,6 +62,9 @@ export const CANONICAL_TEST_ACCOUNTS: CanonicalTestAccount[] = [
     jobTitle: 'Conference Organizer',
     sponsorId: null,
     image: HEADSHOT('photo-1560250097-0b93528c311a'),
+    companySize: 'SMB',
+    annualRevenue: '1M-10M',
+    solutionsSeeking: JSON.stringify(['Analytics & Reporting', 'AI & Automation']),
   },
   {
     // The Brand-tier account, restored as Steph Curry (was demo-attendee-steph).
@@ -65,6 +78,8 @@ export const CANONICAL_TEST_ACCOUNTS: CanonicalTestAccount[] = [
     bio: 'Point guard for the Golden State Warriors. At WBR to scout commerce, brand, and loyalty tooling for the next signature drop.',
     sponsorId: null,
     image: HEADSHOT('photo-1507003211169-0a1dd7228f2d'),
+    companySize: 'ENTERPRISE',
+    annualRevenue: '250M+',
     solutionsSeeking: JSON.stringify(['AI & Automation', 'Personalization', 'Analytics & Reporting']),
     solutionsOffering: JSON.stringify(['Email Marketing', 'Loyalty & Rewards']),
   },
@@ -78,6 +93,36 @@ export const CANONICAL_TEST_ACCOUNTS: CanonicalTestAccount[] = [
     jobTitle: 'Partner Manager',
     sponsorId: TAILOR_SPONSOR_ID,
     image: HEADSHOT('photo-1519085360753-af0119f7cbe7'),
+    companySize: 'MIDMARKET',
+    annualRevenue: '10M-50M',
+    solutionsSeeking: JSON.stringify(['B2B Commerce', 'Marketplace Integration']),
+  },
+  {
+    // DELIBERATELY INCOMPLETE. This is the one account meant to hit the attendee
+    // onboarding gate, so the gate can be demonstrated on cue instead of turning
+    // up unannounced on someone else's login. Complete in every required field
+    // except solutionsSeeking, which is an explicitly empty array.
+    //
+    // Do NOT "fix" this account — it is doing its job when it is blocked. It is
+    // listed here so a stray maintenance script cannot quietly delete the demo
+    // prop; self-heal recreates it in the same blocked state.
+    //
+    // Note the self-heal health check compares password/role/sponsorId only, so
+    // if someone completes this profile by hand it is left completed rather than
+    // being forcibly re-blanked. Re-blank it with
+    // `pnpm db:backfill-onboarding`, which resets this account specifically.
+    id: 'test-onboarding-demo',
+    email: 'onboarding-demo@test.com',
+    password: 'password123',
+    name: 'Onboarding Gate Demo',
+    role: 'ATTENDEE',
+    company: 'Gate Demo Co',
+    jobTitle: 'Head of eCommerce',
+    sponsorId: null,
+    image: HEADSHOT('photo-1507003211169-0a1dd7228f2d'),
+    companySize: 'MIDMARKET',
+    annualRevenue: '10M-50M',
+    solutionsSeeking: JSON.stringify([]),
   },
 ]
 
@@ -100,6 +145,8 @@ function buildData(def: CanonicalTestAccount, passwordHash: string, sponsorId: s
     sponsorId,
     image: def.image,
     ...(def.bio ? { bio: def.bio } : {}),
+    ...(def.companySize ? { companySize: def.companySize } : {}),
+    ...(def.annualRevenue ? { annualRevenue: def.annualRevenue } : {}),
     ...(def.solutionsSeeking ? { solutionsSeeking: def.solutionsSeeking } : {}),
     ...(def.solutionsOffering ? { solutionsOffering: def.solutionsOffering } : {}),
   }
