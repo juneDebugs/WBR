@@ -500,6 +500,25 @@ function components() {
     '.meter-fill.warning': { backgroundColor: '#ff9f0a' },
     '.meter-fill.danger': { backgroundColor: '#ff3b30' },
 
+    // Sponsor team-member pill (admin Companies scheduler header). A lavender
+    // take on the CTA glow vocabulary at rest weight: white→brand-100 diagonal
+    // gradient, a periwinkle ring that darkens along the top edge, and a faint
+    // white top sheen for HIG depth. Defined here (not in app source) so the
+    // brand lavenders stay out of the rogue-color guard's reach.
+    '.team-pill': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      maxWidth: '100%',
+      borderRadius: '9999px',
+      padding: '0.25rem 0.875rem 0.25rem 0.25rem',
+      backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(244,245,252,1) 45%, rgba(224,231,255,1) 100%)',
+      border: '1px solid rgba(165,180,252,0.65)',
+      borderTopColor: 'rgba(129,140,248,0.80)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85), 0 1px 2px rgba(79,70,229,0.10)',
+      textShadow: '0 1px 0 rgba(255,255,255,0.70)',
+    },
+
     // Ordinal rank chip (e.g. "4/19") — steady width so the list doesn't jitter.
     '.rank-chip': {
       display: 'inline-flex',

@@ -144,34 +144,73 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
     <div>
       {/* ── Header ── */}
       <BackLink />
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        {matrix.sponsor.logoUrl ? (
-          <div className="w-10 h-10 rounded-lg border border-hairline bg-white flex items-center justify-center overflow-hidden flex-shrink-0 p-0.5">
-            <Image src={matrix.sponsor.logoUrl} alt="" width={40} height={40} className="w-full h-full object-contain" />
-          </div>
-        ) : (
-          <div className="w-10 h-10 rounded-lg bg-fill flex items-center justify-center text-ink-2 font-bold flex-shrink-0">
-            {initial(matrix.sponsor.name)}
-          </div>
-        )}
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-ink truncate">{matrix.sponsor.name}</h2>
-            <span className={`badge text-caption ${TIER_COLORS[matrix.sponsor.tier] ?? TIER_FALLBACK}`}>{matrix.sponsor.tier}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="meter w-28">
-              <div className={`meter-fill ${meterClass(fillRate)}`} style={{ width: `${fillRate * 100}%` }} />
+      <section className="card p-4 sm:p-5 mb-4" aria-label={`${matrix.sponsor.name} overview`}>
+        <div className="flex items-center gap-3.5 flex-wrap">
+          {matrix.sponsor.logoUrl ? (
+            <div className="w-12 h-12 rounded-xl border border-hairline bg-white flex items-center justify-center overflow-hidden flex-shrink-0 p-1">
+              <Image src={matrix.sponsor.logoUrl} alt="" width={48} height={48} className="w-full h-full object-contain" />
             </div>
-            <span className="text-caption tabular-nums text-ink-2 whitespace-nowrap">
-              {matrix.confirmedCount}/{fillTarget} confirmed
-            </span>
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-fill flex items-center justify-center text-ink-2 font-bold text-lg flex-shrink-0">
+              {initial(matrix.sponsor.name)}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold tracking-tight text-ink truncate">{matrix.sponsor.name}</h2>
+              <span className={`badge text-caption ${TIER_COLORS[matrix.sponsor.tier] ?? TIER_FALLBACK}`}>{matrix.sponsor.tier}</span>
+            </div>
+            <div
+              className="flex items-center gap-2.5 mt-1.5"
+              role="img"
+              aria-label={`${matrix.confirmedCount} of ${fillTarget} required meetings confirmed`}
+            >
+              <div className="meter w-36 sm:w-44">
+                <div className={`meter-fill ${meterClass(fillRate)}`} style={{ width: `${fillRate * 100}%` }} />
+              </div>
+              <span className="text-sm font-semibold text-ink tabular-nums whitespace-nowrap">
+                {matrix.confirmedCount}/{fillTarget}
+              </span>
+              <span className="text-caption text-ink-2 whitespace-nowrap">Meetings Confirmed</span>
+            </div>
+          </div>
+          <div className="ml-auto">
+            <CompanyAutoScheduleButton sponsorId={sponsorId} sponsorName={matrix.sponsor.name} onSuccess={afterMutation} />
           </div>
         </div>
-        <div className="ml-auto">
-          <CompanyAutoScheduleButton sponsorId={sponsorId} sponsorName={matrix.sponsor.name} onSuccess={afterMutation} />
+
+        {/* Sponsor team roster */}
+        <div className="mt-4 pt-3.5 border-t border-hairline">
+          <h3 className="flex items-center gap-1.5 text-xs font-semibold text-ink-2 uppercase tracking-wide">
+            <span className="text-ink-3" aria-hidden="true"><TeamIcon /></span>
+            Team
+            <span className="font-normal text-ink-3 normal-case">· {matrix.team.length}</span>
+          </h3>
+          {matrix.team.length === 0 ? (
+            <p className="mt-2 text-xs text-ink-3">No team members linked to this company yet.</p>
+          ) : (
+            <ul className="mt-2.5 flex flex-wrap gap-2">
+              {matrix.team.map(member => (
+                <li key={member.userId} className="team-pill">
+                  {member.image ? (
+                    <span className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
+                      <Image src={member.image} alt="" width={24} height={24} className="w-full h-full object-cover" />
+                    </span>
+                  ) : (
+                    <span className="w-6 h-6 rounded-full bg-white border border-hairline flex items-center justify-center text-ink-2 font-bold text-caption flex-shrink-0">
+                      {initial(member.name)}
+                    </span>
+                  )}
+                  <span className="min-w-0 flex items-baseline gap-1.5">
+                    <span className="text-xs font-semibold text-ink truncate">{member.name}</span>
+                    <span className="text-caption text-ink-2 truncate">{member.jobTitle ?? 'Team member'}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      </div>
+      </section>
 
       {mutError && (
         <div className="mb-3 flex items-start justify-between gap-3 rounded-xl bg-danger-soft text-danger-ink text-sm px-3 py-2" role="alert">
@@ -183,7 +222,7 @@ export function CompanyScheduleView({ sponsorId }: { sponsorId: string }) {
       )}
 
       {/* ── Split view ── */}
-      <div className="split-view h-[calc(100vh-280px)] min-h-[480px] rounded-xl border border-hairline overflow-hidden bg-surface">
+      <div className="split-view h-[calc(100vh-400px)] min-h-[480px] rounded-xl border border-hairline overflow-hidden bg-surface">
         {/* Sidebar: request bank */}
         <div ref={sidebarRef} className="split-view-sidebar" role="region" aria-label="Meeting requests" tabIndex={-1}>
           <DisclosureGroup title="Inbound" count={matrix.pending.length} defaultOpen>
@@ -526,6 +565,15 @@ function PinIcon() {
     </svg>
   )
 }
+function TeamIcon() {
+  return (
+    <svg {...rowIcon}>
+      <circle cx="7.5" cy="7" r="2.6" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2.8 16c.5-2.6 2.4-4 4.7-4s4.2 1.4 4.7 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M13 5.2a2.4 2.4 0 110 4.4M14.6 12.3c1.5.4 2.5 1.6 2.8 3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
 
 // ── Collapsible sidebar group ────────────────────────────────────────────────
 function DisclosureGroup({ title, count, defaultOpen = false, children }: {
@@ -721,15 +769,20 @@ function ScheduleSkeleton() {
   return (
     <div>
       <div className="skeleton h-5 w-32 mb-3" />
-      <div className="flex items-center gap-3 mb-4">
-        <div className="skeleton w-10 h-10 rounded-lg" />
-        <div>
-          <div className="skeleton h-5 w-48 mb-2" />
-          <div className="skeleton h-3 w-32" />
+      <div className="card p-4 sm:p-5 mb-4">
+        <div className="flex items-center gap-3.5">
+          <div className="skeleton w-12 h-12 rounded-xl" />
+          <div>
+            <div className="skeleton h-6 w-48 mb-2" />
+            <div className="skeleton h-3 w-36" />
+          </div>
+          <div className="skeleton h-10 w-32 ml-auto rounded-xl" />
         </div>
-        <div className="skeleton h-10 w-32 ml-auto rounded-xl" />
+        <div className="mt-4 pt-3.5 border-t border-hairline flex flex-wrap gap-2">
+          {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-8 w-36 rounded-full" />)}
+        </div>
       </div>
-      <div className="split-view h-[calc(100vh-280px)] min-h-[480px] rounded-xl border border-hairline overflow-hidden bg-surface">
+      <div className="split-view h-[calc(100vh-400px)] min-h-[480px] rounded-xl border border-hairline overflow-hidden bg-surface">
         <div className="split-view-sidebar p-4 space-y-3">
           {[...Array(4)].map((_, i) => <div key={i} className="skeleton h-36 w-full rounded-2xl" />)}
         </div>

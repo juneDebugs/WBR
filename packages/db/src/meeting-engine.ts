@@ -537,8 +537,17 @@ export interface MatrixDay {
   label: string
   slots: MatrixSlot[]
 }
+// A user linked to the sponsor company (User.sponsorId) — the company's own
+// reps, shown in the scheduler header. `jobTitle` is their role at the company.
+export interface SponsorTeamMember {
+  userId: string
+  name: string
+  jobTitle: string | null
+  image: string | null
+}
 export interface ScheduleMatrix {
   sponsor: { id: string; name: string; logoUrl: string | null; tier: string }
+  team: SponsorTeamMember[]
   rooms: MeetingRoom[]
   totalRoomCapacity: number
   bank: BankItem[]              // Unscheduled — APPROVED, awaiting a slot
@@ -564,7 +573,7 @@ export async function getSponsorScheduleMatrix(
   })
   if (!sponsor) throw new EngineError('REQUEST_NOT_FOUND', 'Sponsor not found')
 
-  const [timeBlocks, sponsorMeetings, requests, terminalRequests, requirementSettings] = await Promise.all([
+  const [timeBlocks, sponsorMeetings, requests, terminalRequests, requirementSettings, teamUsers] = await Promise.all([
     prisma.timeBlock.findMany({
       where: { conferenceId: confId },
       orderBy: { startsAt: 'asc' },
@@ -624,6 +633,11 @@ export async function getSponsorScheduleMatrix(
       },
     }),
     getMeetingRequirementSettings(prisma),
+    prisma.user.findMany({
+      where: { sponsorId },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, jobTitle: true, image: true },
+    }),
   ])
 
   const sponsorSeeking = parseSolutions(sponsor.solutionsSeeking)
@@ -764,6 +778,9 @@ export async function getSponsorScheduleMatrix(
 
   return {
     sponsor: { id: sponsor.id, name: sponsor.name, logoUrl: sponsor.logoUrl, tier: sponsor.tier },
+    team: teamUsers.map(u => ({
+      userId: u.id, name: u.name ?? 'Unknown', jobTitle: u.jobTitle, image: u.image,
+    })),
     rooms: MEETING_ROOMS,
     totalRoomCapacity,
     bank,
