@@ -63,6 +63,7 @@
     "test:chat-no-dm": "node scripts/test-admin-chat-dm-removed.mjs",
     "test:chat-no-dm:api": "node scripts/test-admin-chat-dm-removed-api.mjs",
     "test:chat-settings": "node scripts/test-chat-settings.mjs",
+    "test:onboarding-policy": "node scripts/test-onboarding-policy.mjs",
     "test:chat-settings:api": "node scripts/test-chat-settings-api.mjs",
     "test:chat-perm": "node scripts/test-chat-permission-enforcement.mjs",
     "e2e:feed": "node scripts/e2e-home-feed.mjs",

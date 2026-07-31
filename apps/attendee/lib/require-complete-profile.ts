@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { prisma } from '@conference/db'
+import { prisma, isRequiredSetComplete, isWbrStaff, DELEGATE_REQUIRED_SELECT } from '@conference/db'
 import { authOptions } from '@/lib/auth'
-import { isComplete, REQUIRED_FIELD_SELECT } from '@/lib/profile-completeness'
 
 /**
  * The onboarding gate for API route handlers that CHANGE data.
@@ -32,11 +31,22 @@ import { isComplete, REQUIRED_FIELD_SELECT } from '@/lib/profile-completeness'
  *   - POST /api/revalidate — authenticated by a shared secret, not a user
  *     session; there is no profile to check.
  *
- * Read-only endpoints are also not guarded. An incomplete attendee can still
- * read conference content (attendee list, schedule) via GET. That is a narrower
- * concern than acting as a half-registered attendee, and gating every read is a
- * much wider change; it is recorded as a follow-up rather than silently skipped.
- * See the Phase 1 smoketest doc.
+ * READING IS GUARDED TOO, as of Phase 4. It was not at first: the original cut
+ * guarded only the handlers that change data, and recorded the reading side as
+ * a follow-up. The requirements call of record then showed it was not a
+ * follow-up at all — asked what a person should be stopped from doing before
+ * completing their profile, the customer named making meeting requests AND
+ * seeing all of the attendees at the event. The first was closed; the second
+ * was open, and a delegate sitting on the checklist unable to reach a single
+ * screen could still retrieve the whole attendee directory, the agenda, and the
+ * messages inside a chat room by asking for those addresses directly.
+ *
+ * All fifteen reading handlers now call this. A sixteenth — a diagnostic
+ * endpoint that reported to any signed-in caller whether an arbitrary email and
+ * password combination was valid — was deleted rather than guarded.
+ *
+ * ADDING A NEW REQUEST HANDLER? Call this from it. Nothing at the framework
+ * level will remind you, which is exactly how the reading side stayed open.
  */
 export async function requireCompleteProfile(): Promise<NextResponse | null> {
   const session = await getServerSession(authOptions)
@@ -47,9 +57,12 @@ export async function requireCompleteProfile(): Promise<NextResponse | null> {
   // anonymous callers instead of masking it as a completeness problem.
   if (!userId) return null
 
-  const profile = await prisma.user.findUnique({
+  const account = await prisma.user.findUnique({
     where: { id: userId },
-    select: REQUIRED_FIELD_SELECT,
+    // Read `role` from the database, not from the session. See the note in
+    // lib/onboarding-gate.ts: a session token keeps whatever role it was issued
+    // with, so a revoked role would keep its exemption until the next sign-in.
+    select: { role: true, ...DELEGATE_REQUIRED_SELECT },
   })
 
   // FAIL CLOSED when there is no row for a session that claims one.
@@ -67,14 +80,25 @@ export async function requireCompleteProfile(): Promise<NextResponse | null> {
   //
   // If completeness cannot be established, refuse. A genuine signed-in attendee
   // always has a row; anyone who does not has nothing legitimate to do here.
-  if (!profile) {
+  if (!account) {
     return NextResponse.json(
       { error: 'Complete your profile before using the app', onboardingRequired: true },
       { status: 403 },
     )
   }
 
-  if (!isComplete(profile)) {
+  // Released by role, not by profile — see the long note in
+  // lib/onboarding-gate.ts. The exemption is about who the person is, not which
+  // app they are in, and it reuses isWbrStaff() rather than introducing a
+  // second list of roles.
+  //
+  // Placed AFTER the missing-row refusal above and BEFORE the completeness
+  // check below, deliberately. A session pointing at a deleted row has no role
+  // to read, so it cannot be exempted — it is refused, which is the direction
+  // that was already measured as correct.
+  if (isWbrStaff(account.role)) return null
+
+  if (!isRequiredSetComplete('delegate', account)) {
     return NextResponse.json(
       { error: 'Complete your profile before using the app', onboardingRequired: true },
       { status: 403 },

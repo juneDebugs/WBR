@@ -14,6 +14,12 @@ export async function GET(
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Reading is gated too: a delegate whose required set is incomplete is
+  // refused here, not only at the screens. Blocking every screen while
+  // leaving the data behind them readable is not a block.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
   const result = await listMessageComments(prisma, messageId)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 404 })
 

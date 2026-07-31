@@ -2,7 +2,7 @@
 // Acceptance test for the friend-request system over HTTP against the
 // attendee app. Follows the same harness conventions as
 // test-home-feed-api.mjs: cookie-jar credential login, raw-SQL oracle opened
-// against the database the server reports (via /api/debug), --start server
+// against the same database the server reads (derived from its env file), --start server
 // lifecycle, exit 0/1/2.
 //
 // What this verifies:
@@ -133,10 +133,85 @@ function readEnvLocal() {
   return env
 }
 
-async function openDb(jarFetch) {
-  const debug = await (await jarFetch(`${BASE}/api/debug`)).json()
-  const modeStep = (debug.steps ?? []).find(s => s.startsWith('DB mode: '))
-  const mode = modeStep ? modeStep.slice('DB mode: '.length) : ''
+/**
+ * Which database the running server is using.
+ *
+ * This used to be asked of the server through GET /api/debug. That endpoint was
+ * deleted during the onboarding-enforcement work: besides reporting the
+ * connection mode, it told any signed-in caller whether an arbitrary email and
+ * password combination was valid — defaulting to the real demonstration
+ * credentials — and ran the sign-in function on their behalf.
+ *
+ * The mode is derived here instead, applying the same rules as
+ * packages/db/src/client.ts createClient() to the same apps/attendee/.env.local
+ * file the server reads.
+ *
+ * One thing is lost, stated plainly: this now agrees with the environment file
+ * rather than with the running server. A server started with a different
+ * environment than that file describes will not be detected.
+ */
+function serverConnectionMode() {
+  const envLocal = readEnvLocal()
+  const tursoUrl = process.env.TURSO_DATABASE_URL ?? envLocal.TURSO_DATABASE_URL
+  const tursoToken = process.env.TURSO_AUTH_TOKEN ?? envLocal.TURSO_AUTH_TOKEN
+  if (tursoUrl && tursoToken && tursoUrl.startsWith('libsql://')) return 'turso-http-dev'
+  const databaseUrl = process.env.DATABASE_URL ?? envLocal.DATABASE_URL
+  return databaseUrl ? `sqlite: ${databaseUrl}` : 'no-database'
+}
+
+/**
+ * Refuse to run unless the oracle database and the running server are the same
+ * database. See the identical note in scripts/test-home-feed-api.mjs: the
+ * endpoint that used to answer this was deleted, the answer is now derived from
+ * the environment file, and this script writes through HTTP while cleaning up
+ * through the oracle — so a mismatch leaves artifacts in the server's database.
+ */
+async function assertOracleMatchesServer(jarFetch, email) {
+  // Write a value only this run could know into the oracle, then read it back
+  // through the server. Comparing seeded values would not do: two separately
+  // seeded copies share them, so that check can pass while the databases are
+  // different — which is the exact case that leaves artifacts behind. A fresh
+  // sentinel cannot be in both unless they are the same database.
+  const before = await oracle.execute({ sql: 'SELECT bio FROM User WHERE email = ?', args: [email] })
+  if (!before.rows[0]) {
+    throw new Error(
+      `pre-flight: the oracle database has no row for ${email}, but the server signed it in. ` +
+      `They are not the same database. Refusing to run.`,
+    )
+  }
+  const original = before.rows[0].bio ?? null
+  const sentinel = `oracle-preflight ${process.pid}-${Date.now()}`
+
+  await oracle.execute({ sql: 'UPDATE User SET bio = ? WHERE email = ?', args: [sentinel, email] })
+  try {
+    const res = await jarFetch(`${BASE}/api/data/setup`, { cache: 'no-store' })
+    if (!res.ok) {
+      throw new Error(
+        `pre-flight: GET /api/data/setup returned ${res.status}, so the oracle cannot be ` +
+        `confirmed against the server. Refusing to run rather than write to one database ` +
+        `and clean up another.`,
+      )
+    }
+    const server = await res.json()
+    if (server.userBio !== sentinel) {
+      throw new Error(
+        `pre-flight: a value written to the oracle did not appear when read back through ` +
+        `${BASE}. The oracle and the server are NOT the same database, so this run would ` +
+        `write through HTTP into one and clean up in the other.\n` +
+        `  written to the oracle: ${JSON.stringify(sentinel)}\n` +
+        `  read from the server:  ${JSON.stringify(server.userBio ?? null)}\n` +
+        `Start the server from apps/attendee/.env.local, or point SMOKE_BASE_URL at the ` +
+        `server that matches it.`,
+      )
+    }
+  } finally {
+    // Always put the original value back, including when the check above threw.
+    await oracle.execute({ sql: 'UPDATE User SET bio = ? WHERE email = ?', args: [original, email] })
+  }
+  console.log(`Oracle confirmed against the server, by round-tripping a fresh value through ${email}`)
+}
+async function openDb() {
+  const mode = serverConnectionMode()
   console.log(`Server connection mode: ${mode}`)
   const req = createRequire(join(ROOT, 'packages/db/package.json'))
   const { createClient } = req('@libsql/client')
@@ -152,7 +227,7 @@ async function openDb(jarFetch) {
     const resolved = path.startsWith('/') ? path : join(ROOT, 'apps/attendee', path)
     return createClient({ url: `file:${resolved}` })
   }
-  throw new Error(`unexpected server connection mode: ${mode || JSON.stringify(debug)}`)
+  throw new Error(`unexpected server connection mode: ${mode}`)
 }
 
 // ─── Server lifecycle ────────────────────────────────────────────────────────
@@ -232,15 +307,36 @@ async function main() {
   console.log(`\nLogging in as ${BOOTSTRAP_EMAIL} (bootstrap, oracle only)`)
   const bootstrap = makeJar()
   if (!(await login(bootstrap, BOOTSTRAP_EMAIL, BOOTSTRAP_PASSWORD))) return
-  oracle = await openDb(bootstrap)
+  oracle = await openDb()
+  await assertOracleMatchesServer(bootstrap, BOOTSTRAP_EMAIL)
 
   console.log(`\nSeeding dedicated test users ${USER_A.email} and ${USER_B.email}`)
   const now = Date.now()
   for (const u of [USER_A, USER_B]) {
+    // The onboarding required set is filled in DELIBERATELY.
+    //
+    // Without it these two accounts are incomplete delegates, and the
+    // onboarding gate refuses them at every address this script exercises —
+    // every assertion below then fails with
+    // {"error":"Complete your profile before using the app"}. That is the gate
+    // working correctly; it is simply not what this script is testing.
+    //
+    // This bit this script once already: the gate began refusing data-changing
+    // requests when the attendee onboarding gate merged, and the script has
+    // been failing ever since without anyone noticing, because nothing runs it
+    // automatically. The fields are jobTitle, company, companySize,
+    // annualRevenue and at least one solutionsSeeking entry, alongside name —
+    // see DELEGATE_REQUIRED_FIELDS in packages/db/src/onboarding-policy.ts.
     await oracle.execute({
-      sql: `INSERT INTO User (id, name, email, role, password, createdAt, updatedAt)
-            VALUES (?, ?, ?, 'ATTENDEE', ?, ?, ?)`,
-      args: [u.id, u.name, u.email, await hashPassword(u.password), now, now],
+      sql: `INSERT INTO User (id, name, email, role, password,
+                              jobTitle, company, companySize, annualRevenue, solutionsSeeking,
+                              createdAt, updatedAt)
+            VALUES (?, ?, ?, 'ATTENDEE', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        u.id, u.name, u.email, await hashPassword(u.password),
+        'Friend Test Role', 'Friend Test Co', 'SMB', '1M-10M', JSON.stringify(['AI & Automation']),
+        now, now,
+      ],
     })
   }
   usersSeeded = true

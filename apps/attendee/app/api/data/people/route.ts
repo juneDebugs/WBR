@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { getUserFromHeaders } from '@/lib/user'
 import { prisma, deriveFriendStatusMap } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 const userSelect = {
   id: true,
@@ -28,6 +29,12 @@ export async function GET() {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Reading is gated too: a delegate whose required set is incomplete is
+  // refused here, not only at the screens. Blocking every screen while
+  // leaving the data behind them readable is not a block.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   try {
     const [allUsers, totalCount, outgoingEdges, incomingEdges, dmRooms, conference] = await Promise.all([

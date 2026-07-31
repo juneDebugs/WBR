@@ -1,6 +1,11 @@
 export { prisma, dbConnectionMode } from './client'
 export * from '@prisma/client'
 export * from './app-access'
+// The onboarding required set. Server code may reach it through this root;
+// BROWSER code must deep-import '@conference/db/src/onboarding-policy' instead,
+// because line 1 and line 2 above pull the database client into any bundle that
+// touches this file. See the module's header for the full reasoning.
+export * from './onboarding-policy'
 export * from './scheduled-messages'
 export * from './chat'
 export * from './broadcast'

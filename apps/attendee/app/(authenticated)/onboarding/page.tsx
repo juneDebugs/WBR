@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
-import { prisma } from '@conference/db'
+import { prisma, isRequiredSetComplete, isWbrStaff, DELEGATE_REQUIRED_SELECT } from '@conference/db'
 import { authOptions } from '@/lib/auth'
-import { isComplete, REQUIRED_FIELD_SELECT } from '@/lib/profile-completeness'
 import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist'
 
 // Mirrors the gate: the completeness read must never come from a cached
@@ -28,12 +27,21 @@ export default async function OnboardingPage() {
   const userId = session?.user?.id
   if (!userId) redirect('/login')
 
-  const profile = await prisma.user.findUnique({
+  const account = await prisma.user.findUnique({
     where: { id: userId },
-    select: REQUIRED_FIELD_SELECT,
+    select: { role: true, ...DELEGATE_REQUIRED_SELECT },
   })
-  if (!profile) redirect('/login')
-  if (isComplete(profile)) redirect('/home')
+  if (!account) redirect('/login')
 
-  return <OnboardingChecklist profile={profile} />
+  // Beyond the two enforcement points, but for the same reason: an organizer,
+  // admin or staff account is never gated, so it has no required set to
+  // complete and must not be shown a checklist for one. Without this, typing
+  // /onboarding directly would put a form in front of someone the gate has
+  // already released — asking them for a delegate's details to reach an app
+  // they were never blocked from.
+  if (isWbrStaff(account.role)) redirect('/home')
+
+  if (isRequiredSetComplete('delegate', account)) redirect('/home')
+
+  return <OnboardingChecklist profile={account} />
 }
