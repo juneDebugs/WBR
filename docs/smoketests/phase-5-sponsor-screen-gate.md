@@ -250,6 +250,36 @@ Nominally a request handler and so Phase 6's territory. Fixed here because Phase
 
 `PRAGMA journal_mode` reports `delete`, not write-ahead logging, so a write throws `database is locked` rather than waiting when a reader holds the lock. The first run of this script died on it, and — much worse — **the restore in the cleanup block died the same way**, so a run could have left the demonstration login blocked. It survived by luck: the failure landed before the first column was cleared rather than after. The script now sets `PRAGMA busy_timeout = 10000` and retries writes, and the cleanup block verifies the restore by re-reading and comparing every column. Worth knowing for any future script that writes to this database while an app is running.
 
+## Negative controls — proving the suite can actually fail
+
+Run 2026-07-31, after the review cycle, on commit `1024543` with the working tree confirmed byte-identical to it for every source file.
+
+**Why this exists.** Every other result in this document is a green assertion, and this phase has already demonstrated what that is worth on its own: it passed 68 of 68 while the checklist was impossible to submit in a browser. A suite that cannot fail is not evidence. So each of the three real fixes was removed in turn, the app rebuilt, and the suite re-run — to establish that the assertions are load-bearing rather than vacuous.
+
+| Control — what was broken | Suite result | Where it was caught |
+|---|---|---|
+| The gate call removed from the `(portal)` layout | **red, 22 failed** | Every blocked-direction assertion: `/dashboard -> 200 (no redirect) — expected a redirect to /onboarding`, and the same for the other five screens |
+| `PATCH /api/profile` reverted to reading the company from the session token | **red, 3 failed** | `THE SAVE WROTE TO Phase 5 Probe Company A, the company named only by the stale token`; the correct company `did not receive the save`; `the representative is TRAPPED` |
+| The logo input reverted to `type="url"` | **red, 4 failed** | `checklist field sponsor-onboarding-logoUrl (type=url, value "/sponsors/tailor-erp.png") fails browser validation: "Please enter a URL." — pressing submit will do NOTHING`, then the submit going nowhere and nothing reaching the database |
+
+All three were caught, each in the assertion written for it, and each failure message names the mechanism rather than merely reporting a mismatch. The third is the one that matters most: it is the defect the original suite missed entirely, and the assertion added afterwards now identifies the offending field, its type, its stored value and the browser's own explanation.
+
+Reproduce with `negative-controls.sh` as described in the review log, or by hand: break one thing, `pnpm --filter sponsor build`, restart, re-run the script, restore with `git checkout --`.
+
+## Final verification run — 2026-07-31, all four apps
+
+Everything rebuilt from the committed tree, every server killed first and confirmed to have started afterwards, so nothing stale was serving.
+
+| Suite | Result |
+|---|---|
+| Phase 5 — sponsor screen gate | **117 passed, 0 failed, 0 skipped** |
+| Phase 1 — participant onboarding gate | **53 passed, 0 failed** |
+| Phase 3 — person-based exemption | **57 passed, 0 failed** |
+| Phase 4 — delegate read refusal | **38 passed, 0 failed** |
+| Type check, four apps | sponsor / admin / meetings clean; participant app reports only the documented `BottomNav` error |
+
+**265 assertions, zero failures.** The database was left as found: no probe accounts, no disposable companies, 20 exhibiting companies, 14 of 20 satisfying the six exactly as before this work began, and the demonstration sponsor login entering the portal cleanly.
+
 ## Step summary
 
 | Step | Category | Environment | Status |
