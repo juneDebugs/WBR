@@ -464,11 +464,11 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
 }
 
 // ── Floating pill-nav tab ────────────────────────────────────────────────
-// Icon stacked over a label. Active = raised white pill with a warm-brown
-// accent; inactive = muted, and hovering warms the icon + label to the same
-// brown so the color effect reads on pointer-over.
-const ACCENT = '#8a5223' // warm saturated brown — reads clearly as "color", matches the reference nav
-const IDLE = '#9a9aa0'   // muted gray at rest, so the hover→brown shift is unmistakable
+// Icon stacked over a label. Active = raised white pill with a light-purple
+// accent; inactive = muted, and hovering tints the icon + label to the same
+// purple so the color effect reads on pointer-over.
+const ACCENT = '#818cf8' // light purple (brand-400) — icon + label tint when hovered or active
+const IDLE = '#9a9aa0'   // muted gray at rest, so the hover/active → purple shift is unmistakable
 
 function MeetingsTab({
   href, label, icon, active, badge, badgeTone = 'accent',
