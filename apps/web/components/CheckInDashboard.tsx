@@ -323,12 +323,12 @@ function NeedsAttentionCard({ items, onCheckIn }: { items: AttentionItem[]; onCh
 // ── Conference at a glance (all-days totals) ────────────────────────────────
 function ConferencePulseCard({ totals, days }: { totals: CheckInBoardData['totals']; days: number }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-ink p-5 text-white shadow-card" aria-label="Conference at a glance">
+    <section className="relative overflow-hidden rounded-2xl bg-brand-50 p-5 text-ink shadow-card" aria-label="Conference at a glance">
       <div
         aria-hidden
         className="absolute inset-0"
         style={{
-          backgroundImage: 'radial-gradient(rgba(255,255,255,0.16) 1px, transparent 1.5px)',
+          backgroundImage: 'radial-gradient(rgba(99,102,241,0.16) 1px, transparent 1.5px)',
           backgroundSize: '12px 12px',
           maskImage: 'linear-gradient(115deg, transparent 40%, black)',
           WebkitMaskImage: 'linear-gradient(115deg, transparent 40%, black)',
@@ -336,14 +336,14 @@ function ConferencePulseCard({ totals, days }: { totals: CheckInBoardData['total
       />
       <div className="relative flex h-full flex-col">
         <h3 className="text-lg font-semibold">Conference at a glance</h3>
-        <p className="mt-1 flex-1 text-sm text-white/70">
-          <span className="font-semibold text-white tabular-nums">{totals.completed} of {totals.meetings}</span>{' '}
+        <p className="mt-1 flex-1 text-sm text-ink-2">
+          <span className="font-semibold text-ink tabular-nums">{totals.completed} of {totals.meetings}</span>{' '}
           meetings completed across {days} day{days === 1 ? '' : 's'} — {totals.sponsorArrived} sponsor and{' '}
           {totals.buyerArrived} buyer arrivals logged, {totals.awaiting} still awaiting.
         </p>
         <a
           href="#floor-board"
-          className="mt-4 flex min-h-[44px] items-center justify-between rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-transform active:scale-[0.97]"
+          className="mt-4 flex min-h-[44px] items-center justify-between rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white transition-transform active:scale-[0.97]"
         >
           Jump to the floor board <span aria-hidden>{'→'}</span>
         </a>
