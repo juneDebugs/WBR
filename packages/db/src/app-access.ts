@@ -34,9 +34,29 @@
 export type AppName = 'web' | 'meetings' | 'sponsor' | 'attendee'
 
 // The admin/WBR tier — full access to every app.
+//
+// THIS LIST NOW ANSWERS TWO UNRELATED QUESTIONS. Read a change to it with both
+// in mind:
+//
+//   1. Which app may this role sign in to?  (APP_ALLOWED_ROLES, below.)
+//   2. Is this person exempt from the onboarding gate?  (isWbrStaff, below.)
+//
+// The second was added on purpose, so that "who is never gated" is one list
+// rather than two that would drift — see
+// docs/adr/0008-onboarding-gate-is-about-the-person-not-the-app.md. The cost of
+// that choice is here: ADDING A ROLE TO THIS ARRAY EXEMPTS IT FROM ONBOARDING IN
+// EVERY APP, IMMEDIATELY, with no separate decision. If that is not what you
+// want for a new role, it does not belong in this array.
 const WBR_ROLES = ['WBR', 'ORGANIZER', 'ADMIN', 'STAFF'] as const
 
-/** True when `role` is a WBR staff/organizer role (the meeting-engine operators). */
+/**
+ * True when `role` is a WBR staff/organizer role (the meeting-engine operators).
+ *
+ * Also the onboarding gate's exemption test, in both the participant app and the
+ * sponsor portal. These accounts operate the event rather than participate in it,
+ * so they are released before any completeness question is asked. Per ADR 0008,
+ * no gate or guard declares its own role list; they all call this.
+ */
 export function isWbrStaff(role: string | null | undefined): boolean {
   return !!role && (WBR_ROLES as readonly string[]).includes(role)
 }

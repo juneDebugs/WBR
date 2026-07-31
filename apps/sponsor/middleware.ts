@@ -16,10 +16,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Already authenticated → redirect away from login page
-  if (token && pathname === '/login') {
+  // Already authenticated → redirect away from login page.
+  //
+  // EXCEPT when the onboarding gate sent them here because their user row no
+  // longer exists. A token whose user row was deleted still decodes perfectly,
+  // so this check cannot tell the difference on its own, and without the
+  // exception the two redirects chase each other forever: /dashboard asks the
+  // gate, the gate finds no row and sends them to /login, this sends them back
+  // to /dashboard. That loop is not hypothetical — it was measured in the
+  // attendee app, where it was the first version of the same fix. The marker is
+  // the one case where a token-holder genuinely does need the sign-in form.
+  //
+  // Mirrors apps/attendee/middleware.ts. See lib/onboarding-gate.ts.
+  const sessionInvalid = request.nextUrl.searchParams.get('session') === 'invalid'
+  if (token && pathname === '/login' && !sessionInvalid) {
     const dashUrl = request.nextUrl.clone()
     dashUrl.pathname = '/dashboard'
+    dashUrl.search = ''
     return NextResponse.redirect(dashUrl)
   }
 

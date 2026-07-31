@@ -40,8 +40,14 @@ export const NavBar = memo(function NavBar() {
           </span>
         </div>
 
-        {/* Nav links */}
-        <nav className="flex items-center gap-0.5">
+        {/* Nav links.
+            The test marker is load-bearing for the onboarding gate, not
+            decoration. This navigation renders only inside the (portal) route
+            group, so its presence is what proves a representative was released
+            and its ABSENCE is what proves the checklist sits outside that group
+            and cannot be used to click around the gate. See
+            docs/smoketests/playwright/phase-5-sponsor-screen-gate.mjs. */}
+        <nav className="flex items-center gap-0.5" data-testid="portal-nav">
           {NAV.map(({ href, label, icon }) => (
             <Link key={href} href={href}
               className={`flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${
