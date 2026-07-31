@@ -3,10 +3,15 @@ import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
   const user = session.user as any
   if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor' }, { status: 403 })
 
@@ -21,6 +26,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
   const user = session.user as any
   if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor' }, { status: 403 })
 

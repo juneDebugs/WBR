@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@conference/db'
 import { getUserFromHeaders } from '@/lib/user'
 import { filterSponsorPortalAttendees } from '@conference/db/src/browse-taxonomy'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 const PAGE_SIZE = 48
 
@@ -10,6 +11,12 @@ export async function GET(req: NextRequest) {
   if (!user.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // The searchable half of the buyer directory. Guarded for the same reason as
+  // /api/attendees and in the same phase, so the refusal there is not undone by
+  // asking this address for the same people with a filter on top (OE 18).
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const sp = req.nextUrl.searchParams
   const search = sp.get('search') ?? ''

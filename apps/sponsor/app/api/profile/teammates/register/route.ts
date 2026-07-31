@@ -2,10 +2,29 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, hashPassword } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // GUARDED, NOT EXEMPT — the one address the plan left open, settled the way it
+  // required: by reading this handler's caller rather than by judgement.
+  //
+  // Its only caller is components/RegisterTeammate.tsx. That component's only
+  // render site is app/(authenticated)/(portal)/submissions/page.tsx, which sits
+  // inside the `(portal)` route group Phase 5 gates. So an incomplete
+  // representative cannot reach the screen that calls this address at all:
+  // guarding it takes nothing away from anyone who could otherwise have used it,
+  // and leaving it open would let a representative blocked from every screen
+  // create working accounts for colleagues.
+  //
+  // Reproduce the finding:
+  //   grep -rn "teammates/register" apps/sponsor --include="*.tsx"
+  //   grep -rn "RegisterTeammate" apps/sponsor --include="*.tsx"
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
   const user = session.user as any
   if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor linked' }, { status: 403 })
 
