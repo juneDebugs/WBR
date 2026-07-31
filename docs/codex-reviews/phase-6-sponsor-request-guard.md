@@ -149,7 +149,7 @@ A documentation defect that only exists because 1.3's fix added rows — the fix
 
 ## What the cycle did not look at
 
-- **AC-8, the deployed-preview cache check.** Blocked on a Vercel Protection Bypass for Automation token. The script exists and is reviewed; it has not been run. This is the one outstanding acceptance criterion.
+- **AC-8, the deployed-preview cache check.** Since run, on 2026-07-31, through a browser session rather than the committed script — a protected preview refuses scripted requests, and the alternative was creating a credential on a stakeholder's Vercel team. The refusal held on the deployed preview and nothing served the buyer list from a stored copy. One half of the criterion, "two distinct signed-in sessions", was not achieved: the second account could not sign in, which turned out to be a pre-existing product defect (colleague accounts are created with a role the sponsor portal refuses). Full measurements in `docs/smoketests/phase-6-sponsor-request-guard.md` § Step 12 and finding 6. The committed script was not reviewed by any round against a real run, since it had never run when the rounds happened.
 - **The four soft completeness measures.** Out of scope by decision in the requirements document.
 - **Whether the two pre-existing tenant-authorization defects (2.1) should jump the queue** ahead of the remaining phases. That is a decision for the engineer of record with the project owner, not for a review round.
 - **Phase 7's screen for the no-company case.** Phase 6 refuses that account at all nineteen data addresses; the explanation screen is Phase 7's.

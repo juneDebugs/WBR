@@ -175,9 +175,32 @@ VERCEL_PROTECTION_BYPASS=<token> \
   - **Pass:** the second account answers `403` with `onboardingRequired`.
   - **Fail:** the second account receives the people list — a shared cache answered without reaching application code.
 
-**Status: NOT YET RUN.** Blocked on the bypass token. Every request to a protected preview answers `302` to `vercel.com/sso-api`, so the app is never reached and a "refused" result would be meaningless. Generate the token at Vercel Project Settings → Deployment Protection → Protection Bypass for Automation. The same environment variable name is already used by `playwright/phase-12a-sponsor-ai-intro.mjs` and `phase-12b-ai-controls.mjs`.
+**Status: RUN 2026-07-31 against the PR 33 preview. The refusal held. One part of the criterion could not be satisfied — see below.**
 
-**Record the cache headers with the verdict.** The bypass token is itself a signal to the platform and may change how the response is cached. If it does, a "refused" result proves the guard runs but proves nothing about the cache. The script prints the cache-related headers for every request precisely so the strength of the conclusion can be judged rather than assumed.
+**How it was run, and why not with the script.** A protected preview answers `302` to `vercel.com/sso-api` for any scripted request, so `phase-6-deployed-cache-check.mjs` could not reach the app. Rather than create a Protection Bypass for Automation token — a credential granting access to every protected deployment in a project that belongs to a stakeholder's Vercel team, not the engineer's — the run went through a real browser already holding a Vercel session, issuing the same requests from inside a page on the preview origin. **The script remains the reproducible artefact and is still worth running when a token exists**, because it does not depend on somebody's browser.
+
+Preview: `https://wbr-sponsor-git-onboarding-enforceme-62da7c-june-1220s-projects.vercel.app`
+
+| Observation | Value |
+|---|---|
+| Signed in as | `sponsor@test.com`, role `SPONSOR`, company **Tailor ERP** |
+| Buyer list while company complete | `200`, **1,036** people |
+| Cache headers on that response | `cache-control: private, no-store`, `x-vercel-cache: MISS`, `age: 0` |
+| Same request repeated immediately | `200`, 1,036, **`x-vercel-cache: MISS` again** |
+| Tagline emptied → same session asks again | **`403`** with `{"error":"Complete your company profile before using the portal","onboardingRequired":true}` |
+| Tagline restored and read back | `Composable ERP for modern commerce operations` — confirmed identical |
+| Temporary account removed | `200` |
+| Demonstration login served again afterwards | `200` |
+
+**The result, and why the evidence is stronger than the criterion asked for in one respect and weaker in another.**
+
+Stronger: the session refused at the end is the **same session** that had successfully received all 1,036 buyers seconds earlier. If any shared cache were storing and reusing that response, that session was the likeliest of all to be handed its own stored copy. It was refused. Combined with `x-vercel-cache: MISS` on two consecutive successful requests and `private, no-store` on the wire, nothing between the app and the caller is storing this response.
+
+Weaker: **the criterion says "two distinct signed-in sessions" and that was not achieved.** The second account was created successfully (`201`) but could not sign in (`403`). The cause is a pre-existing defect recorded as finding 6 below. Note that the buyer-list response carries no per-caller variation — every complete representative receives the same list — so "one session's copy served to another" and "a stored copy served at all" are the same question for this address, and the second was answered.
+
+**Recorded rather than glossed: the refusal response itself carries `cache-control: public, max-age=0, must-revalidate`**, which is the framework default because the guard sets no header on its refusal. `max-age=0, must-revalidate` means a stored copy cannot be reused without checking back, so a refusal cannot be replayed to somebody who should be served. Harmless, and written down so it is not discovered later and mistaken for an oversight.
+
+**What is still not established.** [unverified: whether the deployed behaviour is identical with a bypass token in play rather than a browser session. A token is itself a signal to the platform and could change caching. Running the committed script once a token exists would settle it, and the numbers above give it something to be compared against.]
 
 ---
 
@@ -381,6 +404,28 @@ The mechanism is real. `lib/query-client.tsx` persists all query state to Indexe
 
 **What is real and worth its own look:** roughly 1MB of one company's data — including the buyer directory — remains readable in the browser's IndexedDB after that representative signs out. On a shared machine, somebody with access to the browser profile could read it through developer tools without signing in. That is data at rest on the client, a different finding from the one raised, and outside anything Phase 6 touches. The fix is to call `removeClient` on sign-out.
 
+### 6. The sponsor portal creates colleague accounts that cannot sign in to the sponsor portal — NOT fixed here
+
+Found by accident while running the deployed check, then confirmed in the code.
+
+`POST /api/profile/teammates/register` is the address behind the portal's "add a colleague" form. It creates the new account with the role `ATTENDEE`. The sponsor portal admits only `SPONSOR` plus the event-operating roles. Both sign-in paths enforce that. So **every colleague added through that form is handed a working password for a portal that will refuse them.**
+
+```
+apps/sponsor/app/api/profile/teammates/register/route.ts:71   role: 'ATTENDEE',
+packages/db/src/app-access.ts:50                              WBR_ROLES = ['WBR','ORGANIZER','ADMIN','STAFF']
+packages/db/src/app-access.ts:72                              sponsor: ['SPONSOR', ...WBR_ROLES],
+apps/sponsor/app/api/login/route.ts:25                        if (!canAccessApp('sponsor', user.role)) → 403
+apps/sponsor/lib/auth.ts:52, 91                               same check on the NextAuth path
+```
+
+Measured on the deployed preview: creating the colleague answered `201`, and signing in as that colleague answered `403`.
+
+**Pre-existing and not caused by this phase**, which only added a completeness check to that address. [verified: `git diff --numstat origin/main...HEAD -- apps/sponsor/app/api/profile/teammates/register/route.ts` shows insertions only, no deletions, so the role assignment is untouched.]
+
+**Not fixed here** because choosing the right role for an invited colleague is a product decision, not a completeness one: `SPONSOR` would grant them the full portal including the buyer directory, which may or may not be what an exhibitor should be able to hand out. That decision belongs with the project owner.
+
+**Worth putting in front of somebody before the demonstration**, because it is user-visible in an obvious way: an exhibitor adds a teammate, sees success, and the teammate cannot get in.
+
 ### 5. Two smaller observations, neither actioned
 
 - **The `(portal)` layout preloads the buyer directory without credentials.** `<link rel="preload" href="/api/attendees" as="fetch" crossOrigin="anonymous" />` sends no cookie, so the guard sees no session, returns `null`, and the handler's own `if (!user.id)` answers `401`. The preload warms nothing. Pre-existing and unchanged by this phase, but it is dead weight rather than an optimisation.
@@ -403,7 +448,7 @@ The mechanism is real. `lib/query-client.tsx` persists all query state to Indexe
 | 9. Refusal shape matches the participant app's | contract | tier C | **PASS** |
 | 10. The checklist still works, real button pressed | contract | tier C | **PASS** |
 | 11. The suite can go red — five negative controls | contract | tier C | **PASS** (5 of 5 caught) |
-| 12. Deployed-preview cache check | contract | tier B | **NOT RUN** — needs a bypass token |
+| 12. Deployed-preview cache check | contract | tier B | **PASS with one part unmet** — refusal held on the deployed preview; nothing served from a stored copy; the "two distinct sessions" half blocked by finding 6 |
 | AC-6 enumeration | document deliverable | — | **PASS** (§ Request handlers) |
 | AC-7 teammate decision | document deliverable | — | **PASS** (§ The teammate-registration decision) |
 
@@ -432,7 +477,7 @@ Phase 6 ships when:
 
 - Steps 1 to 11 pass on a tier-C production build — **met**.
 - All five negative controls are caught — **met**.
-- Step 12 runs on a Vercel preview and its result is recorded either way — **NOT met.** This is the one outstanding item and it needs a Protection Bypass for Automation token.
+- Step 12 runs on a Vercel preview and its result is recorded either way — **met, with one part of the criterion unmet and stated as such.** The refusal held on the deployed preview and nothing served the buyer list from a stored copy. The criterion's "two distinct signed-in sessions" wording was not satisfied, because the second account could not sign in — finding 6. For this address the two questions collapse into one, since the response carries no per-caller variation, and the one that could be asked was answered.
 - The dry-run with the project owner happens. **Not met for any phase yet**, including 1 through 5. Automated checks passing is never treated as done.
 
 ---
