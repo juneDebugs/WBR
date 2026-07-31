@@ -165,8 +165,7 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
         <MeetingsTab href="?tab=requests" label="Requests" active={tab === 'requests'} icon={<IconRequests />}
           badge={(counts.PENDING ?? 0) > 0 ? counts.PENDING : undefined} />
         <MeetingsTab href="?tab=companies" label="Companies" active={tab === 'companies' && view !== 'settings'} icon={<IconCompanies />} />
-        <MeetingsTab href="?tab=schedule" label="Schedule" active={tab === 'schedule'} icon={<IconSchedule />}
-          badge={data ? allConfirmed.length : undefined} badgeTone="neutral" />
+        <MeetingsTab href="?tab=schedule" label="Schedule" active={tab === 'schedule'} icon={<IconSchedule />} />
         <MeetingsTab href="?tab=companies&view=settings" label="Settings" active={tab === 'companies' && view === 'settings'} icon={<IconSettings />} />
       </nav>
 
