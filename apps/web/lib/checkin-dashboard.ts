@@ -51,6 +51,20 @@ export function slotStats(day: CheckInDay, nowMs: number): SlotStat[] {
   })
 }
 
+// Header tallies for the open-slots widget: how many under-booked sponsors the
+// day has and how many bookable gaps they add up to. Pure over day.openSlots
+// (built server-side), so the widget and the "Open Meeting Slots" table below
+// can never disagree.
+export function openSlotSummary(day: CheckInDay): { sponsors: number; slots: number; needed: number } {
+  let slots = 0
+  let needed = 0
+  for (const sp of day.openSlots) {
+    slots += sp.openSlots.length
+    needed += sp.needed
+  }
+  return { sponsors: day.openSlots.length, slots, needed }
+}
+
 // The slot the tracker chart spotlights: the one happening now, else the next
 // one up, else (day fully over) the busiest slot by completed check-ins.
 export function pickHighlightSlot(stats: SlotStat[]): string | null {

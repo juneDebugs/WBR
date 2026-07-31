@@ -77,6 +77,11 @@ async function cleanup() {
   await prisma.sponsorMeeting.deleteMany({ where: { userId: { startsWith: PREFIX } } }).catch(() => {})
   await prisma.user.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
   await prisma.conference.deleteMany({ where: { id: { startsWith: PREFIX } } }).catch(() => {})
+  // Requirement overrides live in a global table (not conference-scoped), so
+  // sweep the fixture sponsors' rows by id prefix.
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM "MeetingRequirementSetting" WHERE "scope" = 'SPONSOR' AND "subjectId" LIKE '${PREFIX}%'`,
+  ).catch(() => {})
 }
 
 async function main() {
@@ -202,6 +207,39 @@ async function main() {
   const rowAfter = board.days.flatMap(d => d.slots).flatMap(s => s.meetings).find(m => m.sponsorMeetingId === mAlphaBob.id)
   check('board reflects final state (sponsor+buyer arrived, notes null)',
     !!rowAfter?.sponsorArrivedAt && !!rowAfter?.buyerArrivedAt && rowAfter?.notes === null)
+
+  console.log('\nOpen slots (per sponsor, per day)')
+  // Deterministic per-company targets so "short" doesn't depend on live global
+  // settings. Confirmed this conf: alpha=2 (tb1,tb1b), zebra=2 (tb1,tb2),
+  // zebra2=1 (tb1). Day 1 blocks: tb1, tbEmpty, tb1b. Day 2 blocks: tb2.
+  await E.saveMeetingRequirementSettings(prisma, { sponsorOverrides: [
+    { sponsorId: alpha.id, required: 5 },  // needs 3
+    { sponsorId: zebra.id, required: 3 },  // needs 1
+    { sponsorId: zebra2.id, required: 1 }, // confirmed 1 ≥ 1 → NOT short, excluded
+  ] })
+  board = await E.getCheckInBoard(prisma, confId)
+  const os1 = board.days[0]?.openSlots ?? []
+  const os2 = board.days[1]?.openSlots ?? []
+  check('day 1 lists 2 short sponsors (zebra2 is at target → excluded)',
+    os1.length === 2 && !os1.some(s => s.sponsorId === zebra2.id),
+    `sponsors=${os1.map(s => `${s.sponsorId.replace(PREFIX, '')}:n${s.needed}`).join(',')}`)
+  check('day 1 ordered by need desc (alpha needs 3 before zebra needs 1)',
+    os1[0]?.sponsorId === alpha.id && os1[1]?.sponsorId === zebra.id)
+  const osAlpha1 = os1.find(s => s.sponsorId === alpha.id)
+  check('alpha day 1: confirmed 2 / required 5, needs 3',
+    osAlpha1?.confirmed === 2 && osAlpha1?.requiredMeetings === 5 && osAlpha1?.needed === 3, JSON.stringify(osAlpha1?.needed))
+  check('alpha day 1 open slots = [tbEmpty] (its tb1 + tb1b are booked)',
+    osAlpha1?.openSlots.length === 1 && osAlpha1.openSlots[0].timeBlockId === tbEmpty.id,
+    `open=${osAlpha1?.openSlots.map(o => o.timeBlockId.replace(PREFIX, '')).join(',')}`)
+  const osZebra1 = os1.find(s => s.sponsorId === zebra.id)
+  check('zebra day 1 open slots = [tbEmpty, tb1b] chronological (tb1 booked; tb2 is day 2)',
+    osZebra1?.openSlots.length === 2 &&
+    osZebra1.openSlots[0].timeBlockId === tbEmpty.id && osZebra1.openSlots[1].timeBlockId === tb1b.id,
+    `open=${osZebra1?.openSlots.map(o => o.timeBlockId.replace(PREFIX, '')).join(',')}`)
+  check('day 2 lists only alpha with its single open block tb2 (zebra booked tb2, at-target zebra2 excluded)',
+    os2.length === 1 && os2[0].sponsorId === alpha.id &&
+    os2[0].openSlots.length === 1 && os2[0].openSlots[0].timeBlockId === tb2.id,
+    `day2=${os2.map(s => `${s.sponsorId.replace(PREFIX, '')}[${s.openSlots.length}]`).join(',')}`)
 
   console.log('\nErrors')
   await expectThrow('unknown meeting id → MEETING_NOT_FOUND', 'MEETING_NOT_FOUND',

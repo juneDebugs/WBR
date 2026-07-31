@@ -59,9 +59,19 @@ const slotB = {
   ],
   completed: 1,
 }
+// Two under-booked sponsors: Acme needs 3 more with 2 open blocks, Globex needs
+// 1 more with 1 open block. openSlotSummary sums across them.
+const openA = { timeBlockId: 'blk-a', startsAt: iso(T0), endsAt: iso(T0 + HOUR) }
+const openB = { timeBlockId: 'blk-b', startsAt: iso(T0 + 2 * HOUR), endsAt: iso(T0 + 3 * HOUR) }
 const day = {
   dayKey: '2027-03-01', label: 'Mar 1', slots: [slotA, slotB],
   totals: { meetings: 5, completed: 2, sponsorArrived: 3, buyerArrived: 3, awaiting: 1 },
+  openSlots: [
+    { sponsorId: 'sp-acme', sponsorName: 'Acme', sponsorLogo: null, sponsorTier: 'GOLD',
+      confirmed: 5, requiredMeetings: 8, needed: 3, openSlots: [openA, openB] },
+    { sponsorId: 'sp-globex', sponsorName: 'Globex', sponsorLogo: null, sponsorTier: 'SILVER',
+      confirmed: 7, requiredMeetings: 8, needed: 1, openSlots: [openB] },
+  ],
 }
 
 // ── slotPhase ─────────────────────────────────────────────────────────────────
@@ -121,6 +131,15 @@ check('over-full clamps to all ticks', d.filledTicks(12, 10, 14) === 14)
 check('tiny nonzero lights ≥1 tick', d.filledTicks(1, 1000, 14) === 1)
 check('near-full stays <all ticks', d.filledTicks(999, 1000, 14) === 13)
 check('half → about half', d.filledTicks(5, 10, 14) === 7)
+
+// ── openSlotSummary ─────────────────────────────────────────────────────────
+console.log('openSlotSummary')
+const openSummary = d.openSlotSummary(day)
+check('2 sponsors short', openSummary.sponsors === 2, JSON.stringify(openSummary))
+check('3 open slots total (2 + 1)', openSummary.slots === 3, JSON.stringify(openSummary))
+check('4 meetings needed total (3 + 1)', openSummary.needed === 4, JSON.stringify(openSummary))
+const emptyDay = { ...day, openSlots: [] }
+check('no open slots → all zero', (() => { const s = d.openSlotSummary(emptyDay); return s.sponsors === 0 && s.slots === 0 && s.needed === 0 })())
 
 // ── compactSlotLabel ──────────────────────────────────────────────────────────
 console.log('compactSlotLabel')

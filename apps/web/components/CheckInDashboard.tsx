@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import type { CheckInBoard as CheckInBoardData, CheckInDay } from '@conference/db'
+import type { CheckInBoard as CheckInBoardData, CheckInDay, OpenSlotSponsor } from '@conference/db'
 import { fmtSlotRange, fmtSlotTime, TZ } from '@/lib/format'
-import { meterClass } from '@/lib/meetings-ui'
+import { meterClass, TIER_COLORS, TIER_FALLBACK } from '@/lib/meetings-ui'
 import {
   compactSlotLabel, completionRate, filledTicks, needsAttention, pickHighlightSlot, slotStats,
-  type AttentionItem, type SlotStat,
+  openSlotSummary, type AttentionItem, type SlotStat,
 } from '@/lib/checkin-dashboard'
 
 type PatchPayload = { sponsorArrived?: boolean; buyerArrived?: boolean; notes?: string | null }
@@ -52,7 +52,7 @@ export function CheckInDashboard({ board, day, onCheckIn }: {
         </div>
       </div>
       <div className="flex flex-col gap-4">
-        <SlotListCard stats={stats} highlightId={highlightId} />
+        <OpenSlotsCard day={day} />
         <ArrivalProgressCard day={day} />
       </div>
       <DaySummaryBar day={day} boardTotals={board.totals} />
@@ -181,81 +181,104 @@ function TrackerCard({ day, stats, highlightId }: {
   )
 }
 
-// ── Time Slots (accordion list) ─────────────────────────────────────────────
-function slotBadge(s: SlotStat) {
-  if (s.meetings > 0 && s.completed === s.meetings) return <span className="badge badge-success">{'✓'} Complete</span>
-  if (s.phase === 'live') return <span className="badge badge-brand">Live now</span>
-  if (s.phase === 'upcoming') return <span className="badge badge-neutral">Upcoming</span>
-  return <span className="badge badge-neutral">Ended</span>
-}
-
-function SlotListCard({ stats, highlightId }: { stats: SlotStat[]; highlightId: string | null }) {
-  const [openId, setOpenId] = useState<string | null>(highlightId)
+// ── Time Slots (open slots per sponsor) ─────────────────────────────────────
+// Not the day's clock anymore — the day's *gaps*. Each row is a sponsor that
+// still needs meetings (confirmed < required), and expands to the exact empty
+// blocks it can be booked into. Text twin of the "Open Meeting Slots" table
+// below the floor board (both read day.openSlots); "See table" jumps there.
+function OpenSlotsCard({ day }: { day: CheckInDay }) {
+  const rows = day.openSlots
+  const [openId, setOpenId] = useState<string | null>(rows[0]?.sponsorId ?? null)
+  const summary = openSlotSummary(day)
 
   return (
-    <section className="card flex-1 p-5" aria-label="Time slots">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-ink">Time Slots</h3>
-        <a href="#floor-board" className="text-sm font-medium text-brand hover:underline">See table</a>
+    <section className="card flex-1 p-5" aria-label="Open time slots">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-lg font-semibold text-ink">Open Time Slots</h3>
+          <p className="mt-0.5 text-caption text-ink-3 tabular-nums">
+            {summary.slots} open slot{summary.slots === 1 ? '' : 's'} · {summary.sponsors} sponsor{summary.sponsors === 1 ? '' : 's'} short
+          </p>
+        </div>
+        <a href="#open-slots" className="flex-shrink-0 text-sm font-medium text-brand hover:underline">See table</a>
       </div>
-      {/* Capped so a many-slot day scrolls here instead of stretching the whole dashboard */}
-      <ul className="mt-1 max-h-[24rem] divide-y divide-hairline overflow-y-auto overscroll-contain">
-        {stats.map(s => {
-          const open = openId === s.timeBlockId
-          const live = s.phase === 'live'
-          return (
-            <li key={s.timeBlockId}>
-              <button
-                type="button"
-                aria-expanded={open}
-                onClick={() => setOpenId(cur => (cur === s.timeBlockId ? null : s.timeBlockId))}
-                className="flex min-h-[52px] w-full items-center gap-3 py-2.5 text-left"
-              >
-                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${live ? 'bg-brand text-white' : 'bg-brand-50 text-brand'}`} aria-hidden>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <circle cx="8" cy="8" r="6.25" />
-                    <path d="M8 4.75V8l2.25 1.5" />
-                  </svg>
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-ink tabular-nums">{fmtSlotRange(s.startsAt, s.endsAt)}</span>
-                    {slotBadge(s)}
+
+      {rows.length === 0 ? (
+        <div className="py-8 text-center">
+          <p className="text-sm font-medium text-ink">No open slots</p>
+          <p className="mt-1 text-xs text-ink-2">Every sponsor has enough meetings booked for {day.label}.</p>
+        </div>
+      ) : (
+        /* Capped so a many-sponsor day scrolls here instead of stretching the whole dashboard */
+        <ul className="mt-1 max-h-[24rem] divide-y divide-hairline overflow-y-auto overscroll-contain">
+          {rows.map(sp => {
+            const open = openId === sp.sponsorId
+            return (
+              <li key={sp.sponsorId}>
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setOpenId(cur => (cur === sp.sponsorId ? null : sp.sponsorId))}
+                  className="flex min-h-[52px] w-full items-center gap-3 py-2.5 text-left"
+                >
+                  <SponsorAvatar name={sp.sponsorName} logo={sp.sponsorLogo} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-ink">{sp.sponsorName}</span>
+                      <span className={`badge ${TIER_COLORS[sp.sponsorTier] ?? TIER_FALLBACK}`}>{sp.sponsorTier}</span>
+                    </span>
+                    <span className="mt-0.5 block text-caption text-ink-3 tabular-nums">
+                      {sp.confirmed}/{sp.requiredMeetings} booked · needs {sp.needed} more
+                    </span>
                   </span>
-                </span>
-                <span className="text-sm text-ink-2 tabular-nums">{s.completed}/{s.meetings}</span>
-                <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-fill text-ink-2 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <path d="M2.5 4.5 6 8l3.5-3.5" />
-                  </svg>
-                </span>
-              </button>
-              {open && (
-                <div className="pb-3 pl-[52px]">
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="badge badge-neutral tabular-nums">{s.meetings} meeting{s.meetings === 1 ? '' : 's'}</span>
-                    {s.rooms > 0 && <span className="badge badge-neutral tabular-nums">{s.rooms} room{s.rooms === 1 ? '' : 's'}</span>}
-                    {s.awaiting > 0 && <span className="badge badge-warning tabular-nums">{s.awaiting} awaiting</span>}
-                  </div>
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <div className="meter flex-1">
-                      <div
-                        className={`meter-fill ${meterClass(s.meetings > 0 ? s.completed / s.meetings : 0)}`}
-                        style={{ width: `${s.meetings > 0 ? (s.completed / s.meetings) * 100 : 0}%` }}
-                      />
+                  <span className="badge badge-warning flex-shrink-0 tabular-nums">{sp.openSlots.length} open</span>
+                  <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-fill text-ink-2 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                      <path d="M2.5 4.5 6 8l3.5-3.5" />
+                    </svg>
+                  </span>
+                </button>
+                {open && (
+                  <div className="pb-3 pl-[52px]">
+                    <div className="mb-2 flex items-center gap-2">
+                      <div className="meter flex-1">
+                        <div
+                          className={`meter-fill ${meterClass(sp.requiredMeetings > 0 ? sp.confirmed / sp.requiredMeetings : 1)}`}
+                          style={{ width: `${sp.requiredMeetings > 0 ? Math.min(100, (sp.confirmed / sp.requiredMeetings) * 100) : 100}%` }}
+                        />
+                      </div>
+                      <span className="text-caption text-ink-3 tabular-nums">{sp.confirmed}/{sp.requiredMeetings}</span>
                     </div>
-                    <span className="text-caption text-ink-3 tabular-nums">{s.completed}/{s.meetings}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {sp.openSlots.map(slot => (
+                        <span key={slot.timeBlockId} className="badge badge-neutral tabular-nums">
+                          {fmtSlotRange(slot.startsAt, slot.endsAt)}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <p className="mt-1.5 text-caption text-ink-3 tabular-nums">
-                    Sponsors {s.sponsorArrived} · Buyers {s.buyerArrived} arrived
-                  </p>
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </section>
+  )
+}
+
+function SponsorAvatar({ name, logo }: { name: string; logo: string | null }) {
+  if (logo) {
+    return (
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-hairline bg-white p-0.5">
+        <Image src={logo} alt="" width={40} height={40} className="h-full w-full object-contain" />
+      </div>
+    )
+  }
+  return (
+    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 text-sm font-bold text-brand">
+      {initial(name)}
+    </div>
   )
 }
 

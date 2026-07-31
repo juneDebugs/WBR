@@ -1441,10 +1441,38 @@ export interface CheckInDay {
   label: string
   slots: CheckInSlot[]       // chronological
   totals: CheckInTotals
+  openSlots: OpenSlotSponsor[] // sponsors below target that still have empty blocks this day
 }
 export interface CheckInBoard {
   days: CheckInDay[]
   totals: CheckInTotals
+}
+
+// ── Open slots (per sponsor, per day) ───────────────────────────────────────
+// A single bookable gap: a time block on the day in which the sponsor holds no
+// CONFIRMED meeting. Slots are EXCLUSIVE (MEETINGS_PER_BLOCK === 1), so "the
+// sponsor has a meeting in this block" and "this block is closed for them" are
+// the same thing — every block without one is open.
+export interface OpenSlot {
+  timeBlockId: string
+  startsAt: string
+  endsAt: string
+}
+// One under-booked sponsor's open gaps on a given day. `confirmed`/`required`
+// are the company-wide fill numbers (the "6 / 8" the widget shows); `needed` is
+// how many more confirmed meetings it takes to hit the target. A sponsor is
+// only listed while it still needs meetings (confirmed < required) AND has at
+// least one open block that day — the two conditions the Showtime board uses to
+// answer "who can I still book, and when?".
+export interface OpenSlotSponsor {
+  sponsorId: string
+  sponsorName: string
+  sponsorLogo: string | null
+  sponsorTier: string
+  confirmed: number         // company-wide CONFIRMED meetings (numerator of the fill meter)
+  requiredMeetings: number  // this company's target — admin override or the sponsor default
+  needed: number            // max(0, requiredMeetings - confirmed)
+  openSlots: OpenSlot[]     // this day's time blocks with no confirmed meeting for the sponsor (chronological)
 }
 
 function tallyCheckIns(meetings: CheckInMeeting[]): CheckInTotals {
@@ -1460,7 +1488,7 @@ function tallyCheckIns(meetings: CheckInMeeting[]): CheckInTotals {
 
 export async function getCheckInBoard(prisma: Db, conferenceId?: string): Promise<CheckInBoard> {
   const confId = await resolveConferenceId(prisma, conferenceId)
-  const [timeBlocks, meetings] = await Promise.all([
+  const [timeBlocks, meetings, sponsors, requirementSettings] = await Promise.all([
     prisma.timeBlock.findMany({
       where: { conferenceId: confId },
       orderBy: { startsAt: 'asc' },
@@ -1475,9 +1503,23 @@ export async function getCheckInBoard(prisma: Db, conferenceId?: string): Promis
         user: { select: { name: true, company: true } },
       },
     }),
+    // Every sponsor in the conference — including ones with zero confirmed
+    // meetings, which are the most under-booked and must still surface as open
+    // slots (they'd never appear from the meetings join alone).
+    prisma.sponsor.findMany({
+      where: { conferenceId: confId },
+      select: { id: true, name: true, logoUrl: true, tier: true },
+      orderBy: { name: 'asc' },
+    }),
+    getMeetingRequirementSettings(prisma),
   ])
 
   const byBlock = new Map<string, CheckInMeeting[]>()
+  // Company-wide confirmed count + the set of blocks each sponsor already holds,
+  // for the open-slot pass below. Slots are exclusive, so a sponsor occupies a
+  // block at most once — a Set is the exact "closed for this sponsor" test.
+  const confirmedBySponsor = new Map<string, number>()
+  const blocksBySponsor = new Map<string, Set<string>>()
   for (const m of meetings) {
     const row: CheckInMeeting = {
       sponsorMeetingId: m.id,
@@ -1495,6 +1537,20 @@ export async function getCheckInBoard(prisma: Db, conferenceId?: string): Promis
     const arr = byBlock.get(m.timeBlockId) ?? []
     arr.push(row)
     byBlock.set(m.timeBlockId, arr)
+    confirmedBySponsor.set(m.sponsorId, (confirmedBySponsor.get(m.sponsorId) ?? 0) + 1)
+    const held = blocksBySponsor.get(m.sponsorId) ?? new Set<string>()
+    held.add(m.timeBlockId)
+    blocksBySponsor.set(m.sponsorId, held)
+  }
+
+  // Full block list per day (empty blocks included) — the floor grid drops
+  // empty slots, but the open-slot pass needs every block to find the gaps.
+  const blocksByDay = new Map<string, typeof timeBlocks>()
+  for (const tb of timeBlocks) {
+    const key = dayKeyOf(tb.startsAt)
+    const arr = blocksByDay.get(key) ?? []
+    arr.push(tb)
+    blocksByDay.set(key, arr)
   }
 
   const dayMap = new Map<string, CheckInDay>()
@@ -1511,6 +1567,7 @@ export async function getCheckInBoard(prisma: Db, conferenceId?: string): Promis
       day = {
         dayKey: key, label: dayLabel(tb.startsAt), slots: [],
         totals: { meetings: 0, completed: 0, sponsorArrived: 0, buyerArrived: 0, awaiting: 0 },
+        openSlots: [],
       }
       dayMap.set(key, day)
     }
@@ -1523,9 +1580,41 @@ export async function getCheckInBoard(prisma: Db, conferenceId?: string): Promis
     })
   }
   const days = Array.from(dayMap.values())
-  for (const day of days) day.totals = tallyCheckIns(day.slots.flatMap(s => s.meetings))
+  for (const day of days) {
+    day.totals = tallyCheckIns(day.slots.flatMap(s => s.meetings))
+    day.openSlots = buildOpenSlots(blocksByDay.get(day.dayKey) ?? [], sponsors, confirmedBySponsor, blocksBySponsor, requirementSettings)
+  }
 
   return { days, totals: tallyCheckIns(all) }
+}
+
+// For one day's blocks, list every under-booked sponsor with the gaps it can
+// still be scheduled into. Ordered most-in-need first (largest deficit, then
+// least booked, then name) so the floor team works the biggest holes first.
+function buildOpenSlots(
+  dayBlocks: { id: string; startsAt: Date; endsAt: Date }[],
+  sponsors: { id: string; name: string; logoUrl: string | null; tier: string }[],
+  confirmedBySponsor: Map<string, number>,
+  blocksBySponsor: Map<string, Set<string>>,
+  settings: MeetingRequirementSettings,
+): OpenSlotSponsor[] {
+  const rows: OpenSlotSponsor[] = []
+  for (const s of sponsors) {
+    const required = requiredMeetingsForSponsor(settings, s.id)
+    const confirmed = confirmedBySponsor.get(s.id) ?? 0
+    if (confirmed >= required) continue // already has enough meetings — not "open"
+    const held = blocksBySponsor.get(s.id)
+    const openSlots: OpenSlot[] = dayBlocks
+      .filter(tb => !held?.has(tb.id)) // dayBlocks are pre-sorted by startsAt
+      .map(tb => ({ timeBlockId: tb.id, startsAt: tb.startsAt.toISOString(), endsAt: tb.endsAt.toISOString() }))
+    if (openSlots.length === 0) continue // fully booked for this day, even if short overall
+    rows.push({
+      sponsorId: s.id, sponsorName: s.name, sponsorLogo: s.logoUrl, sponsorTier: s.tier,
+      confirmed, requiredMeetings: required, needed: Math.max(0, required - confirmed), openSlots,
+    })
+  }
+  rows.sort((a, b) => b.needed - a.needed || a.confirmed - b.confirmed || a.sponsorName.localeCompare(b.sponsorName))
+  return rows
 }
 
 // Toggle arrivals / edit the internal note for one meeting. Fields left

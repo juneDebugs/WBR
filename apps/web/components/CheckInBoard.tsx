@@ -3,10 +3,10 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { CheckInBoard as CheckInBoardData, CheckInDay, CheckInMeeting, CheckInTotals } from '@conference/db'
+import type { CheckInBoard as CheckInBoardData, CheckInDay, CheckInMeeting, CheckInTotals, OpenSlotSponsor } from '@conference/db'
 import { useCheckInBoard } from '@/lib/scheduler-hooks'
 import { fmtSlotRange, TZ } from '@/lib/format'
-import { TIER_COLORS, TIER_FALLBACK } from '@/lib/meetings-ui'
+import { TIER_COLORS, TIER_FALLBACK, meterClass } from '@/lib/meetings-ui'
 import { CheckInDashboard } from '@/components/CheckInDashboard'
 
 const KEY = ['scheduler', 'checkin'] as const
@@ -212,10 +212,106 @@ export function CheckInBoard() {
             </tbody>
           </table>
         </div>
+
+        <OpenSlotsTable day={day} />
       </div>
     </div>
   )
 }
+
+// Full-width twin of the Time Slots widget: every open (unbooked) block for each
+// sponsor that still needs meetings, on the selected day. Rows are grouped per
+// sponsor (rowspan on the sponsor + fill cells) so the gaps read as a to-do list
+// of who to book and when. Styling mirrors the Floor Board table above it.
+function OpenSlotsTable({ day }: { day: CheckInDay }) {
+  return (
+    <>
+      <h2 id="open-slots" className="section-title mt-6 mb-2 scroll-mt-4">Open Meeting Slots</h2>
+      {day.openSlots.length === 0 ? (
+        <div className="empty-state bg-white border border-hairline rounded-xl">
+          <p className="font-medium text-ink">No open slots</p>
+          <p className="text-sm text-ink-2">Every sponsor has enough meetings booked for {day.label}.</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-hairline rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-fill border-b border-hairline">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Sponsor</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-48">Meetings Booked</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Open Time Slot</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide w-28">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-hairline">
+              {day.openSlots.map(sp => (
+                <OpenSlotRows key={sp.sponsorId} sponsor={sp} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )
+}
+
+// One sponsor's block of open slots: the Sponsor + Meetings-Booked cells span
+// every open row so a company reads as a single grouped unit.
+const OpenSlotRows = memo(function OpenSlotRows({ sponsor: sp }: { sponsor: OpenSlotSponsor }) {
+  const span = sp.openSlots.length
+  const fill = sp.requiredMeetings > 0 ? Math.min(1, sp.confirmed / sp.requiredMeetings) : 1
+  return (
+    <>
+      {sp.openSlots.map((slot, i) => (
+        <tr key={slot.timeBlockId} className="align-middle hover:bg-fill">
+          {i === 0 && (
+            <>
+              {/* Sponsor */}
+              <td className="px-4 py-2.5 align-top" rowSpan={span}>
+                <div className="flex items-center gap-2.5">
+                  {sp.sponsorLogo ? (
+                    <div className="w-8 h-8 rounded-lg border border-hairline bg-white flex items-center justify-center overflow-hidden flex-shrink-0 p-0.5">
+                      <Image src={sp.sponsorLogo} alt="" width={32} height={32} className="w-full h-full object-contain" />
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-fill flex items-center justify-center text-ink-2 font-bold text-sm flex-shrink-0">
+                      {initial(sp.sponsorName)}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-semibold text-ink leading-tight truncate">{sp.sponsorName}</p>
+                    <span className={`badge text-caption ${TIER_COLORS[sp.sponsorTier] ?? TIER_FALLBACK}`}>{sp.sponsorTier}</span>
+                  </div>
+                </div>
+              </td>
+
+              {/* Meetings booked (fill toward target) */}
+              <td className="px-4 py-2.5 align-top" rowSpan={span}>
+                <div className="flex items-center gap-2">
+                  <span className="text-ink font-medium tabular-nums">{sp.confirmed}/{sp.requiredMeetings}</span>
+                  <div className="meter w-20">
+                    <div className={`meter-fill ${meterClass(fill)}`} style={{ width: `${fill * 100}%` }} />
+                  </div>
+                </div>
+                <p className="mt-1 text-caption text-ink-3 tabular-nums">needs {sp.needed} more</p>
+              </td>
+            </>
+          )}
+
+          {/* Open time slot */}
+          <td className="px-4 py-2.5">
+            <span className="font-medium text-ink tabular-nums">{fmtSlotRange(slot.startsAt, slot.endsAt)}</span>
+          </td>
+
+          {/* Status */}
+          <td className="px-4 py-2.5">
+            <span className="badge badge-warning">Open</span>
+          </td>
+        </tr>
+      ))}
+    </>
+  )
+})
 
 // One time slot: a separator header row with the range + check-in tally chip,
 // then a row per meeting.
