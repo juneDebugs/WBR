@@ -69,6 +69,16 @@ The decision was made early for prototype velocity and held through the demo spr
 
 The architectural fix (Phase 16 in the sprint PRD) is to migrate images to a file-storage backend (Vercel Blob is the recommended fit) post-demo. See full rationale + the proposed migration plan in [`adr/0004-base64-images-in-db.md`](adr/0004-base64-images-in-db.md).
 
+### The onboarding gate is about the person, not the app (2026-07-31)
+
+A participant whose required profile fields are empty is stopped and sent to a checklist. Who that rule does *not* apply to is stated as a kind of person rather than as a list of app names: the gate calls `isWbrStaff()` in [`packages/db/src/app-access.ts`](../packages/db/src/app-access.ts) before it asks any completeness question, so organizer, admin and staff accounts are released in every app. Participants are measured — a delegate against their own profile, a sponsor representative against their exhibiting company's profile.
+
+The earlier wording named two never-gated apps, which left an organizer inside the participant app gated exactly like a delegate, and would have sent the primary demonstration login (`wbr@test.com`: organizer role, no exhibiting company, admitted to the sponsor portal) to a checklist whose save address answers `403 No sponsor linked` — a form it could never complete. The chosen wording also means a fifth app cannot silently gate the people running the event.
+
+The accepted cost is that `WBR_ROLES` now answers two questions at once: which app a role may sign in to, and who is exempt from onboarding. Adding a role to that array exempts it from onboarding everywhere, immediately. Recorded at the definition.
+
+See full rationale, the three rejected alternatives and the verification in [`adr/0008-onboarding-gate-is-about-the-person-not-the-app.md`](adr/0008-onboarding-gate-is-about-the-person-not-the-app.md).
+
 ---
 
 ## Performance (2026-06-22 demo sprint)

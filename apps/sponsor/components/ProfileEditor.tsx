@@ -1,14 +1,30 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useInvalidate } from '@/lib/hooks'
+import { LogoUploader } from '@/components/LogoUploader'
+// The canonical solutions vocabulary, per docs/adr/0006-sponsor-solution-taxonomy-reconciliation.md.
+//
+// That record — dated 2026-07-29 — named lib/solutions.ts as the single canonical
+// taxonomy and listed "ProfileEditor.tsx chip list replaced with an import from
+// lib/solutions.ts. Local const SOLUTIONS deleted" as a load-bearing subtask. The
+// code half was never done. This is it.
+//
+// WHY IT COULD NOT WAIT FOR ITS OWN CHANGE. All 20 seeded companies store
+// canonical strings ("Analytics & Reporting", "AI & Automation", "Loyalty &
+// Rewards" — checked, none outside the canonical list), while this file's own list
+// held a different 18 strings that overlapped on only 6. A representative opening
+// this screen therefore saw NONE of their real solutions selected, and saving
+// replaced their canonical values with non-canonical ones. That path was dormant
+// only because this form could not be submitted at all — every company's relative
+// logo path failed browser URL validation, so pressing Save did nothing. Phase 5
+// fixed that, which would have turned a dormant data-corruption path into a live
+// one. Fixing the vocabulary at the same time is what stops that.
+//
+// The data re-map that record also called for needs no work: the stored values are
+// already canonical.
+import { SOLUTIONS } from '@/lib/solutions'
 
-const SOLUTIONS = [
-  'Analytics & Data', 'Email Marketing', 'SMS Marketing', 'Loyalty & Retention',
-  'Payments & Checkout', 'Logistics & Fulfillment', 'Customer Support',
-  'SEO & Content', 'Paid Advertising', 'Social Commerce', 'Subscription Management',
-  'Reviews & UGC', 'Personalization & AI', 'Influencer Marketing', 'Headless Commerce',
-  'ERP & Operations', 'Returns & Exchanges', 'Tax & Compliance',
-]
 const COMPANY_SIZES = ['1–10', '11–50', '51–200', '201–500', '501–1,000', '1,000+']
 const REVENUE_RANGES = ['<$1M', '$1M–$10M', '$10M–$50M', '$50M–$250M', '$250M+']
 const INDUSTRIES = [
@@ -62,79 +78,9 @@ function MultiChips({ label, options, value, onChange }: {
   )
 }
 
-function LogoUploader({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [mode, setMode] = useState<'url' | 'upload'>(value ? 'url' : 'url')
-  const [uploading, setUploading] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    // Convert to base64 data URL for local storage (no external service needed)
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      onChange(ev.target?.result as string)
-      setUploading(false)
-    }
-    reader.readAsDataURL(file)
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-2">
-        <button type="button" onClick={() => setMode('url')}
-          className={`chip ${mode === 'url' ? 'chip-active' : 'chip-inactive'}`}>
-          URL
-        </button>
-        <button type="button" onClick={() => setMode('upload')}
-          className={`chip ${mode === 'upload' ? 'chip-active' : 'chip-inactive'}`}>
-          Upload file
-        </button>
-      </div>
-
-      {mode === 'url' ? (
-        <input className="input" type="url" value={value} onChange={e => onChange(e.target.value)}
-          placeholder="https://yourcompany.com/logo.png  (PNG, JPG, SVG, WebP)" />
-      ) : (
-        <div>
-          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif"
-            className="hidden" onChange={handleFile} />
-          <button type="button" onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="btn-secondary btn-sm">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            {uploading ? 'Processing…' : 'Choose file (PNG, JPG, SVG, WebP)'}
-          </button>
-        </div>
-      )}
-
-      {value && (
-        <div className="flex items-center gap-3 p-3 bg-fill rounded-xl">
-          <img
-            src={value}
-            alt="Logo preview"
-            className="w-14 h-14 object-contain rounded-lg border border-hairline bg-surface"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-          />
-          <div className="text-xs text-ink-2">
-            <p className="font-medium text-ink">Logo preview</p>
-            <p className="truncate max-w-[200px]">{value.startsWith('data:') ? 'Uploaded file' : value}</p>
-          </div>
-          <button type="button" onClick={() => onChange('')}
-            aria-label="Remove logo"
-            className="ml-auto icon-btn icon-btn-sm text-ink-3 hover:text-danger">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
+// LogoUploader used to live here. It moved to components/LogoUploader.tsx in
+// Phase 5 so the sponsor onboarding checklist could use the same input instead
+// of the app growing a second one. Pure move; see the note in that file.
 
 function TeammateManager({ teammates, available, onAdd, onRemove }: {
   teammates: any[]; available: any[];
@@ -213,6 +159,9 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
   sponsor: any; currentUserId: string; availableUsers: any[]
 }) {
   const invalidate = useInvalidate()
+  // Used only to re-run the server layouts after a save, so the onboarding gate
+  // re-reads the company. See the note at the router.refresh() call below.
+  const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -292,6 +241,24 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
       })
       if (!res.ok) throw new Error(await res.text())
       await Promise.all([invalidate.sponsor(), invalidate.profile()])
+      // THIS IS THE ONBOARDING GATE'S ONLY IN-APP CLOSE. Added in Phase 5.
+      //
+      // The gate runs in the (portal) layout, and all six portal screens SHARE
+      // that layout, so Next.js does not re-run it on client-side navigation —
+      // measured, not assumed: after clearing a required item behind an open tab,
+      // in-app navigation reached both an already-visited screen and a
+      // not-yet-visited one without being stopped, while a hard load was stopped
+      // correctly. This screen is the only place inside the portal where a
+      // required item can be emptied, so it is the only place that can close the
+      // window. The two invalidations above refresh react-query data; they do not
+      // re-run a server layout. This does.
+      //
+      // Same decision and same reason as the attendee app's settings screen, per
+      // FP finding F-1. Residual, accepted there and here: an item cleared
+      // OUTSIDE this tab — an organizer editing from the admin app, or the same
+      // person on a second device — leaves that tab able to move between portal
+      // screens it has already loaded until the next hard load.
+      router.refresh()
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err: any) {
@@ -372,7 +339,20 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
           <LogoUploader value={logoUrl} onChange={setLogoUrl} />
         </Field>
         <Field label="Hero / Banner Image URL" hint="Wide banner shown at top of your profile (1200×400px ideal)">
-          <input className="input" type="url" value={heroImageUrl} onChange={e => setHeroImageUrl(e.target.value)}
+          {/* type="text", not type="url" — the same latent trap the logo input
+              had, and disarmed for the same reason. This column holds an image
+              address the app renders straight into an <img src>, so a relative
+              path like /sponsors/banner.jpg is a legitimate value; type="url"
+              rejects it, and rejection makes the WHOLE form unsubmittable with
+              no request, no error and nothing on screen to explain it. Empty for
+              all 20 seeded companies today, so nothing is broken by it right now
+              — changed because the failure is silent and total when it does
+              happen, which is what made the logo version of it expensive to
+              find. socialLinkedIn below keeps type="url" deliberately: a social
+              profile link genuinely has to be absolute, and every stored value
+              already is. */}
+          <input className="input" type="text" inputMode="url" value={heroImageUrl}
+            onChange={e => setHeroImageUrl(e.target.value)}
             placeholder="https://yourcompany.com/banner.jpg" />
         </Field>
         <Field label="Website">
