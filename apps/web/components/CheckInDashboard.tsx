@@ -328,10 +328,10 @@ function ConferencePulseCard({ totals, days }: { totals: CheckInBoardData['total
         aria-hidden
         className="absolute inset-0"
         style={{
-          backgroundImage: 'radial-gradient(rgba(99,102,241,0.16) 1px, transparent 1.5px)',
+          backgroundImage: 'radial-gradient(rgba(99,102,241,0.25) 1.25px, transparent 1.75px)',
           backgroundSize: '12px 12px',
-          maskImage: 'linear-gradient(115deg, transparent 40%, black)',
-          WebkitMaskImage: 'linear-gradient(115deg, transparent 40%, black)',
+          maskImage: 'linear-gradient(115deg, transparent 32%, black)',
+          WebkitMaskImage: 'linear-gradient(115deg, transparent 32%, black)',
         }}
       />
       <div className="relative flex h-full flex-col">
