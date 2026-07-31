@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 export async function PATCH(
   req: Request,
@@ -10,6 +11,10 @@ export async function PATCH(
   const { id, subId } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
   const user = session.user as any
   if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor' }, { status: 403 })
 

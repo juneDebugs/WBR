@@ -3,11 +3,19 @@ import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma, findFirstOpenSlot, assertBlockOpen, commitOrConflict, engineErrorHttpStatus, EngineError, getMeetingTables } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Approving, rejecting and confirming meetings (OE 19). The STAFF allowance
+  // below stays as it is: the guard already releases every event-operating role
+  // before it asks any completeness question, so a staff caller reaches the same
+  // branch it reached before this phase.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const user = session.user as any
   if (!user.sponsorId && user.role !== 'STAFF') {

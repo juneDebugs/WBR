@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma, syncAutoMatches } from '@conference/db'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 // A Best Fit pick can complete a mutual match (both sides picked each other),
 // which must schedule the meeting immediately — not wait for an admin. The
@@ -15,6 +16,12 @@ async function triggerAutoMatch(priority: string) {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Asking a buyer for a meeting. This is one of the two capabilities the
+  // customer named by name when asked what an incomplete participant should not
+  // be able to do; the attendee app's equivalent was closed in Phase 1.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const user = session.user as any
   if (!user.id) return NextResponse.json({ error: 'No user id' }, { status: 403 })

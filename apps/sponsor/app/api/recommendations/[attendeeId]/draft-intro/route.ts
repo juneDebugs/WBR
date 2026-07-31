@@ -19,6 +19,7 @@ import {
   preflightCaps,
   remainingDailyForUser,
 } from '@/lib/ai-controls'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 function parseArr(val: string | null | undefined): string[] {
   if (!val) return []
@@ -57,14 +58,41 @@ export async function POST(req: Request, ctx: { params: Promise<{ attendeeId: st
     return NextResponse.json({ error: 'feature_disabled' }, { status: 404 })
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: 'ai_unavailable' }, { status: 502 })
-  }
-
   const user = await getUserFromHeaders()
   if (!user.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Drafting an introduction to a named buyer (OE 19).
+  //
+  // ORDER CHANGED BY PHASE 6, deliberately: the OPENAI_API_KEY check used to sit
+  // above the identity checks and now sits below them. Two reasons, and the
+  // second is why it was worth touching at all.
+  //
+  //   - Whether a caller may use this address is a question about the CALLER. It
+  //     must not depend on whether a server credential happens to be configured.
+  //     With the old order, an incomplete representative was answered 502 on a
+  //     machine with no key and 403 on one with a key — the same person refused
+  //     for two different reasons depending on deployment configuration, and only
+  //     one of those is the refusal this phase is responsible for.
+  //   - With the old order an ANONYMOUS caller could learn whether the key was
+  //     configured, because the 502 was returned before the session was looked at
+  //     at all. Now an anonymous caller gets 401 either way.
+  //
+  // The feature kill-switch above deliberately stays first. When the feature is
+  // switched off this address answers 404 to everybody, which is a stricter
+  // refusal than this guard would give and says something true — the feature is
+  // not there.
+  //
+  // Placed BEFORE the spend and rate-cap accounting below, so a refused
+  // representative never consumes any part of the allowance.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
+  if (!process.env.OPENAI_API_KEY) {
+    return NextResponse.json({ error: 'ai_unavailable' }, { status: 502 })
+  }
+
   if (!user.sponsorId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

@@ -5,6 +5,7 @@ import {
   preflightCaps,
   remainingDailyForUser,
 } from '@/lib/ai-controls'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 function isFeatureEnabled(): boolean {
   return process.env.WBR_AI_SPONSOR_DRAFT_INTRO_ENABLED === 'true'
@@ -24,6 +25,13 @@ export async function GET() {
   if (!user.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // The remaining AI-draft allowance (OE 19). Placed after the feature
+  // kill-switch above so a disabled feature still answers 404 rather than
+  // reporting a completeness problem about a feature that is switched off.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
   if (!user.sponsorId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
