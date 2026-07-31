@@ -36,6 +36,24 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
+// `sponsors` joins `icons` as a public asset folder this middleware skips.
+//
+// Next.js optimises an <Image src="/sponsors/x.png"> by fetching that file back
+// from the app itself, and that internal fetch carries no session cookie —
+// without this, the middleware redirected it and the optimiser answered 400, so
+// the picture never rendered. Four components here show a sponsor logo that way.
+//
+// EXCLUDED BY FOLDER NAME, NOT BY FILE EXTENSION. See the fuller note in
+// apps/attendee/middleware.ts: excluding by extension was measured to let
+// unauthenticated callers reach page routes whose dynamic segment merely ended
+// in one, such as /people/anything.png.
+//
+// The two folder names carry a TRAILING SLASH deliberately. Without it the terms
+// are unanchored prefixes: /sponsorship, /sponsors-admin and /iconsecret were
+// measured skipping this middleware entirely, answering 404 rather than
+// redirecting. They are harmless only because no such route exists today — and
+// /sponsorship is an entirely plausible page for this app to grow. The slash
+// makes them match the folders and nothing else.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js|workbox-.*).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons/|sponsors/|manifest.json|sw.js|workbox-.*).*)'],
 }
