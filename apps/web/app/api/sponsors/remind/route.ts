@@ -1,21 +1,41 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@conference/db'
+import {
+  prisma,
+  SPONSOR_READINESS_ITEMS,
+  missingSponsorItems,
+  type SponsorReadinessSubject,
+} from '@conference/db'
 import * as nodemailer from 'nodemailer'
 import OpenAI from 'openai'
 
-const CHECKLIST = [
-  { key: 'logo',        label: 'Upload your company logo',           check: (s: any) => !!s.logoUrl },
-  { key: 'tagline',     label: 'Add a company tagline',              check: (s: any) => !!s.tagline },
-  { key: 'description', label: 'Write a company description',        check: (s: any) => !!s.description && s.description.length > 20 },
-  { key: 'contact',     label: 'Set primary contact name & email',   check: (s: any) => !!s.contactName && !!s.contactEmail },
-  { key: 'booth',       label: 'Confirm your booth number',          check: (s: any) => !!s.boothNumber },
-  { key: 'solutions',   label: 'List your solutions / offerings',    check: (s: any) => { try { return JSON.parse(s.solutionsOffering || '[]').length > 0 } catch { return false } } },
-  { key: 'teammates',   label: 'Assign at least one team member',    check: (s: any) => s._count.users > 0 },
-  { key: 'website',     label: 'Add your website URL',               check: (s: any) => !!s.website },
-  { key: 'social',      label: 'Add LinkedIn or Twitter/X link',     check: (s: any) => !!s.socialLinkedIn || !!s.socialTwitter },
-]
+// The nine items this email chases now live in packages/db/src/onboarding-policy.ts
+// alongside the six the sponsor onboarding gate blocks on, so a reminder and a
+// refusal can never name different things. This route still chases all nine; it
+// just no longer owns the definition.
+//
+// THE RULES ARE STRICTER THAN THEY WERE, and for some stored values that is a
+// real change, so state it precisely rather than as "unchanged":
+//
+//   - a scalar that is only spaces used to count as present; it now counts as
+//     absent;
+//   - a description whose length exceeds 20 only because of surrounding spaces
+//     used to satisfy the description item; it no longer does;
+//   - a stored solutions list that parses to something other than a list of
+//     text — [5], [" "], a bare number — used to satisfy the solutions item if
+//     it had any length; it no longer does.
+//
+// Every one of those is the reminder becoming CORRECT: an exhibitor whose
+// tagline is a single space has not written a tagline, and should be chased.
+//
+// What was measured, and on what: all 20 companies in the seeded local dataset,
+// every one of the nine items, comparing the old inline rules against these.
+// Zero rows disagreed, so no seeded exhibitor's chase list or completion
+// percentage moved. That is a statement about the seeded data and nothing
+// wider — a production row carrying one of the values above WILL be chased
+// differently, deliberately. scripts/test-onboarding-policy.mjs re-runs that
+// comparison over whatever data is present.
 
 async function getTransporter() {
   const providers = ['GMAIL', 'OUTLOOK']
@@ -89,9 +109,15 @@ export async function POST(req: Request) {
   })
   if (!sponsor) return NextResponse.json({ error: 'Sponsor not found' }, { status: 404 })
 
-  const missing = CHECKLIST.filter(item => !item.check(sponsor)).map(item => item.label)
-  const done = CHECKLIST.length - missing.length
-  const pct = Math.round((done / CHECKLIST.length) * 100)
+  // "At least one team member" counts related rows rather than reading a column,
+  // so the subject is the company PLUS its attached-user count.
+  const readiness: SponsorReadinessSubject = {
+    ...sponsor,
+    attachedUserCount: sponsor._count.users,
+  }
+  const missing = missingSponsorItems(readiness).map(item => item.label)
+  const done = SPONSOR_READINESS_ITEMS.length - missing.length
+  const pct = Math.round((done / SPONSOR_READINESS_ITEMS.length) * 100)
 
   const to = sponsor.contactEmail
   const contactName = sponsor.contactName || 'Sponsor Team'

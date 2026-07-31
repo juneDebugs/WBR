@@ -49,18 +49,55 @@ Both are stored as JSON-encoded array strings in `String?` columns via Prisma (e
 
 ### profile completeness
 
-The sponsor-portal metric shown on the sponsor dashboard — percentage of 18 predefined profile fields populated. Computed by `apps/sponsor/components/DashboardView.tsx completeness()`. Sponsor-only; not a system-wide concept. Fifteen scalar fields are checked with `!sponsor[k]`; three array fields (`solutionsOffering`, `solutionsSeeking`, `targetIndustries`) require parsing the JSON-encoded array to detect emptiness — `"[]"` is a truthy string but represents empty data.
+A soft *measure* of how much of a profile is populated, shown or sent to nudge someone into filling in more. It never blocks anyone. Not one concept with one definition — four independent instances exist, each over a different field list, and they are not expected to agree:
 
-Distinct from the **onboarding gate** (attendee-side) below: `profile completeness` is a soft *metric* (a percentage that nudges), whereas the onboarding gate is a hard *block*.
+- **sponsor dashboard** — a percentage over 18 fields of a `Sponsor` company record (`apps/sponsor/components/DashboardView.tsx completeness()`). Fifteen scalar fields are checked for a truthy value; three array fields (`solutionsOffering`, `solutionsSeeking`, `targetIndustries`) require parsing the JSON-encoded array to detect emptiness — `"[]"` is a truthy string but represents empty data.
+- **admin sponsor reminder checklist** — nine *curated* items over a `Sponsor` and its related users (`apps/web/app/api/sponsors/remind/route.ts`), each carrying an imperative label ("Upload your company logo"). Distinct in kind from the others: some items span two columns (contact = name **and** email; social = LinkedIn **or** Twitter), one applies a content rule rather than a presence rule (description longer than 20 characters), and one counts related records rather than reading a column (at least one assigned team member). This is the only instance authored as a list of things a sponsor *ought to have done*.
+- **meetings portal** — a percentage over 8 fields of a `User` (`apps/meetings/components/DashboardView.tsx`).
+- **attendee home screen** — a percentage over a different 6 fields of a `User` (`apps/attendee/lib/home-data.ts`).
+
+The **`onboarding required set`** below is deliberately not one of these. It is a hard rule rather than a measure, which makes five separate answers in this codebase to the question "is this profile complete?" — four nudges and one block.
+
+A person can read 100% on one of these measures and still be refused by the **onboarding gate**, because the field lists differ. Only the two instances that parse array fields treat an empty multi-select as empty; the others count the string `"[]"` as filled.
+
+### onboarding required set
+
+The defined list of profile fields a signed-in person must have populated before the **onboarding gate** lets them use an app. One list per kind of participant — one for delegates, one for sponsor representatives — each held as a single source of truth read by the gate, the checklist, and any surface that chases the same items, so none of them can disagree about what "complete" means.
+
+Its emptiness rules are stricter than any `profile completeness` measure, because this is a hard block rather than a nudge:
+
+- a scalar field counts as missing when blank after trimming, so a single space does not satisfy it;
+- an array field counts as missing when the stored JSON parses to an empty list;
+- a stored value that is valid JSON but not a list of strings also counts as missing.
+
+Attendees are buyers, so the attendee required set includes `solutionsSeeking` and never `solutionsOffering`. Sponsors are sellers, so the sponsor required set mirrors that with `solutionsOffering` and never `solutionsSeeking`.
+
+The sponsor required set is drawn from the same curated list of items the **admin sponsor reminder checklist** chases by email, so a reminder and a refusal can never name different things. The two are related but not identical: the reminder chases more items than the gate blocks on, because some of them are not the sponsor's to supply (a booth number is assigned by the organizer), are optional (a social link), or are already true of anyone who can reach the app at all (having a team member, which is what being attached to a company means).
 
 ### onboarding gate
 
-The attendee-app rule that blocks a signed-in attendee from navigating the app until a defined set of required profile fields is populated. Distinct from:
+The rule that refuses a signed-in person access to an app until their **onboarding required set** is populated, routing them to a checklist instead. It refuses in two places, because either one alone leaves the other open:
 
-- **sponsor `profile completeness`** — a soft percentage metric that nudges but does not block.
-- **the `setup` / Settings screen** (`apps/attendee/components/setup/SetupClient.tsx`) — the always-reachable edit surface for the same fields; the onboarding gate is a separate, blocking flow shown when required fields are missing.
+- **screens** — the layout of every authenticated route group consults the gate. A route group added without that call is not gated; nothing at the framework level enforces it.
+- **data requests** — request handlers are not rendered inside any layout, so the screen check never runs for them and they carry their own guard. A person whose required set is incomplete is refused by every one of the app's data addresses, with a single exception: the profile-save address the checklist itself writes through, which if guarded would trap every incomplete person permanently. Sign-in and shared-secret addresses fall outside the rule because there is no person's profile to consult.
 
-The required-field set is a single source of truth read by both the gate check and the checklist UI. The gate stands alone on email/password sign-in and never assumes any OAuth provider. "Sign in with LinkedIn" is an **optional** additive layer wired in later: when used, it pre-fills `name` and `image` only (LinkedIn's API does not expose job title or company), so those remain manual checklist entries; when absent, the checklist is filled entirely by hand with no loss of function. Attendees are buyers, so the attendee checklist collects `solutionsSeeking` and never `solutionsOffering`.
+**The gate is about the person, not the app.** WBR staff and organizers — the roles `isWbrStaff()` recognises in `packages/db/src/app-access.ts` — are never gated anywhere, because they operate the event rather than participate in it. That is the principle behind "operational tooling is always reachable", stated as a kind of person rather than as a list of app names, so it still holds when a fifth app appears.
+
+Participants are gated:
+
+- a **delegate** (buyer) on their own profile's required set, in the attendee app;
+- a **sponsor representative** (seller) on their exhibiting company's required set, in the sponsor portal.
+
+A sponsor representative with no exhibiting company attached has nothing to complete — the profile-save address refuses them outright — so they are refused with an explanation rather than routed to a checklist that cannot save.
+
+The admin app (`apps/web`) and the meetings portal (`apps/meetings`) carry no gate at all.
+
+Distinct from:
+
+- **`profile completeness`** — a soft measure that nudges but never blocks.
+- **the `setup` / Settings screen** (`apps/attendee/components/setup/SetupClient.tsx`) — the always-reachable edit surface for the same fields; the gate is a separate, blocking flow shown when required fields are missing.
+
+The gate consults the required set rather than any stored "onboarded" marker, so a required field cleared later blocks again instead of being waved through by a one-time flag. It stands alone on email/password sign-in and never assumes any OAuth provider. "Sign in with LinkedIn" is an **optional** additive layer: when used it pre-fills `name` and `image` only (LinkedIn's API does not expose job title or company), so those remain manual checklist entries; when absent the checklist is filled entirely by hand with no loss of function.
 
 ### venue map
 

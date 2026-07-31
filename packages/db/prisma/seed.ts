@@ -479,7 +479,8 @@ async function main() {
   // ── Attendee onboarding gate: every attendee-facing account needs the full
   // required set, or it lands on the onboarding checklist instead of the app.
   //
-  // Required set (apps/attendee/lib/profile-completeness.ts): name, jobTitle,
+  // Required set (packages/db/src/onboarding-policy.ts,
+  // DELEGATE_REQUIRED_FIELDS): name, jobTitle,
   // company, companySize, annualRevenue, and >=1 solutionsSeeking. Before this
   // was added, the seed set neither companySize nor annualRevenue at all, so a
   // reseed produced ~1000 attendees blocked on two fields each.

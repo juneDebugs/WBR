@@ -6,7 +6,10 @@ import { format } from 'date-fns'
 import { signOut } from 'next-auth/react'
 import Image from 'next/image'
 import { SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS } from '@/lib/solutions'
-import { parseArrayField } from '@/lib/profile-completeness'
+// Deep import: browser component. See the note in OnboardingChecklist.tsx —
+// importing through the package root would pull the database client into this
+// bundle, and nothing would fail to warn you.
+import { parseStringList } from '@conference/db/src/onboarding-policy'
 
 function toggle<T>(arr: T[], val: T): T[] {
   return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]
@@ -52,7 +55,7 @@ export function SetupClient({ userId, userName, userImage, userBio, userJobTitle
     website: userWebsite ?? '',
     companySize: userCompanySize ?? '',
     annualRevenue: userAnnualRevenue ?? '',
-    // parseArrayField rather than a bare JSON.parse. These columns hold
+    // parseStringList rather than a bare JSON.parse. These columns hold
     // JSON-encoded arrays as text, and a malformed value used to throw during
     // render and leave this screen blank — measured with solutionsOffering set
     // to "{": the Settings heading never appeared and the page reduced to 127
@@ -60,8 +63,8 @@ export function SetupClient({ userId, userName, userImage, userBio, userJobTitle
     // value there does not trip the onboarding gate, which made it reachable by
     // an otherwise-complete attendee. Reuses the completeness policy's parser so
     // there is one definition of "what this column means" rather than two.
-    solutionsOffering: parseArrayField(userSolutionsOffering),
-    solutionsSeeking: parseArrayField(userSolutionsSeeking),
+    solutionsOffering: parseStringList(userSolutionsOffering),
+    solutionsSeeking: parseStringList(userSolutionsSeeking),
   })
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)

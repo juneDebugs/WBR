@@ -3,20 +3,25 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS } from '@/lib/solutions'
+// DEEP IMPORT, deliberately. This is a browser component, and the package root
+// ('@conference/db') exports the live database client — importing through it
+// would pull database code into the browser bundle. That failure is silent: it
+// does not break a type check. Same convention as NavBar.tsx in the meetings
+// portal and the two browse-taxonomy importers.
 import {
-  FIELD_LABELS,
-  missingFields,
-  parseArrayField,
-  type CompletenessProfile,
-  type RequiredField,
-} from '@/lib/profile-completeness'
+  DELEGATE_FIELD_LABELS,
+  missingDelegateFields,
+  parseStringList,
+  type DelegateProfile,
+  type DelegateField,
+} from '@conference/db/src/onboarding-policy'
 
 function toggle<T>(arr: T[], val: T): T[] {
   return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]
 }
 
 interface Props {
-  profile: CompletenessProfile
+  profile: DelegateProfile
 }
 
 /**
@@ -42,16 +47,16 @@ export function OnboardingChecklist({ profile }: Props) {
     company: profile.company ?? '',
     companySize: profile.companySize ?? '',
     annualRevenue: profile.annualRevenue ?? '',
-    solutionsSeeking: parseArrayField(profile.solutionsSeeking),
+    solutionsSeeking: parseStringList(profile.solutionsSeeking),
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   // Route the live form state back through the shared policy, so the checklist
   // and the gate apply one rule rather than two lookalike ones.
-  const missing = useMemo<RequiredField[]>(
+  const missing = useMemo<DelegateField[]>(
     () =>
-      missingFields({
+      missingDelegateFields({
         name: form.name,
         jobTitle: form.jobTitle,
         company: form.company,
@@ -126,7 +131,7 @@ export function OnboardingChecklist({ profile }: Props) {
                   data-testid={`onboarding-missing-${field}`}
                 >
                   <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-danger flex-shrink-0" />
-                  {FIELD_LABELS[field]}
+                  {DELEGATE_FIELD_LABELS[field]}
                 </li>
               ))}
             </ul>
