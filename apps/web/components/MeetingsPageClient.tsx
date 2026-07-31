@@ -146,45 +146,16 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
 
   return (
     <>
-      {/* Tabs */}
-      <div className="flex items-center gap-2 mb-6">
-        <Link href="?tab=auto"
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            tab === 'auto' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
-          }`}>
-          Auto
-        </Link>
-        <Link href="?tab=requests"
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            tab === 'requests' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
-          }`}>
-          Meeting Requests
-          {(counts.PENDING ?? 0) > 0 && (
-            <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-              tab === 'requests' ? 'bg-white/25 text-white' : 'bg-warning-soft text-warning-ink'
-            }`}>{counts.PENDING} pending</span>
-          )}
-        </Link>
-        <Link href="?tab=schedule"
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            tab === 'schedule' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
-          }`}>
-          Master Schedule
-          {data && <span className={`ml-1.5 text-xs opacity-70`}>{allConfirmed.length}</span>}
-        </Link>
-        <Link href="?tab=companies"
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            tab === 'companies' && view !== 'settings' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
-          }`}>
-          Companies
-        </Link>
-        <Link href="?tab=companies&view=settings"
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            tab === 'companies' && view === 'settings' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-hairline text-ink-2 hover:bg-fill'
-          }`}>
-          Settings
-        </Link>
-      </div>
+      {/* Tabs — floating pill nav (icon over label, warm-brown active/hover accent) */}
+      <nav className="inline-flex items-center gap-1 mb-6 p-1.5 rounded-[26px] bg-[#f4f5f0]/90 backdrop-blur-md border border-black/[0.04] shadow-[0_8px_24px_-8px_rgba(60,55,45,0.18),inset_0_1px_0_rgba(255,255,255,0.7)]">
+        <MeetingsTab href="?tab=auto" label="Auto" active={tab === 'auto'} icon={<IconAuto />} />
+        <MeetingsTab href="?tab=requests" label="Requests" active={tab === 'requests'} icon={<IconRequests />}
+          badge={(counts.PENDING ?? 0) > 0 ? counts.PENDING : undefined} />
+        <MeetingsTab href="?tab=companies" label="Companies" active={tab === 'companies' && view !== 'settings'} icon={<IconCompanies />} />
+        <MeetingsTab href="?tab=schedule" label="Schedule" active={tab === 'schedule'} icon={<IconSchedule />}
+          badge={data ? allConfirmed.length : undefined} badgeTone="neutral" />
+        <MeetingsTab href="?tab=companies&view=settings" label="Settings" active={tab === 'companies' && view === 'settings'} icon={<IconSettings />} />
+      </nav>
 
       {/* -- KPI STRIP (request-level; hidden on the company scheduler + auto) -- */}
       {!selfContained && (
@@ -489,5 +460,103 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
         </div>
       )}
     </>
+  )
+}
+
+// ── Floating pill-nav tab ────────────────────────────────────────────────
+// Icon stacked over a label. Active = raised white pill with a warm-brown
+// accent; inactive = muted, and hovering warms the icon + label to the same
+// brown so the color effect reads on pointer-over.
+const ACCENT = '#8a5223' // warm saturated brown — reads clearly as "color", matches the reference nav
+const IDLE = '#9a9aa0'   // muted gray at rest, so the hover→brown shift is unmistakable
+
+function MeetingsTab({
+  href, label, icon, active, badge, badgeTone = 'accent',
+}: {
+  href: string
+  label: string
+  icon: React.ReactNode
+  active: boolean
+  badge?: number
+  badgeTone?: 'accent' | 'neutral'
+}) {
+  const [hovered, setHovered] = useState(false)
+  const lit = active || hovered
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ color: lit ? ACCENT : IDLE, transition: 'color .2s ease' }}
+      className={`relative flex flex-col items-center justify-center gap-1 w-[138px] px-3 py-2.5 rounded-[20px] transition-all duration-200 ${
+        active
+          ? 'bg-white shadow-[0_6px_16px_-6px_rgba(60,50,40,0.28),0_1px_0_rgba(255,255,255,0.9)]'
+          : ''
+      }`}
+    >
+      <span className="relative flex items-center justify-center">
+        {icon}
+        {badge !== undefined && (
+          <span
+            className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full text-[10px] font-bold leading-none ${
+              badgeTone === 'neutral'
+                ? 'bg-ink-3/15 text-ink-2'
+                : 'bg-warning text-white'
+            }`}
+          >
+            {badge}
+          </span>
+        )}
+      </span>
+      <span className={`text-xs leading-none ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+    </Link>
+  )
+}
+
+// ── Icons (24px stroke, inherit currentColor) ───────────────────────────
+const svgProps = {
+  width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none',
+  stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+}
+
+function IconAuto() {
+  return (
+    <svg {...svgProps}>
+      <path d="M12 3v3M12 18v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M3 12h3M18 12h3M4.9 19.1l2.1-2.1M17 7l2.1-2.1" />
+      <circle cx="12" cy="12" r="3.2" />
+    </svg>
+  )
+}
+function IconRequests() {
+  return (
+    <svg {...svgProps}>
+      <path d="M3 8.5 12 14l9-5.5" />
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    </svg>
+  )
+}
+function IconCompanies() {
+  return (
+    <svg {...svgProps}>
+      <path d="M3 21h18M5 21V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15M15 21V10h3a2 2 0 0 1 2 2v9" />
+      <path d="M8 8h.01M8 12h.01M11 8h.01M11 12h.01" />
+    </svg>
+  )
+}
+function IconSchedule() {
+  return (
+    <svg {...svgProps}>
+      <rect x="3" y="5" width="18" height="16" rx="2.5" />
+      <path d="M3 9.5h18M8 3v4M16 3v4M8.5 14h3M8.5 17.5h6" />
+    </svg>
+  )
+}
+function IconSettings() {
+  return (
+    <svg {...svgProps}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
+    </svg>
   )
 }
