@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { prisma, verifyPassword, canAccessApp, isCanonicalTestEmail, ensureCanonicalTestAccount } from '@conference/db'
+import { prisma, verifyPassword, canAccessApp, isCanonicalTestEmail, ensureCanonicalTestAccount, recordLogin } from '@conference/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -54,6 +54,8 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
+          await recordLogin(existing.id)
+
           return { id: existing.id, email: existing.email!, name: existing.name, role: existing.role }
         } catch (e: any) {
           console.error('[auth] authorize() error:', e?.message, e?.stack)
@@ -75,6 +77,7 @@ export const authOptions: NextAuthOptions = {
           select: { id: true, role: true },
         })
         if (!existing || !canAccessApp('web', existing.role)) return false
+        await recordLogin(existing.id)
         if (user.name || user.image) {
           prisma.user.update({
             where: { email },

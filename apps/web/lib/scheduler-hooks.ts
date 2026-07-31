@@ -1,6 +1,6 @@
 'use client'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
-import type { DirectoryRow, ScheduleMatrix, CheckInBoard, AutoMatchBoard, MeetingRequirementSettings } from '@conference/db'
+import type { DirectoryRow, ScheduleMatrix, CheckInBoard, AutoMatchBoard, MeetingRequirementSettings, TableBoard } from '@conference/db'
 
 // React Query hooks for the admin Companies scheduler tab. Both throw on
 // non-2xx so an error-shaped body (e.g. a 401 after the JWT expires) surfaces
@@ -75,6 +75,20 @@ export function useMeetingRequirementSettings() {
       return r.json()
     },
     staleTime: 30_000,
+  })
+}
+
+// Meeting-table inventory + conference-wide assignment board for the Meeting
+// Tables section of Meetings → Settings.
+export function useTableBoard() {
+  return useQuery<TableBoard>({
+    queryKey: ['scheduler', 'tables'],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/scheduler/tables')
+      if (!r.ok) throw new Error(`Meeting tables request failed: ${r.status}`)
+      return r.json()
+    },
+    staleTime: 15_000,
   })
 }
 

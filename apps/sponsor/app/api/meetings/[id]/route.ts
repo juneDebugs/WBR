@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
-import { prisma, findFirstOpenSlot, assertBlockOpen, commitOrConflict, engineErrorHttpStatus, EngineError, MEETING_ROOMS } from '@conference/db'
+import { prisma, findFirstOpenSlot, assertBlockOpen, commitOrConflict, engineErrorHttpStatus, EngineError, getMeetingTables } from '@conference/db'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -49,7 +49,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         const storedStillOpen = await assertBlockOpen(prisma, sponsorId, attendeeId, request.timeBlockId)
           .then(() => true)
           .catch(e => { if (e instanceof EngineError) return false; throw e })
-        if (storedStillOpen) { timeBlockId = request.timeBlockId; room = MEETING_ROOMS[0].name }
+        if (storedStillOpen) { timeBlockId = request.timeBlockId; room = (await getMeetingTables(prisma))[0].name }
       }
       if (!timeBlockId) {
         const slot = await findFirstOpenSlot(prisma, sponsorId, attendeeId)

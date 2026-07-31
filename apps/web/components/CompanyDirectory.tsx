@@ -151,7 +151,20 @@ export function CompanyDirectory() {
       </div>
 
       <div className="bg-white border border-hairline rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+          {/* Fixed layout so the data columns share the width evenly instead of
+              the auto-layout dumping all slack into the Company column. */}
+          <colgroup>
+            <col className="w-[15%]" />{/* Company */}
+            <col className="w-[11%]" />{/* Last login */}
+            <col className="w-[11%]" />{/* Num of logins */}
+            <col className="w-[11%]" />{/* Requests received */}
+            <col className="w-[11%]" />{/* Requests made */}
+            <col className="w-[10%]" />{/* Pending */}
+            <col className="w-[10%]" />{/* Unscheduled */}
+            <col className="w-[10%]" />{/* Confirmed */}
+            <col className="w-[11%]" />{/* Meeting fill */}
+          </colgroup>
           <thead className="bg-fill border-b border-hairline">
             <tr>
               <th className="text-left px-4 py-3" aria-sort={ariaSort('name')}>
@@ -164,6 +177,7 @@ export function CompanyDirectory() {
                 </button>
               </th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Last login</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Num of logins</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Requests received</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Requests made</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-ink-2 uppercase tracking-wide">Pending</th>
@@ -177,7 +191,7 @@ export function CompanyDirectory() {
                   Confirmed{sortIndicator('confirmed')}
                 </button>
               </th>
-              <th className="text-left px-4 py-3 w-40" aria-sort={ariaSort('fill')}>
+              <th className="text-left px-4 py-3" aria-sort={ariaSort('fill')}>
                 <button
                   type="button"
                   onClick={() => toggleSort('fill')}
@@ -198,7 +212,7 @@ export function CompanyDirectory() {
                       <div className="skeleton h-4 w-40" />
                     </div>
                   </td>
-                  {[...Array(6)].map((_, j) => (
+                  {[...Array(7)].map((_, j) => (
                     <td key={j} className="px-4 py-3.5">
                       <div className="skeleton h-4 w-12 ml-auto" />
                     </td>
@@ -235,7 +249,7 @@ function TierSectionBody({ section, onOpen }: { section: TierSection; onOpen: (i
   return (
     <tbody className="divide-y divide-hairline border-t border-hairline">
       <tr className={style.band}>
-        <th colSpan={8} scope="colgroup" className="px-4 py-2.5 text-left font-normal">
+        <th colSpan={9} scope="colgroup" className="px-4 py-2.5 text-left font-normal">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span
@@ -286,7 +300,7 @@ function DirectoryTableRow({ row, onOpen }: { row: DirectoryRow; onOpen: () => v
               {row.name[0]?.toUpperCase() ?? '?'}
             </div>
           )}
-          <span className="font-semibold text-ink">{row.name}</span>
+          <span className="font-semibold text-ink truncate min-w-0" title={row.name}>{row.name}</span>
         </Link>
       </td>
       <td className="px-4 py-3.5">
@@ -294,6 +308,7 @@ function DirectoryTableRow({ row, onOpen }: { row: DirectoryRow; onOpen: () => v
         <p className="text-sm text-ink-2">{row.lastLogin ? fmtDate(row.lastLogin) : '—'}</p>
         <p className="text-caption text-ink-3">{row.numLogins} rep{row.numLogins === 1 ? '' : 's'}</p>
       </td>
+      <td className="px-4 py-3.5 text-right tabular-nums text-ink-2">{row.loginCount}</td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-2">{row.requestsReceived}</td>
       <td className="px-4 py-3.5 text-right tabular-nums text-ink-2">{row.requestsMade}</td>
       <td className="px-4 py-3.5 text-right">

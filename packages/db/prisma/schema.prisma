@@ -62,6 +62,7 @@ model User {
   role          String    @default("ATTENDEE") // ATTENDEE | SPEAKER | ORGANIZER
   password      String?
   pushToken     String?
+  loginCount    Int       @default(0) // total successful sign-ins; incremented in each app's authorize()/signIn
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   companySize      String?   // STARTUP | SMB | MIDMARKET | ENTERPRISE
@@ -660,4 +661,21 @@ model MeetingRequirementSetting {
   updatedAt DateTime @updatedAt
 
   @@id([scope, subjectId])
+}
+
+// ─── Meeting table inventory ─────────────────────────────────────────────────
+// Admin-managed physical meeting tables (see the admin Meetings → Settings →
+// Meeting Tables section and the "Meeting tables" section of
+// packages/db/src/meeting-engine.ts). One row per table; `position` is the
+// display/assignment order. Zero rows means "never customized" and the engine
+// falls back to the constant MEETING_ROOMS defaults. Like
+// MeetingRequirementSetting, this table is also created defensively at runtime
+// via CREATE TABLE IF NOT EXISTS, so it works before this model is pushed to
+// Turso; the column shape must match the DDL in meeting-engine.ts exactly, so
+// `prisma db push` stays a no-op.
+model MeetingTableSetting {
+  name      String   @id
+  capacity  Int
+  position  Int
+  updatedAt DateTime @updatedAt
 }
