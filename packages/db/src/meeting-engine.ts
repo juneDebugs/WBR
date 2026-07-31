@@ -609,10 +609,30 @@ export function dayLabel(d: Date): string {
   return DAY_LABEL_FMT.format(d)
 }
 
+// Nearly every engine read opens with a `resolveConferenceId` call, and against
+// Turso's HTTP data layer each one is a full ~170ms network round-trip paid
+// serially before the real Promise.all fan-out even starts. The active
+// conference changes at most a handful of times over an event's life, so we
+// memoize its id per-process with a short TTL: the round-trip is amortized
+// across every board load in the window, and staleness is bounded to ACTIVE_
+// CONFERENCE_TTL_MS (each Vercel instance keeps its own copy). Passing an
+// explicit conferenceId (tests, fixtures) always bypasses the cache.
+const ACTIVE_CONFERENCE_TTL_MS = 30_000
+let activeConferenceCache: { id: string; at: number } | null = null
+// Exposed so mutations that flip the active conference can force a re-read.
+export function invalidateActiveConferenceCache(): void {
+  activeConferenceCache = null
+}
 async function resolveConferenceId(prisma: Db, conferenceId?: string): Promise<string> {
   if (conferenceId) return conferenceId
+  const now = Date.now()
+  if (activeConferenceCache && now - activeConferenceCache.at < ACTIVE_CONFERENCE_TTL_MS) {
+    return activeConferenceCache.id
+  }
   const active = await prisma.conference.findFirst({ where: { active: true }, select: { id: true } })
-  return active?.id ?? 'conf-2025'
+  const id = active?.id ?? 'conf-2025'
+  activeConferenceCache = { id, at: now }
+  return id
 }
 
 // ── Company directory ───────────────────────────────────────────────────────
@@ -2395,10 +2415,15 @@ export async function getAutoMatchLog(prisma: Db, limit = 50): Promise<AutoMatch
   }))
 }
 
-export async function getAutoMatchBoard(prisma: Db, conferenceId?: string): Promise<AutoMatchBoard> {
+export async function getAutoMatchBoard(
+  prisma: Db, conferenceId?: string, precomputed?: ComputedAutoMatches,
+): Promise<AutoMatchBoard> {
   const confId = await resolveConferenceId(prisma, conferenceId)
+  // On the Auto route the read-path sweep has already computed the matches; if
+  // it made no scheduling changes it hands them here so we don't pay a second
+  // full-table scan for the identical result (each scan is ~3 Turso round-trips).
   const [{ matches, halfMatches }, log] = await Promise.all([
-    computeAutoMatches(prisma, confId),
+    precomputed ? Promise.resolve(precomputed) : computeAutoMatches(prisma, confId),
     getAutoMatchLog(prisma),
   ])
   const scheduled = matches.filter(m => m.meeting).length
@@ -2458,11 +2483,38 @@ export interface AutoMatchSyncResult {
   scheduled: AutoScheduledEntry[] // meetings created by this sweep
   matchedLogged: number           // new MATCHED events written
   scheduledLogged: number         // new SCHEDULED events written (incl. backfill)
+  // The matches/halves computed by this sweep, but ONLY when it scheduled
+  // nothing — so a caller (the Auto board) can reuse them without recomputing.
+  // Absent when the sweep created meetings (the pre-schedule snapshot is stale)
+  // or when the sweep was throttled off (no compute happened).
+  computed?: ComputedAutoMatches
+  skipped?: boolean               // true when the read-path throttle short-circuited the sweep
 }
+
+// Read paths (the Meetings + Auto board GETs) run this sweep on every request
+// as a self-heal for matches formed by seeds or direct DB writes. Real portal
+// picks already sweep synchronously on write, so the read-path sweep only needs
+// to catch the rare out-of-band case — we throttle it per-process so a burst of
+// polls/navigations (and the 30s auto-board poll) doesn't pay the full
+// scan-and-schedule cost every time. Bounded staleness: SWEEP_THROTTLE_MS.
+const SWEEP_THROTTLE_MS = 20_000
+const lastSweepAt = new Map<string, number>()
+export async function syncAutoMatchesOnRead(prisma: Db, conferenceId?: string): Promise<AutoMatchSyncResult> {
+  const confId = await resolveConferenceId(prisma, conferenceId)
+  const now = Date.now()
+  const last = lastSweepAt.get(confId) ?? 0
+  if (now - last < SWEEP_THROTTLE_MS) {
+    return { scheduled: [], matchedLogged: 0, scheduledLogged: 0, skipped: true }
+  }
+  lastSweepAt.set(confId, now)
+  return syncAutoMatches(prisma, confId)
+}
+
 export async function syncAutoMatches(prisma: Db, conferenceId?: string): Promise<AutoMatchSyncResult> {
   const confId = await resolveConferenceId(prisma, conferenceId)
-  const { matches } = await computeAutoMatches(prisma, confId)
-  if (matches.length === 0) return { scheduled: [], matchedLogged: 0, scheduledLogged: 0 }
+  const computed = await computeAutoMatches(prisma, confId)
+  const { matches } = computed
+  if (matches.length === 0) return { scheduled: [], matchedLogged: 0, scheduledLogged: 0, computed }
 
   const requestIds = readyRequestIds(matches)
   const run = requestIds.length
@@ -2510,7 +2562,15 @@ export async function syncAutoMatches(prisma: Db, conferenceId?: string): Promis
   if (rows.length) await prisma.autoMatchEvent.createMany({ data: rows })
 
   const matchedLogged = rows.filter(r => r.event === 'MATCHED').length
-  return { scheduled: run?.scheduled ?? [], matchedLogged, scheduledLogged: rows.length - matchedLogged }
+  const scheduledMeetings = run?.scheduled ?? []
+  return {
+    scheduled: scheduledMeetings,
+    matchedLogged,
+    scheduledLogged: rows.length - matchedLogged,
+    // The `matches` snapshot predates any meetings this sweep created, so it's
+    // only safe for the board to reuse when nothing was actually scheduled.
+    computed: scheduledMeetings.length === 0 ? computed : undefined,
+  }
 }
 
 // ── Auto-match meeting actions ──────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma, getCheckInBoard } from '@conference/db'
+import { getCachedCheckInBoard } from '@/lib/scheduler-cache'
 import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api'
 
 // On-site floor check-in board.
@@ -10,7 +10,7 @@ export async function GET() {
   if ('error' in gate) return gate.error
 
   try {
-    const board = await getCheckInBoard(prisma)
+    const board = await getCachedCheckInBoard()
     return NextResponse.json(board)
   } catch (err) {
     return engineErrorResponse(err)

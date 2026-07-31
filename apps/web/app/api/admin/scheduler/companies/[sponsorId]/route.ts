@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma, getSponsorScheduleMatrix } from '@conference/db'
+import { getCachedSponsorMatrix } from '@/lib/scheduler-cache'
 import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api'
 
 // Per-company schedule matrix for the admin Companies scheduler.
@@ -11,7 +11,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ sponsor
   if ('error' in gate) return gate.error
 
   try {
-    const matrix = await getSponsorScheduleMatrix(prisma, sponsorId)
+    const matrix = await getCachedSponsorMatrix(sponsorId)
     return NextResponse.json(matrix)
   } catch (err) {
     return engineErrorResponse(err)

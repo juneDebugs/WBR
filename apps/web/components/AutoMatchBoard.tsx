@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
@@ -42,6 +42,10 @@ function groupByCompany(matches: AutoMatch[]) {
 export function AutoMatchBoard() {
   const { data: board, isLoading, isError, refetch } = useAutoMatchBoard()
 
+  // Memoized so the Map build + alphabetical sort don't run on every render
+  // (kept above the early returns so hook order stays stable).
+  const companies = useMemo(() => (board ? groupByCompany(board.matches) : []), [board])
+
   if (isError) {
     return (
       <div className="rounded-xl bg-danger-soft text-danger-ink text-sm px-4 py-3" role="alert">
@@ -54,8 +58,6 @@ export function AutoMatchBoard() {
   }
 
   if (isLoading || !board) return <BoardSkeleton />
-
-  const companies = groupByCompany(board.matches)
 
   return (
     <div>

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { unstable_cache, revalidateTag } from 'next/cache'
-import { prisma, requestBoardWhere, syncAutoMatches } from '@conference/db'
+import { prisma, requestBoardWhere, syncAutoMatchesOnRead } from '@conference/db'
 
 const getCachedMeetingsData = unstable_cache(
   async () => {
@@ -45,8 +45,12 @@ export async function GET(request: NextRequest) {
   // that formed since the last view (seeds, direct DB writes, an admin
   // re-tier) is scheduled before the board is read, so it can never sit in
   // the review queue. A sweep failure must not blank the page.
-  const sweep = await syncAutoMatches(prisma).catch(() => null)
+  const sweep = await syncAutoMatchesOnRead(prisma).catch(() => null)
   if (sweep && sweep.scheduled.length > 0) revalidateTag('meetings')
   const data = await getCachedMeetingsData()
-  return NextResponse.json(JSON.parse(JSON.stringify(data)))
+  // `getCachedMeetingsData` already returns JSON-safe values (unstable_cache
+  // serializes Dates to ISO strings on the way out), so `NextResponse.json`
+  // can serialize `data` directly — the old JSON.parse(JSON.stringify(...))
+  // was a redundant full extra pass over the whole payload on every request.
+  return NextResponse.json(data)
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { CheckInBoard as CheckInBoardData, CheckInDay, CheckInMeeting, CheckInTotals } from '@conference/db'
@@ -95,10 +95,18 @@ export function CheckInBoard() {
       if (ctx?.previous) queryClient.setQueryData(KEY, ctx.previous)
       setMutError(err instanceof Error ? err.message : 'Check-in update failed')
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: KEY })
-    },
+    // No onSettled full-board invalidation: onMutate already patches the cache
+    // optimistically (onError rolls back), and applyPatch preserves untouched
+    // slot references — a single tick no longer triggers a whole-board refetch.
+    // The 30s refetchInterval remains the cross-manager reconciliation path.
   })
+
+  // Stable identity (mutateAsync is referentially stable) so the memoized rows
+  // below can actually bail out instead of re-rendering on every poll/tick.
+  const save = useCallback(
+    (sponsorMeetingId: string, patch: PatchPayload) => mutation.mutateAsync({ sponsorMeetingId, patch }),
+    [mutation.mutateAsync],
+  )
 
   if (isError) {
     return (
@@ -144,8 +152,6 @@ export function CheckInBoard() {
     setDayKey(board!.days[next].dayKey)
     tabRefs.current[next]?.focus()
   }
-
-  const save = (sponsorMeetingId: string, patch: PatchPayload) => mutation.mutateAsync({ sponsorMeetingId, patch })
 
   return (
     <div>
@@ -213,7 +219,7 @@ export function CheckInBoard() {
 
 // One time slot: a separator header row with the range + check-in tally chip,
 // then a row per meeting.
-function SlotRows({ slot, onSave }: {
+const SlotRows = memo(function SlotRows({ slot, onSave }: {
   slot: CheckInDay['slots'][number]
   onSave: (sponsorMeetingId: string, patch: PatchPayload) => Promise<unknown>
 }) {
@@ -235,9 +241,9 @@ function SlotRows({ slot, onSave }: {
       ))}
     </>
   )
-}
+})
 
-function MeetingRow({ meeting, onSave }: {
+const MeetingRow = memo(function MeetingRow({ meeting, onSave }: {
   meeting: CheckInMeeting
   onSave: (sponsorMeetingId: string, patch: PatchPayload) => Promise<unknown>
 }) {
@@ -304,7 +310,7 @@ function MeetingRow({ meeting, onSave }: {
       </td>
     </tr>
   )
-}
+})
 
 // Real checkbox inside a ≥44px label hit area. A controlled input driven only
 // by the query cache flips one notification-batch later than the click, which

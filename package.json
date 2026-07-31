@@ -47,6 +47,7 @@
     "test:checkin-dashboard": "node scripts/test-checkin-dashboard.mjs",
     "e2e:checkin": "node scripts/e2e-checkin.mjs",
     "test:auto-match": "node scripts/test-auto-match.mjs",
+    "test:meetings-perf": "node scripts/test-meetings-perf.mjs",
     "test:auto-match:api": "node scripts/test-auto-match-api.mjs",
     "e2e:auto-match": "node scripts/e2e-auto-match.mjs",
     "test:meeting-requirements": "node scripts/test-meeting-requirements.mjs",

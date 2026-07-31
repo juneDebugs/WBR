@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma, setMeetingTable, getTableBoard } from '@conference/db'
 import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api'
 
@@ -25,6 +26,7 @@ export async function PUT(req: Request) {
 
   try {
     await setMeetingTable(prisma, { sponsorMeetingId, table })
+    revalidateTag('meetings')
     return NextResponse.json(await getTableBoard(prisma))
   } catch (err) {
     return engineErrorResponse(err)

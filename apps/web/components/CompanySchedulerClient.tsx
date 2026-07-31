@@ -1,9 +1,23 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { CompanyDirectory } from '@/components/CompanyDirectory'
-import { CompanyScheduleView } from '@/components/CompanyScheduleView'
-import { CompanyMeetingSettings } from '@/components/CompanyMeetingSettings'
-import { MeetingTablesSettings } from '@/components/MeetingTablesSettings'
+
+// The directory is the landing view (kept static to avoid a load flash); the
+// schedule and settings views are lazy-loaded since only one renders at a time.
+const ViewSkeleton = () => <div className="h-64 rounded-xl bg-fill-2 animate-pulse" />
+const CompanyScheduleView = dynamic(
+  () => import('@/components/CompanyScheduleView').then(m => m.CompanyScheduleView),
+  { loading: ViewSkeleton },
+)
+const CompanyMeetingSettings = dynamic(
+  () => import('@/components/CompanyMeetingSettings').then(m => m.CompanyMeetingSettings),
+  { loading: ViewSkeleton },
+)
+const MeetingTablesSettings = dynamic(
+  () => import('@/components/MeetingTablesSettings').then(m => m.MeetingTablesSettings),
+  { loading: ViewSkeleton },
+)
 
 // Companies tab of the admin Meetings section. Navigation is URL-based so
 // views are deep-linkable and browser back works: ?tab=companies&company=id

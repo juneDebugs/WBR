@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma, getCompanyDirectory } from '@conference/db'
+import { getCachedCompanyDirectory } from '@/lib/scheduler-cache'
 import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api'
 
 // Company directory for the admin Companies scheduler tab.
@@ -9,7 +9,7 @@ export async function GET() {
   if ('error' in gate) return gate.error
 
   try {
-    const rows = await getCompanyDirectory(prisma)
+    const rows = await getCachedCompanyDirectory()
     return NextResponse.json(rows)
   } catch (err) {
     return engineErrorResponse(err)

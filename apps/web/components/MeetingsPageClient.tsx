@@ -1,16 +1,27 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useMeetingsData } from '@/lib/hooks'
 import { AutoScheduleButton } from '@/components/AutoScheduleButton'
 import { PriorityAutoScheduleButton } from '@/components/PriorityAutoScheduleButton'
-import { MeetingsTableWithPanel } from '@/components/MeetingsTableWithPanel'
-import CompanySchedulerClient from '@/components/CompanySchedulerClient'
-import { AutoMatchBoard } from '@/components/AutoMatchBoard'
 import Image from 'next/image'
 import Link from 'next/link'
 import { fmtTime, TZ } from '@/lib/format'
 import { TIER_COLORS, PRIORITY_LABEL, PRIORITY_BADGE } from '@/lib/meetings-ui'
+
+// Exactly one tab body renders at a time, so lazy-load the heavy tab bodies to
+// shrink the initial /dashboard/meetings client bundle.
+const TabSkeleton = () => <div className="h-64 rounded-xl bg-fill-2 animate-pulse" />
+const MeetingsTableWithPanel = dynamic(
+  () => import('@/components/MeetingsTableWithPanel').then(m => m.MeetingsTableWithPanel),
+  { loading: TabSkeleton },
+)
+const CompanySchedulerClient = dynamic(() => import('@/components/CompanySchedulerClient'), { loading: TabSkeleton })
+const AutoMatchBoard = dynamic(
+  () => import('@/components/AutoMatchBoard').then(m => m.AutoMatchBoard),
+  { loading: TabSkeleton },
+)
 
 export default function MeetingsPageClient({ tab: tabParam, status, type, company, view }: { tab?: string; status?: string; type?: string; company?: string; view?: string }) {
   const tab = tabParam === 'schedule' ? 'schedule' : tabParam === 'companies' ? 'companies' : tabParam === 'auto' ? 'auto' : 'requests'
@@ -44,13 +55,15 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
     return { counts, requesterCommitments, sponsorCommitments, bookmarkCommitments }
   }, [allMeetingRequests, sponsorMeetings, bookmarkCounts])
 
-  // Apply filters for the displayed list
-  const meetingRequests = allMeetingRequests.filter((r: any) => {
+  // Apply filters for the displayed list. Memoized so the reference stays
+  // stable across unrelated re-renders (e.g. schedule-day tab clicks) and the
+  // downstream schedule memo can actually cache instead of recomputing.
+  const meetingRequests = useMemo(() => allMeetingRequests.filter((r: any) => {
     if (statusFilter && ['PENDING', 'APPROVED', 'CONFIRMED', 'REJECTED'].includes(statusFilter) && r.status !== statusFilter) return false
     if (typeFilter === 'sponsor' && r.targetSponsorId === null) return false
     if (typeFilter === 'attendee' && r.targetSponsorId !== null) return false
     return true
-  })
+  }), [allMeetingRequests, statusFilter, typeFilter])
 
   const confirmedSponsorMeetings = useMemo(
     () => sponsorMeetings.filter((sm: any) => sm.status === 'CONFIRMED'),

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma, getTableBoard, saveMeetingTables, type MeetingTableOp } from '@conference/db'
+import { getCachedTableBoard } from '@/lib/scheduler-cache'
 import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api'
 
 // Meeting-table inventory + conference-wide assignment board for the admin
@@ -12,7 +14,7 @@ export async function GET() {
   if ('error' in gate) return gate.error
 
   try {
-    return NextResponse.json(await getTableBoard(prisma))
+    return NextResponse.json(await getCachedTableBoard())
   } catch (err) {
     return engineErrorResponse(err)
   }
@@ -61,6 +63,10 @@ export async function PUT(req: Request) {
 
   try {
     await saveMeetingTables(prisma, tableOp)
+    // Renames migrate SponsorMeeting.location and the inventory drives every
+    // rooms consumer, so bust the shared cache (table board, per-company
+    // matrices, /api/data/meetings) — then return the fresh board directly.
+    revalidateTag('meetings')
     return NextResponse.json(await getTableBoard(prisma))
   } catch (err) {
     return engineErrorResponse(err)

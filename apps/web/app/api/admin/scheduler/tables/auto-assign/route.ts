@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma, autoAssignTables, getTableBoard } from '@conference/db'
 import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api'
 
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await autoAssignTables(prisma, { includeConflicts })
+    if (result.assigned > 0) revalidateTag('meetings')
     return NextResponse.json({ ...result, board: await getTableBoard(prisma) })
   } catch (err) {
     return engineErrorResponse(err)

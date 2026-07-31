@@ -1,5 +1,6 @@
 import 'server-only'
 import { cache } from 'react'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { prisma } from '@conference/db'
 import {
   MANAGEABLE_ROLES,
@@ -72,16 +73,33 @@ function safeFallback(role: ManageableRole): RoleConfig {
   return { role, description: DEFAULT_DESCRIPTIONS[role], permissions: [] }
 }
 
+// Cross-request cache of the raw RolePermission rows. This gate is read on
+// EVERY admin API request (via roleHasPermission) and every dashboard page
+// load (via the sidebar/page guards); against Turso the SELECT is a ~80ms
+// round-trip, so serving it per-request was the dominant floor once the
+// Meetings boards were cached. `saveRoleConfig` invalidates the `role-
+// permissions` tag on every write, so a permission grant/revoke takes effect
+// on the very next request; the 60s revalidate is only a backstop for
+// out-of-band DB edits. On a read error we throw so the caller's try/catch
+// still fails CLOSED (unstable_cache never caches a rejection).
+const getRoleRowsCached = unstable_cache(
+  async (): Promise<Row[]> => {
+    await ensureTable()
+    return prisma.$queryRawUnsafe<Row[]>(
+      `SELECT "role", "description", "permissions" FROM "RolePermission" WHERE "role" IN ('STAFF','ORGANIZER')`,
+    )
+  },
+  ['role-configs'],
+  { revalidate: 60, tags: ['role-permissions'] },
+)
+
 // Effective config for every manageable role. Missing rows fall back to
 // defaults, so the caller always gets a complete, ordered set.
 // Wrapped in React cache() so the layout guard and a page guard in the same
-// request share one DB round-trip instead of querying twice.
+// request share one call instead of two (on top of the cross-request cache).
 export const getRoleConfigs = cache(async (): Promise<RoleConfig[]> => {
   try {
-    await ensureTable()
-    const rows = await prisma.$queryRawUnsafe<Row[]>(
-      `SELECT "role", "description", "permissions" FROM "RolePermission" WHERE "role" IN ('STAFF','ORGANIZER')`,
-    )
+    const rows = await getRoleRowsCached()
     const byRole = new Map<string, RoleConfig>()
     for (const row of rows) {
       const cfg = rowToConfig(row)
@@ -130,5 +148,8 @@ export async function saveRoleConfig(input: {
     JSON.stringify(permissions),
     updatedAt,
   )
+  // Bust the cross-request gate cache so the new grant/revoke is enforced on
+  // the next request (security-sensitive — must not wait for the TTL).
+  revalidateTag('role-permissions')
   return { role: input.role, description, permissions }
 }

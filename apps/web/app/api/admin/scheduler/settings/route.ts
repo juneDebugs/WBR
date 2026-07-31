@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma, getMeetingRequirementSettings, saveMeetingRequirementSettings } from '@conference/db'
 import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api'
 
@@ -84,6 +85,9 @@ export async function PUT(req: Request) {
       sponsorDefaultRequired: sponsorDefaultRequired as number | undefined,
       sponsorOverrides: sponsorOverrides as { sponsorId: string; required: number | null }[] | undefined,
     })
+    // Requirement changes move every fill meter on the cached company directory
+    // and per-company matrices — bust the shared cache so they recompute.
+    revalidateTag('meetings')
     return NextResponse.json(await settingsView())
   } catch (err) {
     return engineErrorResponse(err)

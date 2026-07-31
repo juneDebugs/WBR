@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import type { CheckInBoard as CheckInBoardData, CheckInDay } from '@conference/db'
 import { fmtSlotRange, fmtSlotTime, TZ } from '@/lib/format'
@@ -38,9 +38,9 @@ export function CheckInDashboard({ board, day, onCheckIn }: {
   onCheckIn: OnCheckIn
 }) {
   const nowMs = useNowMs()
-  const stats = slotStats(day, nowMs)
+  const stats = useMemo(() => slotStats(day, nowMs), [day, nowMs])
   const highlightId = pickHighlightSlot(stats)
-  const attention = needsAttention(day)
+  const attention = useMemo(() => needsAttention(day), [day])
 
   return (
     <div className="grid gap-4 xl:grid-cols-3">

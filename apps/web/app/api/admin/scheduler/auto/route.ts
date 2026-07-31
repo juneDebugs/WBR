@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { prisma, getAutoMatchBoard, syncAutoMatches } from '@conference/db'
+import { prisma, syncAutoMatchesOnRead } from '@conference/db'
+import { getCachedAutoMatchBoard } from '@/lib/scheduler-cache'
 import { requireSchedulerAccess, engineErrorResponse } from '@/lib/scheduler-api'
 
 // Mutual Best Fit auto-matches (admin Meetings → Auto tab).
@@ -18,9 +19,12 @@ export async function GET() {
   if ('error' in gate) return gate.error
 
   try {
-    const sweep = await syncAutoMatches(prisma).catch(() => null)
+    // Self-heal sweep first (throttled per-process so the 30s poll doesn't
+    // re-scan every time). If it actually scheduled a meeting, bust the cached
+    // board so the next read reflects it; otherwise the cached board is served.
+    const sweep = await syncAutoMatchesOnRead(prisma).catch(() => null)
     if (sweep && sweep.scheduled.length > 0) revalidateTag('meetings')
-    const board = await getAutoMatchBoard(prisma)
+    const board = await getCachedAutoMatchBoard()
     return NextResponse.json(board)
   } catch (err) {
     return engineErrorResponse(err)
