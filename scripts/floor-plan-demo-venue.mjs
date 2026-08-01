@@ -1,0 +1,180 @@
+// The demonstration venue: three maps, their drawn shapes, and their pins.
+//
+// ── Why one module rather than a drawing and a seed that agree by hand ───────
+//
+// ADR 0007 accepts, as the price of not depending on file formats, that "maps
+// are only as good as the human who placed the pins" and that a mis-placed pin
+// is a human error with no automatic check. That is true of a map an organizer
+// authors by tapping. It does not have to be true of the seeded demonstration
+// venue, where the picture and the pins are both produced by us.
+//
+// So both come from here. scripts/build-floor-plan-maps.mjs draws the shapes
+// below into PNG files; scripts/seed-floor-plan.mjs writes pins at the same
+// coordinates. A block and its marker cannot disagree, because there is only
+// one number.
+//
+// Positions are percentages of the picture's width and height, 0 to 100 —
+// never pixels — so a pin stays on its block at any screen size. The drawing
+// converts them to its own coordinate space at the last moment.
+//
+// ── Where the names come from ────────────────────────────────────────────────
+//
+// No label here is invented. Meeting-table names are read from MEETING_ROOMS in
+// packages/db/src/meeting-engine.ts, the same constant the meetings product
+// uses to place a booking. Ballroom-level names are rooms that seeded agenda
+// sessions actually run in. Booth identity is not named here at all: the seed
+// reads the exhibiting companies that carry a booth number straight from the
+// database and lays them out in booth-number order, because the seed file and
+// the database have already drifted apart on booth numbers while ids have not.
+
+export const PICTURE_WIDTH = 1600
+export const PICTURE_HEIGHT = 1200
+
+// ─── Map 1: the exhibit hall ──────────────────────────────────────────────────
+//
+// Laid out from whatever companies carry a booth number, rather than from a
+// fixed list of ten. Grouped by the first character of the booth number, which
+// is the sponsorship tier in this dataset — P before G before S before B — so
+// the largest stands sit nearest the entrance, as they do at a real show.
+// Anything with an unrecognised prefix still gets a stand, in a final row,
+// instead of being silently dropped.
+
+const TIER_ORDER = ['P', 'G', 'S', 'B']
+const TIER_SIZE = {
+  P: { w: 20, h: 13 },
+  G: { w: 17, h: 11 },
+  S: { w: 14, h: 9 },
+  B: { w: 14, h: 9 },
+  OTHER: { w: 14, h: 9 },
+}
+const MAX_STANDS_PER_ROW = 3
+const HALL_TOP = 20
+const HALL_BOTTOM = 88
+
+function tierOf(boothNumber) {
+  const first = String(boothNumber ?? '').trim().charAt(0).toUpperCase()
+  return TIER_ORDER.includes(first) ? first : 'OTHER'
+}
+
+/**
+ * Turn the exhibiting companies that carry a booth number into stands on the
+ * hall picture. Input must already be ordered by booth number; the caller reads
+ * it from the database so this module never hard-codes a company.
+ *
+ * Returns one entry per company: its tier, the centre of its stand as
+ * percentages, and the stand's size, which the drawing uses and the seed
+ * ignores.
+ */
+export function layoutBooths(sponsors) {
+  const groups = []
+  for (const tier of [...TIER_ORDER, 'OTHER']) {
+    const items = sponsors.filter(s => tierOf(s.boothNumber) === tier)
+    if (items.length > 0) groups.push({ tier, items })
+  }
+
+  // Break each tier into rows of at most three stands.
+  const rows = []
+  for (const group of groups) {
+    for (let i = 0; i < group.items.length; i += MAX_STANDS_PER_ROW) {
+      rows.push({ tier: group.tier, items: group.items.slice(i, i + MAX_STANDS_PER_ROW) })
+    }
+  }
+
+  const out = []
+  rows.forEach((row, rowIndex) => {
+    const size = TIER_SIZE[row.tier]
+    const y = HALL_TOP + ((HALL_BOTTOM - HALL_TOP) * (rowIndex + 0.5)) / rows.length
+    const gap = size.w + 6
+    row.items.forEach((sponsor, columnIndex) => {
+      const offset = columnIndex - (row.items.length - 1) / 2
+      out.push({
+        sponsor,
+        tier: row.tier,
+        x: Math.round((50 + offset * gap) * 10) / 10,
+        y: Math.round(y * 10) / 10,
+        w: size.w,
+        h: size.h,
+      })
+    })
+  })
+  return out
+}
+
+// ─── Map 2: the ballroom level ────────────────────────────────────────────────
+//
+// Every name below is a room that seeded agenda sessions run in. The check
+// script asserts that against the database rather than trusting this comment,
+// so a room disappearing from the agenda fails the phase instead of leaving a
+// marker pointing at nothing.
+
+export const BALLROOM_ROOMS = [
+  { label: 'Grand Ballroom', x: 30, y: 30, w: 34, h: 22 },
+  { label: 'Main Stage', x: 30, y: 58, w: 34, h: 20 },
+  { label: 'Hall A', x: 70, y: 25, w: 24, h: 16 },
+  { label: 'Hall B', x: 70, y: 45, w: 24, h: 16 },
+  { label: 'Atrium', x: 50, y: 80, w: 26, h: 14 },
+  { label: 'Dining Hall', x: 80, y: 72, w: 22, h: 18 },
+]
+
+// ─── Map 3: the meeting-room floor ────────────────────────────────────────────
+//
+// Generated from MEETING_ROOMS so the map cannot name a table the meetings
+// product does not have, and cannot omit one it does. A delegate whose booking
+// says Table 5 can find Table 5.
+
+/**
+ * Lay the real meeting tables out on a square-ish grid, largest capacity last
+ * so the lounge does not sit in the middle of the tables.
+ */
+export function layoutMeetingRooms(meetingRooms) {
+  const items = [...meetingRooms].sort((a, b) => a.capacity - b.capacity || a.name.localeCompare(b.name))
+  const columns = Math.ceil(Math.sqrt(items.length))
+  const rows = Math.ceil(items.length / columns)
+
+  const LEFT = 20
+  const RIGHT = 80
+  const TOP = 22
+  const BOTTOM = 82
+
+  return items.map((room, index) => {
+    const column = index % columns
+    const row = Math.floor(index / columns)
+    const x = columns === 1 ? 50 : LEFT + ((RIGHT - LEFT) * column) / (columns - 1)
+    const y = rows === 1 ? 50 : TOP + ((BOTTOM - TOP) * row) / (rows - 1)
+    // A four-person lounge is drawn larger than a one-person table.
+    const large = room.capacity > 1
+    return {
+      label: room.name,
+      capacity: room.capacity,
+      x: Math.round(x * 10) / 10,
+      y: Math.round(y * 10) / 10,
+      w: large ? 18 : 12,
+      h: large ? 13 : 9,
+    }
+  })
+}
+
+// ─── The three maps ───────────────────────────────────────────────────────────
+
+export const MAPS = [
+  {
+    slug: 'exhibit-hall',
+    name: 'Exhibit Hall',
+    position: 1,
+    subtitle: 'Level 1 · Halls 1–3',
+  },
+  {
+    slug: 'ballroom-level',
+    name: 'Ballroom Level',
+    position: 2,
+    subtitle: 'Level 2 · Sessions & dining',
+  },
+  {
+    slug: 'meeting-rooms',
+    name: 'Meeting Rooms',
+    position: 3,
+    subtitle: 'Level 3 · 1-on-1 meeting tables',
+  },
+]
+
+export const imagePathFor = (slug) => `/maps/${slug}.png`

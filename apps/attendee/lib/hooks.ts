@@ -41,12 +41,17 @@ export function useMyScheduleData() {
 export function useSetupData() {
   return useQuery({ queryKey: ['setup-data'], queryFn: () => safeFetch('/api/data/setup'), staleTime: 60_000 })
 }
+// The venue's maps and their markers. A long stale time because a floor plan
+// changes when an organizer edits it, which is rare, and never on its own.
+export function useFloorPlanData() {
+  return useQuery({ queryKey: ['map-data'], queryFn: () => safeFetch('/api/data/map'), staleTime: 300_000 })
+}
 
 export function usePrefetchAll() {
   const qc = useQueryClient()
   useEffect(() => {
     if (typeof window === 'undefined') return
-    // Defer fan-out until after the browser's `load` event so the eight
+    // Defer fan-out until after the browser's `load` event so the nine
     // prefetches don't compete with the current page's critical query for
     // bandwidth or Prisma connection during the LCP window. After load,
     // schedule via `requestIdleCallback` (or fall back to setTimeout for
@@ -60,6 +65,7 @@ export function usePrefetchAll() {
       qc.prefetchQuery({ queryKey: ['chat-data'], queryFn: () => safeFetch('/api/data/chat'), staleTime: 30_000 })
       qc.prefetchQuery({ queryKey: ['my-schedule-data'], queryFn: () => safeFetch('/api/data/my-schedule'), staleTime: 30_000 })
       qc.prefetchQuery({ queryKey: ['setup-data'], queryFn: () => safeFetch('/api/data/setup'), staleTime: 60_000 })
+      qc.prefetchQuery({ queryKey: ['map-data'], queryFn: () => safeFetch('/api/data/map'), staleTime: 300_000 })
     }
 
     let idleId: number | undefined

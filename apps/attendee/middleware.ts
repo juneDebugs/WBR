@@ -61,8 +61,17 @@ export async function middleware(request: NextRequest) {
 // blocked while .png did not. apps/web has the same weakness; that is its own
 // change to make, not this one.
 //
-// Only real static folders belong here. public/ holds exactly `icons` and
-// `sponsors`, plus the individual files already named.
+// `maps` was added in Phase 8 and is the third such folder: public/maps/ holds
+// the seeded floor-plan pictures. Without it the middleware decodes a JWT for
+// every picture request, and any request that arrives without a session cookie
+// — a service-worker prefetch, or Next's own image optimiser if this ever moves
+// to <Image> — receives a redirect to the sign-in page instead of a picture.
+// Measured before it was added: GET /maps/exhibit-hall.png without a cookie
+// answered 307. A signed-in delegate was unaffected, because their request
+// carries the cookie.
+//
+// Only real static folders belong here. public/ holds exactly `icons`,
+// `sponsors` and `maps`, plus the individual files already named.
 //
 // The two folder names carry a TRAILING SLASH deliberately. Without it the terms
 // are unanchored prefixes: /sponsorship, /sponsors-admin and /iconsecret were
@@ -71,5 +80,5 @@ export async function middleware(request: NextRequest) {
 // /sponsorship is an entirely plausible page for this app to grow. The slash
 // makes them match the folders and nothing else.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons/|sponsors/|manifest.json|sw.js|workbox-.*).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons/|sponsors/|maps/|manifest.json|sw.js|workbox-.*).*)'],
 }
