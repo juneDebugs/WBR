@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
 import { prisma, rescheduleMeeting } from '@conference/db'
 import { requireStaff, engineErrorResponse } from '@/lib/staff-api'
-import { invalidate } from '@/lib/mem-cache'
 
 // PATCH — reschedule a confirmed meeting to a new time block / room.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -19,8 +17,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       timeBlockId: body.timeBlockId,
       room: body.room,
     })
-    invalidate(meeting.userId)
-    revalidateTag('meetings')
     return NextResponse.json({ ok: true, meeting })
   } catch (err) {
     return engineErrorResponse(err)

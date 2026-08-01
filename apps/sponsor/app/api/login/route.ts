@@ -1,8 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { encode } from 'next-auth/jwt'
 import { prisma, verifyPassword, canAccessApp } from '@conference/db'
+import { rateLimit, getClientIp } from '@/lib/rateLimit'
 
 export async function POST(req: NextRequest) {
+  // Brute-force throttle: this hand-rolled sign-in mints a 30-day session cookie
+  // itself, so it needs its own limiter. 10 attempts / 60s per client IP.
+  if (!rateLimit(`login:${getClientIp(req)}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many attempts' }, { status: 429 })
+  }
+
   const body = await req.json().catch(() => null)
   if (!body?.email || !body?.password) {
     return NextResponse.json({ error: 'Missing credentials' }, { status: 400 })

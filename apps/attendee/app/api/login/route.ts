@@ -1,8 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { encode } from 'next-auth/jwt'
 import { prisma, verifyPassword, canAccessApp } from '@conference/db'
+import { rateLimit, getClientIp } from '@/lib/rateLimit'
 
 export async function POST(req: NextRequest) {
+  if (!rateLimit(`login:${getClientIp(req)}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many attempts' }, { status: 429 })
+  }
+
   const body = await req.json().catch(() => null)
   if (!body?.email || !body?.password) {
     return NextResponse.json({ error: 'Missing credentials' }, { status: 400 })

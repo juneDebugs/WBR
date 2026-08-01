@@ -12,26 +12,20 @@ export async function POST(request: Request) {
 
   const userId = session.user.id
 
-  await prisma.user.upsert({
-    where: { id: userId },
-    update: {},
-    create: {
-      id: userId,
-      email: session.user.email ?? `${userId}@unknown.com`,
-      name: session.user.name ?? 'Unknown',
-      role: 'ATTENDEE',
-    },
-  })
-
+  // Parse/validate the body before any DB work — the two lookups below are
+  // independent, so fetch them concurrently rather than serially over Turso.
+  // (requireCompleteProfile already fails closed when the user row is missing,
+  // so the removed user.upsert ensure-step was vestigial.)
   const { timeBlockId, partnerId, notes } = await request.json()
   if (!timeBlockId || !partnerId) {
     return NextResponse.json({ error: 'timeBlockId and partnerId are required' }, { status: 400 })
   }
 
-  const timeBlock = await prisma.timeBlock.findUnique({ where: { id: timeBlockId } })
+  const [timeBlock, activeConf] = await Promise.all([
+    prisma.timeBlock.findUnique({ where: { id: timeBlockId } }),
+    prisma.conference.findFirst({ where: { active: true } }),
+  ])
   if (!timeBlock) return NextResponse.json({ error: 'Time block not found' }, { status: 404 })
-
-  const activeConf = await prisma.conference.findFirst({ where: { active: true } })
   if (!activeConf) return NextResponse.json({ error: 'No active conference' }, { status: 400 })
 
   const meeting = await prisma.meeting.create({

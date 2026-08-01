@@ -30,7 +30,6 @@ apps/meetings/
 │   ├── MeetingsPortal.tsx        # Top-level portal shell
 │   ├── BrowseView.tsx            # Sponsor / person browse + filter
 │   ├── DashboardView.tsx         # User-facing meeting dashboard
-│   ├── StaffQueue.tsx            # STAFF-only request approval queue
 │   ├── RecommendedMatchesClient.tsx
 │   ├── FilterPanel.tsx
 │   ├── PersonCard.tsx SponsorCard.tsx SponsorRepCard.tsx TeamMembers.tsx
@@ -51,13 +50,13 @@ apps/meetings/
 
 - **`lib/auth.ts`** — NextAuth `authOptions`. **No role restriction** at the credentials provider. The Google sign-in path **self-provisions** new users: if the Google email is unknown, it creates a `User` row with `role: 'ATTENDEE'` rather than rejecting (`lib/auth.ts:62-68`). apps/attendee and apps/sponsor share this self-provisioning shape; only apps/web rejects unknown Google emails.
 - **`lib/user.ts`** — `getUserFromHeaders()` reads the middleware-forwarded `x-user-id` / `x-user-role`. Returns `role` as a string; routes that gate on STAFF compare directly.
-- **`lib/mem-cache.ts`** — in-memory L1 cache with stale-while-revalidate semantics. Sub-1ms on hit; per-Node-process. On Vercel's multi-instance runtime each Fluid Compute instance has its own `Map`, so warmth is per-instance, not global.
-- **`lib/rateLimit.ts`** — in-memory sliding-window limiter, same shape as apps/web's. Same multi-instance caveat (see [`docs/incident-playbook.md`](../../docs/incident-playbook.md) §12 for the parallel sponsor-app gotcha).
-- **`lib/dashboard-data.ts` / `lib/meetings-data.ts`** — server-side data fetchers feeding the dashboard and meetings views. Both use `mem-cache.ts` for hot-path requests.
+- **`lib/rateLimit.ts`** — in-memory sliding-window limiter, same shape as apps/web's. Multi-instance caveat: accounting is per-Node-process, so it does not span Vercel instances (see [`docs/incident-playbook.md`](../../docs/incident-playbook.md) §12 for the parallel sponsor-app gotcha).
+- **`lib/auto-match.ts`** — `triggerAutoMatchForPick()`: on a Best Fit pick, runs one cheap reciprocal-check query and only awaits the full `syncAutoMatches` sweep when a mutual match can complete now; otherwise defers it via `after()`.
+- **`lib/dashboard-data.ts` / `lib/meetings-data.ts`** — server-side data fetchers feeding the dashboard and meetings views.
 - **`lib/solutions.ts`** — taxonomy/lookup for the solution-badge filter.
 - **`middleware.ts`** — auth gate (redirect to `/login`, 401 JSON for `/api/*`) **plus the canonical `NextResponse.next({ request: { headers } })` request-forwarding pattern** (`middleware.ts:30-37`). Shares this shape with apps/sponsor; apps/web and apps/attendee diverge and set identity headers on the response instead. Route handlers in this app read identity via `lib/user.ts:getUserFromHeaders()`, which sees the forwarded request headers correctly.
 - **`app/api/meeting-requests/route.ts`** — POST creates a `MeetingRequest` row (status `PENDING`). Rate-limited (10 req/min/IP). Rejects self-targeted requests, duplicate active requests (`PENDING`/`APPROVED`/`CONFIRMED`), and messages over 1000 chars.
-- **`app/api/meeting-requests/[id]/route.ts`** — PATCH updates request status. **Only `User.role === 'STAFF'` may approve/reject/confirm.** When status transitions to `CONFIRMED` **and** a `timeBlockId` is set **and** the request involves a sponsor (either side), the handler additionally creates a `SponsorMeeting` row (not a `Meeting` row). This split — `MeetingRequest` for the negotiation lifecycle, `SponsorMeeting` for the confirmed sponsor-touching slot — is the load-bearing schema detail for this subtree.
+- **`app/api/meeting-requests/[id]/route.ts`** — PATCH updates request status. **WBR-staff (`isWbrStaff(role)`) may approve/reject/confirm/re-tier any request; a non-staff recipient may only set `APPROVED`/`REJECTED` on a request that targets them (no scheduling or re-tier).** When status transitions to `CONFIRMED` **and** a `timeBlockId` is set **and** the request involves a sponsor (either side), the handler additionally creates a `SponsorMeeting` row (not a `Meeting` row). This split — `MeetingRequest` for the negotiation lifecycle, `SponsorMeeting` for the confirmed sponsor-touching slot — is the load-bearing schema detail for this subtree.
 
 ## API surface
 
@@ -65,7 +64,7 @@ apps/meetings/
 - `app/api/bootstrap/route.ts` — initial-load data for the portal shell.
 - `app/api/browse/route.ts` — paginated/filtered people + sponsors list for `BrowseView`.
 - `app/api/dashboard/route.ts` — user-facing dashboard data.
-- `app/api/meeting-requests/` — POST (create), PATCH `[id]` (status transition, STAFF only).
+- `app/api/meeting-requests/` — POST (create), PATCH `[id]` (status transition; WBR-staff full power, non-staff recipients may approve/reject requests targeting them).
 - `app/api/meetings/route.ts` — confirmed-meeting list.
 - `app/api/staff/*` — meeting-engine console (all WBR-staff gated via `lib/staff-api.ts:requireStaff`): `GET companies` (directory), `GET companies/[sponsorId]/schedule` (matrix), `GET companies/[sponsorId]/availability?requestId=` + `GET meetings/[id]/availability` (mutual-free slots), `POST meetings/assign`, `PATCH meetings/[id]` (reschedule), `POST meetings/[id]/cancel`, `PATCH requests/[id]` (approve/reject).
 - `app/api/profile/route.ts` — user profile read/update.
@@ -75,7 +74,7 @@ apps/meetings/
 
 - **The Google sign-in path self-provisions ATTENDEE rows.** A first-time Google sign-in with an unknown email succeeds and creates a new user (`lib/auth.ts:62-68`). apps/attendee (`lib/auth.ts:42-48`) and apps/sponsor (`lib/auth.ts:68-74`) do the same; only apps/web rejects unknown Google emails (`lib/auth.ts:64-68`). If onboarding controls depend on a pre-existing `User`, three of the four apps will silently bypass them.
 - **Confirming a sponsor meeting creates a `SponsorMeeting`, not a `Meeting`.** Per [`app/api/meeting-requests/[id]/route.ts`](app/api/meeting-requests/%5Bid%5D/route.ts) — the schema separates negotiation (`MeetingRequest`) from the materialized sponsor slot (`SponsorMeeting`). Code that wants to list "all sponsor meetings happening at conference time" reads `SponsorMeeting`, not `MeetingRequest`.
-- **In-memory caches and rate limiters are per-process.** Both `lib/mem-cache.ts` and `lib/rateLimit.ts` live in the Node process Map. On Vercel multi-instance deploys, cache warmth and rate-limit accounting do not span instances. Acceptable for the demo scale; a real fix requires Redis.
+- **In-memory rate limiting is per-process.** `lib/rateLimit.ts` lives in the Node process Map. On Vercel multi-instance deploys, rate-limit accounting does not span instances. Acceptable for the demo scale; a real fix requires Redis.
 - **No `.env.local.example` is committed for this app.** The root [`README.md`](../../README.md) §First-clone setup generates the `.env.local` inline. Required vars are listed below.
 
 ## App-specific dev commands

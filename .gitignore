@@ -29,6 +29,11 @@ supabase/.temp
 .DS_Store
 Thumbs.db
 
+# Stray SQLite artifacts from a misconfigured DATABASE_URL relative path
+/db
+/db-wal
+packages/apps/
+
 # Next.js build output
 .next/
 .vercel

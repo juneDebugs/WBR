@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
@@ -13,7 +14,7 @@ export async function DELETE(req: Request) {
 
   const userId = session.user.id
   const role = (session.user as any).role
-  const isStaff = role === 'STAFF' || role === 'ORGANIZER'
+  const isStaff = ['STAFF', 'ORGANIZER', 'ADMIN'].includes(role)
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
@@ -25,11 +26,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     await prisma.message.delete({ where: { id } })
+    revalidateTag('chat')
     return NextResponse.json({ ok: true })
   }
 
-  // Bulk delete requires STAFF/ORGANIZER
+  // Bulk delete requires STAFF/ORGANIZER/ADMIN
   if (!isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   await prisma.message.deleteMany({ where: { roomId: GENERAL_ROOM_ID } })
+  revalidateTag('chat')
   return NextResponse.json({ ok: true })
 }

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
 import { prisma, assignMeeting } from '@conference/db'
 import { requireStaff, engineErrorResponse } from '@/lib/staff-api'
-import { invalidate } from '@/lib/mem-cache'
 
 export async function POST(req: Request) {
   const gate = await requireStaff()
@@ -18,8 +16,6 @@ export async function POST(req: Request) {
       room: body.room,
       repId: body.repId ?? null,
     })
-    invalidate(meeting.userId)
-    revalidateTag('meetings')
     return NextResponse.json({ ok: true, meeting })
   } catch (err) {
     return engineErrorResponse(err)

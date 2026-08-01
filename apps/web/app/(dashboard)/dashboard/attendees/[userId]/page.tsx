@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import { revalidatePath } from 'next/cache'
 import { notFound } from 'next/navigation'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 import { AttendeeProfileEditor } from '@/components/AttendeeProfileEditor'
 
@@ -52,6 +53,7 @@ const REVENUE_LABELS: Record<string, string> = {
 
 async function addBlackout(userId: string, formData: FormData) {
   'use server'
+  await assertPermission('attendees')
   const startsAt = new Date(formData.get('startsAt') as string)
   const endsAt = new Date(formData.get('endsAt') as string)
   const reason = (formData.get('reason') as string) || null
@@ -61,6 +63,7 @@ async function addBlackout(userId: string, formData: FormData) {
 
 async function deleteBlackout(blackoutId: string) {
   'use server'
+  await assertPermission('attendees')
   const blackout = await prisma.blackoutTime.findUnique({ where: { id: blackoutId } })
   if (!blackout) return
   await prisma.blackoutTime.delete({ where: { id: blackoutId } })
@@ -69,6 +72,7 @@ async function deleteBlackout(blackoutId: string) {
 
 async function addVendorMeeting(userId: string, formData: FormData) {
   'use server'
+  await assertPermission('attendees')
   const vendorUserId = formData.get('vendorUserId') as string
   const timeBlockId = formData.get('timeBlockId') as string
   const notes = (formData.get('notes') as string) || null
@@ -95,11 +99,15 @@ async function addVendorMeeting(userId: string, formData: FormData) {
 
 async function deleteMeeting(meetingId: string, userId: string) {
   'use server'
+  await assertPermission('attendees')
   await prisma.meeting.delete({ where: { id: meetingId } })
   revalidatePath(`/dashboard/attendees/${userId}`)
 }
 
 export default async function AttendeeProfilePage({ params }: { params: Promise<{ userId: string }> }) {
+  const denied = await permissionDenied('attendees', 'Attendee Profile')
+  if (denied) return denied
+
   const { userId } = await params
 
   const [user, blackouts, meetings, allUsers, timeBlocks] = await Promise.all([

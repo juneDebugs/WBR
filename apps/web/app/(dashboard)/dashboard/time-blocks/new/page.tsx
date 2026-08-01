@@ -3,9 +3,11 @@ import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 async function createTimeBlock(formData: FormData) {
   'use server'
+  await assertPermission('timeBlocks')
   const conference = await prisma.conference.findFirst({ where: { active: true } })
   if (!conference) throw new Error('No active conference')
 
@@ -21,7 +23,10 @@ async function createTimeBlock(formData: FormData) {
   redirect('/dashboard/time-blocks')
 }
 
-export default function NewTimeBlockPage() {
+export default async function NewTimeBlockPage() {
+  const denied = await permissionDenied('timeBlocks', 'New Time Block')
+  if (denied) return denied
+
   return (
     <>
       <AdminHeader title="New Time Block" />

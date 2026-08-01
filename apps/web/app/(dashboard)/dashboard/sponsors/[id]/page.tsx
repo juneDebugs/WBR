@@ -6,7 +6,23 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 
 import { format } from 'date-fns'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, unstable_cache } from 'next/cache'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
+
+// Slim, cached roster for the "schedule a meeting" dropdown. The render only
+// uses id/name/email/company, so select just those (avoids pulling every User
+// column — password hashes, JSON blobs, images — over the HTTP data layer on
+// each request). No role filter: keep the current behavior of listing all roles.
+function getCachedAllUsers() {
+  return unstable_cache(
+    async () => prisma.user.findMany({
+      select: { id: true, name: true, email: true, company: true },
+      orderBy: { name: 'asc' },
+    }),
+    ['sponsor-page-all-users'],
+    { revalidate: 300, tags: ['attendees'] },
+  )()
+}
 
 const TIER_STYLES: Record<string, string> = {
   PLATINUM: 'bg-slate-100 text-slate-700 border border-slate-300',
@@ -30,6 +46,7 @@ const ROLE_BADGE: Record<string, string> = {
 
 async function updateSponsor(sponsorId: string, formData: FormData) {
   'use server'
+  await assertPermission('sponsors')
   await prisma.sponsor.update({
     where: { id: sponsorId },
     data: {
@@ -48,12 +65,14 @@ async function updateSponsor(sponsorId: string, formData: FormData) {
 
 async function deleteSponsor(sponsorId: string) {
   'use server'
+  await assertPermission('sponsors')
   await prisma.sponsor.delete({ where: { id: sponsorId } })
   redirect('/dashboard/sponsors')
 }
 
 async function scheduleMeeting(sponsorId: string, formData: FormData) {
   'use server'
+  await assertPermission('sponsors')
   const userId = formData.get('userId') as string
   const timeBlockId = formData.get('timeBlockId') as string
   const notes = (formData.get('notes') as string) || null
@@ -84,6 +103,7 @@ async function scheduleMeeting(sponsorId: string, formData: FormData) {
 
 async function cancelMeeting(meetingId: string, sponsorId: string) {
   'use server'
+  await assertPermission('sponsors')
   await prisma.sponsorMeeting.delete({ where: { id: meetingId } })
   revalidatePath(`/dashboard/sponsors/${sponsorId}`)
 }
@@ -98,6 +118,9 @@ export default async function SponsorDetailPage({ params, searchParams }: {
   params: Promise<{ id: string }>
   searchParams: Promise<{ conflict?: string }>
 }) {
+  const denied = await permissionDenied('sponsors', 'Sponsor')
+  if (denied) return denied
+
   const { id } = await params
   const { conflict } = await searchParams
   const conflictMessage = conflict
@@ -116,8 +139,11 @@ export default async function SponsorDetailPage({ params, searchParams }: {
         },
       },
     }),
-    prisma.user.findMany({ orderBy: { name: 'asc' } }),
-    prisma.timeBlock.findMany({ orderBy: { startsAt: 'asc' } }),
+    getCachedAllUsers(),
+    prisma.timeBlock.findMany({
+      select: { id: true, startsAt: true, endsAt: true, location: true },
+      orderBy: { startsAt: 'asc' },
+    }),
     // The sponsor's own people (User.sponsorId === this company). These are the
     // reps/staff shown in the Team roster card below.
     prisma.user.findMany({

@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
-import { prisma, syncAutoMatches } from '@conference/db'
+import { prisma } from '@conference/db'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
-import { invalidate } from '@/lib/mem-cache'
-
-// A Best Fit pick can complete a mutual match (both sides picked each other),
-// which must schedule the meeting immediately — not wait for an admin. The
-// sweep is idempotent and must never fail the pick itself.
-async function triggerAutoMatch(priority: string) {
-  if (priority !== 'BEST_FIT') return
-  await syncAutoMatches(prisma).catch(() => {})
-}
+import { triggerAutoMatchForPick } from '@/lib/auto-match'
 
 export async function POST(req: Request) {
   if (!rateLimit(`mtg-req:${getClientIp(req)}`, 10, 60_000)) {
@@ -52,7 +44,14 @@ export async function POST(req: Request) {
       const updated = await prisma.meetingRequest.update({
         where: { id: existing.id }, data: { priority: prio },
       })
-      await triggerAutoMatch(prio)
+      if (prio === 'BEST_FIT') {
+        await triggerAutoMatchForPick({
+          requesterId: userId,
+          requesterSponsorId: user.sponsorId,
+          targetUserId: targetUserId ?? null,
+          targetSponsorId: targetSponsorId ?? null,
+        })
+      }
       return NextResponse.json(updated)
     }
     return NextResponse.json({ error: 'Request already exists' }, { status: 409 })
@@ -61,12 +60,15 @@ export async function POST(req: Request) {
   const request = await prisma.meetingRequest.create({
     data: { requesterId: userId, targetUserId, targetSponsorId, message, priority: prio },
   })
-  await triggerAutoMatch(prio)
-  // Invalidate in-memory cache for affected users
-  invalidate(userId)
-  if (targetUserId) invalidate(targetUserId)
+  if (prio === 'BEST_FIT') {
+    await triggerAutoMatchForPick({
+      requesterId: userId,
+      requesterSponsorId: user.sponsorId,
+      targetUserId: targetUserId ?? null,
+      targetSponsorId: targetSponsorId ?? null,
+    })
+  }
 
-  revalidateTag('meeting-requests')
   revalidateTag(`meetings-user-${userId}`)
   if (targetUserId) revalidateTag(`meetings-user-${targetUserId}`)
   return NextResponse.json(request)
@@ -76,11 +78,15 @@ export async function GET() {
   const user = await getUserFromHeaders()
   if (!user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Explicit selects — a boolean `include` would leak every User scalar
+  // (password hash, pushToken, private profile fields) to the client.
+  const safeUser = { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true, role: true } }
+
   if (user.role === 'STAFF') {
     const requests = await prisma.meetingRequest.findMany({
       include: {
-        requester: true,
-        targetUser: true,
+        requester: safeUser,
+        targetUser: safeUser,
         targetSponsor: true,
         timeBlock: true,
       },
@@ -98,8 +104,8 @@ export async function GET() {
       ],
     },
     include: {
-      requester: true,
-      targetUser: true,
+      requester: safeUser,
+      targetUser: safeUser,
       targetSponsor: true,
       timeBlock: true,
     },

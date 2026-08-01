@@ -100,12 +100,26 @@ export function validateChatContent(content: unknown): ChatContentValidation {
  * Makes sure the shared general room exists. Idempotent and race-safe
  * (upsert on the fixed id).
  */
-export async function ensureGeneralRoom(prismaClient: AnyPrismaClient) {
-  await prismaClient.chatRoom.upsert({
-    where: { id: GENERAL_ROOM_ID },
-    create: { id: GENERAL_ROOM_ID, name: 'General', type: 'CHANNEL' },
-    update: {},
-  })
+let generalRoomEnsured: Promise<void> | null = null
+export function ensureGeneralRoom(prismaClient: AnyPrismaClient): Promise<void> {
+  // Memoized per process: the general room exists permanently after first
+  // creation, so awaiting an upsert on every feed poll wastes a Turso
+  // round-trip. Reset on failure so a transient error retries (mirrors
+  // ensureChatSettingsTable in chat-settings.ts).
+  if (!generalRoomEnsured) {
+    generalRoomEnsured = prismaClient.chatRoom
+      .upsert({
+        where: { id: GENERAL_ROOM_ID },
+        create: { id: GENERAL_ROOM_ID, name: 'General', type: 'CHANNEL' },
+        update: {},
+      })
+      .then(() => undefined)
+      .catch(e => {
+        generalRoomEnsured = null
+        throw e
+      })
+  }
+  return generalRoomEnsured
 }
 
 /**
@@ -374,15 +388,29 @@ export async function getOrCreateDirectRoom(
     }
   }
 
-  const room = await prismaClient.chatRoom.create({
-    data: {
-      type: 'DIRECT',
-      members: {
-        create: [{ userId }, { userId: targetUserId }],
+  // Deterministic id keyed on the sorted pair so concurrent calls converge on
+  // one room instead of racing find→create into duplicates. Prisma falls back
+  // to a non-atomic find→create when the upsert carries nested writes, so on a
+  // unique-collision (P2002) re-fetch the winner by id.
+  const roomId = ['dm', ...[userId, targetUserId].sort()].join(':')
+  try {
+    const room = await prismaClient.chatRoom.upsert({
+      where: { id: roomId },
+      update: {},
+      create: {
+        id: roomId,
+        type: 'DIRECT',
+        members: { create: [{ userId }, { userId: targetUserId }] },
       },
-    },
-  })
-  return { ok: true as const, room }
+    })
+    return { ok: true as const, room }
+  } catch (e: any) {
+    if (e?.code === 'P2002') {
+      const room = await prismaClient.chatRoom.findUnique({ where: { id: roomId } })
+      if (room) return { ok: true as const, room }
+    }
+    throw e
+  }
 }
 
 /**
@@ -400,18 +428,19 @@ export async function listRoomMessagesForUser(
   })
   if (!member) return { ok: false as const, error: 'Forbidden' }
 
-  const messages = await prismaClient.message.findMany({
-    where: { roomId },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-    include: { sender: { select: CHAT_SENDER_SELECT } },
-  })
+  const [messages] = await Promise.all([
+    prismaClient.message.findMany({
+      where: { roomId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { sender: { select: CHAT_SENDER_SELECT } },
+    }),
+    prismaClient.chatMember.update({
+      where: { roomId_userId: { roomId, userId } },
+      data: { lastReadAt: new Date() },
+    }),
+  ])
   messages.reverse()
-
-  await prismaClient.chatMember.update({
-    where: { roomId_userId: { roomId, userId } },
-    data: { lastReadAt: new Date() },
-  })
 
   return { ok: true as const, messages }
 }

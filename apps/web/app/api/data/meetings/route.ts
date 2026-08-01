@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { prisma, requestBoardWhere, syncAutoMatchesOnRead } from '@conference/db'
+import { roleHasPermission } from '@/lib/api-permission'
+
+const ADMIN_ROLES = new Set(['STAFF', 'ORGANIZER', 'ADMIN'])
 
 const getCachedMeetingsData = unstable_cache(
   async () => {
@@ -53,6 +56,9 @@ const getCachedMeetingsData = unstable_cache(
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request })
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const role = token.role as string
+  if (!ADMIN_ROLES.has(role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!(await roleHasPermission(role, 'meetings'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   // Self-healing sweep, same as the Auto board read: any mutual Best Fit pair
   // that formed since the last view (seeds, direct DB writes, an admin
   // re-tier) is scheduled before the board is read, so it can never sit in

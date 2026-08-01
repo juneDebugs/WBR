@@ -3,6 +3,7 @@ import { prisma } from '@conference/db'
 import { getUserFromHeaders } from '@/lib/user'
 import { filterSponsorPortalAttendees } from '@conference/db/src/browse-taxonomy'
 import { requireCompleteProfile } from '@/lib/require-complete-profile'
+import { getCachedAttendees } from '@/lib/server-data'
 
 const PAGE_SIZE = 48
 
@@ -80,11 +81,12 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  const rows = await prisma.user.findMany({
-    where,
-    select,
-    orderBy: { name: 'asc' },
-  })
+  // Chip-filter branch needs the whole pool for the minimum-results guarantee.
+  // Reuse the 60s-cached attendees read (identical where/select/orderBy, tagged
+  // 'attendees') instead of an uncached full-table Turso fetch per call. Free-text
+  // search — the fast path does in SQL via where.OR — is applied here by passing
+  // `search` into the taxonomy filter, whose textMatches covers the same fields.
+  const rows = await getCachedAttendees()
 
   const { results, strictCount, similarCount } = filterSponsorPortalAttendees(rows, {
     roles,
@@ -93,7 +95,7 @@ export async function GET(req: NextRequest) {
     sizes,
     revenues,
     seeking: seekingArr,
-    search: '',
+    search,
   })
 
   const page = results.slice(offset, offset + limit)

@@ -5,9 +5,11 @@ import { DeleteSessionButton } from './DeleteSessionButton'
 import { revalidateTag } from 'next/cache'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 async function updateSession(id: string, formData: FormData) {
   'use server'
+  await assertPermission('agenda')
   const startsAt = new Date(formData.get('startsAt') as string)
   const endsAt = new Date(formData.get('endsAt') as string)
 
@@ -36,6 +38,7 @@ async function updateSession(id: string, formData: FormData) {
 
 async function deleteSession(id: string) {
   'use server'
+  await assertPermission('agenda')
   await prisma.confSession.delete({ where: { id } })
   await detectSpeakerConflicts(prisma)
   revalidateTag('sessions')
@@ -48,6 +51,9 @@ function toLocalDatetimeString(date: Date): string {
 }
 
 export default async function EditSessionPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+  const denied = await permissionDenied('agenda', 'Edit Session')
+  if (denied) return denied
+
   const { id } = await params
   const { error } = await searchParams
   const [session, speakers] = await Promise.all([

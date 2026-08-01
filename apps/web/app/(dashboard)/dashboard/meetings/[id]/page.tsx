@@ -5,9 +5,11 @@ import { ConfirmButton } from '@/components/ConfirmButton'
 import { format } from 'date-fns'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 async function updateMeeting(id: string, formData: FormData) {
   'use server'
+  await assertPermission('meetings')
   await prisma.meeting.update({
     where: { id },
     data: {
@@ -20,6 +22,7 @@ async function updateMeeting(id: string, formData: FormData) {
 
 async function cancelMeeting(id: string) {
   'use server'
+  await assertPermission('meetings')
   await prisma.meeting.update({
     where: { id },
     data: { status: 'CANCELLED' },
@@ -28,6 +31,9 @@ async function cancelMeeting(id: string) {
 }
 
 export default async function EditMeetingPage({ params }: { params: Promise<{ id: string }> }) {
+  const denied = await permissionDenied('meetings', 'Edit Meeting')
+  if (denied) return denied
+
   const { id } = await params
   const meeting = await prisma.meeting.findUnique({
     where: { id },

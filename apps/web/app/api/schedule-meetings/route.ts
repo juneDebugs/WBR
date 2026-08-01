@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma, autoScheduleByPriority, REQUEST_BOARD_PRIORITIES } from '@conference/db'
+import { requireSchedulerAccess } from '@/lib/scheduler-api'
 
 // POST /api/schedule-meetings
 // Body: { requestId } — returns available time blocks for both parties
 // Body: { autoScheduleAll: true } — bulk-assigns all APPROVED requests
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const role = (session.user as any).role
-  if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  // Same gate as /api/auto-schedule and every /api/admin/scheduler/* route:
+  // session + the 'meetings' permission. This legacy bulk path must not be a
+  // hole a role stripped of 'meetings' can use to schedule the whole conference.
+  const gate = await requireSchedulerAccess()
+  if ('error' in gate) return gate.error
 
   const body = await req.json()
 
@@ -113,7 +111,7 @@ export async function POST(req: Request) {
 
   // Find all occupied slots for requester (their requests AND their booked
   // sponsor meetings — a slot with either is not available)
-  const [requesterMeetings, requesterSponsorMtgs, targetUserMeetings, targetSponsorMeetings] = await Promise.all([
+  const [requesterMeetings, requesterSponsorMtgs, targetUserMeetings, targetSponsorMeetings, allTimeBlocks] = await Promise.all([
     prisma.meetingRequest.findMany({
       where: { status: 'CONFIRMED', timeBlockId: { not: null }, requesterId: request.requesterId },
       select: { timeBlockId: true },
@@ -133,6 +131,12 @@ export async function POST(req: Request) {
       where: { status: 'CONFIRMED', sponsorId: request.targetSponsorId },
       select: { timeBlockId: true },
     }) : Promise.resolve([]),
+    // Depends only on conferenceId (resolved above), not on the busy-slot
+    // results — fold into the same Promise.all to save a Turso round-trip.
+    prisma.timeBlock.findMany({
+      where: { conferenceId },
+      orderBy: { startsAt: 'asc' },
+    }),
   ])
 
   const busyRequester = new Set([
@@ -143,11 +147,6 @@ export async function POST(req: Request) {
     ...targetUserMeetings.map(m => m.timeBlockId!),
     ...targetSponsorMeetings.map(m => m.timeBlockId),
   ])
-
-  const allTimeBlocks = await prisma.timeBlock.findMany({
-    where: { conferenceId },
-    orderBy: { startsAt: 'asc' },
-  })
 
   const availableSlots = allTimeBlocks.map(tb => ({
     id: tb.id,

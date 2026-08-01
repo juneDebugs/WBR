@@ -1,20 +1,9 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
-import { roleHasPermission } from '@/lib/api-permission'
-
-async function requireStaff() {
-  const session = await getServerSession(authOptions)
-  if (!session) return null
-  const role = (session.user as any).role
-  if (!['STAFF', 'ORGANIZER', 'ADMIN'].includes(role)) return null
-  if (!(await roleHasPermission(role, 'integrations'))) return null
-  return session
-}
+import { requireIntegrationsAccess } from '@/lib/integrations-auth'
 
 export async function POST(req: Request) {
-  if (!await requireStaff()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireIntegrationsAccess()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { provider, status, accountLabel, metadata } = await req.json()
   if (!provider) return NextResponse.json({ error: 'provider required' }, { status: 400 })
@@ -40,7 +29,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  if (!await requireStaff()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await requireIntegrationsAccess()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { provider } = await req.json()
   if (!provider) return NextResponse.json({ error: 'provider required' }, { status: 400 })

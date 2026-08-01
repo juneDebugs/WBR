@@ -1,18 +1,24 @@
 import { NextResponse } from 'next/server'
-import { getToken } from 'next-auth/jwt'
 import { prisma } from '@conference/db'
 import type { NextRequest } from 'next/server'
+import { requireIntegrationsAccess, OAUTH_STATE_COOKIE } from '@/lib/integrations-auth'
+
+// Only providers the connect route can start are accepted here.
+const VALID_PROVIDERS = new Set(['GMAIL', 'GOOGLE_CALENDAR'])
 
 export async function GET(req: NextRequest) {
-  const token = await getToken({ req })
-  if (!token) return NextResponse.redirect(new URL('/login', req.url))
+  const dashUrl = new URL('/dashboard/integrations', req.url)
+
+  // Same 'integrations' permission gate as the connect route.
+  if (!await requireIntegrationsAccess()) {
+    dashUrl.searchParams.set('error', 'forbidden')
+    return NextResponse.redirect(dashUrl)
+  }
 
   const { searchParams } = req.nextUrl
   const code = searchParams.get('code')
   const state = searchParams.get('state')
   const error = searchParams.get('error')
-
-  const dashUrl = new URL('/dashboard/integrations', req.url)
 
   if (error || !code || !state) {
     dashUrl.searchParams.set('error', error ?? 'oauth_failed')
@@ -20,11 +26,23 @@ export async function GET(req: NextRequest) {
   }
 
   let provider: string
+  let nonce: string | undefined
   try {
-    ;({ provider } = JSON.parse(Buffer.from(state, 'base64url').toString()))
+    ;({ provider, nonce } = JSON.parse(Buffer.from(state, 'base64url').toString()))
   } catch {
     dashUrl.searchParams.set('error', 'invalid_state')
     return NextResponse.redirect(dashUrl)
+  }
+
+  // CSRF: the state nonce must match the httpOnly cookie set when the flow
+  // started, and the provider must be one we recognize — reject before the
+  // token exchange so a lured admin cannot bind an attacker's account.
+  const cookieNonce = req.cookies.get(OAUTH_STATE_COOKIE)?.value
+  if (!nonce || !cookieNonce || nonce !== cookieNonce || !VALID_PROVIDERS.has(provider)) {
+    dashUrl.searchParams.set('error', 'invalid_state')
+    const res = NextResponse.redirect(dashUrl)
+    res.cookies.delete(OAUTH_STATE_COOKIE)
+    return res
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID!
@@ -80,5 +98,7 @@ export async function GET(req: NextRequest) {
   })
 
   dashUrl.searchParams.set('connected', provider)
-  return NextResponse.redirect(dashUrl)
+  const res = NextResponse.redirect(dashUrl)
+  res.cookies.delete(OAUTH_STATE_COOKIE)
+  return res
 }

@@ -3,6 +3,8 @@ import { getToken } from 'next-auth/jwt'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
 
+const ADMIN_ROLES = new Set(['STAFF', 'ORGANIZER', 'ADMIN'])
+
 const CHECKLIST = [
   { key: 'logo',        label: 'Logo uploaded',    check: (s: any) => !!s.logoUrl },
   { key: 'tagline',     label: 'Tagline',          check: (s: any) => !!s.tagline },
@@ -84,6 +86,7 @@ const getCachedDashboardStats = unstable_cache(
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request })
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!ADMIN_ROLES.has(token.role as string)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const data = await getCachedDashboardStats()
   return NextResponse.json(data)
 }

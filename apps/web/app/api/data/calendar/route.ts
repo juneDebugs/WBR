@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@conference/db'
+import { roleHasPermission } from '@/lib/api-permission'
+
+const ADMIN_ROLES = new Set(['STAFF', 'ORGANIZER', 'ADMIN'])
 
 function toISO(d: Date | string): string {
   return typeof d === 'string' ? d : d.toISOString()
@@ -77,6 +80,9 @@ const getCachedCalendarData = unstable_cache(
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request })
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const role = token.role as string
+  if (!ADMIN_ROLES.has(role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!(await roleHasPermission(role, 'calendar'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const data = await getCachedCalendarData()
   return NextResponse.json(data)
 }

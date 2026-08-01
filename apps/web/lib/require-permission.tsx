@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth'
+import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { AdminHeader } from '@/components/AdminHeader'
 import { getPermissionsForRole } from '@/lib/role-permissions-server'
@@ -34,4 +35,21 @@ export async function permissionDenied(key: PermissionKey, title: string) {
       </main>
     </>
   )
+}
+
+// Server-action counterpart to permissionDenied. Inline `'use server'` actions
+// on a page are ordinary POST endpoints, reachable without the page render that
+// carries permissionDenied — so every mutating action must guard itself too.
+// Call as the first line of the action body:
+//
+//   await assertPermission('sponsors')
+//
+// A role lacking `key` is bounced to /dashboard (ADMIN and any role holding the
+// key pass). Mirrors the page guard so a hidden section cannot be mutated by
+// POSTing its action directly.
+export async function assertPermission(key: PermissionKey) {
+  const session = await getServerSession(authOptions)
+  const role = (session?.user as { role?: string } | undefined)?.role ?? ''
+  const perms = await getPermissionsForRole(role)
+  if (!hasPermission(role, key, perms)) redirect('/dashboard')
 }

@@ -594,16 +594,22 @@ export async function autoPopulateSponsorTables(prismaClient: PrismaClient, conf
     .filter(e => e.tableNumber === null)
     .sort((a, b) => tierRank(a.tier) - tierRank(b.tier) || a.name.localeCompare(b.name))
 
+  const plan: { sponsorId: string; number: number }[] = []
   let next = 1
-  let assigned = 0
   for (const e of needing) {
     while (taken.has(next)) next++
     if (next > MAX_TABLE_NUMBER) break // ran out of the numeric space — leave the rest unassigned
     taken.add(next)
-    await prismaClient.$executeRawUnsafe(`UPDATE "Sponsor" SET "tableNumber" = ? WHERE "id" = ?`, next, e.sponsorId)
-    await backfillSponsorMeetingLocation(prismaClient, e.sponsorId, sponsorTableLabel(next))
-    assigned++
+    plan.push({ sponsorId: e.sponsorId, number: next })
   }
+  const CHUNK = 10
+  for (let i = 0; i < plan.length; i += CHUNK) {
+    await Promise.all(plan.slice(i, i + CHUNK).flatMap(p => [
+      prismaClient.$executeRawUnsafe(`UPDATE "Sponsor" SET "tableNumber" = ? WHERE "id" = ?`, p.number, p.sponsorId),
+      backfillSponsorMeetingLocation(prismaClient, p.sponsorId, sponsorTableLabel(p.number)),
+    ]))
+  }
+  const assigned = plan.length
   return { assigned, total: board.entries.length, board: await getSponsorTables(prismaClient, confId) }
 }
 
@@ -872,14 +878,24 @@ export async function getCompanyDirectory(prisma: Db, conferenceId?: string): Pr
       orderBy: { name: 'asc' },
     }),
     prisma.meetingRequest.findMany({
-      where: { status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] } },
+      // Scope to this conference's sponsor roster via relation filters (rather
+      // than pulling every live request across all conferences and discarding
+      // non-roster rows in JS). Relation-filter form keeps the single parallel
+      // batch — no extra sequential round-trip to resolve sponsor ids first.
+      where: {
+        status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] },
+        OR: [
+          { targetSponsor: { conferenceId: confId } },
+          { requester: { sponsor: { conferenceId: confId } } },
+        ],
+      },
       select: {
         requesterId: true, targetUserId: true, targetSponsorId: true, status: true,
         requester: { select: { sponsorId: true } },
       },
     }),
     prisma.sponsorMeeting.findMany({
-      where: { status: 'CONFIRMED' },
+      where: { status: 'CONFIRMED', sponsor: { conferenceId: confId } },
       select: { sponsorId: true, userId: true },
     }),
     prisma.user.groupBy({
@@ -1422,12 +1438,14 @@ export async function getMeetingRescheduleAvailability(
 export async function assertBlockOpen(
   prisma: Db, sponsorId: string, userId: string, timeBlockId: string, excludeMeetingId?: string,
 ) {
-  const tb = await prisma.timeBlock.findUnique({
-    where: { id: timeBlockId }, select: { startsAt: true, endsAt: true },
-  })
-  if (!tb) throw new EngineError('BAD_STATUS', 'Time block not found')
-
-  const [blackouts, candMtgs, candMeetings, sponsorMtgs] = await Promise.all([
+  // tb is only consumed after this fan-out, so fold its lookup into the same
+  // parallel batch — collapses 2 round-trips to 1 for every caller. The
+  // not-found check below still evaluates before any candidate/sponsor check,
+  // so error precedence is unchanged.
+  const [tb, blackouts, candMtgs, candMeetings, sponsorMtgs] = await Promise.all([
+    prisma.timeBlock.findUnique({
+      where: { id: timeBlockId }, select: { startsAt: true, endsAt: true },
+    }),
     prisma.blackoutTime.findMany({ where: { userId }, select: { startsAt: true, endsAt: true } }),
     prisma.sponsorMeeting.findMany({
       where: { userId, status: 'CONFIRMED', ...(excludeMeetingId ? { id: { not: excludeMeetingId } } : {}) },
@@ -1441,6 +1459,7 @@ export async function assertBlockOpen(
       where: { sponsorId, timeBlockId, status: 'CONFIRMED', ...(excludeMeetingId ? { id: { not: excludeMeetingId } } : {}) },
     }),
   ])
+  if (!tb) throw new EngineError('BAD_STATUS', 'Time block not found')
   const hasBlackout = blackouts.some(b => overlaps(tb.startsAt, tb.endsAt, b.startsAt, b.endsAt))
   const candidateBusy = hasBlackout ||
     candMtgs.some(m => m.timeBlockId === timeBlockId) ||
@@ -1502,17 +1521,23 @@ export async function assignMeeting(prisma: Db, input: AssignInput) {
   const parties = resolveParties(req as RequestLike)
   if (!parties) throw new EngineError('NOT_A_SPONSOR_REQUEST')
 
-  const existing = await prisma.sponsorMeeting.findFirst({
-    where: { sponsorId: parties.sponsorId, userId: parties.userId, status: 'CONFIRMED' },
-    select: { id: true },
-  })
+  // Both reads are independent and side-effect-free; getSponsorFixedTableLabel
+  // fails soft (never throws), so fanning it out with the existing-pair check
+  // cannot alter error precedence — the ALREADY_SCHEDULED throw below still
+  // fires before assertSlotBookable's guards, and fixedTable is only consumed
+  // after those guards pass.
+  const [existing, fixedTable] = await Promise.all([
+    prisma.sponsorMeeting.findFirst({
+      where: { sponsorId: parties.sponsorId, userId: parties.userId, status: 'CONFIRMED' },
+      select: { id: true },
+    }),
+    // A sponsor with a fixed table always meets there — its number wins over the
+    // caller's room hint so every new meeting inherits the sponsor's table.
+    getSponsorFixedTableLabel(prisma, parties.sponsorId),
+  ])
   if (existing) throw new EngineError('ALREADY_SCHEDULED', 'This pairing already has a confirmed meeting')
 
   await assertSlotBookable(prisma, parties.sponsorId, parties.userId, input.timeBlockId, input.room)
-
-  // A sponsor with a fixed table always meets there — its number wins over the
-  // caller's room hint so every new meeting inherits the sponsor's table.
-  const fixedTable = await getSponsorFixedTableLabel(prisma, parties.sponsorId)
 
   const [meeting] = await commitOrConflict(() => prisma.$transaction([
     prisma.sponsorMeeting.create({
@@ -1563,10 +1588,14 @@ export async function rescheduleMeeting(prisma: Db, input: RescheduleInput) {
 
   await assertSlotBookable(prisma, m.sponsorId, m.userId, input.timeBlockId, input.room, m.id)
 
+  // Both are independent, side-effect-free reads (getSponsorFixedTableLabel
+  // fails soft, findLinkedRequest is a findFirst) evaluated only after the
+  // guard above passes — fan them out to save a round-trip.
   // Rescheduling changes the slot, never the sponsor's fixed table (if it has one).
-  const fixedTable = await getSponsorFixedTableLabel(prisma, m.sponsorId)
-
-  const linked = await findLinkedRequest(prisma, m.sponsorId, m.userId)
+  const [fixedTable, linked] = await Promise.all([
+    getSponsorFixedTableLabel(prisma, m.sponsorId),
+    findLinkedRequest(prisma, m.sponsorId, m.userId),
+  ])
   const writes: any[] = [
     prisma.sponsorMeeting.update({
       where: { id: m.id },
@@ -2118,9 +2147,17 @@ export async function autoAssignTables(prisma: Db, input: AutoAssignTablesInput 
     }
   }
 
+  const byLoc = new Map<string, string[]>()
   for (const u of updates) {
-    await prisma.sponsorMeeting.update({ where: { id: u.id }, data: { location: u.location } })
+    const ids = byLoc.get(u.location) ?? []
+    ids.push(u.id)
+    byLoc.set(u.location, ids)
   }
+  await Promise.all(
+    [...byLoc].map(([location, ids]) =>
+      prisma.sponsorMeeting.updateMany({ where: { id: { in: ids } }, data: { location } }),
+    ),
+  )
   return { assigned: updates.length, unplaced, totalMeetings: meetings.length }
 }
 
@@ -2437,11 +2474,30 @@ export async function autoScheduleByPriority(
     // connection) is rethrown — earlier pairs stay committed and the caller
     // gets a 500, which is honest about an outage (vs. masking it as spurious
     // "slot taken" skips) and safe to retry: the pair guards skip what landed.
+    // Batch-read every survivor sponsor's fixed table once, up front, rather
+    // than re-querying per meeting inside the commit loop (and re-querying the
+    // same sponsor for each of its survivors). Same fail-soft-to-null contract
+    // as getSponsorFixedTableLabel: a read failure yields an empty map so
+    // meeting creation still proceeds on the planner's room pick.
+    const fixedTableBySponsor = new Map<string, string | null>()
+    if (survivors.length > 0) {
+      try {
+        await ensureSponsorTableColumn(prisma)
+        const ids = [...new Set(survivors.map(s => s.sponsorId))]
+        const rows = await prisma.$queryRawUnsafe<{ id: string; tableNumber: number | bigint | null }[]>(
+          `SELECT "id","tableNumber" FROM "Sponsor" WHERE "id" IN (${ids.map(() => '?').join(',')})`,
+          ...ids,
+        )
+        for (const r of rows) fixedTableBySponsor.set(r.id, r.tableNumber == null ? null : sponsorTableLabel(Number(r.tableNumber)))
+      } catch (err) {
+        console.error('[sponsor-tables] fixed-label batch read failed:', err)
+      }
+    }
     const committed: AutoScheduledEntry[] = []
     for (const s of survivors) {
       try {
         // A sponsor's fixed table wins over the planner's room pick.
-        const fixedTable = await getSponsorFixedTableLabel(prisma, s.sponsorId)
+        const fixedTable = fixedTableBySponsor.get(s.sponsorId) ?? null
         await commitOrConflict(() => prisma.$transaction([
           prisma.sponsorMeeting.create({
             data: {
@@ -2578,9 +2634,22 @@ async function computeAutoMatches(prisma: Db, confId: string): Promise<ComputedA
       select: { id: true, name: true, logoUrl: true, tier: true, solutionsSeeking: true, solutionsOffering: true },
     }),
     // All live requests, not just BEST_FIT: the Med/Low rows tell a half-match
-    // card what the unreciprocated side has picked so far.
+    // card what the unreciprocated side has picked so far. Scoped to this
+    // conference's sponsor roster via relation filters so the query no longer
+    // hauls every live request (with per-row base64 avatar relations) across
+    // all conferences only to discard off-roster rows in JS below. Relation-
+    // filter form keeps the single parallel batch — no extra sequential
+    // round-trip to resolve sponsor ids first. The SQL predicate admits a
+    // superset (an off-conference targetSponsor paired with an in-conference
+    // requester), so the sponsorById JS filter below stays as the correctness net.
     prisma.meetingRequest.findMany({
-      where: { status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] } },
+      where: {
+        status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] },
+        OR: [
+          { targetSponsor: { conferenceId: confId } },
+          { requester: { sponsor: { conferenceId: confId } } },
+        ],
+      },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true, requesterId: true, targetUserId: true, targetSponsorId: true,

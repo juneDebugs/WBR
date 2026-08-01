@@ -3,9 +3,11 @@ import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 async function createSponsor(formData: FormData) {
   'use server'
+  await assertPermission('sponsors')
   const conference = await prisma.conference.findFirst({ where: { active: true } })
   if (!conference) throw new Error('No active conference')
 
@@ -24,7 +26,10 @@ async function createSponsor(formData: FormData) {
   redirect('/dashboard/sponsors')
 }
 
-export default function NewSponsorPage() {
+export default async function NewSponsorPage() {
+  const denied = await permissionDenied('sponsors', 'New Sponsor')
+  if (denied) return denied
+
   return (
     <>
       <AdminHeader title="New Sponsor" />

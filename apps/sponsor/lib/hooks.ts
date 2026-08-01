@@ -147,8 +147,12 @@ export function useInvalidate() {
 export function usePrefetchAll() {
   const qc = useQueryClient()
   useEffect(() => {
-    qc.prefetchQuery({ queryKey: ['sponsor-data'], queryFn: () => fetch('/api/sponsor-data').then(r => r.json()), staleTime: 60_000 })
-    qc.prefetchQuery({ queryKey: ['meetings-data'], queryFn: () => fetch('/api/meetings-data').then(r => r.json()), staleTime: 30_000 })
-    qc.prefetchQuery({ queryKey: ['attendees'], queryFn: () => fetch('/api/attendees').then(r => r.json()), staleTime: 300_000 })
+    // Reuse the same throwing queryFns as the hooks above: without the res.ok
+    // check a 401/403 JSON body (e.g. session expiry, onboarding refusal) would
+    // be stored as successful data under the shared query key and served fresh
+    // for up to staleTime — crashing consumers that expect an array/stats shape.
+    qc.prefetchQuery({ queryKey: ['sponsor-data'], queryFn: async () => { const r = await fetch('/api/sponsor-data'); if (!r.ok) throw new Error('Failed to fetch sponsor data'); return r.json() }, staleTime: 60_000 })
+    qc.prefetchQuery({ queryKey: ['meetings-data'], queryFn: async () => { const r = await fetch('/api/meetings-data'); if (!r.ok) throw new Error('Failed to fetch meetings'); return r.json() }, staleTime: 30_000 })
+    qc.prefetchQuery({ queryKey: ['attendees'], queryFn: async () => { const r = await fetch('/api/attendees'); if (!r.ok) throw new Error('Failed to fetch attendees'); return r.json() }, staleTime: 300_000 })
   }, [qc])
 }

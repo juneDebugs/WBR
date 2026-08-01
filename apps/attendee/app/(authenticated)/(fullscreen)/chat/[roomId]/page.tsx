@@ -10,27 +10,44 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ roomI
 
   const userId = session.user!.id
 
-  const room = await prisma.chatRoom.findUnique({
-    where: { id: roomId },
-    include: { members: { include: { user: { select: { id: true, name: true, image: true } } } } },
-  })
+  // Three independent reads in parallel. The room query no longer pulls the
+  // full member list with base64 avatars (ADR 0004) — the General channel
+  // auto-enrolls every attendee, so that shipped multi-MB payloads just to
+  // compute a display name. We fetch only the single DM counterparty (no
+  // image, never rendered) and probe membership with a separate query, since
+  // Prisma cannot `include` the same `members` relation twice with different
+  // filters.
+  const [room, membership, initialMessages] = await Promise.all([
+    prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        members: {
+          where: { userId: { not: userId } },
+          orderBy: { joinedAt: 'asc' },
+          take: 1,
+          select: { user: { select: { id: true, name: true } } },
+        },
+      },
+    }),
+    prisma.chatMember.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+      select: { userId: true },
+    }),
+    prisma.message.findMany({
+      where: { roomId },
+      include: { sender: { select: { id: true, name: true, image: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    }),
+  ])
 
-  if (!room) notFound()
-
-  const isMember = room.members.some(m => m.userId === userId)
-  if (!isMember) notFound()
-
-  const initialMessages = await prisma.message.findMany({
-    where: { roomId },
-    include: { sender: { select: { id: true, name: true, image: true } } },
-    orderBy: { createdAt: 'asc' },
-    take: 100,
-  })
+  if (!room || !membership) notFound()
 
   const isChannel = room.type === 'CHANNEL'
-  const otherMember = !isChannel
-    ? room.members.find(m => m.userId !== userId)?.user
-    : null
+  const otherMember = !isChannel ? room.members[0]?.user : null
   const displayName = isChannel ? `# ${room.name}` : (otherMember?.name ?? 'Chat')
 
   return (

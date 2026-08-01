@@ -45,26 +45,29 @@ export async function POST(
   const action: FriendAction | undefined =
     body && typeof body.action === 'string' ? (body.action as FriendAction) : undefined
 
-  // Ensure the logged-in user exists in the DB (JWT may outlive a DB reset)
-  await prisma.user.upsert({
-    where: { id: currentUserId },
-    update: {},
-    create: {
-      id: currentUserId,
-      email: session.user.email ?? `${currentUserId}@unknown.com`,
-      name: session.user.name ?? 'Unknown',
-      role: 'ATTENDEE',
-    },
-  })
+  // Ensure the logged-in user exists in the DB (JWT may outlive a DB reset).
+  // The upsert and the friend-status read are independent, so run them in
+  // parallel — the status read was previously a second sequential Turso hop.
+  const [, status] = await Promise.all([
+    prisma.user.upsert({
+      where: { id: currentUserId },
+      update: {},
+      create: {
+        id: currentUserId,
+        email: session.user.email ?? `${currentUserId}@unknown.com`,
+        name: session.user.name ?? 'Unknown',
+        role: 'ATTENDEE',
+      },
+    }),
+    getFriendStatus(prisma, currentUserId, userId),
+  ])
 
   // Admin gate: vendors/staff may be restricted from initiating friend requests
   // to certain audiences. Only the 'request' initiation is gated — accepting,
   // declining, cancelling or removing are responses/teardown and always allowed.
   // A friendship starts only from status 'none', which is what an omitted action
   // infers as 'request'.
-  const isRequest =
-    action === 'request' ||
-    (!action && (await getFriendStatus(prisma, currentUserId, userId)) === 'none')
+  const isRequest = action === 'request' || (!action && status === 'none')
   if (isRequest) {
     const actor = actorFromSession(session)
     if (actor) {

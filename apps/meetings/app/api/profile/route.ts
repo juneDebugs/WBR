@@ -41,6 +41,13 @@ export async function PATCH(req: Request) {
       bio,
       ...(image !== undefined && { image }),
     },
+    // Never serialize the full User row — it carries the password hash,
+    // pushToken and loginCount. Mirror the profile page reader's safe field set.
+    select: {
+      id: true, name: true, email: true, image: true, company: true, jobTitle: true,
+      bio: true, website: true, companySize: true, annualRevenue: true,
+      solutionsOffering: true, solutionsSeeking: true,
+    },
   })
   revalidateTag(`meetings-user-${userId}`)
   return NextResponse.json(updated)

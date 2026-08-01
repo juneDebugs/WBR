@@ -2,31 +2,9 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
-import * as nodemailer from 'nodemailer'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
 import { roleHasPermission } from '@/lib/api-permission'
-
-async function getTransporter() {
-  // Try Gmail first, then Outlook
-  const providers = ['GMAIL', 'OUTLOOK']
-  for (const provider of providers) {
-    const integration = await prisma.integration.findUnique({ where: { provider } })
-    if (integration?.status !== 'CONNECTED' || !integration.metadata) continue
-
-    let creds: Record<string, string> = {}
-    try { creds = JSON.parse(integration.metadata) } catch { continue }
-    if (!creds.email || !creds.appPassword) continue
-
-    const isGmail = provider === 'GMAIL'
-    return nodemailer.createTransport({
-      host: isGmail ? 'smtp.gmail.com' : 'smtp-mail.outlook.com',
-      port: isGmail ? 465 : 587,
-      secure: isGmail,
-      auth: { user: creds.email, pass: creds.appPassword },
-    })
-  }
-  return null
-}
+import { getTransporter } from '@/lib/email-transport'
 
 export async function POST(req: Request) {
   if (!rateLimit(`email:${getClientIp(req)}`, 20, 60_000)) {
@@ -58,9 +36,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Body too long (max 10000 chars)' }, { status: 400 })
   }
 
-  const transporter = await getTransporter()
+  const mailer = await getTransporter()
 
-  if (!transporter) {
+  if (!mailer) {
     // No integration configured — log only
     console.warn(`[email] No email integration configured. Would have sent to ${to}: ${subject}`)
     await prisma.emailLog.create({
@@ -69,13 +47,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No email integration configured. Connect Gmail or Outlook in Integrations.' }, { status: 503 })
   }
 
+  const { transporter, fromEmail } = mailer
+
   try {
-    // Get sender address from integration metadata
-    const gmailIntegration = await prisma.integration.findFirst({
-      where: { provider: { in: ['GMAIL', 'OUTLOOK'] }, status: 'CONNECTED' },
-    })
-    let fromEmail = gmailIntegration?.accountLabel ?? 'noreply@conference.app'
-    let fromName = 'WBR 2027'
+    const fromName = 'WBR 2027'
 
     const safeHtml = body
       .replace(/&/g, '&amp;')

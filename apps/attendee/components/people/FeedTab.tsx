@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { FriendStatus } from '@conference/db'
@@ -311,6 +311,204 @@ export function FeedHeader({ conferenceName, onCreate, onOpenMessages, hasConver
   )
 }
 
+// ── FeedPost (memoized) ───────────────────────────────────────────────────────
+// One feed <article>, isolated into a memoized child so a keystroke in the
+// comments/composer sheet (which re-renders FeedTab) does not reconcile every
+// post subtree — each of which carries a base64 <img> (ADR 0004). The memo
+// only bails when props are referentially stable, so FeedTab passes scalar
+// props (isMe/friendStatus/saved) plus useCallback-stabilized handlers rather
+// than the friendState/savedIds objects.
+
+interface FeedPostProps {
+  msg: FeedMessage
+  isFirst: boolean
+  isMe: boolean
+  friendStatus: FriendStatus
+  saved: boolean
+  pendingFriend: boolean
+  onFriendAction: (userId: string, e?: React.MouseEvent) => void
+  onToggleLike: (msg: FeedMessage) => void
+  onOpenComments: (messageId: string) => void
+  onToggleSaved: (id: string) => void
+  onOpenDm: (person: Person) => void
+  onOpenOptions: (msg: FeedMessage) => void
+}
+
+const FeedPost = React.memo(function FeedPost({
+  msg,
+  isFirst,
+  isMe,
+  friendStatus,
+  saved,
+  pendingFriend,
+  onFriendAction,
+  onToggleLike,
+  onOpenComments,
+  onToggleSaved,
+  onOpenDm,
+  onOpenOptions,
+}: FeedPostProps) {
+  const senderId = msg.sender.id ?? msg.senderId
+  const isTemp = msg.id.startsWith('temp-')
+  const caption = [msg.sender.company, msg.sender.jobTitle].filter(Boolean).join(' · ')
+  const name = msg.sender.name ?? (isMe ? 'You' : 'Unknown')
+  // Admin global broadcasts glow around their whole perimeter. To let the glow
+  // read on all four sides, the post detaches from the edge-to-edge feed into
+  // an inset, rounded card (the feed's -mx-4 full-bleed is cancelled by mx-4
+  // here); ordinary posts keep the flush hairline-separated layout.
+  const isBroadcast = isAdminBroadcast(msg.sender.role)
+  return (
+    <article
+      data-testid="feed-post"
+      data-broadcast={isBroadcast ? 'true' : undefined}
+      className={`bg-surface ${isTemp ? 'opacity-60' : ''} ${
+        isBroadcast
+          ? 'feed-broadcast rounded-2xl mx-4 my-3 overflow-hidden'
+          : `border-b border-hairline ${isFirst ? 'border-t' : ''}`
+      }`}
+    >
+      {isBroadcast && (
+        <span className="sr-only">Announcement from the organizers</span>
+      )}
+      {/* Post header */}
+      <div className="flex items-center gap-3 px-4 py-2.5">
+        {isMe ? (
+          <GradientRingAvatar person={msg.sender} sizeClass="w-9 h-9" outerPad="p-[2px]" innerPad="p-[1.5px]" textClass="text-xs" />
+        ) : (
+          <Link href={`/people/${senderId}`} className="active:opacity-70 flex-shrink-0" aria-label={`View ${name}'s profile`}>
+            <GradientRingAvatar person={msg.sender} sizeClass="w-9 h-9" outerPad="p-[2px]" innerPad="p-[1.5px]" textClass="text-xs" />
+          </Link>
+        )}
+        <div className="flex-1 min-w-0">
+          {isMe ? (
+            <span className="block text-sm font-semibold text-ink truncate">{name}</span>
+          ) : (
+            <Link href={`/people/${senderId}`} className="block text-sm font-semibold text-ink truncate active:opacity-70">
+              {name}
+            </Link>
+          )}
+          {caption && <p className="text-footnote text-ink-3 truncate">{caption}</p>}
+        </div>
+        {!isMe && (
+          <>
+            <button
+              type="button"
+              onClick={e => onFriendAction(senderId, e)}
+              disabled={pendingFriend || friendStatus === 'friends'}
+              aria-disabled={friendStatus === 'friends' || undefined}
+              aria-label={friendAriaLabel(friendStatus, name)}
+              className={`flex-shrink-0 text-sm font-semibold px-2 py-3 -my-3 transition-opacity ${
+                friendStatus === 'friends'
+                  // Terminal state: calm secondary label, full opacity even
+                  // though disabled — it's a state, not a broken control.
+                  ? 'text-ink-3'
+                  : friendStatus === 'pending_outgoing'
+                    ? 'text-ink-3 active:opacity-70 disabled:opacity-50'
+                    : 'text-primary active:opacity-70 disabled:opacity-50'
+              }`}
+            >
+              {FRIEND_BUTTON_LABEL[friendStatus]}
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenOptions(msg)}
+              aria-label="More options"
+              className="flex-shrink-0 p-2.5 -my-2.5 -mr-2.5 text-ink active:opacity-70"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="5" cy="12" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="19" cy="12" r="1.6" />
+              </svg>
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Image */}
+      {msg.imageUrl && (
+        <img
+          src={msg.imageUrl}
+          alt=""
+          loading="lazy"
+          className="w-full max-h-[520px] object-cover bg-fill"
+        />
+      )}
+
+      {/* Caption — no author prefix; the name already leads the post header */}
+      {msg.content && (
+        <p className="px-4 pt-1 text-subhead text-ink whitespace-pre-wrap break-words">
+          {msg.content}
+        </p>
+      )}
+
+      {/* Action row — below the message text */}
+      <div className="flex items-center px-3 py-1.5">
+        <button
+          type="button"
+          data-testid="like-button"
+          onClick={() => onToggleLike(msg)}
+          disabled={isTemp}
+          aria-label={msg.likedByMe ? 'Unlike' : 'Like'}
+          aria-pressed={msg.likedByMe}
+          className="group flex items-center gap-1.5 p-2.5 disabled:opacity-40"
+        >
+          <HeartIcon
+            filled={msg.likedByMe}
+            className={`w-6 h-6 transition-transform group-active:scale-90 ${msg.likedByMe ? 'text-danger' : 'text-ink'}`}
+          />
+          {msg.likeCount > 0 && (
+            <span data-testid="like-count" className="text-sm font-semibold text-ink">{msg.likeCount}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          data-testid="comment-button"
+          onClick={() => onOpenComments(msg.id)}
+          disabled={isTemp}
+          aria-label="Comments"
+          className="group flex items-center gap-1.5 p-2.5 disabled:opacity-40"
+        >
+          <CommentIcon className="w-6 h-6 text-ink transition-transform group-active:scale-90" />
+          {msg.commentCount > 0 && (
+            <span className="text-sm font-semibold text-ink">{msg.commentCount}</span>
+          )}
+        </button>
+        {!isMe && (
+          <button
+            type="button"
+            onClick={() => onOpenDm(personFromSender(msg))}
+            aria-label="Send as message"
+            className="group p-2.5"
+          >
+            <PlaneIcon className="w-6 h-6 text-ink transition-transform group-active:scale-90" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onToggleSaved(msg.id)}
+          aria-label={saved ? 'Remove from saved' : 'Save'}
+          aria-pressed={saved}
+          className="group p-2.5 ml-auto"
+        >
+          <BookmarkIcon filled={saved} className="w-6 h-6 text-ink transition-transform group-active:scale-90" />
+        </button>
+      </div>
+
+      {msg.commentCount > 0 && !isTemp && (
+        <button
+          type="button"
+          onClick={() => onOpenComments(msg.id)}
+          className="block px-4 pt-1.5 pb-1 -mb-1 text-sm text-ink-3 active:opacity-70"
+        >
+          {msg.commentCount === 1 ? 'View 1 comment' : `View all ${msg.commentCount} comments`}
+        </button>
+      )}
+      <p className="px-4 pb-3 pt-0.5 text-caption text-ink-3">{feedTimeAgo(msg.createdAt)}</p>
+    </article>
+  )
+})
+
 // ── FeedTab ───────────────────────────────────────────────────────────────────
 
 export interface FeedTabProps {
@@ -378,7 +576,7 @@ export function FeedTab({
       if (raw) setSavedIds(new Set(JSON.parse(raw) as string[]))
     } catch {}
   }, [])
-  function toggleSaved(id: string) {
+  const toggleSaved = useCallback((id: string) => {
     setSavedIds(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -386,7 +584,7 @@ export function FeedTab({
       try { localStorage.setItem(SAVED_STORAGE_KEY, JSON.stringify([...next])) } catch {}
       return next
     })
-  }
+  }, [])
 
   // Fetch the feed on mount (FeedTab only mounts while the Feed tab is active).
   useEffect(() => {
@@ -541,7 +739,7 @@ export function FeedTab({
   }
 
   // Optimistic like toggle with reconcile-on-response, rollback on failure.
-  async function toggleLike(msg: FeedMessage) {
+  const toggleLike = useCallback(async (msg: FeedMessage) => {
     if (msg.id.startsWith('temp-')) return
     const id = msg.id
     const wasLiked = msg.likedByMe
@@ -564,9 +762,9 @@ export function FeedTab({
           : m
       ))
     }
-  }
+  }, [])
 
-  function openComments(messageId: string) {
+  const openComments = useCallback((messageId: string) => {
     if (messageId.startsWith('temp-')) return
     setCommentsFor(messageId)
     setComments([])
@@ -581,7 +779,7 @@ export function FeedTab({
       .then(data => { if (commentsGenRef.current === gen) setComments(data.comments ?? []) })
       .catch(() => {})
       .finally(() => { if (commentsGenRef.current === gen) setCommentsLoading(false) })
-  }
+  }, [])
 
   async function sendComment() {
     const content = commentInput.trim()
@@ -731,168 +929,22 @@ export function FeedTab({
             <div className="-mx-4">
               {feedDisplay.map((msg, idx) => {
                 const senderId = msg.sender.id ?? msg.senderId
-                const isMe = senderId === currentUserId
-                const isTemp = msg.id.startsWith('temp-')
-                const friendStatus: FriendStatus = friendState[senderId] ?? 'none'
-                const saved = savedIds.has(msg.id)
-                const caption = [msg.sender.company, msg.sender.jobTitle].filter(Boolean).join(' · ')
-                const name = msg.sender.name ?? (isMe ? 'You' : 'Unknown')
-                // Admin global broadcasts glow around their whole perimeter. To
-                // let the glow read on all four sides, the post detaches from
-                // the edge-to-edge feed into an inset, rounded card (the feed's
-                // -mx-4 full-bleed is cancelled by mx-4 here); ordinary posts
-                // keep the flush hairline-separated layout.
-                const isBroadcast = isAdminBroadcast(msg.sender.role)
                 return (
-                  <article
+                  <FeedPost
                     key={msg.id}
-                    data-testid="feed-post"
-                    data-broadcast={isBroadcast ? 'true' : undefined}
-                    className={`bg-surface ${isTemp ? 'opacity-60' : ''} ${
-                      isBroadcast
-                        ? 'feed-broadcast rounded-2xl mx-4 my-3 overflow-hidden'
-                        : `border-b border-hairline ${idx === 0 ? 'border-t' : ''}`
-                    }`}
-                  >
-                    {isBroadcast && (
-                      <span className="sr-only">Announcement from the organizers</span>
-                    )}
-                    {/* Post header */}
-                    <div className="flex items-center gap-3 px-4 py-2.5">
-                      {isMe ? (
-                        <GradientRingAvatar person={msg.sender} sizeClass="w-9 h-9" outerPad="p-[2px]" innerPad="p-[1.5px]" textClass="text-xs" />
-                      ) : (
-                        <Link href={`/people/${senderId}`} className="active:opacity-70 flex-shrink-0" aria-label={`View ${name}'s profile`}>
-                          <GradientRingAvatar person={msg.sender} sizeClass="w-9 h-9" outerPad="p-[2px]" innerPad="p-[1.5px]" textClass="text-xs" />
-                        </Link>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        {isMe ? (
-                          <span className="block text-sm font-semibold text-ink truncate">{name}</span>
-                        ) : (
-                          <Link href={`/people/${senderId}`} className="block text-sm font-semibold text-ink truncate active:opacity-70">
-                            {name}
-                          </Link>
-                        )}
-                        {caption && <p className="text-footnote text-ink-3 truncate">{caption}</p>}
-                      </div>
-                      {!isMe && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={e => onFriendAction(senderId, e)}
-                            disabled={pendingFriend || friendStatus === 'friends'}
-                            aria-disabled={friendStatus === 'friends' || undefined}
-                            aria-label={friendAriaLabel(friendStatus, name)}
-                            className={`flex-shrink-0 text-sm font-semibold px-2 py-3 -my-3 transition-opacity ${
-                              friendStatus === 'friends'
-                                // Terminal state: calm secondary label, full opacity even
-                                // though disabled — it's a state, not a broken control.
-                                ? 'text-ink-3'
-                                : friendStatus === 'pending_outgoing'
-                                  ? 'text-ink-3 active:opacity-70 disabled:opacity-50'
-                                  : 'text-primary active:opacity-70 disabled:opacity-50'
-                            }`}
-                          >
-                            {FRIEND_BUTTON_LABEL[friendStatus]}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setOptionsFor(msg)}
-                            aria-label="More options"
-                            className="flex-shrink-0 p-2.5 -my-2.5 -mr-2.5 text-ink active:opacity-70"
-                          >
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                              <circle cx="5" cy="12" r="1.6" />
-                              <circle cx="12" cy="12" r="1.6" />
-                              <circle cx="19" cy="12" r="1.6" />
-                            </svg>
-                          </button>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Image */}
-                    {msg.imageUrl && (
-                      <img
-                        src={msg.imageUrl}
-                        alt=""
-                        loading="lazy"
-                        className="w-full max-h-[520px] object-cover bg-fill"
-                      />
-                    )}
-
-                    {/* Caption — no author prefix; the name already leads the post header */}
-                    {msg.content && (
-                      <p className="px-4 pt-1 text-subhead text-ink whitespace-pre-wrap break-words">
-                        {msg.content}
-                      </p>
-                    )}
-
-                    {/* Action row — below the message text */}
-                    <div className="flex items-center px-3 py-1.5">
-                      <button
-                        type="button"
-                        data-testid="like-button"
-                        onClick={() => toggleLike(msg)}
-                        disabled={isTemp}
-                        aria-label={msg.likedByMe ? 'Unlike' : 'Like'}
-                        aria-pressed={msg.likedByMe}
-                        className="group flex items-center gap-1.5 p-2.5 disabled:opacity-40"
-                      >
-                        <HeartIcon
-                          filled={msg.likedByMe}
-                          className={`w-6 h-6 transition-transform group-active:scale-90 ${msg.likedByMe ? 'text-danger' : 'text-ink'}`}
-                        />
-                        {msg.likeCount > 0 && (
-                          <span data-testid="like-count" className="text-sm font-semibold text-ink">{msg.likeCount}</span>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="comment-button"
-                        onClick={() => openComments(msg.id)}
-                        disabled={isTemp}
-                        aria-label="Comments"
-                        className="group flex items-center gap-1.5 p-2.5 disabled:opacity-40"
-                      >
-                        <CommentIcon className="w-6 h-6 text-ink transition-transform group-active:scale-90" />
-                        {msg.commentCount > 0 && (
-                          <span className="text-sm font-semibold text-ink">{msg.commentCount}</span>
-                        )}
-                      </button>
-                      {!isMe && (
-                        <button
-                          type="button"
-                          onClick={() => onOpenDm(personFromSender(msg))}
-                          aria-label="Send as message"
-                          className="group p-2.5"
-                        >
-                          <PlaneIcon className="w-6 h-6 text-ink transition-transform group-active:scale-90" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => toggleSaved(msg.id)}
-                        aria-label={saved ? 'Remove from saved' : 'Save'}
-                        aria-pressed={saved}
-                        className="group p-2.5 ml-auto"
-                      >
-                        <BookmarkIcon filled={saved} className="w-6 h-6 text-ink transition-transform group-active:scale-90" />
-                      </button>
-                    </div>
-
-                    {msg.commentCount > 0 && !isTemp && (
-                      <button
-                        type="button"
-                        onClick={() => openComments(msg.id)}
-                        className="block px-4 pt-1.5 pb-1 -mb-1 text-sm text-ink-3 active:opacity-70"
-                      >
-                        {msg.commentCount === 1 ? 'View 1 comment' : `View all ${msg.commentCount} comments`}
-                      </button>
-                    )}
-                    <p className="px-4 pb-3 pt-0.5 text-caption text-ink-3">{feedTimeAgo(msg.createdAt)}</p>
-                  </article>
+                    msg={msg}
+                    isFirst={idx === 0}
+                    isMe={senderId === currentUserId}
+                    friendStatus={friendState[senderId] ?? 'none'}
+                    saved={savedIds.has(msg.id)}
+                    pendingFriend={pendingFriend}
+                    onFriendAction={onFriendAction}
+                    onToggleLike={toggleLike}
+                    onOpenComments={openComments}
+                    onToggleSaved={toggleSaved}
+                    onOpenDm={onOpenDm}
+                    onOpenOptions={setOptionsFor}
+                  />
                 )
               })}
             </div>

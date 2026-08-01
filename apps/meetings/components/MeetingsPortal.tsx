@@ -94,6 +94,7 @@ export function MeetingsPortal({ currentUserId, currentSponsorId, defaultSection
   const [localUpdates, setLocalUpdates] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<Tab>(defaultSection === 'meetings' ? 'confirmed' : 'all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // Pure client-side switch — no server roundtrip, no Next.js navigation
   const switchSection = useCallback((s: Section) => {
@@ -110,6 +111,7 @@ export function MeetingsPortal({ currentUserId, currentSponsorId, defaultSection
 
   async function updateStatus(requestId: string, status: string) {
     setActionLoading(requestId)
+    setActionError(null)
     setLocalUpdates(prev => ({ ...prev, [requestId]: status }))
     try {
       const res = await fetch(`/api/meeting-requests/${requestId}`, {
@@ -118,11 +120,18 @@ export function MeetingsPortal({ currentUserId, currentSponsorId, defaultSection
         body: JSON.stringify({ status }),
       })
       if (!res.ok) {
+        // Roll back the optimistic update and surface why it failed instead of
+        // silently reverting (the button would otherwise appear to do nothing).
         setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
+        const body = await res.json().catch(() => null)
+        setActionError(body?.error ?? `Couldn't update request (${res.status})`)
       } else {
         queryClient.invalidateQueries({ queryKey: ['meetings'] })
         queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       }
+    } catch {
+      setLocalUpdates(prev => { const next = { ...prev }; delete next[requestId]; return next })
+      setActionError('Network error — please try again.')
     } finally {
       setActionLoading(null)
     }
@@ -322,6 +331,16 @@ export function MeetingsPortal({ currentUserId, currentSponsorId, defaultSection
             </button>
           ))}
         </div>
+
+        {actionError && (
+          <div className="rounded-xl border border-danger-soft bg-danger-soft px-4 py-3 flex items-start gap-3">
+            <svg className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-sm text-danger-ink flex-1">{actionError}</p>
+            <button onClick={() => setActionError(null)} className="text-xs text-danger-ink hover:opacity-70">Dismiss</button>
+          </div>
+        )}
 
         {renderRequests()}
       </div>

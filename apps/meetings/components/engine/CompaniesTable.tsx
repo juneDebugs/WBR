@@ -1,26 +1,17 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DirectoryRow } from '@conference/db'
-import { fmtDate, fmtDateTime } from './format'
+import { useEffect, useMemo, useState } from 'react'
+import { useStaffCompanies } from '@/lib/hooks'
+import { fmtDateTime } from './format'
 
 const PAGE_SIZE = 20
 
 // eTail Connect "Company List" — dense enterprise data grid.
 export function CompaniesTable({ onMeetingTimes }: { onMeetingTimes: (row: { id: string; name: string }) => void }) {
-  const [rows, setRows] = useState<DirectoryRow[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // Shared with MeetingEngineConsole above via the ['staff-companies'] query.
+  const { data: rows, error, isLoading } = useStaffCompanies()
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [menuFor, setMenuFor] = useState<string | null>(null)
-
-  useEffect(() => {
-    let alive = true
-    fetch('/api/staff/companies')
-      .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load companies')))
-      .then(d => { if (alive) setRows(d.companies) })
-      .catch(e => { if (alive) setError(e.message) })
-    return () => { alive = false }
-  }, [])
 
   useEffect(() => {
     const close = () => setMenuFor(null)
@@ -66,7 +57,7 @@ export function CompaniesTable({ onMeetingTimes }: { onMeetingTimes: (row: { id:
 
       {error && <div className="border border-[#d9534f] bg-[#f2dede] text-[#a94442] px-3 py-2 text-[13px] rounded">Couldn’t load companies. <button className="underline" onClick={() => location.reload()}>Retry</button></div>}
 
-      {!rows && !error && <div className="text-[13px] text-[#777] py-6">Loading companies…</div>}
+      {isLoading && !error && <div className="text-[13px] text-[#777] py-6">Loading companies…</div>}
 
       {rows && !error && (
         <div className="overflow-x-auto">

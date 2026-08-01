@@ -4,9 +4,11 @@ import { AdminHeader } from '@/components/AdminHeader'
 import { revalidateTag } from 'next/cache'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 async function createSession(formData: FormData) {
   'use server'
+  await assertPermission('agenda')
   const speakerId = formData.get('speakerId') as string | null
   const startsAt = new Date(formData.get('startsAt') as string)
   const endsAt = new Date(formData.get('endsAt') as string)
@@ -35,6 +37,9 @@ async function createSession(formData: FormData) {
 }
 
 export default async function NewSessionPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const denied = await permissionDenied('agenda', 'New Session')
+  if (denied) return denied
+
   const { error } = await searchParams
   const [conferences, speakers] = await Promise.all([
     prisma.conference.findMany({ orderBy: { startDate: 'desc' } }),

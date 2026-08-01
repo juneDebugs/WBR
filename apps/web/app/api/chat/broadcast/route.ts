@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma } from '@conference/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -34,6 +35,10 @@ export async function POST(req: Request) {
     data: { roomId: GENERAL_ROOM_ID, senderId: sender.id, content: message.trim() },
     include: { sender: { select: { id: true, name: true, email: true, image: true } } },
   })
+
+  // The cached chat feed (/api/data/chat, unstable_cache tag 'chat') must be
+  // invalidated or the new broadcast stays missing for up to 120s.
+  revalidateTag('chat')
 
   return NextResponse.json({ ok: true, message: msg })
 }

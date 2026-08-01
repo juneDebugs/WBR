@@ -94,6 +94,7 @@ export async function detectSpeakerConflicts(
   }
 
   const activeConflictKeys = new Set<string>()
+  const pairs: { idA: string; idB: string; speakerId: string }[] = []
 
   // Find overlapping pairs for each speaker
   for (const [, speakerSessions] of Array.from(bySpeaker)) {
@@ -107,23 +108,27 @@ export async function detectSpeakerConflicts(
         // Normalize pair ordering by id for the unique constraint
         const [idA, idB] = [a.id, b.id].sort()
         activeConflictKeys.add(`${idA}__${idB}`)
-
-        await prismaClient.conflictLog.upsert({
-          where: { sessionAId_sessionBId: { sessionAId: idA, sessionBId: idB } },
-          create: { speakerId: a.speakerId!, sessionAId: idA, sessionBId: idB, resolved: false },
-          update: { resolved: false, detectedAt: new Date() },
-        })
+        pairs.push({ idA, idB, speakerId: a.speakerId! })
       }
     }
   }
 
-  // Mark conflicts that no longer exist as resolved
+  // Persist all detected pairs concurrently — distinct unique keys mean no
+  // atomicity/race concern (Promise.all, not $transaction, since the
+  // turso-http adapter runs the array form sequentially anyway).
+  await Promise.all(pairs.map(p => prismaClient.conflictLog.upsert({
+    where: { sessionAId_sessionBId: { sessionAId: p.idA, sessionBId: p.idB } },
+    create: { speakerId: p.speakerId, sessionAId: p.idA, sessionBId: p.idB, resolved: false },
+    update: { resolved: false, detectedAt: new Date() },
+  })))
+
+  // Mark conflicts that no longer exist as resolved — one batched update.
   const existingConflicts = await prismaClient.conflictLog.findMany({ where: { resolved: false } })
-  for (const c of existingConflicts) {
-    const key = `${c.sessionAId}__${c.sessionBId}`
-    if (!activeConflictKeys.has(key)) {
-      await prismaClient.conflictLog.update({ where: { id: c.id }, data: { resolved: true } })
-    }
+  const staleIds = existingConflicts
+    .filter(c => !activeConflictKeys.has(`${c.sessionAId}__${c.sessionBId}`))
+    .map(c => c.id)
+  if (staleIds.length) {
+    await prismaClient.conflictLog.updateMany({ where: { id: { in: staleIds } }, data: { resolved: true } })
   }
 
   // Return active conflicts with full detail

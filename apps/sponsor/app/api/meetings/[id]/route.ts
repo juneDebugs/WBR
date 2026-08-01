@@ -66,16 +66,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   let timeBlockId: string | null = null
   let room: string | null = null
   if ((status === 'CONFIRMED' || status === 'APPROVED') && sponsorId) {
+    // Start the fixed-table lookup eagerly: it depends only on sponsorId (known
+    // now), fails soft to null, and never rejects, so running it alongside the
+    // chain below and awaiting it only if a block is booked is behavior-neutral.
+    const fixedTablePromise = getSponsorFixedTableLabel(prisma, sponsorId)
+
     const pairMeeting = await prisma.sponsorMeeting.findFirst({
       where: { sponsorId, userId: attendeeId, status: 'CONFIRMED' },
       select: { id: true },
     })
     if (!pairMeeting) {
       if (request.timeBlockId) {
-        const storedStillOpen = await assertBlockOpen(prisma, sponsorId, attendeeId, request.timeBlockId)
-          .then(() => true)
-          .catch(e => { if (e instanceof EngineError) return false; throw e })
-        if (storedStillOpen) { timeBlockId = request.timeBlockId; room = (await getMeetingTables(prisma))[0].name }
+        // Two independent reads — whether the stored block is still open and the
+        // default table label — run together to save a round-trip. assertBlockOpen
+        // is kept OFF the pairMeeting path (it must not run when a confirmed pair
+        // meeting already exists), so this only parallelizes reads that always run.
+        const [storedStillOpen, tables] = await Promise.all([
+          assertBlockOpen(prisma, sponsorId, attendeeId, request.timeBlockId)
+            .then(() => true)
+            .catch(e => { if (e instanceof EngineError) return false; throw e }),
+          getMeetingTables(prisma),
+        ])
+        if (storedStillOpen) { timeBlockId = request.timeBlockId; room = tables[0].name }
       }
       if (!timeBlockId) {
         const slot = await findFirstOpenSlot(prisma, sponsorId, attendeeId)
@@ -86,7 +98,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // over the first-open-slot's default room so the booking shows the sponsor's
     // table everywhere it is displayed.
     if (timeBlockId) {
-      const fixedTable = await getSponsorFixedTableLabel(prisma, sponsorId)
+      const fixedTable = await fixedTablePromise
       if (fixedTable) room = fixedTable
     }
   }

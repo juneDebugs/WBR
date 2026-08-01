@@ -267,7 +267,7 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
   const selectedIsFriend = selectedStatus === 'friends'
 
   useEffect(() => {
-    if (!selected) { setChatRoomId(null); setMessages([]); setChatInput(''); setDmLocked(false); return }
+    if (!selected) { setChatRoomId(null); setMessages([]); setChatInput(''); setDmLocked(false); setSending(false); return }
     let cancelled = false
     setChatLoading(true)
     setDmLocked(false)
@@ -316,16 +316,26 @@ function PeopleClientInner({ data }: { data: { currentUserId: string; allUsers: 
     setSending(true)
     const content = chatInput.trim()
     setChatInput('')
-    const res = await fetch(`/api/chat/rooms/${chatRoomId}/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
-    })
-    if (res.ok) {
-      const msg = await res.json()
-      setMessages(prev => [...prev, msg])
+    try {
+      const res = await fetch(`/api/chat/rooms/${chatRoomId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      })
+      if (res.ok) {
+        const msg = await res.json()
+        setMessages(prev => [...prev, msg])
+      } else {
+        // Restore the draft so a failed send doesn't silently drop the message.
+        // Conditional: the textarea isn't disabled while sending, so the user
+        // may have started typing something new — don't clobber it.
+        setChatInput(prev => (prev.trim() ? prev : content))
+      }
+    } catch {
+      setChatInput(prev => (prev.trim() ? prev : content))
+    } finally {
+      setSending(false)
     }
-    setSending(false)
   }
 
   const searchLower = search.toLowerCase()

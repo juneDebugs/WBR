@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
-import { prisma, resolveParties, syncAutoMatches, assertBlockOpen, commitOrConflict, EngineError, engineErrorHttpStatus } from '@conference/db'
-import { invalidate } from '@/lib/mem-cache'
+import { prisma, resolveParties, assertBlockOpen, commitOrConflict, EngineError, engineErrorHttpStatus, isWbrStaff } from '@conference/db'
+import { triggerAutoMatchForPick } from '@/lib/auto-match'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -25,8 +25,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
   }
 
-  // Only STAFF can approve/reject/confirm/re-tier
-  if (role !== 'STAFF') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Authorization. The WBR-staff tier (WBR/ORGANIZER/ADMIN/STAFF) keeps full
+  // power — any status, timeBlockId, priority — matching lib/staff-api.ts. A
+  // non-staff user may only approve/reject an inbound request that targets them
+  // (never re-tier or schedule). The old `role !== 'STAFF'` check both 403'd the
+  // portal's Approve/Decline buttons for their intended recipients and locked
+  // out ORGANIZER/ADMIN/WBR staff accounts.
+  if (!isWbrStaff(role)) {
+    const target = await prisma.meetingRequest.findUnique({
+      where: { id },
+      select: { targetUserId: true, targetSponsorId: true },
+    })
+    if (!target) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
+    const isRecipient =
+      user.id === target.targetUserId ||
+      (!!user.sponsorId && user.sponsorId === target.targetSponsorId)
+    if (
+      !isRecipient ||
+      (status !== 'APPROVED' && status !== 'REJECTED') ||
+      priority !== undefined ||
+      timeBlockId !== undefined
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
 
   // Confirming into a slot must respect the engine invariants (exclusive
   // slots: one meeting per sponsor per block, attendee free at the block, one
@@ -74,7 +96,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ...(priority !== undefined ? { priority } : {}),
         ...(timeBlockId ? { timeBlockId } : {}),
       },
-      include: { requester: true, targetUser: true, targetSponsor: true, timeBlock: true },
+      include: {
+        requester: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true, role: true } },
+        targetUser: { select: { id: true, name: true, email: true, image: true, company: true, jobTitle: true, role: true } },
+        targetSponsor: true,
+        timeBlock: true,
+      },
     }),
   ]
   if (status === 'CONFIRMED' && timeBlockId && parties) {
@@ -95,14 +122,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   // A staff re-tier to Best Fit can complete a mutual match, which schedules
-  // the meeting immediately. Idempotent sweep; never fails the update itself.
-  if (priority === 'BEST_FIT') await syncAutoMatches(prisma).catch(() => {})
+  // the meeting immediately. Only pay the full sweep synchronously when a
+  // reciprocal live pick actually exists; otherwise defer it (see auto-match).
+  if (priority === 'BEST_FIT') {
+    let requesterSponsorId: string | null = null
+    if (updated.targetUserId && !updated.targetSponsorId) {
+      const r = await prisma.user.findUnique({ where: { id: updated.requesterId }, select: { sponsorId: true } })
+      requesterSponsorId = r?.sponsorId ?? null
+    }
+    await triggerAutoMatchForPick({
+      requesterId: updated.requesterId,
+      requesterSponsorId,
+      targetUserId: updated.targetUserId,
+      targetSponsorId: updated.targetSponsorId,
+    })
+  }
 
-  // Invalidate in-memory cache for affected users
-  invalidate(updated.requesterId)
-  if (updated.targetUserId) invalidate(updated.targetUserId)
-
-  revalidateTag('meeting-requests')
   revalidateTag(`meetings-user-${updated.requesterId}`)
   if (updated.targetUserId) revalidateTag(`meetings-user-${updated.targetUserId}`)
   return NextResponse.json(updated)

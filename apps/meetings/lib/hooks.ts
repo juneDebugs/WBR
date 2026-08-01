@@ -1,6 +1,27 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import type { DirectoryRow } from '@conference/db'
+
+// ── Staff: company directory ──────────────────────────────────────────
+// Shared by MeetingEngineConsole (its switch-company dropdown) and the
+// CompaniesTable rendered beneath it, so the two concurrent mounts dedupe into
+// one /api/staff/companies request instead of fetching the same directory
+// twice. staleTime: 0 keeps today's always-fresh-per-mount semantics (the
+// app-wide QueryProvider defaults to a 5-min staleTime with IDB persistence).
+export function useStaffCompanies() {
+  return useQuery<DirectoryRow[]>({
+    queryKey: ['staff-companies'],
+    queryFn: () =>
+      fetch('/api/staff/companies')
+        .then(r => {
+          if (!r.ok) throw new Error('Failed to load companies')
+          return r.json()
+        })
+        .then(d => d.companies as DirectoryRow[]),
+    staleTime: 0,
+  })
+}
 
 // ── Browse: sponsors list ─────────────────────────────────────────────
 export function useBrowseSponsors() {

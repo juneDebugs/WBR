@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
 import { prisma } from '@conference/db'
 import { requireStaff } from '@/lib/staff-api'
-import { invalidate } from '@/lib/mem-cache'
 
 // PATCH — move a request through review: PENDING -> APPROVED (into the bank) or
 // REJECTED. Scheduling itself is handled by /api/staff/meetings/assign.
@@ -18,21 +16,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'status must be APPROVED, REJECTED or PENDING' }, { status: 400 })
   }
 
-  const existing = await prisma.meetingRequest.findUnique({ where: { id }, select: { status: true } })
-  if (!existing) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
   // Review only moves PENDING requests. A CONFIRMED request has a live meeting;
   // flipping its status here would orphan the SponsorMeeting — cancel it instead.
-  if (existing.status !== 'PENDING') {
+  // Guard and write in a single conditional update so a concurrent assign (which
+  // commits status=CONFIRMED) can't slip between a read and a write and get
+  // clobbered back to APPROVED/REJECTED.
+  const { count } = await prisma.meetingRequest.updateMany({
+    where: { id, status: 'PENDING' },
+    data: { status },
+  })
+  if (count === 0) {
+    const existing = await prisma.meetingRequest.findUnique({ where: { id }, select: { status: true } })
+    if (!existing) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
     return NextResponse.json({ error: `Cannot review a ${existing.status} request`, code: 'BAD_STATUS' }, { status: 409 })
   }
-
-  const updated = await prisma.meetingRequest.update({
+  const updated = await prisma.meetingRequest.findUniqueOrThrow({
     where: { id },
-    data: { status },
     select: { id: true, status: true, requesterId: true, targetUserId: true },
   })
-  invalidate(updated.requesterId)
-  if (updated.targetUserId) invalidate(updated.targetUserId)
-  revalidateTag('meetings')
   return NextResponse.json({ ok: true, request: updated })
 }

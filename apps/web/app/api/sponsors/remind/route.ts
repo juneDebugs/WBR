@@ -7,8 +7,8 @@ import {
   missingSponsorItems,
   type SponsorReadinessSubject,
 } from '@conference/db'
-import * as nodemailer from 'nodemailer'
 import OpenAI from 'openai'
+import { getTransporter } from '@/lib/email-transport'
 
 // The nine items this email chases now live in packages/db/src/onboarding-policy.ts
 // alongside the six the sponsor onboarding gate blocks on, so a reminder and a
@@ -36,25 +36,6 @@ import OpenAI from 'openai'
 // wider — a production row carrying one of the values above WILL be chased
 // differently, deliberately. scripts/test-onboarding-policy.mjs re-runs that
 // comparison over whatever data is present.
-
-async function getTransporter() {
-  const providers = ['GMAIL', 'OUTLOOK']
-  for (const provider of providers) {
-    const integration = await prisma.integration.findUnique({ where: { provider } })
-    if (integration?.status !== 'CONNECTED' || !integration.metadata) continue
-    let creds: Record<string, string> = {}
-    try { creds = JSON.parse(integration.metadata) } catch { continue }
-    if (!creds.email || !creds.appPassword) continue
-    const isGmail = provider === 'GMAIL'
-    return nodemailer.createTransport({
-      host: isGmail ? 'smtp.gmail.com' : 'smtp-mail.outlook.com',
-      port: isGmail ? 465 : 587,
-      secure: isGmail,
-      auth: { user: creds.email, pass: creds.appPassword },
-    })
-  }
-  return null
-}
 
 async function generateAiDraft(
   sponsorName: string,
@@ -152,13 +133,10 @@ The WBR 2027 Team`
   let emailStatus: 'SENT' | 'FAILED' = 'FAILED'
   let errorMsg: string | null = null
 
-  const transporter = await getTransporter()
-  if (transporter) {
+  const mailer = await getTransporter()
+  if (mailer) {
     try {
-      const gmailIntegration = await prisma.integration.findFirst({
-        where: { provider: { in: ['GMAIL', 'OUTLOOK'] }, status: 'CONNECTED' },
-      })
-      const fromEmail = gmailIntegration?.accountLabel ?? 'noreply@conference.app'
+      const { transporter, fromEmail } = mailer
       const safeHtml = finalBody
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/\n/g, '<br>')

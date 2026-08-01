@@ -113,20 +113,30 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const gate = await requireSchedulerAccess()
   if ('error' in gate) return gate.error
 
-  // Also delete any associated SponsorMeeting created when this was confirmed
+  // Also delete any associated SponsorMeeting created when this was confirmed.
+  // PATCH books a SponsorMeeting for BOTH request shapes — attendee→sponsor
+  // (targetSponsorId) AND sponsor-rep→attendee (requester.sponsorId + targetUser)
+  // — via resolveParties, so cleanup must resolve the same way or a rep→attendee
+  // delete leaves a ghost meeting blocking the sponsor's exclusive slot.
   const request = await prisma.meetingRequest.findUnique({
     where: { id: requestId },
-    select: { requesterId: true, targetSponsorId: true, targetUserId: true, timeBlockId: true },
+    select: {
+      requesterId: true, targetSponsorId: true, targetUserId: true, timeBlockId: true,
+      requester: { select: { sponsorId: true } },
+    },
   })
+  if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (request?.targetSponsorId && request.timeBlockId) {
-    const attendeeId = request.targetUserId ?? request.requesterId
-    await prisma.sponsorMeeting.deleteMany({
-      where: { sponsorId: request.targetSponsorId, userId: attendeeId, timeBlockId: request.timeBlockId },
-    })
+  const parties = resolveParties(request)
+  const ops: any[] = []
+  if (parties && request.timeBlockId) {
+    ops.push(prisma.sponsorMeeting.deleteMany({
+      where: { sponsorId: parties.sponsorId, userId: parties.userId, timeBlockId: request.timeBlockId },
+    }))
   }
+  ops.push(prisma.meetingRequest.delete({ where: { id: requestId } }))
+  await prisma.$transaction(ops)
 
-  await prisma.meetingRequest.delete({ where: { id: requestId } })
   revalidateTag('meetings')
   return NextResponse.json({ ok: true })
 }

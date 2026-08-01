@@ -22,13 +22,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(dashUrl)
   }
 
-  // Forward user identity to route handlers via headers (avoids re-decoding JWT)
-  const response = NextResponse.next()
+  // Forward user identity to route handlers via REQUEST headers (avoids
+  // re-decoding the JWT downstream). Setting headers on NextResponse.next()
+  // alone puts them on the RESPONSE, not the request the handler sees — the
+  // handler would then read whatever the client sent. Strip any incoming
+  // x-user-* first so a client can never spoof its own identity, then set from
+  // the verified token. Mirrors apps/meetings/middleware.ts.
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.delete('x-user-id')
+  requestHeaders.delete('x-user-role')
   if (token) {
-    response.headers.set('x-user-role', (token.role as string) ?? '')
-    response.headers.set('x-user-id', (token.id as string) ?? '')
+    requestHeaders.set('x-user-id', (token.id as string) ?? '')
+    requestHeaders.set('x-user-role', (token.role as string) ?? '')
   }
-  return response
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 // EXCLUDE BY FOLDER, NOT BY FILE EXTENSION. Phase 6.5.

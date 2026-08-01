@@ -3,9 +3,11 @@ import { prisma } from '@conference/db'
 import { AdminHeader } from '@/components/AdminHeader'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 async function createSpeaker(formData: FormData) {
   'use server'
+  await assertPermission('speakers')
   const conference = await prisma.conference.findFirst({ where: { active: true } })
   if (!conference) throw new Error('No active conference')
 
@@ -26,7 +28,10 @@ async function createSpeaker(formData: FormData) {
 
 const inputClass = 'w-full bg-transparent text-subhead text-ink placeholder:text-ink-3 outline-none'
 
-export default function NewSpeakerPage() {
+export default async function NewSpeakerPage() {
+  const denied = await permissionDenied('speakers', 'New Speaker')
+  if (denied) return denied
+
   return (
     <>
       <AdminHeader title="New Speaker" />

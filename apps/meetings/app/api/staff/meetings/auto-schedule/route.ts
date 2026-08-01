@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
 import { prisma, autoScheduleByPriority } from '@conference/db'
 import { requireStaff, engineErrorResponse } from '@/lib/staff-api'
-import { invalidate } from '@/lib/mem-cache'
 
 // Priority-tiered auto-scheduler for the staff meeting-engine console.
 //   POST { sponsorId?: string, dryRun?: boolean }
@@ -18,10 +16,6 @@ export async function POST(req: Request) {
 
   try {
     const result = await autoScheduleByPriority(prisma, { dryRun, sponsorId })
-    if (!dryRun && result.scheduled.length) {
-      for (const s of result.scheduled) invalidate(s.userId)
-      revalidateTag('meetings')
-    }
     return NextResponse.json(result)
   } catch (err) {
     return engineErrorResponse(err)

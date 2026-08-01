@@ -4,9 +4,11 @@ import { AdminHeader } from '@/components/AdminHeader'
 import { format } from 'date-fns'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 async function createMeeting(formData: FormData) {
   'use server'
+  await assertPermission('meetings')
   const attendeeAId = formData.get('attendeeAId') as string
   const attendeeBId = formData.get('attendeeBId') as string
   const timeBlockId = formData.get('timeBlockId') as string
@@ -32,6 +34,9 @@ async function createMeeting(formData: FormData) {
 }
 
 export default async function NewMeetingPage({ searchParams }: { searchParams: Promise<{ timeBlockId?: string; attendeeAId?: string; attendeeBId?: string }> }) {
+  const denied = await permissionDenied('meetings', 'New Meeting')
+  if (denied) return denied
+
   const sp = await searchParams
   const [users, timeBlocks] = await Promise.all([
     prisma.user.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true, email: true } }),

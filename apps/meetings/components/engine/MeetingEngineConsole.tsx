@@ -1,6 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { signOut } from 'next-auth/react'
+import { useStaffCompanies } from '@/lib/hooks'
 import { WorkflowStepper } from './WorkflowStepper'
 import { CompaniesTable } from './CompaniesTable'
 import { ScheduleScreen } from './ScheduleScreen'
@@ -10,11 +11,10 @@ const NAV = ['Get Started', 'Configure', 'Reports', 'Activities', 'Presentations
 // eTail Connect meeting engine — faithful replica of the workflow PDF.
 export function MeetingEngineConsole({ eventName = 'WBR CONNECT 2027' }: { eventName?: string }) {
   const [selected, setSelected] = useState<{ id: string; name: string } | null>(null)
-  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
-
-  useEffect(() => {
-    fetch('/api/staff/companies').then(r => r.ok ? r.json() : { companies: [] }).then(d => setCompanies((d.companies ?? []).map((c: any) => ({ id: c.id, name: c.name })))).catch(() => {})
-  }, [])
+  // Shared with CompaniesTable below via the ['staff-companies'] query — one
+  // network request feeds both. Errors are swallowed (dropdown only).
+  const { data } = useStaffCompanies()
+  const companies = (data ?? []).map(c => ({ id: c.id, name: c.name }))
 
   function switchCompany(id: string) {
     const c = companies.find(x => x.id === id)

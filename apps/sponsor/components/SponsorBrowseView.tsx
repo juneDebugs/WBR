@@ -296,6 +296,8 @@ export function SponsorBrowseView() {
   const [seeking, setSeeking] = useState<string[]>([])
   const [requesting, setRequesting] = useState<string | null>(null)
   const [requested, setRequested] = useState<Set<string>>(() => new Set<string>())
+  const [requestError, setRequestError] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
 
   // Sync requested IDs from sponsor data query
   const requestedIds = sponsorData?.requestedIds
@@ -314,7 +316,7 @@ export function SponsorBrowseView() {
     if (!requesting && !filterOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (requesting) { setRequesting(null); setMessage(''); setPriority('BEST_FIT') }
+      if (requesting) { setRequesting(null); setMessage(''); setPriority('BEST_FIT'); setRequestError(null) }
       else if (filterOpen) setFilterOpen(false)
     }
     window.addEventListener('keydown', onKey)
@@ -367,20 +369,36 @@ export function SponsorBrowseView() {
   }, [])
 
   const onRequestMeeting = useCallback((id: string) => {
+    setRequestError(null)
     setRequesting(id)
   }, [])
 
   async function requestMeeting(personId: string) {
-    if (!sponsorId) return
-    await fetch('/api/request-meeting', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetUserId: personId, message, priority }),
-    })
-    setRequested(prev => new Set([...prev, personId]))
-    setRequesting(null)
-    setMessage('')
-    setPriority('BEST_FIT')
+    if (!sponsorId || sending) return
+    setSending(true)
+    setRequestError(null)
+    try {
+      const res = await fetch('/api/request-meeting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: personId, message, priority }),
+      })
+      if (!res.ok) {
+        // Keep the modal open (and the typed message) and explain — do not mark
+        // '✓ Requested' when the server refused (403 onboarding, 400, 500, …).
+        const body = await res.json().catch(() => null)
+        setRequestError(body?.error ?? 'Could not send your request. Please try again.')
+        return
+      }
+      setRequested(prev => new Set([...prev, personId]))
+      setRequesting(null)
+      setMessage('')
+      setPriority('BEST_FIT')
+    } catch {
+      setRequestError('Could not send your request. Please try again.')
+    } finally {
+      setSending(false)
+    }
   }
 
   const activeFilterCount = roles.length + jobFunctions.length + industries.length + sizes.length + revenues.length + seeking.length + (search ? 1 : 0)
@@ -581,7 +599,7 @@ export function SponsorBrowseView() {
       {/* Meeting request modal */}
       {requesting && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4 animate-fade-in"
-          onClick={() => { setRequesting(null); setMessage(''); setPriority('BEST_FIT') }}>
+          onClick={() => { setRequesting(null); setMessage(''); setPriority('BEST_FIT'); setRequestError(null) }}>
           <div role="dialog" aria-modal="true" aria-label="Request a meeting"
             className="bg-surface rounded-2xl w-full max-w-md p-5 shadow-elevated animate-slide-up"
             onClick={e => e.stopPropagation()}>
@@ -612,10 +630,15 @@ export function SponsorBrowseView() {
                 ))}
               </div>
             </div>
+            {requestError && (
+              <div role="alert" className="mb-3 rounded-xl border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
+                {requestError}
+              </div>
+            )}
             <div className="flex gap-2">
-              <button onClick={() => { setRequesting(null); setMessage(''); setPriority('BEST_FIT') }} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={() => requestMeeting(requesting)} className="btn-primary flex-1">
-                Send Request
+              <button onClick={() => { setRequesting(null); setMessage(''); setPriority('BEST_FIT'); setRequestError(null) }} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={() => requestMeeting(requesting)} disabled={sending} className="btn-primary flex-1">
+                {sending ? 'Sending…' : 'Send Request'}
               </button>
             </div>
           </div>

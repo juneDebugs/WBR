@@ -1,5 +1,5 @@
 import { getServerSession } from 'next-auth'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma, syncAutoMatches } from '@conference/db'
@@ -7,10 +7,13 @@ import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 // A Best Fit pick can complete a mutual match (both sides picked each other),
 // which must schedule the meeting immediately — not wait for an admin. The
-// sweep is idempotent and must never fail the pick itself.
-async function triggerAutoMatch(priority: string) {
+// sweep is the whole-conference scheduling pass, so it runs post-response via
+// after() within the same request lifecycle rather than blocking the
+// interactive click. It is idempotent and must never fail the pick itself, so
+// a failure is logged rather than swallowed but never surfaced to the caller.
+function triggerAutoMatch(priority: string) {
   if (priority !== 'BEST_FIT') return
-  await syncAutoMatches(prisma).catch(() => {})
+  after(() => syncAutoMatches(prisma).catch(err => console.error('[request-meeting] auto-match sweep failed', err)))
 }
 
 export async function POST(req: Request) {
@@ -35,8 +38,12 @@ export async function POST(req: Request) {
   // Priority tier drives auto-scheduling order (Best Fit → Med → Low); default Med.
   const prio = priority === 'BEST_FIT' || priority === 'MED' || priority === 'LOW' ? priority : 'MED'
 
+  // Only a live (non-terminal) request blocks a re-request. A REJECTED or
+  // CANCELLED row is dead: matching it here would silently bump its priority and
+  // return 200 while nothing re-enters the PENDING queue. Excluding terminal
+  // statuses lets a fresh PENDING row be created, matching apps/meetings.
   const existing = await prisma.meetingRequest.findFirst({
-    where: { requesterId: user.id, targetUserId },
+    where: { requesterId: user.id, targetUserId, status: { in: ['PENDING', 'APPROVED', 'CONFIRMED'] } },
   })
   if (existing) {
     // Idempotent duplicate. If the caller supplied a non-empty message
@@ -53,8 +60,24 @@ export async function POST(req: Request) {
       where: { id: existing.id },
       data,
     })
-    await triggerAutoMatch(prio)
+    triggerAutoMatch(prio)
     return NextResponse.json(updated)
+  }
+
+  // Validate the target once before the create. targetUserId carries a real FK,
+  // so a create against a since-deleted user throws P2003 and surfaces as a 500
+  // for an ordinary stale-click; a non-directory role (ORGANIZER/STAFF/another
+  // sponsor's rep) should not be requestable by direct API call either. The
+  // directory query (lib/server-data.ts) is ATTENDEE/SPEAKER, so mirror it here.
+  // Sponsor-attached targets are NOT rejected: the browse directory does not
+  // filter sponsorId and the cache-bust below already expects them.
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, role: true, sponsorId: true },
+  })
+  if (!target) return NextResponse.json({ error: 'Attendee not found' }, { status: 404 })
+  if (target.role !== 'ATTENDEE' && target.role !== 'SPEAKER') {
+    return NextResponse.json({ error: 'Target is not an attendee' }, { status: 400 })
   }
 
   const created = await prisma.meetingRequest.create({
@@ -67,11 +90,17 @@ export async function POST(req: Request) {
     },
   })
 
-  await triggerAutoMatch(prio)
-
-  // Bust meetings cache for the target user's sponsor (if any)
-  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { sponsorId: true } })
-  if (target?.sponsorId) revalidateTag(`meetings-${target.sponsorId}`)
+  // Run the auto-match sweep and its dependent cache bust after the response
+  // returns, so an interactive Connect click never blocks on a multi-round-trip
+  // scheduling sweep. The target row is reused from the validation lookup above,
+  // so this adds no round-trips. revalidateTag busts the target sponsor's
+  // meetings cache once the auto-scheduled meeting (if any) exists.
+  after(async () => {
+    if (prio === 'BEST_FIT') {
+      await syncAutoMatches(prisma).catch(err => console.error('[request-meeting] auto-match sweep failed', err))
+    }
+    if (target.sponsorId) revalidateTag(`meetings-${target.sponsorId}`)
+  })
 
   return NextResponse.json(created, { status: 201 })
 }
