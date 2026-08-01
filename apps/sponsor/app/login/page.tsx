@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { clearPersistedQueryCache } from '@/lib/query-client'
 
 const slides = [
   {
@@ -23,6 +24,57 @@ const slides = [
 export default function LoginPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+
+  /**
+   * Erase this browser's stored copy of a company's portal data.
+   *
+   * Phase 13, added after adversarial review round 1. The Sign out button already
+   * does this, and the review's point was that the button is not the only way a
+   * session ends: it expires, it is invalidated, the cookie is deleted by hand, or
+   * a future sign-out path is added that nobody remembers to wire up. Every one of
+   * those routes arrives HERE, at the sign-in screen, so erasing on arrival covers
+   * all of them at once and does not depend on anyone remembering.
+   *
+   * Safe to run unconditionally. Reaching this screen means no usable session:
+   * middleware.ts sends a signed-in visitor straight to /dashboard, with the single
+   * exception of the `?session=invalid` marker, which is exactly the case where a
+   * token decodes but its account is gone — a case that should certainly clear.
+   *
+   * This page renders OUTSIDE the query provider, which is why it calls the plain
+   * function rather than touching a query client. There is no in-memory cache here
+   * to empty; the stored copy is all that is left.
+   *
+   * Failures are swallowed for the same reason as at the button: a browser that
+   * refuses storage must not stop somebody signing in. The residual is stated
+   * rather than hidden — in that case the data stays on the machine, which is the
+   * situation this phase started from.
+   */
+  const erasePersisted = useRef<Promise<void> | null>(null)
+
+  /**
+   * Start the erase if it has not started, and return the promise either way.
+   *
+   * ONE INITIALISER, TWO CALLERS, and that is the point. Round 2's fix had the
+   * effect start the erase and the submit handler `await` the ref. Round 3 caught
+   * that a submit arriving before passive effects have flushed — fast autofill,
+   * or an already-hydrated page — awaits `null`, which resolves instantly and
+   * navigates with the erase never started. Awaiting a variable that might not be
+   * set yet is not sequencing.
+   *
+   * Calling this twice is harmless: the second call returns the first promise.
+   */
+  const ensureErased = useCallback(() => {
+    if (!erasePersisted.current) {
+      erasePersisted.current = clearPersistedQueryCache().catch(() => {
+        // Deliberately ignored — signing in must not depend on storage working.
+      })
+    }
+    return erasePersisted.current
+  }, [])
+
+  useEffect(() => {
+    void ensureErased()
+  }, [ensureErased])
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -60,6 +112,22 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
+      // WAIT FOR THE ERASE BEFORE LEAVING THIS PAGE. Added after adversarial
+      // review round 2.
+      //
+      // The effect above starts the erase and does not block, so a fast sign-in —
+      // a password manager filling and submitting immediately — could reach
+      // /dashboard before the delete finished. The portal's provider restores the
+      // stored copy when it mounts there, and it accepts a copy up to 30 minutes
+      // old, so the previous company's data could be pulled straight back into
+      // memory by the very sign-in that was supposed to have replaced it.
+      //
+      // The promise never rejects — the initialiser already swallowed any storage
+      // failure — so this can only delay the navigation, never block it.
+      //
+      // ensureErased() rather than the ref: round 3 caught that a submit arriving
+      // before the effect has run would await `null` and navigate immediately.
+      await ensureErased()
       router.push('/dashboard')
     } catch {
       setError('Something went wrong. Please try again.')

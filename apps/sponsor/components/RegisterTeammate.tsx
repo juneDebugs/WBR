@@ -120,6 +120,20 @@ export function RegisterTeammate() {
       {showForm && (
         <form onSubmit={handleSubmit} className="rounded-2xl bg-fill p-5 space-y-4 border border-hairline">
           <p className="text-sm font-semibold text-ink">Register a new teammate</p>
+          {/* Phase 13. Until this phase the account created here was given the
+              delegate role and this portal refuses that role, so the exhibitor was
+              told the colleague was registered and the colleague could never sign
+              in. Measured on a deployed preview during Phase 6: creating answered
+              201, signing in answered 403. The account is now created with the
+              exhibitor-representative role and genuinely works — which also means
+              it opens the buyer directory, so the exhibitor is told that here
+              rather than finding out afterwards. See the note at
+              app/api/profile/teammates/register/route.ts. */}
+          <p className="text-xs text-ink-2" data-testid="register-teammate-access-note">
+            This creates a new account that can sign in to the sponsor portal with the
+            password you set, and gives them the same access you have — including the
+            full buyer directory. Only register people you want to have that access.
+          </p>
 
           {error && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-danger-soft border border-danger/20 text-danger-ink text-xs">
