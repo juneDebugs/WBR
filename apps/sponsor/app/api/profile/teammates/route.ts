@@ -4,6 +4,7 @@ import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 import { requireCompleteProfile } from '@/lib/require-complete-profile'
+import { getCallerCompanyId } from '@/lib/caller-company'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -17,10 +18,13 @@ export async function GET() {
   if (blocked) return blocked
 
   const user = session.user as any
-  if (!user.sponsorId) return NextResponse.json([], { status: 403 })
+  // From the database, not the token — see lib/caller-company.ts. Reading the
+  // token here would show a moved representative their FORMER company's team.
+  const companyId = await getCallerCompanyId(user.id)
+  if (!companyId) return NextResponse.json([], { status: 403 })
 
   const teammates = await prisma.user.findMany({
-    where: { sponsorId: user.sponsorId, id: { not: user.id } },
+    where: { sponsorId: companyId, id: { not: user.id } },
     select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
     orderBy: { name: 'asc' },
   })
@@ -42,19 +46,100 @@ export async function POST(req: Request) {
   if (blocked) return blocked
 
   const user = session.user as any
-  if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor linked' }, { status: 403 })
+
+  // THE COMPANY COMES FROM THE DATABASE, NOT THE SESSION TOKEN. Phase 13,
+  // after adversarial review round 1. The long reasoning is at
+  // lib/caller-company.ts. Short version: a token is issued at sign-in and never
+  // changes, and this very handler is one of the two that can move somebody
+  // between companies, so a representative moved mid-session would otherwise go
+  // on attaching people to the company they have left.
+  const companyId = await getCallerCompanyId(user.id)
+  if (!companyId) return NextResponse.json({ error: 'No sponsor linked' }, { status: 403 })
 
   const { userId } = await req.json()
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
-  // Link the user to this sponsor
-  const updated = await prisma.user.update({
+  // REFUSE A TARGET THAT BELONGS TO SOMEBODY ELSE. Phase 13.
+  //
+  // (An earlier draft of this comment said "read the target before writing to
+  // it", which stopped being true when round 1's fix replaced the read-then-write
+  // with the single conditional write below. Corrected rather than left, because
+  // a comment describing code that no longer exists is worse than no comment.)
+  //
+  // Until Phase 13 this handler went straight to `update` on whatever identifier
+  // the request carried, so ANY representative could take ANY account — including
+  // another company's representative — and write their own company onto it.
+  // Measured during Phase 6, not inferred: company B's representative moved
+  // company A's representative onto company B and received 200. Reproduction in
+  // docs/smoketests/phase-6-sponsor-request-guard.md finding 2.
+  //
+  // THIS INTRODUCES NO NEW RULE. It applies an existing one to the third of three
+  // paths that reach the same column:
+  //   - register/route.ts already answers 409 for a target that belongs to
+  //     another company, in the same words used below;
+  //   - the DELETE in this file already refuses a target that does not belong to
+  //     the caller's company;
+  //   - this POST is the one that never got the check.
+  // It also matches the screen that calls it, which only ever offers accounts
+  // with no company — see getCachedAvailableUsers in
+  // app/api/profile/sponsor-data/route.ts. That query is presentation, not
+  // authorization: it is cached for 120 seconds and can be bypassed entirely by
+  // calling this address directly, which is how the defect was measured.
+  //
+  // ONE CONDITIONAL WRITE, NOT A READ FOLLOWED BY A WRITE.
+  //
+  // The first version of this fix read the target, decided, and then wrote.
+  // Adversarial review round 1 pointed out that two companies can both read an
+  // unattached person before either writes, so both pass the check and the
+  // second write silently wins. MEASURED BEFORE CHANGING ANYTHING, because two
+  // of Phase 6's findings were mechanisms whose predicted consequence never
+  // happened: two representatives attaching the same unattached person at the
+  // same moment both received `200` in **15 of 15 attempts**. Not a rare race.
+  //
+  // The condition lives in the write itself, so the database decides. `updateMany`
+  // is used rather than `update` because only `updateMany` accepts a filter
+  // beyond the primary key; it changes at most one row here, since `id` is unique.
+  //
+  // THE ROLE IS DELIBERATELY UNTOUCHED — only `sponsorId` is written. An account
+  // reaching this line already exists and already has a role. Promoting it to
+  // SPONSOR to let it into this portal would simultaneously remove its access to
+  // the meetings portal, which packages/db/src/app-access.ts opens to ATTENDEE
+  // and SPEAKER and not to SPONSOR. Worse, the exhibitor could not undo it: the
+  // DELETE below clears only the company link, so detaching would leave that
+  // person holding SPONSOR with no company — refused by the meetings portal and
+  // stranded on the no-company screen. Decided 2026-07-31; the rejected
+  // alternatives are recorded in the plan's Phase 13. The consequence, that an
+  // attached colleague cannot use this portal, is now stated on the screen
+  // instead of implied away.
+  const attached = await prisma.user.updateMany({
+    where: {
+      id: userId,
+      // Unattached, or already on this team. Anything else belongs to somebody
+      // else and is refused below.
+      OR: [{ sponsorId: null }, { sponsorId: companyId }],
+    },
+    data: { sponsorId: companyId },
+  })
+
+  if (attached.count === 0) {
+    // Nothing matched, and the two reasons need different answers. Read once to
+    // tell them apart: an identifier matching nothing used to reach `update` and
+    // throw, which Next turns into a 500 — a server fault reported for an
+    // ordinary bad request.
+    const exists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+    if (!exists) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'This user is already linked to another sponsor' },
+      { status: 409 },
+    )
+  }
+
+  const updated = await prisma.user.findUnique({
     where: { id: userId },
-    data: { sponsorId: user.sponsorId },
     select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
   })
 
-  revalidateTag(`sponsor-${user.sponsorId}`)
+  revalidateTag(`sponsor-${companyId}`)
   revalidateTag('attendee-pool')
 
   return NextResponse.json(updated)
@@ -68,7 +153,11 @@ export async function DELETE(req: Request) {
   if (blocked) return blocked
 
   const user = session.user as any
-  if (!user.sponsorId) return NextResponse.json({ error: 'No sponsor linked' }, { status: 403 })
+  // From the database, not the token — see lib/caller-company.ts. Reading the
+  // token here would let a moved representative detach people from the company
+  // they have left.
+  const companyId = await getCallerCompanyId(user.id)
+  if (!companyId) return NextResponse.json({ error: 'No sponsor linked' }, { status: 403 })
 
   const { userId } = await req.json()
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
@@ -76,16 +165,17 @@ export async function DELETE(req: Request) {
   // Don't allow removing yourself
   if (userId === user.id) return NextResponse.json({ error: 'Cannot remove yourself' }, { status: 400 })
 
-  // Only unlink if they belong to this sponsor
-  const target = await prisma.user.findFirst({ where: { id: userId, sponsorId: user.sponsorId } })
-  if (!target) return NextResponse.json({ error: 'User not found in your team' }, { status: 404 })
-
-  await prisma.user.update({
-    where: { id: userId },
+  // Only unlink if they belong to this sponsor. One conditional write, for the
+  // same reason as the POST above: a separate read-then-write can be overtaken.
+  const detached = await prisma.user.updateMany({
+    where: { id: userId, sponsorId: companyId },
     data: { sponsorId: null },
   })
+  if (detached.count === 0) {
+    return NextResponse.json({ error: 'User not found in your team' }, { status: 404 })
+  }
 
-  revalidateTag(`sponsor-${user.sponsorId}`)
+  revalidateTag(`sponsor-${companyId}`)
   revalidateTag('attendee-pool')
 
   return NextResponse.json({ ok: true })

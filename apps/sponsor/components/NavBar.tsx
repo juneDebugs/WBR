@@ -3,7 +3,9 @@ import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useUser, useSponsorData } from '@/lib/hooks'
+import { clearPersistedQueryCache } from '@/lib/query-client'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -20,6 +22,37 @@ export const NavBar = memo(function NavBar() {
   const active = (href: string) => pathname === href || pathname.startsWith(href + '/')
   const { data: sponsorData } = useSponsorData()
   const logoUrl = sponsorData?.sponsor?.logoUrl
+  const queryClient = useQueryClient()
+
+  /**
+   * Sign out, and take this company's data with you.
+   *
+   * Phase 13. Before this, signing out ended the session and left the whole
+   * persisted query cache — the buyer directory included — sitting in the
+   * browser's IndexedDB for anyone with the machine. See the long note at
+   * clearPersistedQueryCache() in lib/query-client.tsx.
+   *
+   * EMPTY FIRST, DELETE SECOND. The persist provider writes on a throttle after
+   * any cache change, so deleting alone can be undone a moment later by a write
+   * of whatever is still in memory. Emptying first means the worst a late write
+   * can store is an empty cache.
+   *
+   * THE ERASE MUST NEVER BLOCK THE SIGN-OUT. IndexedDB can refuse — private
+   * browsing modes, a corrupted store, a browser that has disabled it. If that
+   * happens the person still needs to get out of their session, so the failure is
+   * swallowed and sign-out proceeds. The residual is stated rather than hidden: in
+   * that case the data stays on the machine, which is exactly the situation before
+   * this fix, and it is strictly better than a Sign out button that does nothing.
+   */
+  async function handleSignOut() {
+    try {
+      queryClient.clear()
+      await clearPersistedQueryCache()
+    } catch {
+      // Deliberately swallowed — see the note above. Signing out wins.
+    }
+    await signOut({ callbackUrl: '/login' })
+  }
 
   return (
     <header className="material-bar border-b sticky top-0 z-40">
@@ -66,7 +99,7 @@ export const NavBar = memo(function NavBar() {
           {role === 'STAFF' && (
             <span className="badge badge-brand hidden sm:flex">Staff</span>
           )}
-          <button onClick={() => signOut({ callbackUrl: '/login' })}
+          <button onClick={handleSignOut} data-testid="sign-out"
             className="text-xs text-ink-2 hover:text-ink px-2 py-1.5 rounded-lg hover:bg-fill transition-colors">
             Sign out
           </button>

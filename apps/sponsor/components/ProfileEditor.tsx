@@ -195,8 +195,34 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
 
   // Teammates
   const [teammates, setTeammates] = useState<any[]>(sponsor.users ?? [])
+  // Phase 13: refusals from the teammate addresses used to be discarded. See
+  // refusalMessage() below.
+  const [teammateError, setTeammateError] = useState<string | null>(null)
+
+  /**
+   * Read the reason a teammate change was refused, or fall back to a sentence
+   * that at least says something happened.
+   *
+   * Phase 13. Both handlers below used to test `res.ok` and do nothing at all
+   * when it was false, so every refusal looked to the exhibitor like a button
+   * that does not work. That mattered more once this phase started refusing on
+   * purpose: attaching an account that already belongs to another company now
+   * answers 409, and an identifier matching nothing answers 404. A silent
+   * refusal is the same failure Phase 5 found on the checklist, where a button
+   * that could not submit produced no request and no message.
+   */
+  async function refusalMessage(res: Response, fallback: string): Promise<string> {
+    try {
+      const body = await res.json()
+      if (body?.error) return String(body.error)
+    } catch {
+      // Not JSON — the fallback is the honest answer.
+    }
+    return fallback
+  }
 
   async function addTeammate(userId: string) {
+    setTeammateError(null)
     const res = await fetch('/api/profile/teammates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -206,10 +232,13 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
       const user = availableUsers.find(u => u.id === userId)
       if (user) setTeammates(prev => [...prev, user])
       invalidate.teammates(); invalidate.sponsor()
+      return
     }
+    setTeammateError(await refusalMessage(res, 'Could not add that person to your team.'))
   }
 
   async function removeTeammate(userId: string) {
+    setTeammateError(null)
     const res = await fetch('/api/profile/teammates', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -218,7 +247,9 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
     if (res.ok) {
       setTeammates(prev => prev.filter(t => t.id !== userId))
       invalidate.teammates(); invalidate.sponsor()
+      return
     }
+    setTeammateError(await refusalMessage(res, 'Could not remove that person from your team.'))
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -448,6 +479,29 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
           Teammates appear on your sponsor card in the meeting portal and attendee app.
           Adding someone links their account to your company.
         </p>
+        {/* Phase 13. This sentence exists because the behaviour above it is not
+            what an exhibitor would assume. Adding an existing account here shares
+            the company's records with them and leaves their sign-in permissions
+            exactly as they were, so they still cannot open this portal. The
+            alternative — giving them the SPONSOR role — would let them in and
+            would take away their access to the meetings portal, and detaching
+            them later would not give it back. Decided 2026-07-31; the reasoning
+            and the rejected alternatives are in the plan's Phase 13, and the
+            matching notes are at app/api/profile/teammates/route.ts and
+            app/api/profile/teammates/register/route.ts. To give a colleague
+            access to this portal, create their account on the Submissions screen
+            instead. */}
+        <p className="text-xs text-ink-2" data-testid="teammate-access-note">
+          Adding someone here does not give them access to this sponsor portal — it
+          shares your company&apos;s records and leaves their existing sign-in
+          unchanged. To create a colleague who can sign in to the portal, use
+          &ldquo;Register a teammate&rdquo; on the Submissions screen.
+        </p>
+        {teammateError && (
+          <p className="text-xs text-danger" data-testid="teammate-error" role="alert">
+            {teammateError}
+          </p>
+        )}
         <TeammateManager
           teammates={teammates}
           available={availableToAdd}
