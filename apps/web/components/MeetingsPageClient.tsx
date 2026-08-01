@@ -22,13 +22,12 @@ const AutoMatchBoard = dynamic(
   () => import('@/components/AutoMatchBoard').then(m => m.AutoMatchBoard),
   { loading: TabSkeleton },
 )
-const MeetingsLog = dynamic(() => import('@/components/MeetingsLog'), { loading: TabSkeleton })
 
 export default function MeetingsPageClient({ tab: tabParam, status, type, company, view }: { tab?: string; status?: string; type?: string; company?: string; view?: string }) {
-  const tab = tabParam === 'schedule' ? 'schedule' : tabParam === 'companies' ? 'companies' : tabParam === 'auto' ? 'auto' : tabParam === 'log' ? 'log' : 'requests'
-  // The Companies, Auto and Log tabs fetch their own data (scheduler-hooks)
+  const tab = tabParam === 'schedule' ? 'schedule' : tabParam === 'companies' ? 'companies' : tabParam === 'auto' ? 'auto' : 'requests'
+  // The Companies and Auto tabs fetch their own data (scheduler-hooks)
   // — don't drag the heavy meetings dataset along just to badge the inactive tabs.
-  const selfContained = tab === 'companies' || tab === 'auto' || tab === 'log'
+  const selfContained = tab === 'companies' || tab === 'auto'
   const { data, isLoading } = useMeetingsData(undefined, { enabled: !selfContained })
   const statusFilter = status?.toUpperCase()
   const typeFilter = type === 'attendee' ? 'attendee' : type === 'sponsor' ? 'sponsor' : undefined
@@ -167,7 +166,6 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
           badge={(counts.PENDING ?? 0) > 0 ? counts.PENDING : undefined} />
         <MeetingsTab href="?tab=companies" label="Companies" active={tab === 'companies' && view !== 'settings'} icon={<IconCompanies />} />
         <MeetingsTab href="?tab=schedule" label="Schedule" active={tab === 'schedule'} icon={<IconSchedule />} />
-        <MeetingsTab href="?tab=log" label="Log" active={tab === 'log'} icon={<IconLog />} />
         <MeetingsTab href="?tab=companies&view=settings" label="Settings" active={tab === 'companies' && view === 'settings'} icon={<IconSettings />} />
       </nav>
 
@@ -210,9 +208,6 @@ export default function MeetingsPageClient({ tab: tabParam, status, type, compan
 
       {/* -- AUTO TAB (mutual Best Fit matches) -- */}
       {tab === 'auto' && <AutoMatchBoard />}
-
-      {/* -- LOG TAB (consolidated internal notes + comments) -- */}
-      {tab === 'log' && <MeetingsLog />}
 
       {/* -- REQUESTS TAB -- */}
       {tab === 'requests' && (
@@ -566,14 +561,6 @@ function IconSchedule() {
     <svg {...svgProps}>
       <rect x="3" y="5" width="18" height="16" rx="2.5" />
       <path d="M3 9.5h18M8 3v4M16 3v4M8.5 14h3M8.5 17.5h6" />
-    </svg>
-  )
-}
-function IconLog() {
-  return (
-    <svg {...svgProps}>
-      <path d="M8 6h12M8 12h12M8 18h12" />
-      <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
     </svg>
   )
 }

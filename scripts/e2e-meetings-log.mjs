@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// E2E for the admin Meetings → Log tab (apps/web /dashboard/meetings?tab=log).
-// Drives a real browser: login as WBR staff → open the Log tab → assert the
+// E2E for the admin Meetings → Log page (apps/web /dashboard/meetings/log,
+// a top-level sidebar destination under the Meetings group).
+// Drives a real browser: login as WBR staff → open the Log page → assert the
 // HIG surface renders (heading, search field, segmented kind filter), then
 // exercise the segmented control + search box and confirm the feed reacts.
 // Screenshots at each stage into scripts/.screenshots. Read-only — no fixtures,
@@ -69,14 +70,14 @@ async function main() {
     await login(page, CREDS)
     check('logged in (left /login)', !onLogin(page))
 
-    console.log('\n[open Log tab]')
-    await page.goto(`${BASE}/dashboard/meetings?tab=log`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    console.log('\n[open Log page]')
+    await page.goto(`${BASE}/dashboard/meetings/log`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
     await page.waitForLoadState('networkidle', { timeout: T }).catch(() => {})
 
-    // The Log tab in the pill nav is current.
-    const logTab = page.getByRole('link', { name: 'Log' })
-    await logTab.first().waitFor({ timeout: T }).catch(() => {})
-    check('Log tab is present in the meetings nav', await logTab.count() > 0)
+    // "Log" is a top-level entry in the left sidebar (Meetings group).
+    const logNav = page.getByRole('link', { name: 'Log' })
+    await logNav.first().waitFor({ timeout: T }).catch(() => {})
+    check('Log is present in the sidebar nav', await logNav.count() > 0)
 
     // The feed hydrates client-side; wait for the intro heading.
     const heading = page.getByRole('heading', { name: 'Activity Log' })

@@ -8,8 +8,9 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
   if (denied) return denied
 
   const params = await searchParams
-  // Check-In graduated to its own sidebar page; keep old tab links working.
+  // Check-In and Log graduated to their own sidebar pages; keep old tab links working.
   if (params.tab === 'checkin') redirect('/dashboard/meetings/check-in')
+  if (params.tab === 'log') redirect('/dashboard/meetings/log')
 
   return (
     <>

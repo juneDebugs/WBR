@@ -20,9 +20,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       if (visible.has(item.key)) allowedHrefs.push(item.href)
     }
   }
-  // Check-In is a nav destination without its own permission key — it rides on
-  // the same `meetings` grant as the page it split off from.
-  if (visible.has('meetings')) allowedHrefs.push('/dashboard/meetings/check-in')
+  // Check-In and Log are nav destinations without their own permission key —
+  // they ride on the same `meetings` grant as the page they split off from.
+  if (visible.has('meetings')) {
+    allowedHrefs.push('/dashboard/meetings/check-in')
+    allowedHrefs.push('/dashboard/meetings/log')
+  }
 
   return (
     <div className="flex min-h-screen">
