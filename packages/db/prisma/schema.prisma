@@ -129,6 +129,7 @@ model Conference {
   timeBlocks   TimeBlock[]
   meetings     Meeting[]
   sponsors     Sponsor[]
+  venueMaps    VenueMap[]
 }
 
 // ─── Speakers ────────────────────────────────────────────────────────────────
@@ -368,6 +369,7 @@ model Sponsor {
   meetingRequests  MeetingRequest[]
   users            User[]           @relation("SponsorUser")
   submissionForms  SubmissionForm[]
+  pins             Pin[]
 
   @@unique([conferenceId, tableNumber]) // A meeting-table number is unique within a conference (many NULLs allowed = unassigned).
   @@index([conferenceId])
@@ -680,4 +682,68 @@ model MeetingTableSetting {
   capacity  Int
   position  Int
   updatedAt DateTime @updatedAt
+}
+
+// ─── Floor plan ──────────────────────────────────────────────────────────────
+// Human-placed point markers over a plain picture, per
+// docs/adr/0007-floor-plan-human-authored-pins-over-raster.md. The picture is
+// treated as inert pixels: nothing in the product reads it, and everything the
+// app knows about what sits where comes from a person having tapped the spot.
+// There is no vector input and no automatic shape detection — both were
+// rejected in that ADR, the first because it depends on a non-technical chain
+// reliably producing a vector file, the second as a research-grade problem.
+
+// One uploaded or seeded picture of part of a venue. A conference has several:
+// a hall, a ballroom level, a meeting-room floor.
+model VenueMap {
+  id           String   @id @default(cuid())
+  conferenceId String
+  name         String // Shown on the map switcher, e.g. "Exhibit Hall"
+  // A string URL, the same contract as Sponsor.logoUrl and Conference.logoUrl.
+  // Seeded demonstration maps are files committed under
+  // apps/attendee/public/maps/ and this holds their path; the organizer upload
+  // writes a base64 data URL into this same column. An <img> tag reads both
+  // through the same attribute, so the viewer needs no branch. The reasoning
+  // and the measurements are finding F-8 in the floor-plan PRD.
+  imageUrl     String
+  // Switch order, ascending, starting at 1. Unique within a conference so the
+  // order delegates see is total rather than decided by a tiebreak. Reordering
+  // in the admin tool therefore needs a two-pass update or a temporary value —
+  // SQLite checks uniqueness per statement, not at the end of a transaction.
+  position     Int
+  createdAt    DateTime @default(now())
+
+  conference Conference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+  pins       Pin[]
+
+  @@unique([conferenceId, position])
+  @@index([conferenceId])
+}
+
+// One marker on one map.
+model Pin {
+  id         String @id @default(cuid())
+  venueMapId String
+  type       String // BOOTH | ROOM
+  // Room pins carry their name here. Booth pins normally leave this null and
+  // take their display name from the linked company; a booth pin may carry a
+  // label as the fallback shown if that link is ever broken.
+  label      String?
+  // Position as a percentage of the picture's width and height, 0 to 100, so a
+  // pin stays on the right spot at any screen size. Never pixels.
+  x          Float
+  y          Float
+  // Set for BOOTH pins, null for ROOM pins. The company's booth number is read
+  // through this relation rather than copied here: the seed file and the
+  // database have already drifted apart on booth numbers, while ids have not.
+  // SetNull rather than Cascade so deleting a company leaves the organizer's
+  // placed marker in place with its label, instead of silently removing it.
+  sponsorId  String?
+  createdAt  DateTime @default(now())
+
+  venueMap VenueMap @relation(fields: [venueMapId], references: [id], onDelete: Cascade)
+  sponsor  Sponsor? @relation(fields: [sponsorId], references: [id], onDelete: SetNull)
+
+  @@index([venueMapId])
+  @@index([sponsorId])
 }
