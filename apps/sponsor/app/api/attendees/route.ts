@@ -15,8 +15,10 @@ export async function GET() {
   // sells exhibitors access to. Access to it follows the exhibiting company
   // being presentable to those people (OE 17).
   //
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  // This address never consults the caller's company, so it takes the refusal
+  // and ignores the rest of what the guard returns.
+  const { refused } = await requireCompleteProfile()
+  if (refused) return refused
 
   const people = await getCachedAttendees()
   return NextResponse.json(people, {

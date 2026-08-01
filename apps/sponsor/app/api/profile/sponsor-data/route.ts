@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
 import { prisma } from '@conference/db'
 import { requireCompleteProfile } from '@/lib/require-complete-profile'
+import { ADDABLE_TEAMMATE_ROLE_FILTER } from '@/lib/addable-teammate'
 
 function getCachedSponsorProfile(sponsorId: string) {
   return unstable_cache(
@@ -17,9 +18,20 @@ function getCachedSponsorProfile(sponsorId: string) {
   )()
 }
 
+// The list an exhibitor is offered when adding a teammate.
+//
+// The role condition comes from lib/addable-teammate.ts, which is also what the
+// attach handler tests, so the screen and the address cannot disagree about who
+// may be added. It used to read `role: { not: 'ORGANIZER' }` — one WBR-side role
+// excluded and the other three left in, so WBR staff and administrator accounts
+// appeared in a list an outside company browses. Phase 6.5.
+//
+// `take: 200` is unchanged and matters when writing a test against this: with
+// over 2,400 unattached accounts, a fixture is only reachable through the real
+// screen if its name sorts into the first 200. Phase 13 lost time to that.
 const getCachedAvailableUsers = unstable_cache(
   async () => prisma.user.findMany({
-    where: { sponsorId: null, role: { not: 'ORGANIZER' } },
+    where: { sponsorId: null, ...ADDABLE_TEAMMATE_ROLE_FILTER },
     select: { id: true, name: true, email: true, image: true, jobTitle: true },
     orderBy: { name: 'asc' },
     take: 200,
@@ -37,13 +49,16 @@ export async function GET() {
   // 200 with nothing in it is indistinguishable from a company that has no data
   // yet, and invisible to any assertion on status. A representative with no
   // company link is refused here instead (OE 23).
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  const { refused, companyId } = await requireCompleteProfile()
+  if (refused) return refused
 
-  if (!user.sponsorId) return NextResponse.json({ sponsor: null, availableUsers: [] })
+  // Company from the database, not the session token: a representative moved
+  // between companies mid-session was shown the previous company's profile and
+  // the previous company's team. Phase 6.5.
+  if (!companyId) return NextResponse.json({ sponsor: null, availableUsers: [] })
 
   const [sponsor, availableUsers] = await Promise.all([
-    getCachedSponsorProfile(user.sponsorId),
+    getCachedSponsorProfile(companyId),
     getCachedAvailableUsers(),
   ])
 

@@ -14,11 +14,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // below stays as it is: the guard already releases every event-operating role
   // before it asks any completeness question, so a staff caller reaches the same
   // branch it reached before this phase.
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  // THE ADDRESS THE ORIGINAL DEFECT WAS MEASURED ON. Reproduced during Phase 6:
+  // a representative the database placed at company B set a meeting request
+  // addressed to company A from PENDING to APPROVED, because the guard consulted
+  // B and allowed it while the handler consulted A — off the session token — and
+  // acted. Both now read the same database-backed value, so they cannot disagree.
+  //
+  // `role` comes from the guard too, and therefore from the database. Read off
+  // the token it would keep a revoked staff role alive until the next sign-in,
+  // which is the wrong direction to be wrong in — the same reasoning already
+  // recorded at the guard's own role lookup.
+  const { refused, companyId, role } = await requireCompleteProfile()
+  if (refused) return refused
 
-  const user = session.user as any
-  if (!user.sponsorId && user.role !== 'STAFF') {
+  const isStaff = role === 'STAFF'
+  if (!companyId && !isStaff) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -30,8 +40,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const request = await prisma.meetingRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Ensure the request belongs to this sponsor (unless staff)
-  if (user.role !== 'STAFF' && request.targetSponsorId !== user.sponsorId) {
+  // Ensure the request belongs to this sponsor (unless staff).
+  //
+  // THIS IS THE LINE THE DEFECT WAS MEASURED ON. `companyId` is the database's
+  // answer; `user.sponsorId` was the token's. A representative moved from
+  // company A to company B passed this check for A's meeting requests until
+  // they signed out and back in.
+  if (!isStaff && request.targetSponsorId !== companyId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -43,7 +58,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // of dead-ending. No open slot at all → the status still updates and the
   // request stays blockless for the admin scheduler to place later. A pair
   // that already has a confirmed meeting keeps it — no second meeting.
-  const sponsorId = request.targetSponsorId ?? user.sponsorId
+  // Falls back to the caller's own company only when the request names none.
+  // Database-backed, so a staff caller with no company yields null here and the
+  // booking below is skipped, exactly as it was when this read the token.
+  const sponsorId = request.targetSponsorId ?? companyId
   const attendeeId = request.requesterId
   let timeBlockId: string | null = null
   let room: string | null = null

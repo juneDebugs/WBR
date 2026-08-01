@@ -29,10 +29,15 @@ export async function GET() {
   // The remaining AI-draft allowance (OE 19). Placed after the feature
   // kill-switch above so a disabled feature still answers 404 rather than
   // reporting a completeness problem about a feature that is switched off.
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  const { refused, companyId } = await requireCompleteProfile()
+  if (refused) return refused
 
-  if (!user.sponsorId) {
+  // The allowance itself is counted per ACCOUNT, not per company — every cap
+  // below is keyed on user.id. The company is only a presence test: you must
+  // belong to one to ask. Read from the database rather than the token so an
+  // account whose company link was removed mid-session is refused now instead
+  // of at its next sign-in. Phase 6.5.
+  if (!companyId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

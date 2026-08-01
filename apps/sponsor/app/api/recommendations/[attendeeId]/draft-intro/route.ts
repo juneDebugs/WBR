@@ -86,15 +86,26 @@ export async function POST(req: Request, ctx: { params: Promise<{ attendeeId: st
   //
   // Placed BEFORE the spend and rate-cap accounting below, so a refused
   // representative never consumes any part of the allowance.
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  const { refused, companyId } = await requireCompleteProfile()
+  if (refused) return refused
+
+  // THE COMPANY QUESTION MOVES ABOVE THE CREDENTIAL CHECK. Phase 6.5, and the
+  // reason is the one the comment above already gives for the identity checks:
+  // whether a caller may use this address is a question about the CALLER, and
+  // must not depend on whether a server credential happens to be configured.
+  // Left below, a caller with no company was answered 502 on a machine with no
+  // key and 403 on one with a key — the same person refused for two different
+  // reasons depending on deployment configuration.
+  //
+  // It is also what makes the refusal measurable. With no key configured the
+  // old order returned 502 before the company was ever read, so no local run
+  // could show this address consulting the right company at all.
+  if (!companyId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: 'ai_unavailable' }, { status: 502 })
-  }
-
-  if (!user.sponsorId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const { attendeeId } = await ctx.params
@@ -118,7 +129,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ attendeeId: st
   }
 
   const userId = user.id
-  const sponsorIdNarrowed: string = user.sponsorId
+  // Read once from the guard's database-backed value. Used in exactly one place
+  // below — loading the company profile that goes into the drafted text — so a
+  // stale value here produced an introduction pitching the representative's
+  // PREVIOUS company. No allowance is company-scoped; see the quota address.
+  const sponsorIdNarrowed: string = companyId
   const surface = SURFACE_SPONSOR_DRAFT_INTRO
 
   // Any DB error from here on routes to pattern-γ 502 ai_unavailable —
