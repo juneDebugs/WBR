@@ -380,7 +380,7 @@ function UserDashboard({ data, isSponsor }: { data: any; isSponsor: boolean }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-ink truncate">{name}</p>
                     <p className="text-xs text-ink-2 mt-0.5">
-                      {starts.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })} · {starts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Los_Angeles' })}{r.timeBlock.location ? ` · ${r.timeBlock.location}` : ''}
+                      {starts.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' })} · {starts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Los_Angeles' })}{(r.table ?? r.timeBlock.location) ? ` · ${r.table ?? r.timeBlock.location}` : ''}
                     </p>
                   </div>
                   <span className="text-sm font-medium text-success-ink flex-shrink-0">Confirmed</span>

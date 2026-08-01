@@ -6,6 +6,7 @@ import {
   getSponsorScheduleMatrix,
   getCheckInBoard,
   getTableBoard,
+  getSponsorTables,
   getAutoMatchBoard,
 } from '@conference/db'
 
@@ -49,6 +50,12 @@ export const getCachedCheckInBoard = unstable_cache(
 export const getCachedTableBoard = unstable_cache(
   () => getTableBoard(prisma),
   ['scheduler', 'table-board'],
+  { revalidate: 30, tags: ['meetings'] },
+)
+
+export const getCachedSponsorTables = unstable_cache(
+  () => getSponsorTables(prisma),
+  ['scheduler', 'sponsor-tables'],
   { revalidate: 30, tags: ['meetings'] },
 )
 

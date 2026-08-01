@@ -14,8 +14,8 @@ const CompanyMeetingSettings = dynamic(
   () => import('@/components/CompanyMeetingSettings').then(m => m.CompanyMeetingSettings),
   { loading: ViewSkeleton },
 )
-const MeetingTablesSettings = dynamic(
-  () => import('@/components/MeetingTablesSettings').then(m => m.MeetingTablesSettings),
+const SponsorTablesSettings = dynamic(
+  () => import('@/components/SponsorTablesSettings').then(m => m.SponsorTablesSettings),
   { loading: ViewSkeleton },
 )
 
@@ -30,7 +30,7 @@ export default function CompanySchedulerClient({ sponsor, view }: { sponsor?: st
     return (
       <div className="space-y-10">
         <CompanyMeetingSettings />
-        <MeetingTablesSettings />
+        <SponsorTablesSettings />
       </div>
     )
   }

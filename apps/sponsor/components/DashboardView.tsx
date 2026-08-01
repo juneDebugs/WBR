@@ -104,6 +104,9 @@ export function DashboardView() {
 
   const profile = completeness(sponsor ?? {})
 
+  const tableNumber: number | null = sponsor?.tableNumber ?? null
+  const tableLabel = tableNumber != null ? `Table ${tableNumber}` : null
+
   const statCards = [
     { label: 'Total Requests', value: stats?.totalMeetings ?? 0, color: 'text-brand-600', bg: 'bg-brand-50', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
     { label: 'Pending', value: stats?.pendingCount ?? 0, color: 'text-warning-ink', bg: 'bg-warning-soft', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
@@ -138,6 +141,26 @@ export function DashboardView() {
         <h1 className="text-2xl font-bold text-ink">{userRole === 'STAFF' ? 'Staff Dashboard' : `Welcome back, ${userName.split(' ')[0]}`}</h1>
         <p className="text-ink-2 text-sm mt-1">{sponsor?.name ?? 'WBR'} · Sponsor Portal</p>
       </div>
+
+      {sponsor && (
+        <div className="card p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
+            <svg className="w-6 h-6 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <p className="text-caption text-ink-2">Your meeting table</p>
+            {tableLabel ? (
+              <p className="text-2xl font-bold text-ink tabular-nums leading-tight">{tableLabel}</p>
+            ) : (
+              <p className="text-base font-semibold text-ink-3 leading-tight mt-0.5">Not yet assigned</p>
+            )}
+            <p className="text-caption text-ink-3 mt-0.5">Where your 1-on-1 meetings take place</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map(s => (

@@ -402,6 +402,211 @@ export async function saveMeetingTables(prismaClient: PrismaClient, op: MeetingT
   return getMeetingTables(prismaClient)
 }
 
+// ── Per-sponsor meeting tables ──────────────────────────────────────────────
+// Each sponsor company owns exactly ONE uniquely-numbered physical table for
+// its 1-on-1 meetings (an expo-floor model). The number lives on
+// Sponsor.tableNumber; a meeting's physical table (SponsorMeeting.location) is
+// derived from — and kept in sync with — its sponsor's number, so the label
+// "Table N" flows unchanged through every existing room/location reader in all
+// four apps. The admin "Meeting Tables" settings board is the source of truth:
+// one slot per sponsor (logo, name, number), auto-numberable in one action.
+//
+// tableNumber is read/written via raw SQL (like MeetingTableSetting) so the
+// feature never depends on the Prisma client being regenerated in a given app's
+// node_modules, and the column is created defensively at runtime — mirroring
+// the production Turso path where `prisma db push` cannot reach.
+
+export const MAX_TABLE_NUMBER = 999
+
+// Parse an arbitrary/hostile value into a positive table number in
+// [1, MAX_TABLE_NUMBER], or null (empty / invalid / out of range).
+export function normalizeTableNumber(raw: unknown): number | null {
+  if (raw == null || raw === '') return null
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n)) return null
+  const i = Math.trunc(n)
+  if (i < 1 || i > MAX_TABLE_NUMBER) return null
+  return i
+}
+
+// The physical-table label a sponsor's meetings carry, given its number.
+// Kept in one place so every writer produces the identical "Table N" string.
+export function sponsorTableLabel(tableNumber: number | null | undefined): string | null {
+  const n = normalizeTableNumber(tableNumber)
+  return n === null ? null : `Table ${n}`
+}
+
+// Sort weight for tiers — auto-numbering fills the most valuable sponsors first.
+const TIER_RANK: Record<string, number> = { PLATINUM: 0, GOLD: 1, SILVER: 2, BRONZE: 3 }
+function tierRank(tier: string | null | undefined): number {
+  return TIER_RANK[(tier ?? '').toUpperCase()] ?? 9
+}
+
+const ADD_SPONSOR_TABLE_COLUMN_SQL = `ALTER TABLE "Sponsor" ADD COLUMN "tableNumber" INTEGER`
+let sponsorTableColumnEnsured: Promise<void> | null = null
+// Idempotent: SQLite/libSQL reject a duplicate ADD COLUMN, which we swallow so
+// re-runs are harmless. Reset on any other error so a transient failure retries
+// instead of poisoning the module for its lifetime (same shape as
+// ensureMeetingTablesTable). Callers that touch the column await this first.
+export function ensureSponsorTableColumn(prismaClient: PrismaClient): Promise<void> {
+  if (!sponsorTableColumnEnsured) {
+    sponsorTableColumnEnsured = prismaClient
+      .$executeRawUnsafe(ADD_SPONSOR_TABLE_COLUMN_SQL)
+      .then(() => undefined)
+      .catch(err => {
+        if (/duplicate column name/i.test(String(err?.message ?? err))) return // already present
+        sponsorTableColumnEnsured = null
+        throw err
+      })
+  }
+  return sponsorTableColumnEnsured
+}
+
+// The fixed table label for a sponsor (from its number), or null if unassigned.
+// FAILS SOFT to null so a meeting-creation path never breaks on a table read.
+export async function getSponsorFixedTableLabel(prismaClient: PrismaClient, sponsorId: string): Promise<string | null> {
+  try {
+    await ensureSponsorTableColumn(prismaClient)
+    const rows = await prismaClient.$queryRawUnsafe<{ tableNumber: number | bigint | null }[]>(
+      `SELECT "tableNumber" FROM "Sponsor" WHERE "id" = ? LIMIT 1`, sponsorId,
+    )
+    const raw = rows[0]?.tableNumber
+    return raw == null ? null : sponsorTableLabel(Number(raw))
+  } catch (err) {
+    console.error('[sponsor-tables] fixed-label read failed:', err)
+    return null
+  }
+}
+
+export interface SponsorTableEntry {
+  sponsorId: string
+  name: string
+  logoUrl: string | null
+  tier: string
+  tableNumber: number | null // null = not yet assigned a table
+  meetingCount: number       // confirmed meetings this sponsor hosts
+}
+export interface SponsorTableBoard {
+  entries: SponsorTableEntry[]
+  totals: {
+    sponsors: number
+    assigned: number
+    unassigned: number
+    highestNumber: number // largest number in use (0 when none) — the "next" hint
+  }
+}
+
+// One raw SELECT: every sponsor in the conference with its number, brand marks
+// (logo/name/tier for the slot) and confirmed-meeting count. Assigned slots
+// sort by number; unassigned trail by tier then name (the auto-number order).
+export async function getSponsorTables(prismaClient: PrismaClient, conferenceId?: string): Promise<SponsorTableBoard> {
+  await ensureSponsorTableColumn(prismaClient)
+  const confId = await resolveConferenceId(prismaClient, conferenceId)
+  const rows = await prismaClient.$queryRawUnsafe<{
+    id: string; name: string; logoUrl: string | null; tier: string | null
+    tableNumber: number | bigint | null; meetingCount: number | bigint
+  }[]>(
+    `SELECT s."id", s."name", s."logoUrl", s."tier", s."tableNumber",
+       (SELECT COUNT(*) FROM "SponsorMeeting" sm
+          WHERE sm."sponsorId" = s."id" AND sm."status" = 'CONFIRMED') AS "meetingCount"
+     FROM "Sponsor" s WHERE s."conferenceId" = ?`,
+    confId,
+  )
+  const entries: SponsorTableEntry[] = rows.map(r => ({
+    sponsorId: r.id,
+    name: r.name,
+    logoUrl: r.logoUrl ?? null,
+    tier: (r.tier ?? 'BRONZE').toUpperCase(),
+    tableNumber: r.tableNumber == null ? null : Number(r.tableNumber),
+    meetingCount: Number(r.meetingCount ?? 0),
+  }))
+  entries.sort((a, b) => {
+    if ((a.tableNumber === null) !== (b.tableNumber === null)) return a.tableNumber === null ? 1 : -1
+    if (a.tableNumber !== null && b.tableNumber !== null) return a.tableNumber - b.tableNumber
+    return tierRank(a.tier) - tierRank(b.tier) || a.name.localeCompare(b.name)
+  })
+  const assignedNums = entries.filter(e => e.tableNumber !== null).map(e => e.tableNumber as number)
+  return {
+    entries,
+    totals: {
+      sponsors: entries.length,
+      assigned: assignedNums.length,
+      unassigned: entries.length - assignedNums.length,
+      highestNumber: assignedNums.length ? Math.max(...assignedNums) : 0,
+    },
+  }
+}
+
+// Re-point every one of a sponsor's meetings at the given label (or clear it),
+// so an assignment change follows through to the physical-table string that all
+// four apps display. All statuses, mirroring the table-rename migration.
+async function backfillSponsorMeetingLocation(prismaClient: PrismaClient, sponsorId: string, label: string | null): Promise<void> {
+  await prismaClient.$executeRawUnsafe(
+    `UPDATE "SponsorMeeting" SET "location" = ? WHERE "sponsorId" = ?`, label, sponsorId,
+  )
+}
+
+export interface AssignSponsorTableInput {
+  sponsorId: string
+  tableNumber: number | null // null clears the assignment
+}
+// Assign (or clear) one sponsor's table number and sync its meetings. Guards:
+//   SPONSOR_NOT_FOUND — unknown sponsor.
+//   BAD_STATUS        — a non-null number outside [1, MAX_TABLE_NUMBER].
+//   TABLE_NUMBER_TAKEN — another sponsor in the conference already holds it.
+export async function assignSponsorTable(prismaClient: PrismaClient, input: AssignSponsorTableInput): Promise<SponsorTableBoard> {
+  await ensureSponsorTableColumn(prismaClient)
+  const found = await prismaClient.$queryRawUnsafe<{ id: string; conferenceId: string }[]>(
+    `SELECT "id", "conferenceId" FROM "Sponsor" WHERE "id" = ? LIMIT 1`, input.sponsorId,
+  )
+  const sponsor = found[0]
+  if (!sponsor) throw new EngineError('SPONSOR_NOT_FOUND', 'No such sponsor')
+
+  let number: number | null = null
+  if (input.tableNumber !== null) {
+    number = normalizeTableNumber(input.tableNumber)
+    if (number === null) throw new EngineError('BAD_STATUS', `Table number must be a whole number from 1 to ${MAX_TABLE_NUMBER}`)
+    const clash = await prismaClient.$queryRawUnsafe<{ name: string }[]>(
+      `SELECT "name" FROM "Sponsor" WHERE "conferenceId" = ? AND "tableNumber" = ? AND "id" != ? LIMIT 1`,
+      sponsor.conferenceId, number, input.sponsorId,
+    )
+    if (clash[0]) throw new EngineError('TABLE_NUMBER_TAKEN', `Table ${number} is already assigned to ${clash[0].name}`)
+  }
+  await prismaClient.$executeRawUnsafe(`UPDATE "Sponsor" SET "tableNumber" = ? WHERE "id" = ?`, number, input.sponsorId)
+  await backfillSponsorMeetingLocation(prismaClient, input.sponsorId, sponsorTableLabel(number))
+  return getSponsorTables(prismaClient, sponsor.conferenceId)
+}
+
+export interface AutoPopulateSponsorTablesResult {
+  assigned: number // sponsors newly given a number this run
+  total: number    // sponsors in the conference
+  board: SponsorTableBoard
+}
+// Give every still-unassigned sponsor the lowest free number, preserving all
+// existing assignments. Deterministic: sponsors are filled by tier then name,
+// and numbers are packed from 1 skipping any already in use.
+export async function autoPopulateSponsorTables(prismaClient: PrismaClient, conferenceId?: string): Promise<AutoPopulateSponsorTablesResult> {
+  await ensureSponsorTableColumn(prismaClient)
+  const confId = await resolveConferenceId(prismaClient, conferenceId)
+  const board = await getSponsorTables(prismaClient, confId)
+  const taken = new Set(board.entries.filter(e => e.tableNumber !== null).map(e => e.tableNumber as number))
+  const needing = board.entries
+    .filter(e => e.tableNumber === null)
+    .sort((a, b) => tierRank(a.tier) - tierRank(b.tier) || a.name.localeCompare(b.name))
+
+  let next = 1
+  let assigned = 0
+  for (const e of needing) {
+    while (taken.has(next)) next++
+    if (next > MAX_TABLE_NUMBER) break // ran out of the numeric space — leave the rest unassigned
+    taken.add(next)
+    await prismaClient.$executeRawUnsafe(`UPDATE "Sponsor" SET "tableNumber" = ? WHERE "id" = ?`, next, e.sponsorId)
+    await backfillSponsorMeetingLocation(prismaClient, e.sponsorId, sponsorTableLabel(next))
+    assigned++
+  }
+  return { assigned, total: board.entries.length, board: await getSponsorTables(prismaClient, confId) }
+}
+
 // ── Priority tiers ────────────────────────────────────────────────────────────
 // The requester (attendee or sponsor) tags each meeting request with how strong a
 // fit it is. The auto-scheduler fills Best Fit requests first, then Med, then Low.
@@ -478,6 +683,8 @@ export type EngineErrorCode =
   | 'TABLE_IN_USE'
   | 'TABLE_TAKEN'
   | 'LAST_TABLE'
+  | 'SPONSOR_NOT_FOUND'
+  | 'TABLE_NUMBER_TAKEN'
 export class EngineError extends Error {
   code: EngineErrorCode
   constructor(code: EngineErrorCode, message?: string) {
@@ -491,9 +698,9 @@ export class EngineError extends Error {
 // error vocabulary, not of any one app — both the admin scheduler API and the
 // staff console API derive their responses from this single map so a new code
 // can never return 409 in one portal and 400 in the other.
-const NOT_FOUND_CODES: readonly EngineErrorCode[] = ['REQUEST_NOT_FOUND', 'MEETING_NOT_FOUND', 'TABLE_NOT_FOUND']
+const NOT_FOUND_CODES: readonly EngineErrorCode[] = ['REQUEST_NOT_FOUND', 'MEETING_NOT_FOUND', 'TABLE_NOT_FOUND', 'SPONSOR_NOT_FOUND']
 const CONFLICT_CODES: readonly EngineErrorCode[] = [
-  'CANDIDATE_BUSY', 'SPONSOR_FULL', 'ALREADY_SCHEDULED', 'DUPLICATE_TABLE', 'TABLE_IN_USE', 'TABLE_TAKEN',
+  'CANDIDATE_BUSY', 'SPONSOR_FULL', 'ALREADY_SCHEDULED', 'DUPLICATE_TABLE', 'TABLE_IN_USE', 'TABLE_TAKEN', 'TABLE_NUMBER_TAKEN',
 ]
 export function engineErrorHttpStatus(code: EngineErrorCode): number {
   if (NOT_FOUND_CODES.includes(code)) return 404
@@ -1299,6 +1506,10 @@ export async function assignMeeting(prisma: Db, input: AssignInput) {
 
   await assertSlotBookable(prisma, parties.sponsorId, parties.userId, input.timeBlockId, input.room)
 
+  // A sponsor with a fixed table always meets there — its number wins over the
+  // caller's room hint so every new meeting inherits the sponsor's table.
+  const fixedTable = await getSponsorFixedTableLabel(prisma, parties.sponsorId)
+
   const [meeting] = await commitOrConflict(() => prisma.$transaction([
     prisma.sponsorMeeting.create({
       data: {
@@ -1306,7 +1517,7 @@ export async function assignMeeting(prisma: Db, input: AssignInput) {
         userId: parties.userId,
         repId: input.repId ?? parties.repId,
         timeBlockId: input.timeBlockId,
-        location: input.room,
+        location: fixedTable ?? input.room,
         status: 'CONFIRMED',
       },
     }),
@@ -1348,11 +1559,14 @@ export async function rescheduleMeeting(prisma: Db, input: RescheduleInput) {
 
   await assertSlotBookable(prisma, m.sponsorId, m.userId, input.timeBlockId, input.room, m.id)
 
+  // Rescheduling changes the slot, never the sponsor's fixed table (if it has one).
+  const fixedTable = await getSponsorFixedTableLabel(prisma, m.sponsorId)
+
   const linked = await findLinkedRequest(prisma, m.sponsorId, m.userId)
   const writes: any[] = [
     prisma.sponsorMeeting.update({
       where: { id: m.id },
-      data: { timeBlockId: input.timeBlockId, location: input.room },
+      data: { timeBlockId: input.timeBlockId, location: fixedTable ?? input.room },
     }),
   ]
   if (linked) {
@@ -2222,11 +2436,13 @@ export async function autoScheduleByPriority(
     const committed: AutoScheduledEntry[] = []
     for (const s of survivors) {
       try {
+        // A sponsor's fixed table wins over the planner's room pick.
+        const fixedTable = await getSponsorFixedTableLabel(prisma, s.sponsorId)
         await commitOrConflict(() => prisma.$transaction([
           prisma.sponsorMeeting.create({
             data: {
               sponsorId: s.sponsorId, userId: s.userId, repId: repByRequest.get(s.requestId) ?? null,
-              timeBlockId: s.timeBlockId, location: s.room, status: 'CONFIRMED',
+              timeBlockId: s.timeBlockId, location: fixedTable ?? s.room, status: 'CONFIRMED',
             },
           }),
           prisma.meetingRequest.update({

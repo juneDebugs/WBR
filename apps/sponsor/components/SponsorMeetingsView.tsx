@@ -169,9 +169,11 @@ export function SponsorMeetingsView() {
               <div className="flex-1">
                 <p className="font-medium text-ink">{m.user.name}</p>
                 <p className="text-sm text-ink-2">{m.user.jobTitle}{m.user.company ? ` · ${m.user.company}` : ''}</p>
-                {m.timeBlock && (
-                  <p className="text-xs text-ink-3 mt-1">{formatTime(m.timeBlock.startsAt)}{m.timeBlock.location ? ` · ${m.timeBlock.location}` : ''}</p>
-                )}
+                {m.timeBlock && (() => {
+                  // Prefer the meeting's own physical table ("Table N"); fall back to the block location.
+                  const loc = m.location ?? m.timeBlock.location
+                  return <p className="text-xs text-ink-3 mt-1">{formatTime(m.timeBlock.startsAt)}{loc ? ` · ${loc}` : ''}</p>
+                })()}
               </div>
               <span className="badge badge-brand">Scheduled</span>
             </div>

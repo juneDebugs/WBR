@@ -87,7 +87,9 @@ export async function GET() {
       sponsorName: m.sponsor.name,
       sponsorTier: m.sponsor.tier,
       notes: m.notes,
-      location: m.timeBlock.location,
+      // Prefer the sponsor meeting's own assigned table ("Table N") over the
+      // generic time-block slot label; fall back when unassigned/legacy.
+      location: m.location ?? m.timeBlock.location,
       startsAt: m.timeBlock.startsAt.toISOString(),
       endsAt: m.timeBlock.endsAt.toISOString(),
     }

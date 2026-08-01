@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
-import { prisma, findFirstOpenSlot, assertBlockOpen, commitOrConflict, engineErrorHttpStatus, EngineError, getMeetingTables } from '@conference/db'
+import { prisma, findFirstOpenSlot, assertBlockOpen, commitOrConflict, engineErrorHttpStatus, EngineError, getMeetingTables, getSponsorFixedTableLabel } from '@conference/db'
 import { requireCompleteProfile } from '@/lib/require-complete-profile'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -63,6 +63,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         const slot = await findFirstOpenSlot(prisma, sponsorId, attendeeId)
         if (slot) { timeBlockId = slot.timeBlockId; room = slot.room }
       }
+    }
+    // A sponsor with a fixed meeting table always meets there — its number wins
+    // over the first-open-slot's default room so the booking shows the sponsor's
+    // table everywhere it is displayed.
+    if (timeBlockId) {
+      const fixedTable = await getSponsorFixedTableLabel(prisma, sponsorId)
+      if (fixedTable) room = fixedTable
     }
   }
 

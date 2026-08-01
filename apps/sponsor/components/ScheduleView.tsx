@@ -45,7 +45,8 @@ export function ScheduleView() {
           id: m.id,
           startsAt: m.timeBlock.startsAt,
           endsAt: m.timeBlock.endsAt,
-          location: m.timeBlock.location,
+          // Prefer the meeting's own physical table ("Table N"); fall back to the block location.
+          location: m.location ?? m.timeBlock.location,
           person: m.user,
           source: 'admin' as const,
         })),

@@ -1,6 +1,6 @@
 'use client'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
-import type { DirectoryRow, ScheduleMatrix, CheckInBoard, AutoMatchBoard, MeetingRequirementSettings, TableBoard } from '@conference/db'
+import type { DirectoryRow, ScheduleMatrix, CheckInBoard, AutoMatchBoard, MeetingRequirementSettings, TableBoard, SponsorTableBoard } from '@conference/db'
 
 // React Query hooks for the admin Companies scheduler tab. Both throw on
 // non-2xx so an error-shaped body (e.g. a 401 after the JWT expires) surfaces
@@ -86,6 +86,20 @@ export function useTableBoard() {
     queryFn: async () => {
       const r = await fetch('/api/admin/scheduler/tables')
       if (!r.ok) throw new Error(`Meeting tables request failed: ${r.status}`)
+      return r.json()
+    },
+    staleTime: 15_000,
+  })
+}
+
+// Per-sponsor meeting-table board for the Meeting Tables section of Meetings →
+// Settings — one slot per sponsor with its logo, name and unique table number.
+export function useSponsorTables() {
+  return useQuery<SponsorTableBoard>({
+    queryKey: ['scheduler', 'sponsor-tables'],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/scheduler/sponsor-tables')
+      if (!r.ok) throw new Error(`Sponsor tables request failed: ${r.status}`)
       return r.json()
     },
     staleTime: 15_000,

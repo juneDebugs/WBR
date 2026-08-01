@@ -137,6 +137,22 @@ export async function getDashboardData(userId: string, sponsorId: string | null,
     .sort((a, b) => new Date(a.timeBlock!.startsAt).getTime() - new Date(b.timeBlock!.startsAt).getTime())
     .slice(0, 5)
 
+  // A sponsor meeting owns a physical table on SponsorMeeting.location; the
+  // matching row shares this attendee + timeBlock. Attach it so the row can
+  // prefer the table ("Table N") over the generic timeBlock slot label.
+  const meetingBlockIds = myMeetings.map(r => r.timeBlockId).filter((id): id is string => !!id)
+  const sponsorTables = meetingBlockIds.length
+    ? await prisma.sponsorMeeting.findMany({
+        where: { userId, status: 'CONFIRMED', timeBlockId: { in: meetingBlockIds } },
+        select: { timeBlockId: true, location: true },
+      })
+    : []
+  const tableByBlock = new Map(sponsorTables.map(s => [s.timeBlockId, s.location]))
+  const myMeetingsWithTable = myMeetings.map(r => ({
+    ...r,
+    table: (r.timeBlockId ? tableByBlock.get(r.timeBlockId) : null) ?? null,
+  }))
+
   return {
     isStaff: false,
     isSponsor: !!sponsorId,
@@ -150,7 +166,7 @@ export async function getDashboardData(userId: string, sponsorId: string | null,
     myRequests,
     inboundRequests,
     profileUser,
-    myMeetings,
+    myMeetings: myMeetingsWithTable,
     staff,
   }
 }

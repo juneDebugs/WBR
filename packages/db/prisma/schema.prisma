@@ -353,6 +353,7 @@ model Sponsor {
   founded          String?
   headquarters     String?
   boothNumber      String?
+  tableNumber      Int?     // Admin-assigned 1-on-1 meeting table (unique per conference); null = unassigned. Drives the "Meeting Tables" board and every meeting's physical table.
   socialLinkedIn   String?
   socialTwitter    String?
   solutionsOffering String?
@@ -368,6 +369,7 @@ model Sponsor {
   users            User[]           @relation("SponsorUser")
   submissionForms  SubmissionForm[]
 
+  @@unique([conferenceId, tableNumber]) // A meeting-table number is unique within a conference (many NULLs allowed = unassigned).
   @@index([conferenceId])
 }
 

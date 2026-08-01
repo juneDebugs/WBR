@@ -32,7 +32,11 @@ export async function getMeetingsData(userId: string, sponsorId: string | null) 
     sponsorId
       ? prisma.sponsorMeeting.findMany({
           where: { sponsorId, status: 'CONFIRMED' },
-          include: {
+          select: {
+            id: true,
+            status: true,
+            // The sponsor's own assigned table ("Table N"), synced by the engine.
+            location: true,
             user: { select: { id: true, name: true, image: true, company: true, jobTitle: true } },
             timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
             sponsor: { select: { id: true, name: true, logoUrl: true, tier: true } },
@@ -55,9 +59,16 @@ export async function getMeetingsData(userId: string, sponsorId: string | null) 
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 
+  // Each sponsor meeting owns a physical table on SponsorMeeting.location.
+  // Prefer it over the generic timeBlock slot label; fall back when unassigned.
+  const sponsorMeetingsWithTable = sponsorMeetings.map(m => ({
+    ...m,
+    table: m.location ?? m.timeBlock?.location ?? null,
+  }))
+
   return {
     requests: requests.slice(0, 200),
-    sponsorMeetings,
+    sponsorMeetings: sponsorMeetingsWithTable,
     conflicts,
   }
 }

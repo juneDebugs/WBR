@@ -144,7 +144,7 @@ export function StaffQueue({ requests: initialRequests, timeBlocks }: { requests
                 {r.timeBlock && (
                   <p className="text-xs text-primary mt-2 font-medium">
                     {format(new Date(r.timeBlock.startsAt), 'EEE MMM d, h:mm a')} – {format(new Date(r.timeBlock.endsAt), 'h:mm a')}
-                    {r.timeBlock.location && ` · ${r.timeBlock.location}`}
+                    {(r.table ?? r.timeBlock.location) && ` · ${r.table ?? r.timeBlock.location}`}
                   </p>
                 )}
 

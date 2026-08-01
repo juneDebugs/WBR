@@ -16,7 +16,7 @@ type SponsorRow = { id: string; name: string; logoUrl: string | null; tier: stri
 
 type SponsorMeetingRow = {
   id: string; notes: string | null
-  startsAt: bigint; endsAt: bigint; location: string | null
+  startsAt: bigint; endsAt: bigint; location: string | null; smLocation: string | null
   uId: string; uName: string | null; uImage: string | null; uCompany: string | null; uJobTitle: string | null
 }
 
@@ -89,7 +89,7 @@ export async function getSponsorMeetings(sponsorId: string) {
     prisma.$queryRaw<SponsorRow[]>`
       SELECT id, name, logoUrl, tier FROM Sponsor WHERE id = ${sponsorId} LIMIT 1`,
     prisma.$queryRaw<SponsorMeetingRow[]>`
-      SELECT sm.id, sm.notes,
+      SELECT sm.id, sm.notes, sm.location as smLocation,
         tb.startsAt, tb.endsAt, tb.location,
         u.id as uId, u.name as uName, u.image as uImage, u.company as uCompany, u.jobTitle as uJobTitle
       FROM SponsorMeeting sm
@@ -115,7 +115,9 @@ export async function getSponsorMeetings(sponsorId: string) {
       id: m.id,
       startsAt: new Date(Number(m.startsAt)).toISOString(),
       endsAt: new Date(Number(m.endsAt)).toISOString(),
-      location: m.location,
+      // Prefer the sponsor meeting's own assigned table ("Table N") over the
+      // generic time-block slot label; fall back when unassigned/legacy.
+      location: m.smLocation ?? m.location,
       notes: m.notes,
       attendee: { id: m.uId, name: m.uName, image: m.uImage, company: m.uCompany, jobTitle: m.uJobTitle },
     }

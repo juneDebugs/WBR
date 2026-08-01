@@ -104,25 +104,28 @@ Tests: `test:meeting-requirements`, `test:meeting-requirements:api`; Turso DDL
 via `db:migrate-meeting-requirements`.
 
 Below the requirements panels, the same Settings view houses **Meeting Tables**
-(`MeetingTablesSettings`): the admin-managed physical table inventory plus a
-conference-wide assignment board of every confirmed meeting by day and time
-block. Inventory rows live in `MeetingTableSetting` (defensive
-`CREATE TABLE IF NOT EXISTS`; zero rows fail open to the constant
-`MEETING_ROOMS` defaults, and the first write op seeds them). Renames migrate
-`SponsorMeeting.location`; removal is blocked while confirmed meetings sit at
-the table (`TABLE_IN_USE`) and the last table can never be removed. Assignment
-capacity is a GLOBAL per-block guard (`TABLE_TAKEN`, cross-sponsor — unlike the
-per-sponsor availability grid), so the board is where legacy double-bookings
-surface; one-click auto-assign fills unassigned meetings and (opt-in) moves
-conflicts. Engine: `getMeetingTables` / `saveMeetingTables` / `getTableBoard` /
-`setMeetingTable` / `autoAssignTables` in
-[`packages/db/src/meeting-engine.ts`](../../packages/db/src/meeting-engine.ts);
-every rooms consumer (matrix `rooms`, availability sheets, `UNKNOWN_ROOM`
-validation, auto-schedule default room, the sponsor-portal approve flow) reads
-the live inventory. API: `GET/PUT /api/admin/scheduler/tables`,
-`PUT …/tables/assign`, `POST …/tables/auto-assign` (same `'meetings'` gate).
-Tests: `test:meeting-tables`, `test:meeting-tables:api`, `e2e:meeting-tables`
-(Playwright).
+(`SponsorTablesSettings`): an expo-floor board with one slot per sponsor, each
+pulling the company's logo + name and its **unique table number**. Every
+sponsor owns exactly one numbered table (`Sponsor.tableNumber`, `Int?`, unique
+per conference via `@@unique([conferenceId, tableNumber])`). A meeting's
+physical table (`SponsorMeeting.location` = `"Table N"`) is **derived from and
+kept in sync with** its sponsor's number — assigning/clearing a number
+backfills that sponsor's meetings, and every creation path (`assignMeeting`,
+`rescheduleMeeting`, `scheduleAutoMatches`, the sponsor-portal approve flow)
+stamps the sponsor's fixed table — so the number flows unchanged to the
+check-in board, the staff schedule, and the attendee & sponsor apps. **Auto-
+number** gives every still-unassigned sponsor the lowest free number (tier then
+name order), preserving existing assignments. Engine: `getSponsorTables` /
+`assignSponsorTable` / `autoPopulateSponsorTables` / `getSponsorFixedTableLabel`
+in [`packages/db/src/meeting-engine.ts`](../../packages/db/src/meeting-engine.ts);
+the `tableNumber` column is added defensively at runtime
+(`ensureSponsorTableColumn`, mirroring the Turso path) and replayed by
+`db:migrate-sponsor-tables`. API: `GET/PUT /api/admin/scheduler/sponsor-tables`,
+`POST …/sponsor-tables/auto-populate` (same `'meetings'` gate). Tests:
+`test:sponsor-tables`, `test:sponsor-tables:api`, `e2e:meeting-tables`
+(Playwright). The legacy table **inventory** (`MeetingTableSetting`,
+`getMeetingTables` — the `MEETING_ROOMS` label set) still backs room validation,
+the matrix/availability pickers and `UNKNOWN_ROOM` checks.
 
 ### On-site Check-In (sidebar → Meetings → Check-In)
 
