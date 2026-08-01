@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, hashPassword } from '@conference/db'
 import { requireCompleteProfile } from '@/lib/require-complete-profile'
-import { getCallerCompanyId } from '@/lib/caller-company'
+import { isAddableTeammateRole, ADDABLE_TEAMMATE_ROLE_FILTER } from '@/lib/addable-teammate'
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -23,8 +23,8 @@ export async function POST(req: Request) {
   // Reproduce the finding:
   //   grep -rn "teammates/register" apps/sponsor --include="*.tsx"
   //   grep -rn "RegisterTeammate" apps/sponsor --include="*.tsx"
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  const { refused, companyId } = await requireCompleteProfile()
+  if (refused) return refused
 
   const user = session.user as any
 
@@ -41,9 +41,12 @@ export async function POST(req: Request) {
   // refused, so it was inert; the role change is what turned it into a working
   // account, with the buyer directory, at a company the caller had left.
   //
-  // Full reasoning, and why this is fixed here rather than deferred to the
-  // plan's Phase 14, at lib/caller-company.ts.
-  const companyId = await getCallerCompanyId(user.id)
+  // Phase 13 did this through a helper of its own, lib/caller-company.ts, which
+  // issued a second query for a value the guard above had already fetched and
+  // discarded. Phase 6.5 re-pointed all twelve remaining handlers at the guard's
+  // value and deleted that helper, so there is one answer to "which company is
+  // this caller acting for" rather than two. Its comment also named a "Phase 14"
+  // that no longer exists and a count that was wrong; both went with the file.
   if (!companyId) return NextResponse.json({ error: 'No sponsor linked' }, { status: 403 })
 
   const { name, email, jobTitle, password } = await req.json()
@@ -58,6 +61,35 @@ export async function POST(req: Request) {
   // Check if user already exists
   const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
   if (existing) {
+    // REFUSE A WBR-SIDE ACCOUNT FIRST, BEFORE ANY QUESTION ABOUT ITS COMPANY.
+    //
+    // Found by adversarial review round 1 of Phase 6.5 and reproduced before the
+    // first version of this check was written: a STAFF account with no company
+    // was attached to an exhibitor's company by posting its EMAIL here, answering
+    // 200 — bypassing both the filtered list the screen shows and the
+    // identifier-based attach address that had just been hardened.
+    //
+    // THREE ADDRESSES CAN WRITE THIS COLUMN, and that is the recurring shape of
+    // this defect family rather than a coincidence. Phase 13 recorded the same
+    // thing when it found the colleague-role defect had three code paths and not
+    // the one its finding described. The first version of Phase 6.5 wired the
+    // rule into two of the three and missed this one.
+    //
+    // ROUND 3 THEN MOVED IT ABOVE THE COMPANY BRANCHES, and that ordering is the
+    // whole point rather than tidiness. Below them, a WBR-side account that was
+    // ALREADY attached — by the defect this phase is fixing, before the fix
+    // shipped — never reached the check at all: it matched the same-company
+    // branch and got a 200, or the other-company branch and got a 409. The rule
+    // has to be about what kind of account this is, which is not a question the
+    // account's current company can answer.
+    //
+    // Same rule, same source, same answer as app/api/profile/teammates/route.ts.
+    if (!isAddableTeammateRole(existing.role)) {
+      return NextResponse.json(
+        { error: 'This account cannot be added to a sponsor team' },
+        { status: 403 },
+      )
+    }
     // If they already belong to this sponsor, return them
     if (existing.sponsorId === companyId) {
       return NextResponse.json({
@@ -90,9 +122,46 @@ export async function POST(req: Request) {
     // The limitation is kept and the false impression is removed: the screen says
     // that attaching shares the company's records and does not grant portal
     // access. See components/ProfileEditor.tsx and components/RegisterTeammate.tsx.
-    const updated = await prisma.user.update({
-      where: { id: existing.id },
+    // ONE CONDITIONAL WRITE, NOT A READ FOLLOWED BY A WRITE. Round 3 of Phase 6.5.
+    //
+    // Everything above this line was decided from a row read at the top of the
+    // branch, and the write then addressed that row by its primary key alone. Two
+    // exhibitors can therefore both read the same unattached account, both pass
+    // every check, and both write — the second silently winning while both are
+    // told it worked.
+    //
+    // This is the exact shape Phase 13 removed from the sibling attach address
+    // after MEASURING it rather than reasoning about it: two representatives
+    // attaching the same unattached person both received a success in 15 of 15
+    // attempts. The first single attempt did not reproduce it, which is why that
+    // phase recorded that one attempt is not a measurement. The same shape was
+    // left here because that phase's scope was the four teammate addresses and
+    // this branch was not read closely enough.
+    //
+    // The condition now lives in the write, so the database decides. `updateMany`
+    // rather than `update` because only `updateMany` accepts a filter beyond the
+    // primary key; it changes at most one row, since `id` is unique.
+    const attached = await prisma.user.updateMany({
+      where: {
+        id: existing.id,
+        ...ADDABLE_TEAMMATE_ROLE_FILTER,
+        OR: [{ sponsorId: null }, { sponsorId: companyId }],
+      },
       data: { sponsorId: companyId, ...(name && { name }), ...(jobTitle && { jobTitle }) },
+    })
+
+    if (attached.count === 0) {
+      // Somebody else took them between the read above and this write. Re-read to
+      // answer the same way this address answers that case anywhere else, rather
+      // than reporting a success that did not happen.
+      return NextResponse.json(
+        { error: 'This user is already linked to another sponsor' },
+        { status: 409 },
+      )
+    }
+
+    const updated = await prisma.user.findUnique({
+      where: { id: existing.id },
       select: { id: true, name: true, email: true, image: true, jobTitle: true, role: true },
     })
     return NextResponse.json(updated)

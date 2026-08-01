@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
   // The searchable half of the buyer directory. Guarded for the same reason as
   // /api/attendees and in the same phase, so the refusal there is not undone by
   // asking this address for the same people with a filter on top (OE 18).
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  // This address never consults the caller's company, so it takes the refusal
+  // and ignores the rest of what the guard returns.
+  const { refused } = await requireCompleteProfile()
+  if (refused) return refused
 
   const sp = req.nextUrl.searchParams
   const search = sp.get('search') ?? ''

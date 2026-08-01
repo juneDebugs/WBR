@@ -47,7 +47,12 @@ export type AppName = 'web' | 'meetings' | 'sponsor' | 'attendee'
 // that choice is here: ADDING A ROLE TO THIS ARRAY EXEMPTS IT FROM ONBOARDING IN
 // EVERY APP, IMMEDIATELY, with no separate decision. If that is not what you
 // want for a new role, it does not belong in this array.
-const WBR_ROLES = ['WBR', 'ORGANIZER', 'ADMIN', 'STAFF'] as const
+// Exported since Phase 6.5, for one caller with a genuine need: the sponsor
+// portal's teammate rule has to express "not a WBR-side role" as a DATABASE
+// FILTER, and a predicate cannot be sent to the database. Everything that can
+// use isWbrStaff() below still must — this array is not an invitation to
+// re-implement that test by hand.
+export const WBR_ROLES = ['WBR', 'ORGANIZER', 'ADMIN', 'STAFF'] as const
 
 /**
  * True when `role` is a WBR staff/organizer role (the meeting-engine operators).

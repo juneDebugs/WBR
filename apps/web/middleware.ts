@@ -31,6 +31,20 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
+// EXCLUDE BY FOLDER, NOT BY FILE EXTENSION. Phase 6.5.
+//
+// This used to end with `.*\.(?:png|jpg|jpeg|gif|svg|ico|webp)$`, which tests the
+// WHOLE address rather than a folder — so any page whose last segment happened
+// to end in an image extension skipped the signed-in check too. Measured:
+// `/dashboard/sponsors/anything.png` answered 200 with no session, because the
+// dynamic `[id]` segment matched. It rendered an empty shell and leaked no data,
+// so this was a weakness rather than an exposure, but the check was not doing
+// what its author intended.
+//
+// The other three apps closed the same weakness in PR 31 by naming the folders
+// their images actually live in. This copies that, unchanged. Verified before
+// changing: apps/web/public contains only `icons/` and `sponsors/`, so nothing
+// static falls outside the two named folders.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons/|sponsors/|manifest.json|sw.js|workbox-.*).*)'],
 }

@@ -20,8 +20,10 @@ export async function POST(req: Request) {
   // Asking a buyer for a meeting. This is one of the two capabilities the
   // customer named by name when asked what an incomplete participant should not
   // be able to do; the attendee app's equivalent was closed in Phase 1.
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  // This address never consults the caller's company, so it takes the refusal
+  // and ignores the rest of what the guard returns.
+  const { refused } = await requireCompleteProfile()
+  if (refused) return refused
 
   const user = session.user as any
   if (!user.id) return NextResponse.json({ error: 'No user id' }, { status: 403 })

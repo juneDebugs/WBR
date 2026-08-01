@@ -316,6 +316,8 @@ importers:
 
   packages/types: {}
 
+  packages/ui: {}
+
 packages:
 
   '@ai-sdk/gateway@4.0.7':

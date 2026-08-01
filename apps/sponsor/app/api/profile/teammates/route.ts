@@ -4,7 +4,7 @@ import { revalidateTag } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 import { requireCompleteProfile } from '@/lib/require-complete-profile'
-import { getCallerCompanyId } from '@/lib/caller-company'
+import { ADDABLE_TEAMMATE_ROLE_FILTER, isAddableTeammateRole } from '@/lib/addable-teammate'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -14,13 +14,15 @@ export async function GET() {
   // answers 403 with an empty ARRAY rather than the standard body; the guard
   // returns the standard one, so a refused caller here gets the same shape it
   // gets everywhere else.
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  //
+  // From the database, not the token: reading the token here would show a moved
+  // representative their FORMER company's team. Phase 13 got that right using a
+  // helper that issued its own query; Phase 6.5 takes the same value from the
+  // guard, which had already fetched it, and deleted the helper.
+  const { refused, companyId } = await requireCompleteProfile()
+  if (refused) return refused
 
   const user = session.user as any
-  // From the database, not the token — see lib/caller-company.ts. Reading the
-  // token here would show a moved representative their FORMER company's team.
-  const companyId = await getCallerCompanyId(user.id)
   if (!companyId) return NextResponse.json([], { status: 403 })
 
   const teammates = await prisma.user.findMany({
@@ -42,18 +44,17 @@ export async function POST(req: Request) {
   // null, both while that person holds a live session. The guard reads the
   // company from the database for exactly this reason; see the note in
   // lib/require-complete-profile.ts and the longer one in api/profile/route.ts.
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  //
+  // THE COMPANY COMES FROM THE DATABASE, NOT THE SESSION TOKEN. Phase 13, after
+  // adversarial review round 1; re-pointed at the guard's value by Phase 6.5,
+  // which removed the second query the old helper made. A token is issued at
+  // sign-in and never changes, and this very handler is one of the two that can
+  // move somebody between companies, so a representative moved mid-session
+  // would otherwise go on attaching people to the company they have left.
+  const { refused, companyId } = await requireCompleteProfile()
+  if (refused) return refused
 
   const user = session.user as any
-
-  // THE COMPANY COMES FROM THE DATABASE, NOT THE SESSION TOKEN. Phase 13,
-  // after adversarial review round 1. The long reasoning is at
-  // lib/caller-company.ts. Short version: a token is issued at sign-in and never
-  // changes, and this very handler is one of the two that can move somebody
-  // between companies, so a representative moved mid-session would otherwise go
-  // on attaching people to the company they have left.
-  const companyId = await getCallerCompanyId(user.id)
   if (!companyId) return NextResponse.json({ error: 'No sponsor linked' }, { status: 403 })
 
   const { userId } = await req.json()
@@ -111,9 +112,18 @@ export async function POST(req: Request) {
   // alternatives are recorded in the plan's Phase 13. The consequence, that an
   // attached colleague cannot use this portal, is now stated on the screen
   // instead of implied away.
+  // AND THE TARGET MUST BE A KIND OF PERSON AN EXHIBITOR MAY ADD. Phase 6.5.
+  //
+  // The role condition is the same one the picker query filters on — both read
+  // lib/addable-teammate.ts — so the screen and this address cannot disagree
+  // about who may be added. Enforced here as well as there because the picker
+  // is presentation: it is cached for 120 seconds and can be bypassed entirely
+  // by calling this address directly, which is how Phase 6 measured the
+  // original defect in this handler.
   const attached = await prisma.user.updateMany({
     where: {
       id: userId,
+      ...ADDABLE_TEAMMATE_ROLE_FILTER,
       // Unattached, or already on this team. Anything else belongs to somebody
       // else and is refused below.
       OR: [{ sponsorId: null }, { sponsorId: companyId }],
@@ -122,12 +132,21 @@ export async function POST(req: Request) {
   })
 
   if (attached.count === 0) {
-    // Nothing matched, and the two reasons need different answers. Read once to
-    // tell them apart: an identifier matching nothing used to reach `update` and
-    // throw, which Next turns into a 500 — a server fault reported for an
+    // Nothing matched, and the three reasons need different answers. Read once
+    // to tell them apart: an identifier matching nothing used to reach `update`
+    // and throw, which Next turns into a 500 — a server fault reported for an
     // ordinary bad request.
-    const exists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+    const exists = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    })
     if (!exists) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!isAddableTeammateRole(exists.role)) {
+      return NextResponse.json(
+        { error: 'This account cannot be added to a sponsor team' },
+        { status: 403 },
+      )
+    }
     return NextResponse.json(
       { error: 'This user is already linked to another sponsor' },
       { status: 409 },
@@ -149,14 +168,13 @@ export async function DELETE(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const blocked = await requireCompleteProfile()
-  if (blocked) return blocked
+  // From the database, not the token: reading the token here would let a moved
+  // representative detach people from the company they have left. Taken from
+  // the guard's value by Phase 6.5, which removed the helper's extra query.
+  const { refused, companyId } = await requireCompleteProfile()
+  if (refused) return refused
 
   const user = session.user as any
-  // From the database, not the token — see lib/caller-company.ts. Reading the
-  // token here would let a moved representative detach people from the company
-  // they have left.
-  const companyId = await getCallerCompanyId(user.id)
   if (!companyId) return NextResponse.json({ error: 'No sponsor linked' }, { status: 403 })
 
   const { userId } = await req.json()
