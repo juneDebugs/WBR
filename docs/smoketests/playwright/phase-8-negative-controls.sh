@@ -84,6 +84,10 @@ build_and_start() {
     return 1
   fi
 
+  # The map read is cached to disk and survives a restart, so it is cleared
+  # with every build. Measured 2026-08-01: a re-seed was invisible to the app
+  # across a full restart until this directory was removed.
+  rm -rf apps/attendee/.next/cache/fetch-cache
   ( cd apps/attendee && npx next build ) > "$WORK/build.log" 2>&1
   local code=$?
   if [ $code -ne 0 ]; then
@@ -217,16 +221,28 @@ echo "predicted number of failing assertions."
 # ── 1 ────────────────────────────────────────────────────────────────────────
 # Pad the marker layer so it is no longer the picture's box. Every marker then
 # resolves its percentage against a box larger than the picture it sits on.
-# Predicted 6, raised from 4 before this run when the label-bounds assertions
-# were added in review round 3: the box-equality assertion, one position
-# assertion at each of the three screen sizes, and the room-label bounds check
-# on both room maps — the markers shift outward relative to the inset picture,
-# which pushes the lowest labels past its bottom edge.
+# Rewritten when zoom and pan landed. The old control padded the marker layer,
+# and that anchor no longer exists: the layer is now sized by the window it sits
+# in and the picture fills it completely, so the layer's box IS the picture's
+# box by construction. There is no longer an edit that separates the two without
+# rewriting the component, which is itself the improvement.
+#
+# This control instead reproduces the exact defect the third opinion found in
+# the first zoom implementation: a border on the window. A border sits outside
+# the content box, so the picture inside ends up two pixels narrower than the
+# window it is supposed to fill.
+# Predicted 2, raised from 1 before this re-run. There are TWO fit-to-window
+# assertions, not one: the picture fills the window at rest, and it settles back
+# to filling it after being pinched inward past the limit. Both compare the same
+# two widths, so both move. I counted only the first; the harness caught 2 and
+# refused it at gate 5, which is the gate doing its job. The layer and the
+# picture are both inside the border so they still match each other, and every
+# marker position is measured against the picture and is unaffected.
 run_control \
-  "the marker layer stops being the picture's box" 6 \
+  "the map window regains a border, so the picture no longer fills it" 2 \
   "$CLIENT" \
-  'data-testid="map-canvas" className="relative mx-auto block w-full max-w-3xl"' \
-  'data-testid="map-canvas" className="relative mx-auto block w-full max-w-3xl p-4"'
+  'className="relative w-full rounded-xl bg-white ring-1 ring-black/10"' \
+  'className="relative w-full rounded-xl bg-white border border-black/10"'
 
 # ── 2 ────────────────────────────────────────────────────────────────────────
 # Drop the completeness guard from the map data address, leaving the screen
@@ -240,28 +256,81 @@ run_control \
 
 # ── 3 ────────────────────────────────────────────────────────────────────────
 # Shrink the tap target to a size a thumb misses, leaving the marker centred
-# exactly where it was so only the target assertion should move.
-# Predicted 1.
+# exactly where it was so only the target assertions should move.
+# Predicted 2, raised from 1 before this run: the marker is now checked at rest
+# AND while zoomed in, and because it is held at a constant size on screen it is
+# too small in both. Its centre does not move, so no position assertion should
+# change, and the labels move slightly UP rather than down, so the label bounds
+# should not change either.
 run_control \
-  "booth markers stop being big enough to tap" 1 \
+  "booth markers stop being big enough to tap" 2 \
   "$CLIENT" \
-  'className="absolute h-11 w-11 -translate-x-1/2' \
-  'className="absolute h-6 w-6 -translate-x-1/2'
+  'className="absolute h-11 w-11 flex items-center justify-center' \
+  'className="absolute h-6 w-6 flex items-center justify-center'
 
 # ── 4 ────────────────────────────────────────────────────────────────────────
 # Keep the room label in the markup but hide it from the screen. This is the
 # control for the exact defect class this project has hit twice: an assertion
 # satisfied by text present in the response but never visible to a person.
-# Predicted 4, raised from 2 before this run when the label-bounds assertions
-# were added: it occupies no space, and it is not visible — plus the label
-# bounds check on both room maps, because a hidden element reports a zero-sized
-# rectangle at the page origin, which is correctly outside the picture. Its text
-# is still readable from the markup, so that assertion should NOT move.
+# Predicted 5. It was 2, raised to 4 when the label-bounds assertions were added
+# in review round 3, and raised again to 5 here: the zoom work added a check that
+# the room map has labels on screen to measure at all, and a hidden label is not
+# on screen. The four already counted are that a label occupies no space, that it
+# is not visible, and the bounds check on each of the two room maps — a hidden
+# element reports a zero-sized rectangle at the page origin, which is correctly
+# outside the picture. Its text is still readable from the markup, so that
+# assertion should NOT move.
+#
+# The 4 was measured wrong on the previous run: the harness caught 5 and refused
+# it at gate 5. That is the gate doing its job — a prediction that has to be
+# corrected afterwards is not a prediction, so the reason is written here and the
+# number is raised BEFORE the re-run rather than after seeing it again.
 run_control \
-  "room labels are present in the markup but invisible on screen" 4 \
+  "room labels are present in the markup but invisible on screen" 5 \
   "$CLIENT" \
   'className="pointer-events-none absolute left-1/2 top-full' \
   'className="hidden pointer-events-none absolute left-1/2 top-full'
+
+# ── 5 ────────────────────────────────────────────────────────────────────────
+# Make the markers scale WITH the map instead of holding their size. This is the
+# alternative finding F-9 explicitly rejected: it magnifies the problem along
+# with the map, so a label covers the same share of the map at every zoom level
+# and zooming stops being a remedy. The marker's centre still lands on its
+# point, so the position assertions should NOT move.
+# Predicted 3: the marker is no longer the same size on screen; the label no
+# longer covers a smaller share of the map; and it no longer holds its width.
+run_control \
+  "markers scale with the map, so zooming stops decluttering" 3 \
+  "$CLIENT" \
+  'transform: `translate(-50%, -50%) scale(${1 / scale})`,' \
+  'transform: `translate(-50%, -50%)`,'
+
+# ── 6 ────────────────────────────────────────────────────────────────────────
+# Remove the clamp that keeps the map covering its window, so it can be dragged
+# away and leave blank space where the map should be.
+# Predicted 1: the shove assertion.
+run_control \
+  "the map can be dragged off its own window" 1 \
+  "$CLIENT" \
+  '      x: Math.min(0, Math.max(-overflowX, next.x)),
+      y: Math.min(0, Math.max(-overflowY, next.y)),' \
+  '      x: next.x,
+      y: next.y,'
+
+# ── 7 ────────────────────────────────────────────────────────────────────────
+# Capture the pointer on the way down, as the first version of the zoom work
+# did. Under capture the eventual click is retargeted to the capturing window,
+# so it never reaches the marker button inside it — and tapping a booth marker
+# is the whole of Phase 9. Panning is unaffected, so no drag assertion moves.
+# Predicted 1: the tap assertion.
+run_control \
+  "capturing the pointer on the way down steals taps from the markers" 1 \
+  "$CLIENT" \
+  '      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pointers.current.size === 1) {' \
+  '      capture(e.pointerId)
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pointers.current.size === 1) {'
 
 # ── Restore and leave a correct build behind ─────────────────────────────────
 echo

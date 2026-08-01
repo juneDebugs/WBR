@@ -134,7 +134,12 @@ export function layoutMeetingRooms(meetingRooms) {
   const LEFT = 20
   const RIGHT = 80
   const TOP = 22
-  const BOTTOM = 82
+  // 76 rather than 82. This map is drawn shallower than the other two, and a
+  // room label hangs below its marker: at 82 the bottom row's labels extended
+  // past the picture's edge once the height dropped from 1200 to 1000. Caught
+  // by the browser check's label-bounds assertion, which is the assertion the
+  // adversarial review added for exactly this.
+  const BOTTOM = 76
 
   return items.map((room, index) => {
     const column = index % columns
@@ -156,24 +161,42 @@ export function layoutMeetingRooms(meetingRooms) {
 
 // ─── The three maps ───────────────────────────────────────────────────────────
 
+// Each map carries its own pixel dimensions, and THEY ARE DELIBERATELY NOT ALL
+// THE SAME SHAPE. Raised by adversarial review of the zoom work: the window the
+// map moves inside takes its proportions from the picture, and a stale ratio
+// would stretch the map and feed a wrong height to the pan limit. With three
+// identically-shaped pictures that defect is invisible, and it becomes live the
+// moment Phase 10 lets an organizer upload a plan of any shape.
+//
+// A venue sending plans of different shapes is the normal case, not a contrived
+// one — ADR 0007 is built around whatever picture happens to arrive. Marker
+// positions are percentages, so nothing about the layout depends on these.
 export const MAPS = [
   {
     slug: 'exhibit-hall',
     name: 'Exhibit Hall',
     position: 1,
     subtitle: 'Level 1 · Halls 1–3',
+    width: 1600,
+    height: 1200,
   },
   {
     slug: 'ballroom-level',
     name: 'Ballroom Level',
     position: 2,
     subtitle: 'Level 2 · Sessions & dining',
+    width: 1600,
+    height: 1200,
   },
   {
     slug: 'meeting-rooms',
     name: 'Meeting Rooms',
     position: 3,
     subtitle: 'Level 3 · 1-on-1 meeting tables',
+    // Wider and shallower than the other two, on purpose. This is the map the
+    // switch-to-a-different-shape assertion measures against.
+    width: 1600,
+    height: 1000,
   },
 ]
 

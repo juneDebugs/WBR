@@ -190,9 +190,12 @@ async function measurePins(page) {
         labelBox: lr ? { left: lr.left, top: lr.top, width: lr.width, height: lr.height } : null,
       }
     })
+    const vp = document.querySelector('[data-testid="map-viewport"]')
+    const vpRect = vp ? vp.getBoundingClientRect() : null
     return {
       canvas: { left: canvasRect.left, top: canvasRect.top, width: canvasRect.width, height: canvasRect.height },
       image: { left: imageRect.left, top: imageRect.top, width: imageRect.width, height: imageRect.height },
+      viewport: vpRect ? { width: vpRect.width, height: vpRect.height } : null,
       naturalWidth: image.naturalWidth,
       naturalHeight: image.naturalHeight,
       src: image.getAttribute('src'),
@@ -235,6 +238,18 @@ try {
   // ── 2. The first map's picture really loaded ───────────────────────────────
   console.log('\n2. The first map renders a picture that actually loaded')
   const firstMap = expectedMaps[0]
+
+  // Wait for the picture to have ARRIVED before measuring it. Waiting for the
+  // canvas to be visible is not the same thing: on a cold first load after a
+  // rebuild, the element is laid out before the picture has decoded, and its
+  // natural size is legitimately 0 in that gap. This check failed once against
+  // a working app for exactly that reason. The wait can still time out, so the
+  // assertion below can still fail honestly.
+  await page.waitForFunction(() => {
+    const img = document.querySelector('[data-testid="map-image"]')
+    return Boolean(img && img.complete && img.naturalWidth > 0)
+  }, undefined, { timeout: 15_000 }).catch(() => {})
+
   let m = await measurePins(page)
   yes(m !== null, 'the map canvas and its picture are both present')
 
@@ -403,6 +418,10 @@ try {
     'each switcher item is labelled with its map’s name',
     tabOrder.map(t => t.text).join(' | '))
 
+  // Collected across the loop below, so the shape assertions afterwards are
+  // made against what was actually on screen.
+  const shapes = []
+
   for (let i = 0; i < expectedMaps.length; i++) {
     const map = expectedMaps[i]
     await tabs.nth(i).click()
@@ -466,8 +485,31 @@ try {
         outside.map(p => `${p.label} at ${p.labelBox.left.toFixed(0)},${p.labelBox.top.toFixed(0)}`).join(' | '))
     }
 
+    // The window the map moves inside has to take the shape of the picture in
+    // it, or the picture is stretched and the pan limit is fed a wrong height.
+    // Raised by adversarial review of the zoom work, where a stale ratio
+    // survives a map switch.
+    if (state?.viewport && state.naturalWidth > 0) {
+      const wanted = state.naturalWidth / state.naturalHeight
+      const got = state.viewport.width / state.viewport.height
+      shapes.push({ name: map.name, wanted, got })
+      yes(Math.abs(got - wanted) < 0.02,
+        `${map.name}: the window takes the shape of this picture, not the previous one`,
+        `picture ${wanted.toFixed(3)} vs window ${got.toFixed(3)}`)
+    } else {
+      no(`${map.name}: the window and the picture could both be measured`)
+    }
+
     await page.screenshot({ path: join(SHOTS, `map-${map.position}.png`) })
   }
+
+  // Without this, the assertion above is satisfied by three identically-shaped
+  // pictures and proves nothing about switching. One seeded map is deliberately
+  // a different shape for exactly this reason.
+  const distinctShapes = new Set(shapes.map(s => s.wanted.toFixed(3)))
+  yes(distinctShapes.size > 1,
+    'the seeded maps are not all the same shape, so the check above means something',
+    [...new Set(shapes.map(s => `${s.name} ${s.wanted.toFixed(3)}`))].join(' | '))
 
   // ── 7. Room labels are visible to a person, not merely present ─────────────
   console.log('\n7. Room labels are visible on screen')
@@ -533,8 +575,393 @@ try {
 
   await gateCtx.close()
 
-  // ── 10. Nothing broke in the browser ───────────────────────────────────────
-  console.log('\n10. The browser reported no errors')
+  // ── 10. Zoom and pan ───────────────────────────────────────────────────────
+  //
+  // Added from finding F-9. The map is 1600 pixels wide shown at 366 on a
+  // phone, so its own drawn text is about 4.6 pixels and unreadable, and the
+  // readable labels are about as wide as the rooms they name.
+  //
+  // THE ASSERTION THAT MATTERS IS THE CONSTANT-SIZE ONE. Scaling the markers
+  // along with the picture would magnify the problem and change nothing: a
+  // label would cover the same proportion of the map at every zoom level. Only
+  // if the markers hold still while the picture grows does zooming declutter.
+  // Everything else in this step exists to stop that one property being
+  // satisfied trivially.
+  console.log('\n10. The delegate can zoom and pan, and the markers hold their size')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  // Back to the first map, so this step does not depend on where step 6 ended.
+  await tabs.first().click()
+  await page.waitForFunction(() => {
+    const img = document.querySelector('[data-testid="map-image"]')
+    return Boolean(img && img.complete && img.naturalWidth > 0)
+  }, undefined, { timeout: 15_000 }).catch(() => {})
+
+  const viewport = page.locator('[data-testid="map-viewport"]').first()
+  const hasViewport = await viewport.count() > 0
+  yes(hasViewport, 'there is a viewport element that the map moves inside')
+
+  /** Scale, picture geometry, and the on-screen size of the markers. */
+  async function zoomState() {
+    return page.evaluate(() => {
+      const vp = document.querySelector('[data-testid="map-viewport"]')
+      const img = document.querySelector('[data-testid="map-image"]')
+      if (!vp || !img) return null
+      const vr = vp.getBoundingClientRect()
+      const ir = img.getBoundingClientRect()
+      const pins = [...document.querySelectorAll('[data-testid="pin"]')].map(el => {
+        const r = el.getBoundingClientRect()
+        const lab = el.querySelector('[data-testid="pin-label"]')
+        const lr = lab ? lab.getBoundingClientRect() : null
+        return {
+          label: el.getAttribute('data-pin-label'),
+          x: Number(el.getAttribute('data-pin-x')),
+          y: Number(el.getAttribute('data-pin-y')),
+          centreX: r.left + r.width / 2,
+          centreY: r.top + r.height / 2,
+          width: r.width,
+          height: r.height,
+          labelWidth: lr ? lr.width : null,
+        }
+      })
+      return {
+        declaredScale: Number(vp.getAttribute('data-map-scale')),
+        overflow: getComputedStyle(vp).overflow,
+        touchAction: getComputedStyle(vp).touchAction,
+        viewport: { left: vr.left, top: vr.top, width: vr.width, height: vr.height },
+        image: { left: ir.left, top: ir.top, width: ir.width, height: ir.height },
+        pins,
+      }
+    })
+  }
+
+  /** A two-finger pinch, dispatched as real pointer events on the viewport. */
+  async function pinch(factor) {
+    await page.evaluate((f) => {
+      const vp = document.querySelector('[data-testid="map-viewport"]')
+      // No viewport means the feature is absent. Do nothing rather than throw,
+      // so every assertion below fails on its own and the count stays stable.
+      if (!vp) return
+      const r = vp.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const start = 60
+      const end = start * f
+      const opts = (id, x, y) => ({
+        pointerId: id, pointerType: 'touch', clientX: x, clientY: y,
+        bubbles: true, cancelable: true, isPrimary: id === 1,
+      })
+      vp.dispatchEvent(new PointerEvent('pointerdown', opts(1, cx - start, cy)))
+      vp.dispatchEvent(new PointerEvent('pointerdown', opts(2, cx + start, cy)))
+      for (let s = 1; s <= 8; s++) {
+        const d = start + ((end - start) * s) / 8
+        vp.dispatchEvent(new PointerEvent('pointermove', opts(1, cx - d, cy)))
+        vp.dispatchEvent(new PointerEvent('pointermove', opts(2, cx + d, cy)))
+      }
+      vp.dispatchEvent(new PointerEvent('pointerup', opts(1, cx - end, cy)))
+      vp.dispatchEvent(new PointerEvent('pointerup', opts(2, cx + end, cy)))
+    }, factor)
+    await page.waitForTimeout(120)
+  }
+
+  /** A one-finger drag across the viewport. */
+  async function drag(dx, dy) {
+    await page.evaluate(([x, y]) => {
+      const vp = document.querySelector('[data-testid="map-viewport"]')
+      if (!vp) return
+      const r = vp.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const opts = (px, py) => ({
+        pointerId: 1, pointerType: 'touch', clientX: px, clientY: py,
+        bubbles: true, cancelable: true, isPrimary: true,
+      })
+      vp.dispatchEvent(new PointerEvent('pointerdown', opts(cx, cy)))
+      for (let s = 1; s <= 8; s++) {
+        vp.dispatchEvent(new PointerEvent('pointermove', opts(cx + (x * s) / 8, cy + (y * s) / 8)))
+      }
+      vp.dispatchEvent(new PointerEvent('pointerup', opts(cx + x, cy + y)))
+    }, [dx, dy])
+    await page.waitForTimeout(120)
+  }
+
+  const atRest = await zoomState()
+  yes(atRest !== null, 'the viewport and the picture can both be measured')
+
+  if (atRest) {
+    yes(atRest.declaredScale === 1, 'the map opens at fit-to-width, scale 1', `got ${atRest.declaredScale}`)
+    yes(atRest.overflow === 'hidden', 'the viewport clips what moves inside it', atRest.overflow)
+    yes(atRest.touchAction === 'none',
+      'the viewport claims the touch gestures rather than letting the browser scroll the page',
+      atRest.touchAction)
+    yes(Math.abs(atRest.image.width - atRest.viewport.width) <= 1,
+      'at rest the picture exactly fills the viewport',
+      `picture ${atRest.image.width.toFixed(1)} vs viewport ${atRest.viewport.width.toFixed(1)}`)
+  }
+
+  await pinch(2)
+  const zoomed = await zoomState()
+
+  // Asserted rather than used as a silent condition. The first version wrapped
+  // everything below in `if (atRest && zoomed)`, and when a page error left the
+  // measurement empty, a dozen assertions simply did not run and the suite
+  // reported them as neither passed nor failed. A check that disappears when
+  // something goes wrong is worse than one that fails.
+  yes(zoomed !== null, 'the map can still be measured after the pinch')
+
+  if (atRest && zoomed) {
+    yes(zoomed.declaredScale > atRest.declaredScale,
+      `a two-finger pinch zooms in (${atRest.declaredScale} → ${zoomed.declaredScale})`)
+    yes(zoomed.image.width > atRest.image.width * 1.3,
+      'the picture is substantially larger after the pinch',
+      `${atRest.image.width.toFixed(0)} → ${zoomed.image.width.toFixed(0)}`)
+
+    // THE ONE THAT MATTERS.
+    const before = atRest.pins[0]
+    const after = zoomed.pins.find(p => p.label === before?.label)
+    yes(before && after && Math.abs(after.width - before.width) <= 1 && Math.abs(after.height - before.height) <= 1,
+      'a marker is the SAME size on screen after zooming — the map grew, the marker did not',
+      before && after ? `${before.width.toFixed(1)}×${before.height.toFixed(1)} → ${after.width.toFixed(1)}×${after.height.toFixed(1)}` : 'marker not found')
+
+    // Zooming must not break the thing the rest of this suite rests on.
+    let worst = 0, worstLabel = ''
+    for (const pin of zoomed.pins) {
+      const wantX = zoomed.image.left + (pin.x / 100) * zoomed.image.width
+      const wantY = zoomed.image.top + (pin.y / 100) * zoomed.image.height
+      const off = Math.hypot(pin.centreX - wantX, pin.centreY - wantY)
+      if (off > worst) { worst = off; worstLabel = pin.label }
+    }
+    yes(worst <= 2,
+      'every marker still sits on its stored position after zooming',
+      `worst ${worst.toFixed(1)}px on "${worstLabel}"`)
+
+    yes(Math.min(...zoomed.pins.map(p => Math.min(p.width, p.height))) >= 44,
+      'markers are still at least 44 by 44 while zoomed in')
+  }
+
+  // Panning
+  const beforePan = await zoomState()
+  await drag(-80, -60)
+  const afterPan = await zoomState()
+  yes(beforePan !== null && afterPan !== null, "the map can be measured either side of a drag")
+  if (beforePan && afterPan) {
+    yes(Math.abs(afterPan.image.left - beforePan.image.left) > 5 ||
+        Math.abs(afterPan.image.top - beforePan.image.top) > 5,
+      'dragging moves the map',
+      `left ${beforePan.image.left.toFixed(0)} → ${afterPan.image.left.toFixed(0)}, top ${beforePan.image.top.toFixed(0)} → ${afterPan.image.top.toFixed(0)}`)
+
+    let worst = 0
+    for (const pin of afterPan.pins) {
+      const wantX = afterPan.image.left + (pin.x / 100) * afterPan.image.width
+      const wantY = afterPan.image.top + (pin.y / 100) * afterPan.image.height
+      worst = Math.max(worst, Math.hypot(pin.centreX - wantX, pin.centreY - wantY))
+    }
+    yes(worst <= 2, 'the markers travel with the map when it is panned', `worst ${worst.toFixed(1)}px`)
+  }
+
+  // Panning must not be able to drag the map off the screen.
+  await drag(4000, 4000)
+  const shoved = await zoomState()
+  yes(shoved !== null, "the map can still be measured after being shoved")
+  if (shoved) {
+    const gapLeft = shoved.image.left - shoved.viewport.left
+    const gapTop = shoved.image.top - shoved.viewport.top
+    yes(gapLeft <= 1 && gapTop <= 1,
+      'the map cannot be dragged away from the viewport, however hard it is shoved',
+      `gap ${gapLeft.toFixed(1)},${gapTop.toFixed(1)}`)
+  }
+
+  // Zooming out is clamped at fit-to-width; the map never becomes smaller than
+  // the space it is given.
+  await pinch(0.2)
+  await pinch(0.2)
+  const shrunk = await zoomState()
+  yes(shrunk !== null, "the map can still be measured after being pinched inward")
+  if (shrunk) {
+    yes(shrunk.declaredScale >= 1, 'the map cannot be pinched smaller than fit-to-width', `${shrunk.declaredScale}`)
+    yes(Math.abs(shrunk.image.width - shrunk.viewport.width) <= 1,
+      'and it settles back to exactly filling the viewport',
+      `picture ${shrunk.image.width.toFixed(1)} vs viewport ${shrunk.viewport.width.toFixed(1)}`)
+  }
+
+  // A way back for someone who has zoomed into a corner.
+  await pinch(2)
+  const beforeReset = await zoomState()
+  const reset = page.locator('[data-testid="map-zoom-reset"]').first()
+  yes(await reset.count() > 0 && await reset.isVisible(),
+    'a reset control appears once the map is zoomed')
+  if (await reset.count() > 0) {
+    await reset.click()
+    await page.waitForTimeout(150)
+    const afterReset = await zoomState()
+    yes(afterReset?.declaredScale === 1, 'the reset control returns the map to fit-to-width',
+      `${beforeReset?.declaredScale} → ${afterReset?.declaredScale}`)
+    yes(await reset.count() === 0 || !(await reset.isVisible()),
+      'and the reset control goes away again once there is nothing to reset')
+  }
+
+  // ── 11. Zooming actually declutters, said in the terms F-9 was written in ──
+  //
+  // This is the assertion that proves the remedy, so it is deliberately not
+  // folded into step 10. Step 10 runs on the exhibit hall, which carries booth
+  // markers and no room labels at all — the first version of this check lived
+  // there, found nothing to measure, and was skipped in silence. It is the room
+  // maps where labels collide, so it is a room map this must run on.
+  console.log('\n11. Zooming makes the labels cover less of the map')
+
+  // The first map that actually has room labels, taken from the database rather
+  // than assumed to be a particular one.
+  const roomMapIndex = expectedMaps.findIndex(
+    m => expectedPins.get(m.id).some(p => p.type === 'ROOM'),
+  )
+  yes(roomMapIndex >= 0, 'there is a seeded map carrying room labels to measure')
+
+  if (roomMapIndex >= 0) {
+    await tabs.nth(roomMapIndex).click()
+    await page.waitForFunction(() => {
+      const img = document.querySelector('[data-testid="map-image"]')
+      return Boolean(img && img.complete && img.naturalWidth > 0)
+    }, undefined, { timeout: 15_000 }).catch(() => {})
+
+    const fitted = await zoomState()
+    yes(fitted !== null && fitted.declaredScale === 1,
+      'the room map opens at fit-to-width',
+      `scale ${fitted?.declaredScale}`)
+
+    const labelled = (fitted?.pins ?? []).filter(p => p.labelWidth)
+    yes(labelled.length > 0,
+      `the room map has labels on screen to measure (${labelled.length})`)
+
+    await pinch(2)
+    const enlarged = await zoomState()
+    yes(enlarged !== null, 'the room map can be measured after zooming')
+
+    if (fitted && enlarged && labelled.length > 0) {
+      const first = labelled[0]
+      const same = enlarged.pins.find(p => p.label === first.label)
+      yes(Boolean(same?.labelWidth), `"${first.label}" is still on screen after zooming`)
+
+      if (same?.labelWidth) {
+        const shareBefore = (first.labelWidth / fitted.image.width) * 100
+        const shareAfter = (same.labelWidth / enlarged.image.width) * 100
+        yes(shareAfter < shareBefore * 0.85,
+          `"${first.label}" covers a smaller share of the map after zooming, so zooming declutters`,
+          `${shareBefore.toFixed(1)}% → ${shareAfter.toFixed(1)}%`)
+        yes(Math.abs(same.labelWidth - first.labelWidth) <= 1,
+          'and it does that by staying the same size on screen, not by shrinking',
+          `${first.labelWidth.toFixed(1)}px → ${same.labelWidth.toFixed(1)}px`)
+      }
+    }
+
+    const backToFit = page.locator('[data-testid="map-zoom-reset"]').first()
+    if (await backToFit.count() > 0) await backToFit.click()
+    await page.waitForTimeout(150)
+  }
+
+  // ── 12. A tap still reaches a marker; a drag does not ─────────────────────
+  //
+  // Phase 9 makes tapping a booth marker open a card. The zoom work put a
+  // gesture handler on the window those markers sit in, and capturing a pointer
+  // there retargets the eventual click away from the marker — so the pan
+  // gesture could silently swallow every tap, and Phase 9 would be built on a
+  // marker that cannot be tapped. Raised by adversarial review round 2 as its
+  // one high finding.
+  //
+  // Nothing is wired to a marker yet, so this listens for the click itself.
+  console.log('\n12. A tap reaches a marker, and a drag does not activate one')
+
+  await tabs.first().click()
+  await page.waitForFunction(() => {
+    const img = document.querySelector('[data-testid="map-image"]')
+    return Boolean(img && img.complete && img.naturalWidth > 0)
+  }, undefined, { timeout: 15_000 }).catch(() => {})
+
+  await page.evaluate(() => {
+    window.__markerClicks = []
+    for (const el of document.querySelectorAll('[data-testid="pin"]')) {
+      el.addEventListener('click', () => {
+        window.__markerClicks.push(el.getAttribute('data-pin-label'))
+      })
+    }
+  })
+
+  const firstPin = page.locator('[data-testid="pin"]').first()
+  const pinLabel = await firstPin.getAttribute('data-pin-label')
+  await firstPin.click()
+  await page.waitForTimeout(120)
+
+  const afterTap = await page.evaluate(() => window.__markerClicks.slice())
+  yes(afterTap.includes(pinLabel),
+    `tapping the "${pinLabel}" marker activates it`,
+    `clicks seen: ${JSON.stringify(afterTap)}`)
+
+  // And the opposite: a real drag that happens to start on a marker must move
+  // the map and must NOT count as tapping that marker.
+  //
+  // ZOOMED IN FIRST, ON PURPOSE. At fit-to-width the clamp deliberately allows
+  // no panning at all, so a drag there cannot move anything and an assertion
+  // about movement would pass whatever the drag path did. The first version of
+  // this check accepted exactly that as success, which made it prove only that
+  // no click fired. Raised by adversarial review round 3.
+  await pinch(2)
+  const zoomedForDrag = await zoomState()
+  yes(zoomedForDrag !== null && zoomedForDrag.declaredScale > 1,
+    'the map is zoomed in before the drag, so there is room to pan',
+    `scale ${zoomedForDrag?.declaredScale}`)
+
+  // A marker that is ACTUALLY ON SCREEN after zooming. Zooming pushes most of
+  // the map outside the window, and the first marker in the list ended up at
+  // x = -17 with the window starting at x = 12 — so the press landed on the
+  // page behind the map and the drag never reached it. The assertion failed,
+  // correctly, for a reason that was about this test rather than the product.
+  const box = await page.evaluate(() => {
+    const vp = document.querySelector('[data-testid="map-viewport"]')
+    if (!vp) return null
+    const v = vp.getBoundingClientRect()
+    for (const el of document.querySelectorAll('[data-testid="pin"]')) {
+      const r = el.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      // Comfortably inside, so the whole drag stays over the map.
+      if (cx > v.left + 60 && cx < v.right - 60 && cy > v.top + 60 && cy < v.bottom - 60) {
+        return { x: r.left, y: r.top, width: r.width, height: r.height }
+      }
+    }
+    return null
+  })
+
+  const beforeDrag = await zoomState()
+  await page.evaluate(() => { window.__markerClicks = [] })
+
+  yes(box !== null, 'a marker that is on screen while zoomed can be found to drag from')
+  if (box) {
+    const sx = box.x + box.width / 2
+    const sy = box.y + box.height / 2
+    await page.mouse.move(sx, sy)
+    await page.mouse.down()
+    for (let s = 1; s <= 8; s++) await page.mouse.move(sx - (70 * s) / 8, sy - (50 * s) / 8)
+    await page.mouse.up()
+    await page.waitForTimeout(150)
+  }
+
+  const afterDrag = await page.evaluate(() => window.__markerClicks.slice())
+  const movedTo = await zoomState()
+  yes(afterDrag.length === 0,
+    'dragging from a marker activates no marker at all',
+    `clicks seen: ${JSON.stringify(afterDrag)}`)
+  yes(beforeDrag !== null && movedTo !== null &&
+      (Math.abs(movedTo.image.left - beforeDrag.image.left) > 5 ||
+       Math.abs(movedTo.image.top - beforeDrag.image.top) > 5),
+    'and the map actually moved, so the drag was handled as a pan',
+    beforeDrag && movedTo
+      ? `left ${beforeDrag.image.left.toFixed(0)} → ${movedTo.image.left.toFixed(0)}, top ${beforeDrag.image.top.toFixed(0)} → ${movedTo.image.top.toFixed(0)}`
+      : 'not measured')
+
+  const backToFit2 = page.locator('[data-testid="map-zoom-reset"]').first()
+  if (await backToFit2.count() > 0) await backToFit2.click()
+
+  // ── 13. Nothing broke in the browser ───────────────────────────────────────
+  console.log('\n13. The browser reported no errors')
   yes(pageErrors.length === 0, 'no uncaught error was thrown in the page', pageErrors.slice(0, 3).join(' | '))
   // Failed picture requests surface here and would otherwise be invisible.
   const imageErrors = consoleErrors.filter(e => /maps\/.*\.png/i.test(e))

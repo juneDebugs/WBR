@@ -115,6 +115,74 @@ Round 2's fix recorded `$!` from `nohup npx next start`. That is the `npx` wrapp
 
 ---
 
+---
+
+# Second cycle — pinch-zoom and pan (finding F-9)
+
+After the phase was committed, an independent third-opinion pass found that the map is unreadable on a phone and that 6 of 15 room labels sit on top of something else there. The remedy chosen was zoom and pan with the markers held at a constant size on screen. That work got its own three rounds.
+
+**Every round found something, and rounds 2 and 3 found only things the previous round's fixes had introduced.**
+
+## Round 1
+
+**Areas:** the transform arithmetic; the pointer state machine; how zoom interacts with the rest of the phase; the new assertions.
+
+### Z-1 — A real finger that leaves the window loses the gesture
+
+The listeners were installed on the window and never captured the pointer, while `pointerleave` was treated as a lift. A real finger crossing the edge of a clipped window stops delivering events to it, so a drag or pinch would die half-way.
+
+**The reason no check caught it is the important part.** The browser suite dispatches its pointer events straight at the window whatever the coordinates, so it followed a path a real finger never takes — a check passing while real input fails.
+
+**Fixed**, then the fix caused Z-3 below. Pointers are captured, `lostpointercapture` cleans up, `pointerleave` is no longer a lift, and the effect clears all gesture state on teardown.
+
+### Z-2 — The window kept the previous map's shape
+
+The window's proportions came only from the picture's load event. A picture already in the browser's cache can finish loading before the component attaches its handler, so the event never arrives and the window keeps the previous map's shape — stretching the picture and feeding a wrong height to the pan limit.
+
+Invisible with three identically-shaped maps, and live the moment Phase 10 accepts an upload of any shape.
+
+**Fixed, and made testable.** The picture is now asked directly whenever the map changes, which covers the cached case. And **one seeded map is now drawn 1600×1000 while the other two are 1600×1200**, with an assertion that the window takes each picture's shape and a further assertion that the maps are not all the same shape — without which the first assertion is satisfied by three identical pictures and proves nothing.
+
+## Round 2
+
+**Areas, all aimed at round 1's fixes.**
+
+### Z-3 — Capturing the pointer stole taps from the markers *(high)*
+
+The markers are button elements inside the captured window, and tapping a booth marker is the whole of Phase 9. Under pointer capture the click is retargeted to the capturing element, so it never reaches the button. There was also no movement threshold, so a single pixel of wobble during a tap entered the drag path.
+
+**Fixed.** Capture is now deferred to the moment a gesture becomes a real drag — beyond an 8-pixel threshold — or a second finger arrives. A tap never reaches that point, so a tap is never intercepted. A new assertion taps a marker and requires it to activate, and drags from a marker and requires it not to.
+
+### Z-4 — A differently-shaped map was stretched until it loaded
+
+Round 1's fix corrected the window after load, but the picture was still forced to the window's height in the meantime. **Fixed** by letting the picture decide the layer's height, so it is never distorted.
+
+### Z-5 — The collision script hard-coded the old picture size
+
+The third-opinion collision script converted the drawn title block as if every picture were 1600×1200. With one map now 1600×1000, its top is at 87.6% rather than 89.7%, and a label colliding in that band would have been reported as clear — in the script whose whole claim is that it tests against the shapes actually drawn. **Fixed** by deriving it per map.
+
+## Round 3
+
+**Areas, all aimed at round 2's fixes.**
+
+### Z-6 — The map could collapse before its picture had a size
+
+Round 2's fix moved height responsibility to the picture. A picture that has not decoded has no height, so the layer around it collapses and every marker's percentage resolves against nothing — a cold map switch would briefly show a blank window with the markers piled along the top.
+
+**Fixed** by giving the picture a shape to occupy before it decodes, from the same value the window uses. Storing each map's dimensions alongside it would be exact on the first frame; that is recorded for Phase 10, where uploads make the dimensions worth keeping anyway.
+
+### Z-7 — My drag-from-marker assertion could pass without proving anything
+
+It accepted "the map is at fit-to-width" as success. At fit-to-width the clamp deliberately allows no panning, so the check passed whatever the drag path did — it only ever proved that no click fired.
+
+**Fixed**, and fixing it immediately failed for a third reason worth recording: after zooming, the marker it chose to drag from sat at x = −17 while the window began at x = 12, so the press landed on the page behind the map. The assertion was right; the test was picking an off-screen marker. It now picks one comfortably inside the window.
+
+## What this cycle cost and returned
+
+Seven findings. **Not one was a defect a delegate would have met on the committed code** — every one was in work added during this cycle, and rounds 2 and 3 found only what the previous round's fixes introduced. Two of them, Z-3 and Z-6, would have shipped a map that looked correct in every automated check and failed under a real thumb.
+
+The standing rule to run all three rounds even when one looks skippable earned itself twice here.
+
 ## What the review cost and returned
 
 Nine findings across three rounds, none of them a defect a delegate would have met today, and all of them defects in *evidence* or in scripts that touch the deployed database:

@@ -58,8 +58,13 @@ const PAPER = '#f4f1ea'
 const WALL = '#3d4348'
 const FLOOR = '#e7e2d7'
 
-const px = (percentX) => (percentX / 100) * PICTURE_WIDTH
-const py = (percentY) => (percentY / 100) * PICTURE_HEIGHT
+// The picture being drawn right now. Each map has its own dimensions — they
+// are deliberately not all the same shape, see scripts/floor-plan-demo-venue.mjs
+// — so these helpers resolve against the current one rather than a constant.
+let W = PICTURE_WIDTH
+let H = PICTURE_HEIGHT
+const px = (percentX) => (percentX / 100) * W
+const py = (percentY) => (percentY / 100) * H
 
 const esc = (s) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -84,20 +89,20 @@ function block(shape, { fill, caption, captionSize = 20 }) {
 /** The paper, the outer wall, a faint structural grid, and the title block. */
 function frame(map, inner) {
   const gridLines = []
-  for (let gx = 100; gx < PICTURE_WIDTH; gx += 100) {
+  for (let gx = 100; gx < W; gx += 100) {
     gridLines.push(
-      `<line x1="${gx}" y1="0" x2="${gx}" y2="${PICTURE_HEIGHT}" stroke="${INK}" stroke-opacity="0.05" stroke-width="1"/>`,
+      `<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="${INK}" stroke-opacity="0.05" stroke-width="1"/>`,
     )
   }
-  for (let gy = 100; gy < PICTURE_HEIGHT; gy += 100) {
+  for (let gy = 100; gy < H; gy += 100) {
     gridLines.push(
-      `<line x1="0" y1="${gy}" x2="${PICTURE_WIDTH}" y2="${gy}" stroke="${INK}" stroke-opacity="0.05" stroke-width="1"/>`,
+      `<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="${INK}" stroke-opacity="0.05" stroke-width="1"/>`,
     )
   }
 
   // A north arrow and a scale bar, because a plan without them does not read as
   // a plan.
-  const northX = PICTURE_WIDTH - 90
+  const northX = W - 90
   const northY = 96
   const north = `
     <g>
@@ -106,8 +111,8 @@ function frame(map, inner) {
       <text x="${northX}" y="${northY + 56}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="${INK}">N</text>
     </g>`
 
-  const scaleX = PICTURE_WIDTH - 300
-  const scaleY = PICTURE_HEIGHT - 52
+  const scaleX = W - 300
+  const scaleY = H - 52
   const scale = `
     <g>
       <line x1="${scaleX}" y1="${scaleY}" x2="${scaleX + 180}" y2="${scaleY}" stroke="${INK}" stroke-width="3"/>
@@ -121,15 +126,15 @@ function frame(map, inner) {
   // subtitle, which is how the first render came out.
   const title = `
     <g>
-      <rect x="40" y="${PICTURE_HEIGHT - 124}" width="560" height="96" fill="${PAPER}" stroke="${WALL}" stroke-width="2.5"/>
-      <text x="66" y="${PICTURE_HEIGHT - 74}" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="600" fill="${INK}">${esc(map.name)}</text>
-      <text x="66" y="${PICTURE_HEIGHT - 44}" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="${INK_SOFT}">${esc(map.subtitle)}</text>
+      <rect x="40" y="${H - 124}" width="560" height="96" fill="${PAPER}" stroke="${WALL}" stroke-width="2.5"/>
+      <text x="66" y="${H - 74}" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="600" fill="${INK}">${esc(map.name)}</text>
+      <text x="66" y="${H - 44}" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="${INK_SOFT}">${esc(map.subtitle)}</text>
     </g>`
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${PICTURE_WIDTH}" height="${PICTURE_HEIGHT}" viewBox="0 0 ${PICTURE_WIDTH} ${PICTURE_HEIGHT}">
-  <rect width="${PICTURE_WIDTH}" height="${PICTURE_HEIGHT}" fill="${PAPER}"/>
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${PAPER}"/>
   ${gridLines.join('\n  ')}
-  <rect x="28" y="28" width="${PICTURE_WIDTH - 56}" height="${PICTURE_HEIGHT - 56}" fill="none" stroke="${WALL}" stroke-width="6"/>
+  <rect x="28" y="28" width="${W - 56}" height="${H - 56}" fill="none" stroke="${WALL}" stroke-width="6"/>
   ${inner}
   ${north}
   ${scale}
@@ -255,10 +260,7 @@ async function main() {
   mkdirSync(OUT_DIR, { recursive: true })
 
   const browser = await chromium.launch()
-  const page = await browser.newPage({
-    viewport: { width: PICTURE_WIDTH, height: PICTURE_HEIGHT },
-    deviceScaleFactor: 1,
-  })
+  const page = await browser.newPage({ deviceScaleFactor: 1 })
 
   for (const map of MAPS) {
     const draw = drawings[map.slug]
@@ -267,15 +269,26 @@ async function main() {
       process.exitCode = 1
       continue
     }
+
+    // Each map is drawn at its own size, and they are not all the same shape.
+    // Everything below — the drawing helpers, the browser window and the
+    // capture — reads these two, so a map's proportions are decided in one
+    // place.
+    W = map.width ?? PICTURE_WIDTH
+    H = map.height ?? PICTURE_HEIGHT
+    await page.setViewportSize({ width: W, height: H })
+
     const svg = draw(map)
     await page.setContent(
       `<!doctype html><html><body style="margin:0;padding:0;overflow:hidden">${svg}</body></html>`,
       { waitUntil: 'load' },
     )
     const target = join(OUT_DIR, `${map.slug}.png`)
-    const shot = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: PICTURE_WIDTH, height: PICTURE_HEIGHT } })
+    const shot = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: W, height: H } })
     writeFileSync(target, shot)
-    console.log(`✓ ${map.name.padEnd(16)} → apps/attendee/public/maps/${map.slug}.png  (${(shot.length / 1024).toFixed(0)} KB)`)
+    console.log(
+      `✓ ${map.name.padEnd(16)} ${String(W).padStart(5)}×${String(H).padEnd(5)} → apps/attendee/public/maps/${map.slug}.png  (${(shot.length / 1024).toFixed(0)} KB)`,
+    )
   }
 
   await browser.close()
