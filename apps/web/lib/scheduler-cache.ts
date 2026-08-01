@@ -8,6 +8,7 @@ import {
   getTableBoard,
   getSponsorTables,
   getAutoMatchBoard,
+  getMeetingsLog,
 } from '@conference/db'
 
 // Read-through cache for the Meetings scheduler board endpoints.
@@ -62,6 +63,16 @@ export const getCachedSponsorTables = unstable_cache(
 export const getCachedAutoMatchBoard = unstable_cache(
   () => getAutoMatchBoard(prisma),
   ['scheduler', 'auto-board'],
+  { revalidate: 20, tags: ['meetings'] },
+)
+
+// Meetings Log: the consolidated internal-notes feed. Some sources are written
+// out-of-band from this app (attendee "My Notes" PATCH, cross-app request
+// messages) and don't bust the `meetings` tag, so keep a short window to bound
+// that drift — scheduler writes (cancel/check-in) still invalidate on the spot.
+export const getCachedMeetingsLog = unstable_cache(
+  () => getMeetingsLog(prisma),
+  ['scheduler', 'meetings-log'],
   { revalidate: 20, tags: ['meetings'] },
 )
 

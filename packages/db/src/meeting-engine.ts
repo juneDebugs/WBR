@@ -2942,3 +2942,205 @@ export async function cancelAutoMatchMeeting(prisma: Db, input: AutoMatchCancelI
   })
   return result
 }
+
+// ── Meetings Log ─────────────────────────────────────────────────────────────
+// A single, chronological feed of every internal note / comment authored across
+// the Meetings domain. The free text lives on the meeting rows themselves — there
+// is no dedicated note table — so this reader gathers the four note-bearing
+// surfaces and normalizes them into one uniform entry shape (newest first):
+//
+//   • MEETING_NOTE     Meeting.notes           — organizer/attendee note on a 1:1
+//   • FLOOR_NOTE       SponsorMeeting.notes     — on-site check-in floor note
+//   • CANCELLATION     SponsorMeeting.reason/notes — why a sponsor meeting was pulled
+//   • REQUEST_MESSAGE  MeetingRequest.message   — the requester's "what to discuss"
+//
+// The rows store a single overwritable string with no per-note author or edit
+// timestamp, so `timestamp` is the best-available proxy (Meeting.updatedAt,
+// otherwise the row's createdAt). Output is JSON-safe (ISO strings) for the
+// unstable_cache read-through the API route uses.
+
+export type MeetingLogKind = 'MEETING_NOTE' | 'FLOOR_NOTE' | 'CANCELLATION' | 'REQUEST_MESSAGE'
+
+export interface MeetingLogEntry {
+  id: string            // `${kind}:${sourceId}` — stable + unique across sources
+  kind: MeetingLogKind
+  text: string          // the note/comment body (trimmed, always non-empty)
+  detail: string | null // secondary free text (a cancellation's context note beside its reason)
+  title: string         // primary label — the people/company the note concerns
+  subtitle: string | null // short context line (e.g. "Cancelled meeting", "Room 12")
+  parties: string[]     // participant names, for client-side search
+  sponsorName: string | null
+  sponsorLogo: string | null
+  sponsorTier: string | null
+  status: string | null // underlying meeting/request status, where meaningful
+  room: string | null
+  slotStartsAt: string | null // ISO — the meeting slot time when known
+  timestamp: string     // ISO — best-available authored/updated time (sort key)
+  sourceId: string      // the underlying row id
+}
+
+export interface MeetingLogCounts {
+  all: number
+  MEETING_NOTE: number
+  FLOOR_NOTE: number
+  CANCELLATION: number
+  REQUEST_MESSAGE: number
+}
+
+export interface MeetingLog {
+  entries: MeetingLogEntry[] // newest first
+  counts: MeetingLogCounts
+}
+
+// Trim to a non-empty string or null — the note columns are nullable and legacy
+// rows can hold whitespace-only strings that should read as "no note".
+function trimmedOrNull(s: string | null | undefined): string | null {
+  const t = s?.trim()
+  return t ? t : null
+}
+
+export async function getMeetingsLog(prisma: Db, conferenceId?: string): Promise<MeetingLog> {
+  const confId = await resolveConferenceId(prisma, conferenceId)
+
+  const [meetings, sponsorMeetings, confSponsors, requests] = await Promise.all([
+    prisma.meeting.findMany({
+      where: { conferenceId: confId, NOT: { notes: null } },
+      select: {
+        id: true, status: true, notes: true, updatedAt: true,
+        timeBlock: { select: { startsAt: true } },
+        attendeeA: { select: { name: true } },
+        attendeeB: { select: { name: true } },
+      },
+    }),
+    prisma.sponsorMeeting.findMany({
+      where: {
+        timeBlock: { conferenceId: confId },
+        OR: [{ NOT: { notes: null } }, { NOT: { reason: null } }],
+      },
+      select: {
+        id: true, status: true, notes: true, reason: true, location: true, createdAt: true,
+        timeBlock: { select: { startsAt: true } },
+        sponsor: { select: { name: true, logoUrl: true, tier: true } },
+        user: { select: { name: true } },
+      },
+    }),
+    // The sponsor roster scopes request messages to this conference: MeetingRequest
+    // carries no conferenceId, so a request belongs here iff its resolved sponsor
+    // (target sponsor, or the requesting rep's sponsor) is in the conference.
+    prisma.sponsor.findMany({ where: { conferenceId: confId }, select: { id: true } }),
+    prisma.meetingRequest.findMany({
+      where: { NOT: { message: null } },
+      select: {
+        id: true, requesterId: true, targetUserId: true, targetSponsorId: true,
+        message: true, status: true, createdAt: true,
+        requester: { select: { name: true, sponsorId: true } },
+        targetUser: { select: { name: true } },
+        targetSponsor: { select: { name: true, logoUrl: true, tier: true } },
+        timeBlock: { select: { startsAt: true } },
+      },
+    }),
+  ])
+
+  const confSponsorIds = new Set(confSponsors.map(s => s.id))
+  const entries: MeetingLogEntry[] = []
+
+  for (const m of meetings) {
+    const text = trimmedOrNull(m.notes)
+    if (!text) continue
+    const a = m.attendeeA?.name ?? 'Unknown'
+    const b = m.attendeeB?.name ?? 'Unknown'
+    entries.push({
+      id: `MEETING_NOTE:${m.id}`,
+      kind: 'MEETING_NOTE',
+      text,
+      detail: null,
+      title: `${a} & ${b}`,
+      subtitle: m.status === 'CANCELLED' ? 'Cancelled meeting' : '1-on-1 meeting',
+      parties: [a, b],
+      sponsorName: null, sponsorLogo: null, sponsorTier: null,
+      status: m.status,
+      room: null,
+      slotStartsAt: m.timeBlock?.startsAt.toISOString() ?? null,
+      timestamp: m.updatedAt.toISOString(),
+      sourceId: m.id,
+    })
+  }
+
+  for (const sm of sponsorMeetings) {
+    const notes = trimmedOrNull(sm.notes)
+    const reason = trimmedOrNull(sm.reason)
+    const sponsorName = sm.sponsor?.name ?? 'Unknown'
+    const attendee = sm.user?.name ?? 'Unknown'
+    const room = trimmedOrNull(sm.location)
+    const shared = {
+      title: `${sponsorName} · ${attendee}`,
+      parties: [sponsorName, attendee],
+      sponsorName,
+      sponsorLogo: sm.sponsor?.logoUrl ?? null,
+      sponsorTier: sm.sponsor?.tier ?? null,
+      status: sm.status,
+      room,
+      slotStartsAt: sm.timeBlock?.startsAt.toISOString() ?? null,
+      timestamp: sm.createdAt.toISOString(),
+      sourceId: sm.id,
+    }
+    if (sm.status === 'CANCELLED' && (reason || notes)) {
+      // Cancelled: the reason is the headline; a distinct floor note rides along as detail.
+      entries.push({
+        id: `CANCELLATION:${sm.id}`,
+        kind: 'CANCELLATION',
+        text: reason ?? notes!,
+        detail: reason && notes ? notes : null,
+        subtitle: 'Cancelled meeting',
+        ...shared,
+      })
+    } else if (notes) {
+      // Confirmed (or any non-cancelled) meeting with a floor note.
+      entries.push({
+        id: `FLOOR_NOTE:${sm.id}`,
+        kind: 'FLOOR_NOTE',
+        text: notes,
+        detail: null,
+        subtitle: room ? `Room ${room}` : 'Floor note',
+        ...shared,
+      })
+    }
+  }
+
+  for (const r of requests) {
+    const text = trimmedOrNull(r.message)
+    if (!text) continue
+    const parties = resolveParties(r as RequestLike)
+    if (!parties || !confSponsorIds.has(parties.sponsorId)) continue
+    const requester = r.requester?.name ?? 'Unknown'
+    const target = r.targetSponsor?.name ?? r.targetUser?.name ?? 'Unknown'
+    entries.push({
+      id: `REQUEST_MESSAGE:${r.id}`,
+      kind: 'REQUEST_MESSAGE',
+      text,
+      detail: null,
+      title: `${requester} → ${target}`,
+      subtitle: 'Meeting request',
+      parties: [requester, target],
+      sponsorName: r.targetSponsor?.name ?? null,
+      sponsorLogo: r.targetSponsor?.logoUrl ?? null,
+      sponsorTier: r.targetSponsor?.tier ?? null,
+      status: r.status,
+      room: null,
+      slotStartsAt: r.timeBlock?.startsAt.toISOString() ?? null,
+      timestamp: r.createdAt.toISOString(),
+      sourceId: r.id,
+    })
+  }
+
+  // Newest first. ISO strings sort lexicographically in timestamp order.
+  entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp) || a.id.localeCompare(b.id))
+
+  const counts: MeetingLogCounts = {
+    all: entries.length,
+    MEETING_NOTE: 0, FLOOR_NOTE: 0, CANCELLATION: 0, REQUEST_MESSAGE: 0,
+  }
+  for (const e of entries) counts[e.kind]++
+
+  return { entries, counts }
+}

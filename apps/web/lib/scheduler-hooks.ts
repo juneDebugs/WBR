@@ -1,6 +1,6 @@
 'use client'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
-import type { DirectoryRow, ScheduleMatrix, CheckInBoard, AutoMatchBoard, MeetingRequirementSettings, TableBoard, SponsorTableBoard } from '@conference/db'
+import type { DirectoryRow, ScheduleMatrix, CheckInBoard, AutoMatchBoard, MeetingRequirementSettings, TableBoard, SponsorTableBoard, MeetingLog } from '@conference/db'
 
 // React Query hooks for the admin Companies scheduler tab. Both throw on
 // non-2xx so an error-shaped body (e.g. a 401 after the JWT expires) surfaces
@@ -103,6 +103,23 @@ export function useSponsorTables() {
       return r.json()
     },
     staleTime: 15_000,
+  })
+}
+
+// Consolidated internal-notes feed (Meetings → Log). Notes land from several
+// portals (admin edits, floor check-in, cross-app request messages), so the
+// feed polls on the shared board cadence to surface new notes without reloads.
+export function useMeetingsLog(enabled = true) {
+  return useQuery<MeetingLog>({
+    queryKey: ['scheduler', 'log'],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/scheduler/log')
+      if (!r.ok) throw new Error(`Meetings log request failed: ${r.status}`)
+      return r.json()
+    },
+    enabled,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
   })
 }
 
