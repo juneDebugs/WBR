@@ -1039,16 +1039,18 @@ export async function getSponsorScheduleMatrix(
   prisma: Db, sponsorId: string, conferenceId?: string,
 ): Promise<ScheduleMatrix> {
   const confId = await resolveConferenceId(prisma, conferenceId)
-  const sponsor = await prisma.sponsor.findUnique({
-    where: { id: sponsorId },
-    select: {
-      id: true, name: true, logoUrl: true, tier: true,
-      solutionsSeeking: true, solutionsOffering: true,
-    },
-  })
-  if (!sponsor) throw new EngineError('REQUEST_NOT_FOUND', 'Sponsor not found')
 
-  const [timeBlocks, sponsorMeetings, requests, terminalRequests, requirementSettings, teamUsers, tables] = await Promise.all([
+  // The sponsor lookup is independent of the seven board queries below, so it
+  // rides in the same Promise.all instead of blocking them behind its own
+  // ~170ms Turso round-trip (this is the section's most expensive board).
+  const [sponsor, timeBlocks, sponsorMeetings, requests, terminalRequests, requirementSettings, teamUsers, tables] = await Promise.all([
+    prisma.sponsor.findUnique({
+      where: { id: sponsorId },
+      select: {
+        id: true, name: true, logoUrl: true, tier: true,
+        solutionsSeeking: true, solutionsOffering: true,
+      },
+    }),
     prisma.timeBlock.findMany({
       where: { conferenceId: confId },
       orderBy: { startsAt: 'asc' },
@@ -1115,6 +1117,8 @@ export async function getSponsorScheduleMatrix(
     }),
     getMeetingTables(prisma),
   ])
+
+  if (!sponsor) throw new EngineError('REQUEST_NOT_FOUND', 'Sponsor not found')
 
   const sponsorSeeking = parseSolutions(sponsor.solutionsSeeking)
   const sponsorOffering = parseSolutions(sponsor.solutionsOffering)
@@ -3002,7 +3006,21 @@ function trimmedOrNull(s: string | null | undefined): string | null {
 export async function getMeetingsLog(prisma: Db, conferenceId?: string): Promise<MeetingLog> {
   const confId = await resolveConferenceId(prisma, conferenceId)
 
-  const [meetings, sponsorMeetings, confSponsors, requests] = await Promise.all([
+  // The sponsor roster scopes request messages to this conference: MeetingRequest
+  // carries no conferenceId, so a request belongs here iff its resolved sponsor
+  // (target sponsor, or the requesting rep's sponsor) is in the conference. We
+  // resolve the roster first and push it into the request query as an `in`
+  // predicate — otherwise that query fans out across every request message in
+  // the DB (all conferences, all prior events; the request table is a graveyard
+  // that only grows) and hydrates four relations per row just to discard most of
+  // them in JS. The `confSponsorIds` set below still runs as a safety filter, so
+  // the SQL scoping is a pure fetch-narrowing with identical output.
+  const sponsorIds = (
+    await prisma.sponsor.findMany({ where: { conferenceId: confId }, select: { id: true } })
+  ).map(s => s.id)
+  const confSponsorIds = new Set(sponsorIds)
+
+  const [meetings, sponsorMeetings, requests] = await Promise.all([
     prisma.meeting.findMany({
       where: { conferenceId: confId, NOT: { notes: null } },
       select: {
@@ -3024,12 +3042,14 @@ export async function getMeetingsLog(prisma: Db, conferenceId?: string): Promise
         user: { select: { name: true } },
       },
     }),
-    // The sponsor roster scopes request messages to this conference: MeetingRequest
-    // carries no conferenceId, so a request belongs here iff its resolved sponsor
-    // (target sponsor, or the requesting rep's sponsor) is in the conference.
-    prisma.sponsor.findMany({ where: { conferenceId: confId }, select: { id: true } }),
     prisma.meetingRequest.findMany({
-      where: { NOT: { message: null } },
+      where: {
+        NOT: { message: null },
+        OR: [
+          { targetSponsorId: { in: sponsorIds } },
+          { requester: { sponsorId: { in: sponsorIds } } },
+        ],
+      },
       select: {
         id: true, requesterId: true, targetUserId: true, targetSponsorId: true,
         message: true, status: true, createdAt: true,
@@ -3041,7 +3061,6 @@ export async function getMeetingsLog(prisma: Db, conferenceId?: string): Promise
     }),
   ])
 
-  const confSponsorIds = new Set(confSponsors.map(s => s.id))
   const entries: MeetingLogEntry[] = []
 
   for (const m of meetings) {

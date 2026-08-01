@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, Fragment } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import { MeetingRequestActions } from './MeetingRequestActions'
+import { invalidateScheduler } from '@/lib/scheduler-hooks'
 import { fmtTime, fmtDate, TZ } from '@/lib/format'
 
 function CommitPill({ label, n, total, done, warn }: { label: string; n: number; total: number; done: boolean; warn: boolean }) {
@@ -70,7 +71,7 @@ interface Props {
 }
 
 export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsorCommitments, bookmarkCommitments }: Props) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
   const [selected, setSelected] = useState<MeetingRequest | null>(null)
   const [blocks, setBlocks] = useState<Block[]>([])
   const [requester, setRequester] = useState<Participant | null>(null)
@@ -88,8 +89,12 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
     })
     setBooking(null)
     setSelected(null)
-    router.refresh()
-  }, [selected, router])
+    // Refresh the client caches the booking actually changed: the ['meetings']
+    // list this table reads, plus the ['scheduler'] boards. `router.refresh()`
+    // never touched either, so the booked row used to sit stale until staleTime.
+    queryClient.invalidateQueries({ queryKey: ['meetings'] })
+    invalidateScheduler(queryClient)
+  }, [selected, queryClient])
 
   const fetchSchedules = useCallback(async (r: MeetingRequest) => {
     setLoading(true)
@@ -116,6 +121,18 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  // Bucket the requests by status once, instead of re-filtering the whole list
+  // for every status group on every render (panel open/close, booking, etc.).
+  const rowsByStatus = useMemo(() => {
+    const map = new Map<string, MeetingRequest[]>()
+    for (const r of requests) {
+      const bucket = map.get(r.status)
+      if (bucket) bucket.push(r)
+      else map.set(r.status, [r])
+    }
+    return map
+  }, [requests])
+
   return (
     <div className="flex gap-5 items-start">
       {/* Table */}
@@ -133,7 +150,7 @@ export function MeetingsTableWithPanel({ requests, requesterCommitments, sponsor
           </thead>
           <tbody className="divide-y divide-hairline">
             {STATUS_GROUPS.map(group => {
-              const groupRows = requests.filter(r => r.status === group.status)
+              const groupRows = rowsByStatus.get(group.status) ?? []
               if (groupRows.length === 0) return null
               return (
                 <Fragment key={group.status}>

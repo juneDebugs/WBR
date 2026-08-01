@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { useMeetingsLog } from '@/lib/scheduler-hooks'
 import { fmtTime, TZ } from '@/lib/format'
@@ -73,17 +73,28 @@ export default function MeetingsLog() {
   const entries = data?.entries ?? []
   const counts = data?.counts
 
+  // Precompute the lowercased search haystack per entry once (keyed on entries),
+  // so each keystroke does a plain includes() instead of rebuilding + joining +
+  // lowercasing every entry's fields on every render.
+  const searchable = useMemo(
+    () => entries.map(e => ({
+      entry: e,
+      hay: [e.text, e.detail ?? '', e.title, e.subtitle ?? '', e.sponsorName ?? '', ...e.parties].join(' ').toLowerCase(),
+    })),
+    [entries],
+  )
+
   // Filter by kind + free-text search across the note body, the parties and the
   // company. Grouping into day sections happens after, on the filtered set.
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const filtered = entries.filter(e => {
-      if (filter !== 'all' && e.kind !== filter) return false
-      if (!q) return true
-      const hay = [e.text, e.detail ?? '', e.title, e.subtitle ?? '', e.sponsorName ?? '', ...e.parties]
-        .join(' ').toLowerCase()
-      return hay.includes(q)
-    })
+    const filtered = searchable
+      .filter(({ entry: e, hay }) => {
+        if (filter !== 'all' && e.kind !== filter) return false
+        if (!q) return true
+        return hay.includes(q)
+      })
+      .map(s => s.entry)
 
     const now = new Date()
     const todayKey = dayKeyFmt.format(now)
@@ -104,15 +115,17 @@ export default function MeetingsLog() {
     // entries arrive newest-first; Map preserves that insertion order, and each
     // day's items stay newest-first within the section.
     return { list: Array.from(byDay.values()), total: filtered.length }
-  }, [entries, filter, query])
+  }, [searchable, filter, query])
 
-  function toggle(id: string) {
+  // Stable identity so the memoized LogCards can bail out on the 30s poll
+  // re-render instead of all re-rendering because `onToggle` changed.
+  const toggle = useCallback((id: string) => {
     setExpanded(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  }
+  }, [])
 
   if (isLoading) return <LogSkeleton />
 
@@ -186,7 +199,7 @@ export default function MeetingsLog() {
                     key={entry.id}
                     entry={entry}
                     expanded={expanded.has(entry.id)}
-                    onToggle={() => toggle(entry.id)}
+                    onToggle={toggle}
                   />
                 ))}
               </div>
@@ -198,7 +211,7 @@ export default function MeetingsLog() {
   )
 }
 
-function LogCard({ entry, expanded, onToggle }: { entry: MeetingLogEntry; expanded: boolean; onToggle: () => void }) {
+const LogCard = memo(function LogCard({ entry, expanded, onToggle }: { entry: MeetingLogEntry; expanded: boolean; onToggle: (id: string) => void }) {
   const meta = KIND_META[entry.kind]
   // Long notes clamp to a few lines; a "Show more" toggle reveals the rest.
   const clampable = entry.text.length > 220 || entry.text.includes('\n')
@@ -251,7 +264,7 @@ function LogCard({ entry, expanded, onToggle }: { entry: MeetingLogEntry; expand
           {clampable && (
             <button
               type="button"
-              onClick={onToggle}
+              onClick={() => onToggle(entry.id)}
               className="mt-1.5 text-footnote font-medium text-primary hover:underline"
             >
               {expanded ? 'Show less' : 'Show more'}
@@ -273,7 +286,7 @@ function LogCard({ entry, expanded, onToggle }: { entry: MeetingLogEntry; expand
       </div>
     </article>
   )
-}
+})
 
 function EmptyState({ searching }: { searching: boolean }) {
   return (

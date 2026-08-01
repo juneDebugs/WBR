@@ -39,7 +39,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   try {
     const result = await setMeetingCheckIn(prisma, update)
-    revalidateTag('meetings')
+    // A tick only changes arrival flags + the note, so bust only the boards that
+    // read them — the check-in board and the log — not the whole `meetings` tag.
+    // This keeps the expensive directory/matrix/tables/auto caches warm through
+    // the busiest ticking period; assign/cancel/reschedule still bust `meetings`.
+    revalidateTag('checkin')
+    revalidateTag('meetings-log')
     return NextResponse.json(result)
   } catch (err) {
     return engineErrorResponse(err)

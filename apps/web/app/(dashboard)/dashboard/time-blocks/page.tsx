@@ -25,7 +25,7 @@ const TIER_STYLES: Record<string, string> = {
 
 const getCachedTimeBlocksData = unstable_cache(
   async () => {
-    const [users, sponsors, totalTimeBlocks] = await Promise.all([
+    const [users, sponsors] = await Promise.all([
       prisma.user.findMany({
         where: { role: { in: ['ATTENDEE', 'SPEAKER', 'STAFF'] } },
         orderBy: { name: 'asc' },
@@ -52,19 +52,30 @@ const getCachedTimeBlocksData = unstable_cache(
           },
         },
       }),
+      // Explicit `select` (not `include`): the render only reads id/name/tier/
+      // logoUrl off the sponsor, so pulling the whole row would ship the base64
+      // `heroImageUrl` plus ~20 unused text columns on every one of these rows.
       prisma.sponsor.findMany({
         orderBy: [{ tier: 'asc' }, { name: 'asc' }],
-        include: {
+        select: {
+          id: true,
+          name: true,
+          tier: true,
+          logoUrl: true,
           users: { select: { id: true, name: true } },
           meetings: {
-            include: { timeBlock: true, user: { select: { id: true, name: true, email: true } } },
+            select: {
+              id: true,
+              repId: true,
+              timeBlock: { select: { id: true, startsAt: true, endsAt: true, location: true } },
+              user: { select: { id: true, name: true, email: true } },
+            },
             orderBy: { timeBlock: { startsAt: 'asc' } },
           },
         },
       }),
-      prisma.timeBlock.count(),
     ])
-    return [users, sponsors, totalTimeBlocks] as const
+    return [users, sponsors] as const
   },
   ['web-time-blocks-data'],
   { revalidate: 120, tags: ['time-blocks', 'meetings', 'users'] },
@@ -77,7 +88,7 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: P
   const params = await searchParams
   const q = params.q?.toLowerCase().trim() ?? ''
 
-  const [users, sponsors, totalTimeBlocks] = await getCachedTimeBlocksData()
+  const [users, sponsors] = await getCachedTimeBlocksData()
 
   const filteredUsers = q
     ? users.filter(u =>
@@ -146,19 +157,24 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: P
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-hairline">
-                          {sponsor.meetings.map(m => {
-                            const rep = sponsor.users.find((u: any) => u.id === m.repId)
-                            return (
+                          {(() => {
+                            // repId has no Prisma relation, so resolve names client-side —
+                            // but from an O(1) Map built once, not a linear scan per meeting.
+                            const repById = new Map(sponsor.users.map(u => [u.id, u.name]))
+                            return sponsor.meetings.map(m => {
+                              const repName = m.repId ? repById.get(m.repId) ?? null : null
+                              return (
                               <tr key={m.id} className="hover:bg-fill">
-                                <td className="px-4 py-2.5 text-primary font-medium text-xs">{rep?.name ?? '—'}</td>
+                                <td className="px-4 py-2.5 text-primary font-medium text-xs">{repName ?? '—'}</td>
                                 <td className="px-4 py-2.5 text-ink font-medium">{m.user.name ?? m.user.email ?? '—'}</td>
                                 <td className="px-4 py-2.5 text-ink-2 whitespace-nowrap text-xs">
                                   {format(m.timeBlock.startsAt, 'EEE MMM d, h:mm a')} – {format(m.timeBlock.endsAt, 'h:mm a')}
                                 </td>
                                 <td className="px-4 py-2.5 text-ink-2 text-xs">{m.timeBlock.location ?? '—'}</td>
                               </tr>
-                            )
-                          })}
+                              )
+                            })
+                          })()}
                         </tbody>
                       </table>
                     )}
@@ -172,8 +188,8 @@ export default async function TimeBlocksPage({ searchParams }: { searchParams: P
             <TimeBlockGroup key={role} label={label} count={people.length} badgeClass={ROLE_STYLES[role]}>
               {people.map(user => {
                   const allMeetings = [
-                    ...user.meetingsAsA.map(m => ({ ...m.timeBlock, note: 'Meeting', partner: null })),
-                    ...user.meetingsAsB.map(m => ({ ...m.timeBlock, note: 'Meeting', partner: null })),
+                    ...user.meetingsAsA.map(m => m.timeBlock),
+                    ...user.meetingsAsB.map(m => m.timeBlock),
                   ].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
 
                   const totalItems = allMeetings.length + user.blackoutTimes.length

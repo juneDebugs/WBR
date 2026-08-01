@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { invalidateScheduler } from '@/lib/scheduler-hooks'
 
 const TZ = 'America/Los_Angeles'
 function fmtSlot(start: string, end: string) {
@@ -33,7 +34,16 @@ interface Props {
 }
 
 export function MeetingRequestActions({ requestId, status, currentTimeBlockId, priority: initialPriority = 'MED' }: Props) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
+  // This component only ever renders inside the React-Query-fed Meetings list
+  // (MeetingsTableWithPanel), so `router.refresh()` was a no-op here: it re-ran
+  // the RSC tree but never touched the client query cache, leaving the mutated
+  // row stale for up to `staleTime` (60s). Invalidate the actual queries — the
+  // ['meetings'] list plus the ['scheduler'] boards a status/slot change feeds.
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['meetings'] })
+    invalidateScheduler(queryClient)
+  }
   const [loading, setLoading] = useState(false)
   const [priority, setPriority] = useState<Priority>(initialPriority)
   const [savingPriority, setSavingPriority] = useState(false)
@@ -53,14 +63,14 @@ export function MeetingRequestActions({ requestId, status, currentTimeBlockId, p
     })
     setLoading(false)
     setAssigning(false)
-    router.refresh()
+    refresh()
   }
 
   async function deleteMeeting() {
     setLoading(true)
     await fetch(`/api/meeting-requests/${requestId}`, { method: 'DELETE' })
     setLoading(false)
-    router.refresh()
+    refresh()
   }
 
   async function updatePriority(next: Priority) {
@@ -75,7 +85,7 @@ export function MeetingRequestActions({ requestId, status, currentTimeBlockId, p
     })
     setSavingPriority(false)
     if (!res.ok) { setPriority(prev); return } // revert on failure
-    router.refresh()
+    refresh()
   }
 
   // Compact priority segmented control (shown for all non-rejected requests)

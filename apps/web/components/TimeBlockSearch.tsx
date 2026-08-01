@@ -1,17 +1,29 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useTransition } from 'react'
+import { useEffect, useRef, useTransition } from 'react'
+
+// Each keystroke previously fired an immediate `router.replace`, and every
+// navigation re-runs the server component + re-serializes the whole page RSC
+// payload (the cached dataset spares the DB, not the render/transfer). Debounce
+// so typing "acme" is one navigation, not four.
+const DEBOUNCE_MS = 250
 
 export function TimeBlockSearch({ defaultQuery }: { defaultQuery?: string }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => () => clearTimeout(timer.current), [])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const q = e.target.value
-    startTransition(() => {
-      router.replace(q ? `/dashboard/time-blocks?q=${encodeURIComponent(q)}` : '/dashboard/time-blocks')
-    })
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      startTransition(() => {
+        router.replace(q ? `/dashboard/time-blocks?q=${encodeURIComponent(q)}` : '/dashboard/time-blocks')
+      })
+    }, DEBOUNCE_MS)
   }
 
   return (

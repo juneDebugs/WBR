@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { CheckInBoard as CheckInBoardData, CheckInDay, CheckInMeeting, CheckInTotals, OpenSlotSponsor } from '@conference/db'
@@ -108,6 +108,15 @@ export function CheckInBoard() {
     [mutation.mutateAsync],
   )
 
+  // engine dayKeys are yyyy-mm-dd in the event timezone. Constructing an
+  // Intl.DateTimeFormat is comparatively expensive, and the value is stable for
+  // the life of the mount (day granularity), so build it once instead of on
+  // every 30s-poll re-render.
+  const todayKey = useMemo(
+    () => new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ }).format(new Date()),
+    [],
+  )
+
   if (isError) {
     return (
       <div className="rounded-xl bg-danger-soft text-danger-ink text-sm px-4 py-3" role="alert">
@@ -130,10 +139,6 @@ export function CheckInBoard() {
     )
   }
 
-  // engine dayKeys are yyyy-mm-dd in the event timezone
-  const todayKey = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ,
-  }).format(new Date())
   const day: CheckInDay =
     board.days.find(d => d.dayKey === dayKey) ??
     board.days.find(d => d.dayKey === todayKey) ??

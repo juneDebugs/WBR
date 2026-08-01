@@ -43,9 +43,13 @@ export const getCachedCheckInBoard = unstable_cache(
   () => getCheckInBoard(prisma),
   ['scheduler', 'checkin-board'],
   // Floor managers tick arrivals concurrently; keep this the freshest board.
-  // A check-in write revalidates the tag, so cross-manager convergence is
-  // immediate on the next poll — this window only bounds out-of-band drift.
-  { revalidate: 10, tags: ['meetings'] },
+  // A check-in write revalidates the `checkin` tag, so cross-manager
+  // convergence is immediate on the next poll — this window only bounds
+  // out-of-band drift. The extra `checkin` tag lets a Showtime tick bust *this*
+  // board (and the log) without cold-busting the seven heavy `meetings` boards
+  // (directory ~0.6s, per-sponsor matrix ~1.3s, tables, auto…) that an arrival
+  // toggle never changes; broad scheduler writes still carry `meetings`.
+  { revalidate: 10, tags: ['meetings', 'checkin'] },
 )
 
 export const getCachedTableBoard = unstable_cache(
@@ -73,7 +77,10 @@ export const getCachedAutoMatchBoard = unstable_cache(
 export const getCachedMeetingsLog = unstable_cache(
   () => getMeetingsLog(prisma),
   ['scheduler', 'meetings-log'],
-  { revalidate: 20, tags: ['meetings'] },
+  // A check-in note edit changes SponsorMeeting.notes, which feeds this feed, so
+  // the check-in route busts `meetings-log` too — this dedicated tag lets it do
+  // that without also invalidating the heavy directory/matrix/tables/auto boards.
+  { revalidate: 20, tags: ['meetings', 'meetings-log'] },
 )
 
 // Per-company matrix: one cache entry per sponsor (sponsorId is part of the
