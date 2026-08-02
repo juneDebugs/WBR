@@ -141,7 +141,7 @@ The window's proportions came only from the picture's load event. A picture alre
 
 Invisible with three identically-shaped maps, and live the moment Phase 10 accepts an upload of any shape.
 
-**Fixed, and made testable.** The picture is now asked directly whenever the map changes, which covers the cached case. And **one seeded map is now drawn 1600×1000 while the other two are 1600×1200**, with an assertion that the window takes each picture's shape and a further assertion that the maps are not all the same shape — without which the first assertion is satisfied by three identical pictures and proves nothing.
+**Fixed, and made testable.** The picture is now asked directly whenever the map changes, which covers the cached case. And **one seeded map is now drawn 1600×1400 while the other two are 1600×1200**, with an assertion that the window takes each picture's shape and a further assertion that the maps are not all the same shape — without which the first assertion is satisfied by three identical pictures and proves nothing.
 
 ## Round 2
 
@@ -159,7 +159,7 @@ Round 1's fix corrected the window after load, but the picture was still forced 
 
 ### Z-5 — The collision script hard-coded the old picture size
 
-The third-opinion collision script converted the drawn title block as if every picture were 1600×1200. With one map now 1600×1000, its top is at 87.6% rather than 89.7%, and a label colliding in that band would have been reported as clear — in the script whose whole claim is that it tests against the shapes actually drawn. **Fixed** by deriving it per map.
+The third-opinion collision script converted the drawn title block as if every picture were 1600×1200. With one map now a different height, its top sits at a different percentage, and a label colliding in the band between the two would have been reported as clear — in the script whose whole claim is that it tests against the shapes actually drawn. **Fixed** by deriving it per map.
 
 ## Round 3
 

@@ -203,7 +203,21 @@ The pictures are 1600 pixels wide and are shown at 366 on a phone, so the text d
 
 No check caught it because the one that came closest — every room label stays within the picture — is satisfied by a label sitting squarely on a different room. The picture's outer rectangle is all the suite knows; the shapes drawn inside it are known only to the drawing module. That assertion was written during this phase's own review cycle, in response to an earlier finding, and carries the same flaw that cycle was hunting.
 
-**The remedy, chosen by the project owner: pinch-zoom and pan, with the markers and labels held at a constant size on screen.** Measured afterwards, at 390 pixels wide: **6 collisions at fit-to-width, 0 once zoomed to 2.5x.** At that zoom the map's own drawn text is legible as well.
+**The remedy, chosen by the project owner: pinch-zoom and pan, with the markers and labels held at a constant size on screen.** Measured afterwards, at 390 pixels wide: **4 collisions at fit-to-width, 0 once zoomed to 2.5x.** At that zoom the map's own drawn text is legible as well.
+
+It was 6 until the meeting-room floor's layout was corrected — see § The layout change that went backwards first.
+
+### The layout change that went backwards first
+
+Three of the six collisions were on the meeting-room floor, and one of them covered the map's own title. Recorded because the first attempt to fix it made things worse, and the reason generalises.
+
+A room label hangs **below** its marker, so its spacing is bounded from two directions at once and the picture's height decides both. Below, a label has to clear the drawn floor's edge and the title block. Above, consecutive rows have to be far enough apart that one row's labels do not land on the next row's rooms.
+
+On a 1600×1000 picture a label extends roughly 18 percentage points below its marker, which is more than half the gap between rows. Moving the bottom row up from 76% to 66% cleared the title block and immediately put **seven** of nine labels onto the next row's rooms — measured, not predicted. Three collisions became seven.
+
+The binding constraint was height, not position. The map is now drawn **1600×1400 — taller than the other two rather than shorter**, which keeps it a different shape, since being a different shape is the whole point of it. A label now extends about 13 points, and 27 points between rows leaves room at both ends. Meeting rooms went from 3 collisions to 1.
+
+**The one that remains is left alone deliberately.** The "Networking Lounge" label overhangs the right edge of the drawn floor onto the blank margin, obscuring nothing. Tightening the columns to pull it in would push it into "Table 8" — the same trade that had just been measured as a loss.
 
 **The accepted limit, stated rather than left to be discovered.** At the default fit-to-width view on a phone the labels still overlap exactly as they did. What changed is that a delegate can now do something about it. A clean default would need labels hidden until a zoom threshold, which was rejected against user story 19 — a delegate who must discover a gesture before seeing any room name has not been given labelled rooms.
 

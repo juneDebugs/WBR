@@ -134,11 +134,25 @@ export function layoutMeetingRooms(meetingRooms) {
   const LEFT = 20
   const RIGHT = 80
   const TOP = 22
-  // 76 rather than 82. This map is drawn shallower than the other two, and a
-  // room label hangs below its marker: at 82 the bottom row's labels extended
-  // past the picture's edge once the height dropped from 1200 to 1000. Caught
-  // by the browser check's label-bounds assertion, which is the assertion the
-  // adversarial review added for exactly this.
+  // A room label hangs BELOW its marker rather than sitting on it, so the
+  // spacing here is bounded from two directions at once, and the picture's
+  // height decides both.
+  //
+  // Below, a label must clear the drawn floor's edge and the title block. Above,
+  // consecutive rows must be far enough apart that one row's labels do not land
+  // on the next row's rooms.
+  //
+  // Both were measured rather than reasoned. On a 1600x1000 picture a label
+  // extends roughly 18 percentage points below its marker, which is more than
+  // half the gap between rows: at BOTTOM 82 the bottom labels ran off the
+  // picture, at 76 they covered the title block, and at 66 — where they finally
+  // cleared it — the tighter rows put SEVEN of nine labels onto the next row's
+  // rooms. Trading one collision for more is not a fix.
+  //
+  // The constraint was the height, so the picture is 1600x1400 rather than
+  // 1600x1000: taller than the other two rather than shorter, which keeps it a
+  // different shape — the point of it — while a label now extends only about 13
+  // points, and 27 points between rows leaves room at both ends.
   const BOTTOM = 76
 
   return items.map((room, index) => {
@@ -193,10 +207,16 @@ export const MAPS = [
     name: 'Meeting Rooms',
     position: 3,
     subtitle: 'Level 3 · 1-on-1 meeting tables',
-    // Wider and shallower than the other two, on purpose. This is the map the
-    // switch-to-a-different-shape assertion measures against.
+    // TALLER than the other two, on purpose, and taller rather than shorter for
+    // a measured reason. This is the map the switch-to-a-different-shape
+    // assertion is aimed at, so it has to differ — but a room label hangs about
+    // 18 percentage points below its marker, and on a SHORTER picture that put
+    // every row of labels onto the next row of rooms: measured at 1600x1000,
+    // seven of nine labels landed on something drawn. Height is what the labels
+    // need, and a tall plan is exactly as representative of what a venue sends
+    // as a wide one.
     width: 1600,
-    height: 1000,
+    height: 1400,
   },
 ]
 
