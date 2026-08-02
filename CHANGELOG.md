@@ -79,6 +79,28 @@ This is a consequence of the session design recorded in [`docs/adr/0002-nextauth
 
 ---
 
+## 2026-08-02
+
+- **Participant app: tapping a booth marker opens that company's card** (branch `floor-plan-booth-company-card`; the commit identifier lands on merge, because every pull request here is rebased). The card shows the exhibiting company's logo, name, tagline, stand number, what it offers and a link to its website, over the map and without leaving it. Dismissing it — by the close control, by tapping away, or with Escape — returns to the same map at the same zoom and position, because nothing in the card's path touches the map's position at all.
+
+  The card's contents travel inside the map response rather than being fetched when a marker is tapped, so there is no waiting between the tap and the card on a conference wireless network. Measured: 1,913 characters across the ten exhibiting companies, 191 each, under 2.5 KB on a response requested once per visit. No schema change — every field was already stored and simply not sent.
+
+  178 data checks, 219 browser checks driving real Chromium at phone size with all ten companies opened and compared one at a time, seven negative controls each caught by a number predicted in advance, and three rounds of adversarial review. See [`docs/smoketests/phase-9-booth-company-card.md`](docs/smoketests/phase-9-booth-company-card.md) and [`docs/codex-reviews/phase-9-booth-company-card.md`](docs/codex-reviews/phase-9-booth-company-card.md).
+
+- **The seed now reproduces the exhibiting companies the map depends on.** Before this, `packages/db/prisma/seed.ts` refreshed only a company's name, tier and logo once its row existed, so taglines and stand numbers written at creation were never corrected — and offerings were never written to an exhibiting company at all, existing only in the working database and in no committed file.
+
+  That was not only a content difference. The hall picture groups companies into rows of at most three by the first character of the stand number, so the row heights depend on how many companies exhibit. The database has ten, giving four rows; the seed had eight, giving three. **A database rebuilt from the seed would have placed every marker off every drawn stand on the committed picture**, and no existing check would have said so, because every one of them compares a marker to the position stored for that marker rather than to the picture. Recorded as finding F-10.
+
+  Verified by rebuilding from nothing: ten companies, identical on every field the card shows, and 10 stands in 4 rows at 28.5 / 45.5 / 62.5 / 79.5 percent — exactly what the committed picture was drawn from.
+
+- **A stray seed run can no longer overwrite an organizer's edits.** `createPrismaClient()` in the seed checks for Turso credentials **before** it reads `DATABASE_URL`, so `pnpm db:seed` connects to the shared production database whenever those variables are in the environment, regardless of the local path the npm script sets. The fix above briefly made that far worse by writing the full content set on every update. The seed now writes everything when it creates a company and only name, tier and logo when the row already exists; drift on an existing database is **detected** by a check and **corrected** deliberately by `scripts/migrate-sponsor-card-fields.mjs`, which reports by default and requires `--apply` to write, and which never replaces a value the database has with one the definitions lack.
+
+- **Known and accepted for now: a company editing its own profile does not refresh its booth card for up to five minutes.** The card's tagline, website and offerings now sit in the participant map's cache, and no writer in any app invalidates that cache — the tag `floor-plan` appears in none of them. The sponsor portal shows an edit at once while delegates keep the previous values until the cache expires. Nobody sees wrong information, only information up to five minutes old, and it corrects itself. The fix belongs with the organizer's upload and pin-placement tools, where cache invalidation is already required, so that both kinds of writer are handled once. Recorded as finding F-13.
+
+- **The seed prints a note instead of looking like it worked.** A seed run against a database that already holds these companies leaves their card fields alone by design, and used to print "Creating 20 sponsors" while doing so. It now names each company whose values differ from the definitions and gives the two commands that inspect and repair.
+
+---
+
 ## 2026-08-01
 
 - **Participant app: the venue floor plan** (branch `floor-plan-data-and-map-viewer`; the commit identifier lands on merge, because every pull request here is rebased). Two new record types in the shared schema — the first schema change in this body of work — plus a seeded demonstration venue of three maps and 25 markers, and a participant screen that shows a map with its markers, switches between maps in their set order, labels rooms, and gives booth markers a 44-pixel tap target. A sixth item in the bottom navigation reaches it. Booth markers link to exhibiting companies by identifier; tapping one opens a card, which is the next phase and is not built. 57 data checks, 48 browser checks driving real Chromium at three screen sizes, four negative controls each caught by a predicted number. See [`docs/smoketests/phase-8-floor-plan-viewer.md`](docs/smoketests/phase-8-floor-plan-viewer.md).
