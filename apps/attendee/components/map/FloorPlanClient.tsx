@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFloorPlanData } from '@/lib/hooks'
-import type { FloorPlanMap, FloorPlanPin } from '@/lib/floor-plan-data'
+import type { FloorPlanMap, FloorPlanPin, FloorPlanSponsor } from '@/lib/floor-plan-data'
 
 /**
  * The participant's venue map: a picture with markers on top of it, which the
@@ -60,13 +60,28 @@ const FALLBACK_ASPECT = 4 / 3
 type Transform = { scale: number; x: number; y: number }
 const AT_REST: Transform = { scale: 1, x: 0, y: 0 }
 
-function Marker({ pin, index, scale }: { pin: FloorPlanPin; index: number; scale: number }) {
+function Marker({
+  pin,
+  index,
+  scale,
+  onOpen,
+}: {
+  pin: FloorPlanPin
+  index: number
+  scale: number
+  onOpen: (pin: FloorPlanPin) => void
+}) {
   const isBooth = pin.type === 'BOOTH'
   const boothNumber = pin.sponsor?.boothNumber ?? null
 
   return (
     <button
       type="button"
+      // Every marker reports the tap; the parent decides what deserves a card.
+      // Deciding here would mean a room marker silently doing nothing for a
+      // different reason than a booth marker whose company row was deleted, and
+      // the two want the same treatment.
+      onClick={() => onOpen(pin)}
       data-testid="pin"
       data-pin-type={pin.type}
       data-pin-label={pin.label}
@@ -117,11 +132,234 @@ function Marker({ pin, index, scale }: { pin: FloorPlanPin; index: number; scale
   )
 }
 
+/**
+ * The card that opens over the map when a delegate taps a booth marker.
+ *
+ * ── Why it renders inside the map's own wrapper ──────────────────────────────
+ *
+ * Its container is the element that also holds the map window, so the card is
+ * positioned against the map rather than against the screen. A sheet anchored
+ * to the bottom of the viewport would sit below the map on a tall screen and
+ * beside it on a wide one; anchored here it always covers the lower part of the
+ * map, which is what "opens over the map" means and what the Phase 9 check
+ * measures — it compares the two rectangles.
+ *
+ * ── Why it takes no data of its own ──────────────────────────────────────────
+ *
+ * Every value comes from the marker that was tapped. The map response already
+ * carries them, decided 2026-08-02 so that a tap shows a complete card with no
+ * request in between. There is no loading state here because there is nothing
+ * to load.
+ */
+function BoothCard({ sponsor, onClose }: { sponsor: FloorPlanSponsor; onClose: () => void }) {
+  const headingId = `booth-card-name-${sponsor.id}`
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const returnFocusTo = useRef<Element | null>(null)
+
+  // ── Making aria-modal true rather than merely claimed ────────────────────────
+  //
+  // Raised by Phase 9's adversarial review. The card announced itself as a modal
+  // dialog and then did nothing a modal dialog does: focus stayed on the marker
+  // behind the overlay, so a delegate using a keyboard or a screen reader was
+  // told a dialog had opened and then had to tab through the whole map to reach
+  // it — past controls the overlay had made unreachable with a finger. Claiming
+  // the role without the behaviour is worse than not claiming it, because
+  // assistive software changes how it presents the page on the strength of it.
+  //
+  // Three things, which is what the claim actually requires:
+  //   1. focus moves into the card when it opens,
+  //   2. Tab cycles within the card rather than escaping behind the overlay,
+  //   3. focus returns to the marker that opened it when it closes.
+  useEffect(() => {
+    returnFocusTo.current = document.activeElement
+    cardRef.current?.focus()
+    const opener = returnFocusTo.current
+    return () => {
+      // Only if it is still on the page. A marker can disappear when the data
+      // refreshes, and focusing a detached element throws focus to the body
+      // silently, which is worse than leaving it where it is.
+      if (opener instanceof HTMLElement && document.contains(opener)) opener.focus()
+    }
+  }, [])
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return
+    const card = cardRef.current
+    if (!card) return
+    const focusable = [
+      ...card.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter(el => el.offsetParent !== null)
+    if (focusable.length === 0) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === card)) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
+  return (
+    <>
+      {/* Covers the map so a tap anywhere off the card dismisses it. It sits
+          under the card and over the map, and it is a plain element rather than
+          a button so that it never takes focus from the card. */}
+      <div
+        data-testid="booth-card-backdrop"
+        onClick={onClose}
+        className="absolute inset-0 z-20 rounded-xl bg-black/30"
+      />
+
+      <div
+        data-testid="booth-card"
+        data-booth-card-sponsor={sponsor.id}
+        ref={cardRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        // -1 so the card itself can hold focus when it opens without becoming a
+        // stop on the ordinary Tab sequence.
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
+        // The card holds focus on open, and the browser would otherwise draw its
+        // own ring around the whole panel. The controls inside keep theirs.
+        style={{ outline: 'none' }}
+        // ── Why this is anchored by its TOP rather than the map's bottom ─────
+        //
+        // The first version pinned the card to the bottom of the map window and
+        // capped it at 80% of that window's height. Measured on a 390-pixel
+        // phone, that window is 366 by 275, so the card got 220 pixels while
+        // Shopify's card needs 317. The result: the offerings were sliced
+        // through the middle of a row and THE WEBSITE LINK WAS OFF THE BOTTOM
+        // ON EVERY COMPANY — an action a delegate could not see, on the device
+        // they are holding at the venue.
+        //
+        // Every automated assertion passed anyway, because they all read the
+        // markup. This is the same blind spot finding F-9 recorded for the map
+        // itself, and it was found the same way: by looking.
+        //
+        // Anchoring the top at 45% of the map lets the card grow downward into
+        // the empty page below the map instead of fighting the map's height,
+        // while still covering the lower part of the map — which is what
+        // "opens over the map" means. On a phone the card now ends around 590
+        // pixels down a 844-pixel screen, well clear of the bottom navigation.
+        className="absolute left-0 right-0 top-[45%] z-30 max-h-[60vh] overflow-y-auto
+                   rounded-2xl bg-white p-4 shadow-2xl ring-1 ring-black/10"
+      >
+        <div className="flex items-start gap-3">
+          {sponsor.logoUrl ? (
+            <img
+              data-testid="booth-card-logo"
+              src={sponsor.logoUrl}
+              // Named rather than decorative. A delegate using a screen reader
+              // gets the company from the heading; the logo repeating it is
+              // noise, but an empty alt on a meaningful image is worse when the
+              // picture fails to load, which is when the text matters most.
+              alt={`${sponsor.name} logo`}
+              className="h-12 w-12 shrink-0 rounded-lg object-contain ring-1 ring-black/5"
+            />
+          ) : null}
+
+          <div className="min-w-0 flex-1">
+            {/* break-words on every text field, not just min-w-0 on the box
+                around them. min-w-0 lets a flex child shrink below its content;
+                it does not make an unbroken string wrap, so a long company name
+                or a tagline containing a bare URL would still push past the
+                card's edge at 390 pixels. Today's longest seeded company name
+                is 12 characters, so no test would have found this — but Phase
+                11 lets an organizer type these values. Raised by Phase 9's
+                adversarial review round 2. */}
+            <h2
+              id={headingId}
+              data-testid="booth-card-name"
+              className="break-words text-base font-semibold text-ink"
+            >
+              {sponsor.name}
+            </h2>
+            {sponsor.boothNumber ? (
+              <p data-testid="booth-card-booth" className="mt-0.5 text-xs font-medium text-primary">
+                Stand {sponsor.boothNumber}
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            data-testid="booth-card-close"
+            onClick={onClose}
+            aria-label={`Close ${sponsor.name}`}
+            // 44 by 44, the same reason the markers are: it is the smallest
+            // target a thumb hits reliably.
+            className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full
+                       text-ink-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <span aria-hidden="true" className="text-xl leading-none">×</span>
+          </button>
+        </div>
+
+        {sponsor.tagline ? (
+          <p data-testid="booth-card-tagline" className="mt-3 break-words text-sm text-ink-2">
+            {sponsor.tagline}
+          </p>
+        ) : null}
+
+        {sponsor.solutions.length > 0 ? (
+          <div className="mt-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">Offers</h3>
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {sponsor.solutions.map((s, i) => (
+                <li
+                  // Keyed by POSITION as well as text. The offerings are
+                  // free-form strings an organizer will type in Phase 11, so
+                  // one company listing the same offering twice is an ordinary
+                  // shape, and two identical keys make React's reconciliation
+                  // undefined — it may drop a chip or reuse the wrong one.
+                  // Raised by Phase 9's adversarial review round 2. Today's
+                  // seeded data has no duplicates, which is exactly why nothing
+                  // would have noticed.
+                  key={`${i}-${s}`}
+                  data-testid="booth-card-offering"
+                  className="max-w-full break-words rounded-full bg-black/5 px-2.5 py-1 text-xs text-ink-2"
+                >
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {sponsor.website ? (
+          <a
+            data-testid="booth-card-website"
+            href={sponsor.website}
+            target="_blank"
+            // noopener is the part that matters: without it the opened page can
+            // reach back through window.opener and navigate this one.
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex max-w-full items-center gap-1 break-all text-sm font-medium text-primary underline"
+          >
+            Visit website
+          </a>
+        ) : null}
+      </div>
+    </>
+  )
+}
+
 export function FloorPlanClient() {
   const { data, isLoading, isError, error } = useFloorPlanData()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [transform, setTransform] = useState<Transform>(AT_REST)
   const [aspect, setAspect] = useState<number>(FALLBACK_ASPECT)
+  // Which marker's card is open, held as the MARKER's id rather than the
+  // company's. Two markers for one company would otherwise be one card that
+  // could not say which was tapped, and the card is looked up from the marker
+  // list so it cannot show a company that is not on this map.
+  const [openPinId, setOpenPinId] = useState<string | null>(null)
 
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
@@ -381,7 +619,39 @@ export function FloorPlanClient() {
     pointers.current.clear()
     gesture.current = null
     panFrom.current = null
+    // A card belongs to a marker on the map that was showing. Leaving it open
+    // across a switch would put one map's company over another map's picture.
+    setOpenPinId(null)
   }
+
+  /**
+   * Open the card for a tapped marker.
+   *
+   * A room marker and a booth marker whose company row has been deleted both
+   * land here and both open nothing. There is no company to show in either
+   * case, and a card that appears empty is worse than no card.
+   *
+   * Nothing in here touches the zoom or the offset. That is what makes
+   * dismissing return to the same place — not a saved-and-restored position,
+   * which could restore the wrong one, but a position that was never disturbed.
+   */
+  const openMarker = (pin: FloorPlanPin) => {
+    if (pin.type !== 'BOOTH' || !pin.sponsor) return
+    setOpenPinId(pin.id)
+  }
+
+  const closeCard = useCallback(() => setOpenPinId(null), [])
+
+  // Escape closes the card. Bound only while one is open, so this component
+  // does not answer for a key press at any other time.
+  useEffect(() => {
+    if (openPinId === null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeCard()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [openPinId, closeCard])
 
   if (isLoading) {
     return (
@@ -414,6 +684,12 @@ export function FloorPlanClient() {
   }
 
   const zoomed = transform.scale > 1
+
+  // Resolved from the markers on the active map. A card whose marker is not on
+  // this map cannot be shown, which makes a stale open card impossible rather
+  // than merely unlikely.
+  const openCard =
+    openPinId === null ? null : (active.pins.find(p => p.id === openPinId)?.sponsor ?? null)
 
   return (
     <div data-testid="floor-plan" className="flex min-h-full flex-col">
@@ -521,7 +797,13 @@ export function FloorPlanClient() {
                 className="block h-auto w-full select-none"
               />
               {active.pins.map((pin, index) => (
-                <Marker key={pin.id} pin={pin} index={index} scale={transform.scale} />
+                <Marker
+                  key={pin.id}
+                  pin={pin}
+                  index={index}
+                  scale={transform.scale}
+                  onOpen={openMarker}
+                />
               ))}
             </div>
           </div>
@@ -537,6 +819,12 @@ export function FloorPlanClient() {
               Fit map
             </button>
           )}
+
+          {/* Looked up from the markers currently on screen, not held as its own
+              copy of a company. If the data refreshes and the marker is gone,
+              the card goes with it rather than showing a company that is no
+              longer on this map. */}
+          {openCard ? <BoothCard sponsor={openCard} onClose={closeCard} /> : null}
         </div>
       </div>
     </div>

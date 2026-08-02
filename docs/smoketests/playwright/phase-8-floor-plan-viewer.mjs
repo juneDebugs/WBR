@@ -895,6 +895,30 @@ try {
     `tapping the "${pinLabel}" marker activates it`,
     `clicks seen: ${JSON.stringify(afterTap)}`)
 
+  // ── Added 2026-08-02, when Phase 9 wired a card to the booth markers ────────
+  //
+  // The tap above now opens that card, and the card lays a backdrop over the
+  // map so that tapping away dismisses it. The drag below is driven with a real
+  // mouse, so it hit-tests and lands on that backdrop instead of the map, and
+  // the map does not pan — which failed the movement assertion for a reason
+  // that is about this script's sequence rather than about panning.
+  //
+  // Note that the pinch two lines down was NOT affected: it dispatches pointer
+  // events straight at the map window, and a dispatched event does no
+  // hit-testing, so it went through the backdrop as if it were not there. Only
+  // the real-mouse drag noticed. That difference is worth knowing — a synthetic
+  // gesture can pass through something a finger cannot.
+  //
+  // Dismissing here is deliberately NOT an assertion: Phase 8's count is a
+  // regression baseline and this step exists to restore the state the drag
+  // check has always assumed, not to test the card. The card is Phase 9's to
+  // assert, and it does, in phase-9-booth-company-card.mjs.
+  const openCardCloser = page.locator('[data-testid="booth-card-close"]')
+  if (await openCardCloser.count() > 0) {
+    await openCardCloser.first().click()
+    await page.waitForTimeout(200)
+  }
+
   // And the opposite: a real drag that happens to start on a marker must move
   // the map and must NOT count as tapping that marker.
   //
