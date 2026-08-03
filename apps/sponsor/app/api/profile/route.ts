@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
+import { revalidateAttendeeFloorPlan } from '@/lib/revalidate-attendee'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@conference/db'
 
@@ -64,6 +65,13 @@ export async function PATCH(req: Request) {
   })
 
   revalidateTag(`sponsor-${sponsorId}`)
+
+  // Finding F-13. Phase 9 moved this company's tagline, website, logo, booth
+  // number and offerings into the participant app's cached map payload, so a
+  // representative editing their profile here changes what a delegate sees on
+  // the booth card. Without this they saw it at once in this portal while
+  // delegates kept the old values for up to five minutes.
+  await revalidateAttendeeFloorPlan('sponsor profile PATCH')
 
   return NextResponse.json(sponsor)
 }

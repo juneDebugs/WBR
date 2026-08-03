@@ -7,6 +7,7 @@ import Link from 'next/link'
 
 import { format } from 'date-fns'
 import { revalidatePath, unstable_cache } from 'next/cache'
+import { revalidateAttendeeFloorPlan } from '@/lib/revalidate-attendee'
 import { permissionDenied, assertPermission } from '@/lib/require-permission'
 
 // Slim, cached roster for the "schedule a meeting" dropdown. The render only
@@ -60,6 +61,8 @@ async function updateSponsor(sponsorId: string, formData: FormData) {
     },
   })
   revalidatePath('/dashboard/sponsors')
+  // F-13: name, logo and website all appear on the participant booth card.
+  await revalidateAttendeeFloorPlan('admin sponsor update')
   redirect('/dashboard/sponsors')
 }
 
@@ -67,6 +70,10 @@ async function deleteSponsor(sponsorId: string) {
   'use server'
   await assertPermission('sponsors')
   await prisma.sponsor.delete({ where: { id: sponsorId } })
+  // Deleting a company sets Pin.sponsorId to null rather than removing the
+  // marker, so the map changes: a booth marker falls back to its stored label.
+  // This writer is not named in F-13 and was found while wiring the others.
+  await revalidateAttendeeFloorPlan('admin sponsor delete')
   redirect('/dashboard/sponsors')
 }
 

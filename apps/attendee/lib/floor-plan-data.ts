@@ -166,6 +166,32 @@ export type FloorPlanMap = {
   pins: FloorPlanPin[]
 }
 
+/**
+ * Where a delegate's browser should fetch this map's picture from.
+ *
+ * Finding F-14. A seeded map holds a file path and is returned untouched, so the
+ * browser fetches it straight from the public folder and caches it as it always
+ * has. An uploaded map holds the picture itself, base64-encoded into the column
+ * — and returning that would put the whole picture inside the map list response,
+ * for every map, on every visit to the screen, when a delegate looks at one map
+ * at a time. Measured with a single uploaded map present: the response grew from
+ * roughly 6.6 KB to 44,696 bytes.
+ *
+ * Copied from the speaker-photograph substitution in
+ * apps/web/app/api/data/speakers/route.ts, which is the existing precedent for
+ * this exact problem. Substituting only when the value begins "data:" is the
+ * whole reason Phases 8 and 9 are unaffected: every seeded map keeps the string
+ * it was seeded with, so the response shape, the field name and its type are
+ * unchanged and the viewer needs no branch.
+ *
+ * This runs OUTSIDE the cached read on purpose. getCachedVenueMaps holds what the
+ * database returned; the substitution happens after. So no cache key needs
+ * versioning for this change, and entries written before it remain correct.
+ */
+function pictureUrlFor(map: { id: string; imageUrl: string }): string {
+  return map.imageUrl.startsWith('data:') ? `/api/data/map/${map.id}/image` : map.imageUrl
+}
+
 export async function fetchFloorPlanData(): Promise<{ maps: FloorPlanMap[]; count: number }> {
   const [conference, allMaps] = await Promise.all([getCachedConference(), getCachedVenueMaps()])
 
@@ -174,7 +200,7 @@ export async function fetchFloorPlanData(): Promise<{ maps: FloorPlanMap[]; coun
   const data: FloorPlanMap[] = maps.map(m => ({
     id: m.id,
     name: m.name,
-    imageUrl: m.imageUrl,
+    imageUrl: pictureUrlFor(m),
     position: m.position,
     pins: m.pins
       // A marker with no usable name is not drawn. A booth whose company was

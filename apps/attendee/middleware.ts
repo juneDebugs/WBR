@@ -7,7 +7,29 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/api/auth') ||
     request.nextUrl.pathname === '/api/login'
 
-  if (!token && !isAuthRoute) {
+  // ── One address is spoken to by another application, not by a person ───────
+  //
+  // Finding F-17, measured 2026-08-02. /api/revalidate is how the admin app
+  // tells this one that cached data has changed. It is called server to server,
+  // so it carries no session cookie, so this middleware answered it 401 before
+  // the route ever ran — and the route's own shared-secret check never happened.
+  // fetch does not throw on a 401 and the caller never inspected the response,
+  // so cross-app invalidation had never worked for ANY tag, in any environment,
+  // silently. Delegates had always waited out the cache window.
+  //
+  // Exempting it here moves the authentication to that shared-secret check,
+  // which is what the route was written around. It does not remove it: the same
+  // request with a wrong secret is still refused, and the Phase 10 suite asserts
+  // both halves.
+  //
+  // EXACT EQUALITY, not startsWith, and that is not a style preference. This
+  // matcher already carries an incident: two folder names in it were given
+  // trailing slashes after /sponsorship, /sponsors-admin and /iconsecret were
+  // measured skipping the middleware entirely as unanchored prefixes. Written as
+  // a prefix, /api/revalidate-anything-at-all would walk straight through.
+  const isMachineRoute = request.nextUrl.pathname === '/api/revalidate'
+
+  if (!token && !isAuthRoute && !isMachineRoute) {
     if (request.nextUrl.pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
