@@ -41,10 +41,102 @@ export function useMyScheduleData() {
 export function useSetupData() {
   return useQuery({ queryKey: ['setup-data'], queryFn: () => safeFetch('/api/data/setup'), staleTime: 60_000 })
 }
-// The venue's maps and their markers. A long stale time because a floor plan
-// changes when an organizer edits it, which is rare, and never on its own.
+/**
+ * The venue's maps and their markers.
+ *
+ * ── Why the five-minute stale time went ──────────────────────────────────────
+ *
+ * It used to be 300_000, with the note "a floor plan changes when an organizer
+ * edits it, which is rare, and never on its own". That was correct when it was
+ * written: at the end of Phase 8 the maps were seeded, nothing in the product
+ * could write them, and the organizer's tools did not exist.
+ *
+ * Two changes removed that premise. Phase 9 moved each exhibiting company's
+ * tagline, website, logo, stand number and offerings into this payload, so it
+ * now carries data a representative edits from the sponsor portal — finding
+ * F-13. Phase 10 gives organizers upload, reorder and delete. The map went from
+ * unable-to-change to one of the more frequently written things in the system,
+ * and this number never followed.
+ *
+ * ── Three settings, doing three different jobs ───────────────────────────────
+ *
+ * staleTime 30_000 — opening the screen after half a minute fetches fresh data
+ * rather than showing a copy up to five minutes old.
+ *
+ * refetchOnWindowFocus — the app disables this globally in query-provider.tsx.
+ * Overridden here alone, so a delegate returning to the app sees the current map
+ * instead of what was true when they left it.
+ *
+ * refetchInterval 30_000 — the safety net, and it is deliberately slow. The fast
+ * path is the push in useFloorPlanLiveUpdates below; this only covers a phone
+ * that never heard it, which happens when the hosting platform runs more than
+ * one copy of the participant app and the notification reached a different one.
+ * See lib/floor-plan-events.ts for why that is not fixable inside this app.
+ *
+ * The cost is affordable only because of Phase 10 itself: the map response is
+ * 6,678 bytes measured, down from 44,696 with one uploaded map, because F-14
+ * moved the pictures to their own address. Refetching a few kilobytes on a
+ * screen a delegate opens occasionally is not worth economising on.
+ */
 export function useFloorPlanData() {
-  return useQuery({ queryKey: ['map-data'], queryFn: () => safeFetch('/api/data/map'), staleTime: 300_000 })
+  return useQuery({
+    queryKey: ['map-data'],
+    queryFn: () => safeFetch('/api/data/map'),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
+  })
+}
+
+/**
+ * Listen for the server saying the venue map changed, and refetch when it does.
+ *
+ * The phone holds one connection open to /api/data/map/stream and waits. When an
+ * organizer uploads, reorders or deletes a map — or a company edits details that
+ * appear on a booth card — the server writes a line down it and this refetches.
+ * The delegate does nothing and the map updates in front of them.
+ *
+ * Only the fact of a change crosses the connection, never the data. The refetch
+ * goes through the same gated, cached address the screen always uses, so there
+ * is no second place deciding what a delegate may see.
+ *
+ * EventSource reconnects by itself when a connection drops, so there is no
+ * reconnection logic here. A refetch on reconnect is deliberate: whatever was
+ * missed while it was disconnected is picked up immediately rather than waiting
+ * for the timer above.
+ *
+ * Call this from the map screen only. Mounting it elsewhere would hold a
+ * connection open for a delegate who is not looking at a map.
+ */
+export function useFloorPlanLiveUpdates() {
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return
+
+    const source = new EventSource('/api/data/map/stream')
+
+    const refresh = () => {
+      qc.invalidateQueries({ queryKey: ['map-data'] })
+    }
+
+    source.addEventListener('floor-plan', refresh)
+
+    // `open` fires on the first connection and on every reconnection after a
+    // drop. Refetching here closes the window where a change happened while the
+    // phone was asleep, in a tunnel, or between networks.
+    source.addEventListener('open', refresh)
+
+    // No handler for 'error': EventSource retries on its own, and logging every
+    // transient network blip would fill the console on a conference wireless
+    // network without anybody being able to act on it. A connection that stays
+    // down is covered by refetchInterval above.
+
+    return () => {
+      source.removeEventListener('floor-plan', refresh)
+      source.removeEventListener('open', refresh)
+      source.close()
+    }
+  }, [qc])
 }
 
 export function usePrefetchAll() {

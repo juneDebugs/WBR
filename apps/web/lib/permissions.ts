@@ -8,7 +8,7 @@
 // mirror the sidebar grouping so the editor UI and the nav stay in lockstep.
 
 export type PermissionKey =
-  | 'calendar' | 'agenda' | 'speakers'
+  | 'calendar' | 'agenda' | 'speakers' | 'floorPlan'
   | 'meetings' | 'timeBlocks'
   | 'attendees' | 'staff' | 'sponsors'
   | 'chat' | 'email'
@@ -25,6 +25,11 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'calendar', label: 'Calendar', href: '/dashboard/calendar' },
       { key: 'agenda', label: 'Agenda', href: '/dashboard/sessions' },
       { key: 'speakers', label: 'Speakers', href: '/dashboard/speakers' },
+      // Phase 10. A dashboard screen is only reachable through a permission
+      // key: the sidebar renders one entry per key, and each page guards itself
+      // with the same key. A floor-plan screen without one would exist at an
+      // address nobody could find.
+      { key: 'floorPlan', label: 'Floor Plan', href: '/dashboard/floor-plan' },
     ],
   },
   {
@@ -80,12 +85,26 @@ export const LOCKED_KEYS_BY_ROLE: Record<ManageableRole, PermissionKey[]> = {
   STAFF: [],
 }
 
+// ── A trap when a key is ADDED, recorded 2026-08-02 with Phase 10's floorPlan ─
+//
+// These defaults apply only when a role has NO stored RolePermission row. Once a
+// row exists, hasPermission consults the stored list — and a key added after
+// that row was written is not in it, so the new screen is invisible to that
+// role, including ORGANIZER, with nothing to say why.
+//
+// Measured 2026-08-02: the RolePermission table on the development database is
+// empty, so 'floorPlan' is granted automatically there. The deployed database
+// has not been checked and no credentials for it exist on this machine. If a
+// role config was ever saved on the Access screen in that environment, an
+// organizer must grant "Floor Plan" once before the screen appears. Recorded as
+// finding F-18 with a pre-demonstration check.
+//
 // Defaults applied when a role has no stored config yet. Organizer is a full
 // administrator; Staff gets broad operational access but NOT the sensitive
 // Administration section (integrations/app settings/access/export).
 export const DEFAULT_PERMISSIONS: Record<ManageableRole, PermissionKey[]> = {
   ORGANIZER: [...ALL_PERMISSION_KEYS],
-  STAFF: ['calendar', 'agenda', 'speakers', 'meetings', 'timeBlocks', 'attendees', 'staff', 'sponsors', 'chat', 'email'],
+  STAFF: ['calendar', 'agenda', 'speakers', 'floorPlan', 'meetings', 'timeBlocks', 'attendees', 'staff', 'sponsors', 'chat', 'email'],
 }
 
 export const DEFAULT_DESCRIPTIONS: Record<ManageableRole, string> = {

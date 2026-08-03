@@ -1,5 +1,6 @@
 export const revalidate = 0
 import { prisma } from '@conference/db'
+import { revalidateAttendeeFloorPlan } from '@/lib/revalidate-attendee'
 import { AdminHeader } from '@/components/AdminHeader'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -23,6 +24,12 @@ async function createSponsor(formData: FormData) {
       description: (formData.get('description') as string) || null,
     },
   })
+
+  // A company created here carries no booth marker until Phase 11 links one,
+  // so nothing on the map changes yet. Invalidated anyway: the alternative is a
+  // writer that becomes wrong the moment pin authoring ships, in a different
+  // phase, with nothing to connect the two.
+  await revalidateAttendeeFloorPlan('admin sponsor create')
   redirect('/dashboard/sponsors')
 }
 

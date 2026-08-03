@@ -41,11 +41,24 @@ const {
   hasPermission, visibleKeysFor,
 } = m
 
-// The 14 nav destinations that carry a permission, grouped as in the sidebar.
+// The 15 nav destinations that carry a permission, grouped as in the sidebar.
 // This is the INDEPENDENT oracle — if the module and the sidebar drift, this
 // literal is what forces the discussion.
+//
+// Was 14 until 2026-08-02. Phase 10 adds 'floorPlan' for the organizer's venue
+// map screen, and this check did its job: the addition was caught here before
+// anything was committed. Updated deliberately rather than by relaxing the
+// count, because a list that adjusts itself to whatever the module contains
+// stops being an independent check of anything.
+//
+// Adding a key has a consequence worth knowing when the next one is added. Role
+// permissions are resolved from a stored row when one exists, and a key added
+// after that row was written is not in it — so the new screen is invisible to
+// that role, including ORGANIZER, with nothing on screen explaining why. It has
+// to be granted once per environment that has ever saved role permissions.
+// Recorded as finding F-18 in the floor-plan requirements.
 const EXPECTED_KEYS = [
-  'calendar', 'agenda', 'speakers',
+  'calendar', 'agenda', 'speakers', 'floorPlan',
   'meetings', 'timeBlocks',
   'attendees', 'staff', 'sponsors',
   'chat', 'email',
@@ -54,7 +67,7 @@ const EXPECTED_KEYS = [
 const ADMIN_SECTION_KEYS = ['integrations', 'appSettings', 'access', 'export']
 
 console.log('[universe]')
-check('14 permission keys', ALL_PERMISSION_KEYS.length === 14, `got ${ALL_PERMISSION_KEYS.length}`)
+check('15 permission keys', ALL_PERMISSION_KEYS.length === 15, `got ${ALL_PERMISSION_KEYS.length}`)
 check('keys match the expected sidebar universe', eqSet(ALL_PERMISSION_KEYS, EXPECTED_KEYS),
   `got ${JSON.stringify(ALL_PERMISSION_KEYS)}`)
 check('keys are unique', new Set(ALL_PERMISSION_KEYS).size === ALL_PERMISSION_KEYS.length)

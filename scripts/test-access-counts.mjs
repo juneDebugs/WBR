@@ -42,7 +42,7 @@
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join, dirname } from 'node:path'
+import { join, dirname, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -99,9 +99,18 @@ async function openDb() {
     return { client: createClient({ url: tursoUrl, authToken: tursoToken }), isTurso: true }
   }
   if (mode.startsWith('sqlite')) {
-    // DATABASE_URL file paths resolve relative to the Prisma schema directory.
-    const rel = mode.replace(/^sqlite:\s*file:/, '')
-    const file = join(ROOT, 'packages/db/prisma', rel)
+    // A DATABASE_URL file path resolves relative to the Prisma schema directory
+    // — but only when it IS relative. An absolute one is already complete, and
+    // joining a prefix onto it produces a path that cannot exist.
+    //
+    // Fixed 2026-08-02. Before this, an absolute DATABASE_URL produced
+    // `<root>/packages/db/prisma/Users/…/packages/db/prisma/dev.db` and the
+    // check died with "Failed to connect to database" before making a single
+    // comparison. Both forms are valid to configure, so this had never run at
+    // all on a machine using the absolute form — it was not protecting anything
+    // there, while appearing in the list of checks as though it were.
+    const raw = mode.replace(/^sqlite:\s*file:/, '')
+    const file = isAbsolute(raw) ? raw : join(ROOT, 'packages/db/prisma', raw)
     console.log(`Comparing against local SQLite (${file})`)
     return { client: createClient({ url: `file:${file}` }), isTurso: false }
   }

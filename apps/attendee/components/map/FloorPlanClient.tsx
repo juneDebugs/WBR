@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useFloorPlanData } from '@/lib/hooks'
+import { useFloorPlanData, useFloorPlanLiveUpdates } from '@/lib/hooks'
 import type { FloorPlanMap, FloorPlanPin, FloorPlanSponsor } from '@/lib/floor-plan-data'
 
 /**
@@ -352,6 +352,12 @@ function BoothCard({ sponsor, onClose }: { sponsor: FloorPlanSponsor; onClose: (
 
 export function FloorPlanClient() {
   const { data, isLoading, isError, error } = useFloorPlanData()
+
+  // Hold a connection open while this screen is on, so an organizer's change
+  // appears here without the delegate doing anything. Mounted here rather than
+  // in the layout on purpose: a delegate reading the agenda has no need of a
+  // connection about maps. See useFloorPlanLiveUpdates in lib/hooks.ts.
+  useFloorPlanLiveUpdates()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [transform, setTransform] = useState<Transform>(AT_REST)
   const [aspect, setAspect] = useState<number>(FALLBACK_ASPECT)

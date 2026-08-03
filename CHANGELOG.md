@@ -8,7 +8,7 @@ This file records **what changed and when**, with the commit that carries each c
 
 ## Bugs found during the onboarding and floor-plan work
 
-Eight defects were found while building onboarding enforcement across June, July and August 2026. All eight predate that work — each was introduced during the original build of the four-app platform between 2026-04-27 and 2026-05-03, by the original codebase author. None was introduced by the onboarding work.
+Nine defects were found while building onboarding enforcement across June, July and August 2026. All nine predate that work. **Eight** were introduced during the original build of the four-app platform between 2026-04-27 and 2026-05-03, by the original codebase author. **The ninth is different on both counts** and is marked as such below: it was introduced on 2026-07-03, during this project's own later work, and it is a defect in a check rather than in the product. It is listed here because the section is about what was found, not about who wrote it.
 
 Each entry gives the commit that introduced the defect, verified with `git blame` against the code as it stood before the fix.
 
@@ -66,6 +66,13 @@ Introduced in `587d4a3` (2026-05-03, "Optimize sponsor portal performance: 1,536
 Note the ordering: the Sign out control was written on 2026-04-27, six days *before* this storage existed, and was not revisited when it was added.
 Fixed in `8e6df51` (2026-07-31). Signing out empties the in-memory copy and erases the stored one; the sign-in page erases as well, which covers sessions that end by expiry or invalidation rather than by the button.
 
+**A check that never ran, and appeared in the list of checks as though it did.** *(The ninth defect — introduced 2026-07-03 during this project's own work, not in the original build, and in a check rather than in the product.)*
+`pnpm test:access` compares the counts the dashboard displays against the counts in the database. It works out where the database is from `DATABASE_URL`, on the stated assumption that the path is relative to the Prisma schema directory — and joins the schema directory onto the front of it. That is correct for a relative path and wrong for an absolute one, which is equally valid to configure.
+
+Measured 2026-08-02 on a machine configured with an absolute path: the check built `…/packages/db/prisma/Users/…/packages/db/prisma/dev.db`, failed with "Failed to connect to database", and exited before making a single comparison. **It had therefore never run at all in that environment**, while sitting in the list of available checks looking like coverage. Found by running it for the first time during Phase 10, because that work changed the permission model the neighbouring `pnpm test:roles` covers.
+Introduced in `da19600` (2026-07-03, "feat(access): map dashboard tiles to their sections + add Staff management"), `scripts/test-access-counts.mjs`, verified with `git blame` against the line that joins the two paths.
+Fixed 2026-08-02: an absolute path is used as it stands and only a relative one is resolved against the schema directory. The check now runs and passes — 2,528 attendees, 72 speakers and 2 staff, each matching between the dashboard and the database.
+
 ### Not fixed — partially addressed, remainder scheduled
 
 **A representative moved between companies keeps acting as their previous company until they sign in again.**
@@ -98,6 +105,51 @@ This is a consequence of the session design recorded in [`docs/adr/0002-nextauth
 - **Known and accepted for now: a company editing its own profile does not refresh its booth card for up to five minutes.** The card's tagline, website and offerings now sit in the participant map's cache, and no writer in any app invalidates that cache — the tag `floor-plan` appears in none of them. The sponsor portal shows an edit at once while delegates keep the previous values until the cache expires. Nobody sees wrong information, only information up to five minutes old, and it corrects itself. The fix belongs with the organizer's upload and pin-placement tools, where cache invalidation is already required, so that both kinds of writer are handled once. Recorded as finding F-13.
 
 - **The seed prints a note instead of looking like it worked.** A seed run against a database that already holds these companies leaves their card fields alone by design, and used to print "Creating 20 sponsors" while doing so. It now names each company whose values differ from the definitions and gives the two commands that inspect and repair.
+
+### How quickly a change reaches a delegate's phone — what works, what does not, and what has to be decided
+
+This section is written in plain English and concerns one question: when an organizer uploads, reorders or deletes a venue map, how long is it before the people in the building see it. Nothing here is a matter of opinion; every figure below was measured on 2026-08-02.
+
+**The answer before this work: never, or up to five minutes.** A delegate holding the map screen open would not have seen the change at all while they stayed on it. A delegate opening the screen fresh could still have been shown the old map for up to five minutes. Neither produced an error, and nothing appeared in any log.
+
+**Three separate faults caused that, and each one alone was enough.** They are worth listing individually because they were introduced at different times by different pieces of work, and each was invisible.
+
+1. **The setting that tells the admin app where the participant app lives was never set — on any deployment.** Without it the notification is sent to the machine the admin app is running on rather than to the participant app, which in production means nowhere. Measured against every project on the hosting account: absent from all of them. It also appeared in no example configuration file, so nobody deploying the system was ever prompted to supply it. Recorded as finding F-16.
+
+2. **The participant app refused the notification before it was read.** The address the admin app calls sits behind a check that requires a signed-in person. One application calling another is not a signed-in person, so the request was rejected before the code that clears the cache ever ran. Measured: the same request with a signed-in browser's credentials succeeded; without them it was rejected. **This means the equivalent mechanism for speakers has never worked either, in any environment, since it was written.** Recorded as finding F-17.
+
+3. **Nothing reported either failure.** The code that sends the notification only noticed outright network errors. A rejection arrives as an ordinary response, not an error, so it was treated as success. Every call reported success while doing nothing.
+
+**All three are now fixed**, and a change made by an organizer reaches the participant app's server in 4 to 18 milliseconds, measured. The notification is now waited for rather than sent and forgotten — work started after a reply is sent can be discarded by the hosting platform before it runs, which would have reintroduced the same silent failure. A rejection is now written to the log naming the address, the reason and what was not cleared.
+
+**One gap remains, and it is the reason further work is needed.** Clearing the participant app's server-side copy does not reach a copy already sitting in a delegate's phone. The phone keeps its own copy of the map for five minutes and does not ask again during that time. So the server can be entirely correct and a delegate still sees the old map.
+
+**What is being built next: the server tells the phones directly.** Instead of each phone asking periodically, each phone holds an open connection and the server writes down it the moment something changes. A slower background refresh runs behind it as a safety net.
+
+**The danger in that design, stated plainly, because it is not visible from the outside.** When the app is deployed, the hosting platform does not run one copy of it. It starts as many copies as the load requires, spreads people between them, and this is neither controlled nor visible. Each copy remembers only the phones connected to *itself*. When an organizer makes a change, the admin app sends **one** notification, and it arrives at **one** copy. That copy tells its own phones. The other copies were never asked and cannot report not having been asked.
+
+  So with two copies running and two hundred phones, roughly half update immediately and the rest wait for the safety net. **Nothing fails, nothing is logged, and every test passes** — because a developer's machine and a lightly used deployment both run exactly one copy, where the behaviour is always correct. It begins to matter only when enough people are using the app at once, which at a conference is the demonstration itself.
+
+  This is the same shape as faults 1 and 2 above: correct on a laptop, correct under light use, silently incomplete under real use.
+
+**What would remove that limitation, and why it has not been done.** The copies need a shared channel to hear about changes rather than each keeping a private list. The hosting platform's marketplace offers this; it is a Redis service, listed under storage. Checked on 2026-08-02: **no third-party service of any kind is currently connected to this hosting account.** Adding one is therefore not an incremental change but the first of its type, and it carries four commitments beyond the code:
+
+  - an account with an outside provider, created under the account holder's name, with a bill attached;
+  - new credentials in every application that uses it — and this section has just described two faults caused by a setting nobody knew to supply;
+  - a decision about what the system does when that service is unreachable;
+  - somebody owning the account, the credentials and the bill after this work ends.
+
+  **The recommendation is not to add it for the 2026-08-11 demonstration**, on the following grounds. At an audience in the tens the platform runs one copy, so the shared channel changes nothing at all. If the audience is larger, the consequence is not a broken demonstration: with the safety net some phones update instantly and the rest follow shortly after, rather than some updating and others never. And it would be a new outside dependency, requiring the account holder's own credentials to set up, added nine days before the date with the least time available to discover it had been misconfigured.
+
+  **What would reverse that recommendation:** an expected audience in the hundreds, or a demonstration script in which people are watching their phones at the moment a map is edited. Either makes the difference between "all phones" and "most phones" something an audience can see. Both need to be known in advance, not on the day.
+
+**One behaviour is measured but not yet explained, and it is recorded rather than left out.** After a change, the participant app's server either serves the new data within 20 milliseconds or is still serving the old data after 5 seconds. There is no middle case. The following have each been ruled out by experiment: coarse timekeeping in the cache, rejected notifications, mismatched credentials between the two applications, and a fault in the receiving code. The cause is not yet known. The planned safety net would hide it rather than fix it, which is a reason to keep looking rather than a reason to stop.
+
+**Three things need a decision or an action from outside the engineering work:**
+
+  - The setting naming the participant app's address must be added to the deployed admin app. Until it is, none of the above reaches production at all.
+  - The floor-plan screen is controlled by a named permission. Any deployment where role permissions have previously been saved will not include a permission that did not exist when they were saved, so the screen will be missing from the organizer's menu with nothing on screen explaining why. It has to be switched on once, in the deployed environment. Recorded as finding F-18.
+  - The expected number of people using the participant app during the demonstration. This is the single fact that decides whether the shared channel above is worth its cost, and it cannot be established from the code.
 
 ---
 
