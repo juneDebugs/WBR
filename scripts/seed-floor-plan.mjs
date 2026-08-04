@@ -118,7 +118,23 @@ async function main() {
     client = createClient({ url, authToken })
   }
 
-  await client.execute('PRAGMA busy_timeout = 5000')
+  // ── Only for a local file, and this was found by running it for real ────────
+  //
+  // busy_timeout exists because four apps share one local SQLite file, so a write
+  // can arrive while another holds the lock; without it that throws "database is
+  // locked" instead of waiting. A remote database has no such lock to wait on, and
+  // Turso REFUSES the statement outright: "SQL not allowed statement: PRAGMA
+  // busy_timeout = 5000", raised as SQL_PARSE_ERROR.
+  //
+  // It used to be issued unconditionally, which means this script's DEFAULT mode —
+  // the one its own usage line documents as "seed Turso" — failed on its first
+  // statement and had never once worked. Every run had used --local. Found
+  // 2026-08-03 the first time it was pointed at the deployed database.
+  //
+  // It fails before writing, so nothing was ever half-seeded by this.
+  if (target.startsWith('file:')) {
+    await client.execute('PRAGMA busy_timeout = 5000')
+  }
 
   // ── What we are seeding against ────────────────────────────────────────────
 

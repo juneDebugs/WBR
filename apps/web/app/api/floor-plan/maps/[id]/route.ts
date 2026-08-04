@@ -93,7 +93,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await applyOrder(tx, remaining.map(m => m.id))
   })
 
-  await revalidateAttendeeFloorPlan('floor-plan/maps DELETE')
+  // Reported rather than discarded, so the screen can tell the organizer whether
+  // delegates have already seen the deletion. See the note in ../route.ts above POST.
+  const delegatesNotified = await revalidateAttendeeFloorPlan('floor-plan/maps DELETE')
 
-  return NextResponse.json({ deleted: id })
+  return NextResponse.json({ deleted: id, delegatesNotified })
 }

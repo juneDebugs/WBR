@@ -251,9 +251,23 @@ export async function POST(req: NextRequest) {
     select: { id: true, name: true, position: true },
   })
 
-  await revalidateAttendeeFloorPlan('floor-plan/maps POST')
+  // ── The organizer is told what ACTUALLY happened, not what was configured ────
+  //
+  // Added 2026-08-03, before ATTENDEE_APP_URL was set on the deployed organizer
+  // app. The helper already returns whether the participant app accepted the
+  // notification, and this line used to throw that answer away.
+  //
+  // The screen then chose its wording from whether the VARIABLE EXISTS. So with the
+  // variable set and the call timing out — three seconds, the one plausible bad-
+  // network case — the organizer was told "Delegates can see it now" when they
+  // could not. During a demonstration that is a claim made to a room, and it would
+  // be wrong. A silent stale phone is recoverable; telling someone it is not stale
+  // is not.
+  //
+  // The row is saved either way, so this changes no status code and fails nothing.
+  const delegatesNotified = await revalidateAttendeeFloorPlan('floor-plan/maps POST')
 
-  return NextResponse.json({ map }, { status: 201 })
+  return NextResponse.json({ map, delegatesNotified }, { status: 201 })
 }
 
 /**
@@ -324,7 +338,8 @@ export async function PATCH(req: NextRequest) {
     await applyOrder(tx, orderedIds as string[])
   })
 
-  await revalidateAttendeeFloorPlan('floor-plan/maps PATCH')
+  // Reported rather than discarded, for the reason above POST.
+  const delegatesNotified = await revalidateAttendeeFloorPlan('floor-plan/maps PATCH')
 
-  return NextResponse.json({ orderedIds })
+  return NextResponse.json({ orderedIds, delegatesNotified })
 }

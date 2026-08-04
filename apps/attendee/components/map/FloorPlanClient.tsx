@@ -72,7 +72,32 @@ function Marker({
   onOpen: (pin: FloorPlanPin) => void
 }) {
   const isBooth = pin.type === 'BOOTH'
-  const boothNumber = pin.sponsor?.boothNumber ?? null
+  // ── A blank booth number is the same thing as no booth number ────────────────
+  //
+  // Trimmed and emptied to null here, once, so that every reader below agrees
+  // about what "has a booth number" means. Before this, the pill chose its width
+  // by truthiness and its text by nullishness, and the two disagreed for the
+  // empty string: a company stored with '' took the wide-pill branch and then
+  // rendered nothing, which is the blank marker the comment beneath this exists
+  // to have fixed.
+  //
+  // The empty string is not hypothetical. `apps/sponsor/components/ProfileEditor.tsx`
+  // starts the booth-number field at `sponsor.boothNumber ?? ''` and sends it on
+  // every save, and `apps/sponsor/app/api/profile/route.ts` stores a submitted
+  // value as-is. So a company with no booth number is written as '' the first
+  // time its representative saves their profile for any reason at all. Ten of
+  // the twenty seeded exhibiting companies have no booth number, so that is the
+  // majority of the population this fallback was written for.
+  //
+  // The booth card lower in this file was NOT already correct, contrary to what
+  // this comment first claimed. Round 6 of the review found it reading the raw
+  // field, so a whitespace-only booth number is truthy there and the card renders
+  // "Stand" with nothing after it while the marker shows the company name. The
+  // guarantee now lives at one boundary — `apps/attendee/lib/floor-plan-data.ts`
+  // trims and empties to null when it builds this payload — so every reader gets
+  // the same answer. The trim kept here is a second check that costs nothing and
+  // keeps this component correct if it is ever handed unnormalised data.
+  const boothNumber = pin.sponsor?.boothNumber?.trim() || null
 
   return (
     <button
@@ -107,11 +132,31 @@ function Marker({
                  rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       {isBooth ? (
+        // ── A booth with no booth number shows the company's name ──────────────
+        //
+        // This used to render a bullet when boothNumber was null, which put an
+        // unlabelled dot on the map. Found on 2026-08-03 by placing a marker for a
+        // company that has no booth number yet and looking at the delegate's screen:
+        // the marker was a blank circle, and the only way to learn whose booth it
+        // was, was to tap it.
+        //
+        // That case is not unusual — it is what an organiser produces whenever they
+        // place an exhibitor before the booth numbers are assigned, which is the
+        // normal order of events when a venue plan arrives before the floor sales
+        // are final.
+        //
+        // The name is capped and truncated rather than allowed to run. Phase 9's
+        // review measured the booth card overflowing at 390 pixels, and a name here
+        // sits inside a 44-pixel tap target on a phone. Truncating loses nothing a
+        // delegate cannot get by tapping, which opens the card with the full name;
+        // an unbounded pill would cover the map itself. The full name is in the
+        // marker's accessible label either way.
         <span
-          className="flex h-7 min-w-7 items-center justify-center rounded-full bg-primary px-1.5
-                     text-[10px] font-semibold leading-none text-white shadow-md ring-2 ring-white"
+          className={`flex h-7 items-center justify-center rounded-full bg-primary px-1.5
+                     text-[10px] font-semibold leading-none text-white shadow-md ring-2 ring-white
+                     ${boothNumber ? 'min-w-7' : 'max-w-[6.5rem]'}`}
         >
-          {boothNumber ?? '•'}
+          <span className="truncate">{boothNumber ?? pin.label}</span>
         </span>
       ) : (
         <span className="h-3.5 w-3.5 rounded-full bg-ink shadow-md ring-2 ring-white" />
