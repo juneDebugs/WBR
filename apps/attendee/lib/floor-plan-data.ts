@@ -220,7 +220,28 @@ export async function fetchFloorPlanData(): Promise<{ maps: FloorPlanMap[]; coun
                 id: p.sponsor.id,
                 name: p.sponsor.name,
                 logoUrl: p.sponsor.logoUrl,
-                boothNumber: p.sponsor.boothNumber,
+                // ── Blank means absent, decided once, here ──────────────────
+                //
+                // Every reader downstream of this payload asks "does this company
+                // have a booth number?" and they must all get the same answer.
+                // Adversarial review round 6 found them disagreeing: the marker had
+                // been fixed to treat '' and whitespace as absent, and the booth
+                // card had not, so a company stored with '   ' drew its name on the
+                // marker and then a card reading "Stand" with nothing after it.
+                //
+                // Normalising at this boundary rather than in each component is the
+                // point. Fixing one of several readers of the same field is this
+                // project's most repeated error, and there is no reader that wants
+                // the blank form.
+                //
+                // Reachable without touching the database:
+                // apps/sponsor/components/ProfileEditor.tsx starts the field at
+                // `sponsor.boothNumber ?? ''` and sends it on every save, and
+                // apps/sponsor/app/api/profile/route.ts stores what it is sent
+                // untrimmed. Trimming at that write too would stop new blanks being
+                // created, but would not repair rows that already hold one, so this
+                // read boundary is where the guarantee belongs.
+                boothNumber: p.sponsor.boothNumber?.trim() || null,
                 tagline: p.sponsor.tagline,
                 website: p.sponsor.website,
                 solutions: parseSolutions(p.sponsor.solutionsOffering),

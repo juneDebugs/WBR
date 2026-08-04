@@ -43,6 +43,8 @@ MAP_DATA="apps/attendee/lib/floor-plan-data.ts"
 REVALIDATE="apps/attendee/app/api/revalidate/route.ts"
 EVENTS="apps/attendee/lib/floor-plan-events.ts"
 UPLOAD="apps/web/app/api/floor-plan/maps/route.ts"
+# Added 2026-08-03 with control 6, which was previously run by hand.
+SPONSOR_PROFILE="apps/sponsor/app/api/profile/route.ts"
 SUITE="docs/smoketests/playwright/phase-10-admin-map-upload.mjs"
 
 WORK="${TMPDIR:-/tmp}/phase10-controls"
@@ -53,6 +55,7 @@ cp "$MAP_DATA"    "$WORK/map-data.orig"
 cp "$REVALIDATE"  "$WORK/revalidate.orig"
 cp "$EVENTS"      "$WORK/events.orig"
 cp "$UPLOAD"      "$WORK/upload.orig"
+cp "$SPONSOR_PROFILE" "$WORK/sponsor-profile.orig"
 
 restore() {
   cp "$WORK/image-route.orig" "$IMAGE_ROUTE"
@@ -60,8 +63,49 @@ restore() {
   cp "$WORK/revalidate.orig"  "$REVALIDATE"
   cp "$WORK/events.orig"      "$EVENTS"
   cp "$WORK/upload.orig"      "$UPLOAD"
+  cp "$WORK/sponsor-profile.orig" "$SPONSOR_PROFILE"
 }
-trap 'echo; echo "Restoring the working tree."; restore; rebuild_both >/dev/null 2>&1; echo "Done."' EXIT
+# The sponsor app is rebuilt on exit as well as the other two. Control 6 edits it,
+# and restoring the SOURCE is not enough — the app keeps serving the broken build
+# until it is rebuilt, which is the fault that gave this script four false
+# verdicts when it rebuilt only the app it had edited.
+#
+# ── The restore reports its own verdict, and fails closed ─────────────────────
+#
+# Raised by adversarial review round 5 of Phase 11, and fixed in both scripts at
+# once because both carried it. This used to be
+#   restore; rebuild_both >/dev/null 2>&1; build_and_start sponsor 3003 >/dev/null 2>&1; echo "Done."
+# which discarded the output and the exit code of all three rebuilds and then printed
+# "Done." regardless. So the run could exit successfully with any of the three apps
+# left down, or left serving a build made from deliberately broken source — and
+# control 6 in particular depends on this trap to replace the sponsor build after the
+# last control. Later suites would then inherit a broken app with nothing said.
+#
+# `build_and_start` already gates on the build succeeding, the app answering on its
+# port, and the listening process being the one this run started. Each app is now
+# named in the failure message so it is clear which one to rebuild by hand.
+cleanup_on_exit() {
+  local rc=$?
+  local broken=""
+  echo
+  echo "Restoring the working tree."
+  restore
+  build_and_start attendee 3001 || broken="$broken attendee:3001"
+  build_and_start web 3000      || broken="$broken web:3000"
+  build_and_start sponsor 3003  || broken="$broken sponsor:3003"
+  if [ -z "$broken" ]; then
+    echo "Done — source restored, and all three apps rebuilt from it and answering."
+  else
+    echo
+    echo "  RESTORE INCOMPLETE. Source was put back, but these apps could not be"
+    echo "  rebuilt and verified on their ports:$broken"
+    echo "  Any measurement against them is untrustworthy, and a later suite will"
+    echo "  inherit the broken build. Rebuild each by hand before running anything."
+    [ "$rc" -eq 0 ] && rc=1
+  fi
+  exit "$rc"
+}
+trap cleanup_on_exit EXIT
 
 # Edits are made with node and the replacement is passed as an argument, so a $
 # or & inside it is data rather than a substitution. Phase 6.5 lost a cycle to
@@ -158,7 +202,13 @@ rebuild_both() {
 # Starts whichever app is not answering, without rebuilding one that is.
 ensure_both_up() {
   local port app http
-  for pair in "attendee 3001" "web 3000"; do
+  # "sponsor 3003" added 2026-08-03: the Phase 10 suite asserts that a
+  # representative editing their own company in that portal reaches the viewer, and
+  # those two assertions are reported as FAILURES when the portal is absent. Absent
+  # in both the baseline and the after-run, they cancel — and a control that depends
+  # on them would report "nothing started failing". Only started if not answering,
+  # so this costs nothing on the five controls that do not touch it.
+  for pair in "attendee 3001" "web 3000" "sponsor 3003"; do
     app="${pair%% *}"; port="${pair##* }"
     http="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 "http://localhost:$port/login" 2>/dev/null)"
     if [ "$http" != "200" ]; then
@@ -248,6 +298,33 @@ run_control() {
   # baselines carried three failures that had nothing to do with them.
   restore
   if ! rebuild_both; then FAILED=$((FAILED + 1)); return; fi
+  # ── The baseline must be measured against the SAME set of apps as the after-run ──
+  #
+  # Raised by adversarial review round 6 of Phase 11 as a high finding, and it is
+  # specifically about control 6.
+  #
+  # `rebuild_both` covers the participant and admin apps only. `ensure_both_up`, which
+  # also knows about the sponsor portal on 3003, used to be called only AFTER the break
+  # was applied. So for the control that edits the sponsor app, the baseline was taken
+  # with the portal possibly down or still serving a build from an earlier control,
+  # while the after-run took its measurement with the portal freshly rebuilt.
+  #
+  # The suite reports the portal's two assertions as FAILURES when it is absent. So the
+  # baseline carried two failures the after-run did not, which SUBTRACTS two from the
+  # delta — and the delta is the whole verdict. A control predicting one extra failure
+  # could therefore report the wrong number, or mask the regression entirely, for a
+  # reason having nothing to do with the safeguard it removes.
+  #
+  # A control targeting the sponsor app rebuilds it from restored source before the
+  # baseline; every control then confirms all three apps answer before measuring.
+  if [ "$app" = "sponsor" ] && ! build_and_start sponsor 3003; then
+    echo "  GATE 3 FAILED: the sponsor portal could not be rebuilt for the baseline."
+    FAILED=$((FAILED + 1)); return
+  fi
+  if ! ensure_both_up; then
+    echo "  GATE 3 FAILED: the apps could not all be brought up for the baseline."
+    FAILED=$((FAILED + 1)); return
+  fi
   echo "  measuring the baseline with the tree intact…"
   suite_failures > "$WORK/baseline.txt"
   echo "  baseline: $(grep -c . "$WORK/baseline.txt") failing assertion(s)"
@@ -336,6 +413,26 @@ run_control "nothing is pushed to the open connections" 2 \
   "$EVENTS" attendee 3001 \
   'for (const listener of set) {' \
   'for (const listener of []) {'
+
+# ── 6 ────────────────────────────────────────────────────────────────────────
+# Added 2026-08-03. This control was run BY HAND on 2026-08-03 and never written
+# down: it predicted one failure and produced exactly
+# `an edit in the SPONSOR PORTAL reaches the viewer with nothing clearing the cache`
+# at `91 passed, 1 failed`. A control that exists only as a note in a handoff is a
+# control the next person does not run.
+#
+# What it breaks: finding F-13's second class of writer. Phase 9 moved a company's
+# tagline, website, logo, booth number and offerings into the cached map payload so
+# a booth card needs no second request — which quietly made the participant map a
+# reader of sponsor profile data. So a representative editing their own company in
+# the sponsor portal has to clear the participant app's floor-plan cache, exactly
+# as an organizer changing a map does. The admin-side half of that writer is
+# already covered by the suite; this is the portal's own half, which was uncovered
+# until 2026-08-03.
+run_control "an edit in the sponsor portal does not clear the cache" 1 \
+  "$SPONSOR_PROFILE" sponsor 3003 \
+  "  await revalidateAttendeeFloorPlan('sponsor profile PATCH')" \
+  "  // negative control 6: the invalidation is removed"
 
 echo
 echo "════════════════════════════════════════════════════════════"

@@ -36,7 +36,42 @@ export default async function FloorPlanPage() {
           position: true,
           imageUrl: true,
           _count: { select: { pins: true } },
+          // Phase 11. The markers travel with the map so the authoring screen can
+          // draw them without a second request. A booth marker's company name and
+          // booth number are resolved through the link rather than copied onto the
+          // marker, for the reason recorded in the schema: the seed file and the
+          // database have already drifted apart on booth numbers while ids have
+          // not.
+          pins: {
+            select: {
+              id: true,
+              type: true,
+              x: true,
+              y: true,
+              label: true,
+              sponsorId: true,
+              sponsor: { select: { id: true, name: true, boothNumber: true } },
+            },
+          },
         },
+      })
+    : []
+
+  // The companies an organizer can put on a booth marker. Phase 11, user story
+  // FP 26: the list surfaces each company's booth number, which needs no new
+  // sponsor-side data entry because the field already exists.
+  //
+  // Scoped to the active conference, matching the marker addresses. A company from
+  // another conference on this conference's map would carry its name, logo,
+  // tagline, website and offerings onto the participant map through the link.
+  //
+  // Three fields only. GET /api/data/sponsors returning every column to any
+  // session is a known open item in this project and not something to copy.
+  const sponsors = conference
+    ? await prisma.sponsor.findMany({
+        where: { conferenceId: conference.id },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, boothNumber: true },
       })
     : []
 
@@ -65,13 +100,36 @@ export default async function FloorPlanPage() {
             name: m.name,
             position: m.position,
             markerCount: m._count.pins,
-            // A seeded map holds a path; an uploaded one holds the picture
-            // itself, base64-encoded. Sending the second to the browser would
-            // put several megabytes into this page for a thumbnail, so an
-            // uploaded map is shown through the participant app's own address
-            // for it — the same substitution the participant map list makes.
-            // Finding F-14.
-            previewUrl: m.imageUrl.startsWith('data:') ? null : m.imageUrl,
+            // ── Corrected 2026-08-03, finding F-19 ─────────────────────────────
+            //
+            // This was `previewUrl: m.imageUrl.startsWith('data:') ? null :
+            // m.imageUrl`. Neither branch could display anything. An uploaded map
+            // got null, deliberately, because its stored value is the picture
+            // itself and putting that in a page is what F-14 prevents. A seeded map
+            // got a path such as /maps/exhibit-hall.png, and those files are
+            // committed under apps/attendee/public — which only the participant app
+            // serves, so this app answered 404. The value was also never rendered.
+            //
+            // Both kinds now come through this app's own guarded address, which
+            // decodes an uploaded picture and reads a seeded one from
+            // apps/web/assets/maps. One string, no branch, and the picture is
+            // behind the same permission check as the markers drawn on it.
+            pictureUrl: `/api/floor-plan/maps/${m.id}/image`,
+            pins: m.pins.map(p => ({
+              id: p.id,
+              type: p.type === 'ROOM' ? ('ROOM' as const) : ('BOOTH' as const),
+              x: p.x,
+              y: p.y,
+              label: p.label,
+              sponsorId: p.sponsorId,
+              sponsorName: p.sponsor?.name ?? null,
+              sponsorBoothNumber: p.sponsor?.boothNumber ?? null,
+            })),
+          }))}
+          sponsors={sponsors.map(s => ({
+            id: s.id,
+            name: s.name,
+            boothNumber: s.boothNumber,
           }))}
           conferenceName={conference?.name ?? null}
           crossAppLinkConfigured={crossAppLinkConfigured}

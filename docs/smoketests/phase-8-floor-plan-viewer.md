@@ -1,6 +1,6 @@
 # Phase 8 — floor-plan data and the participant map viewer
 
-Shape rule: [`docs/smoketests/CONTRACT.md`](CONTRACT.md). Acceptance criteria: `.claude/plans/wbr-onboarding-and-floor-plan-2026-07-30.md` § Phase 8. Requirements: `.claude/docs/prds/wbr_floor_plan_onboarding_prd_2026_07_21.md`, user stories 17 to 20 and 22, and its finding F-8. Design of record: [`docs/adr/0007-floor-plan-human-authored-pins-over-raster.md`](../adr/0007-floor-plan-human-authored-pins-over-raster.md).
+Shape rule: [`docs/smoketests/CONTRACT.md`](CONTRACT.md). Acceptance criteria: `.claude/plans/wbr-onboarding-and-floor-plan-2026-07-30.md` § Phase 8. Requirements: `.claude/docs/prds/wbr_floor_plan_and_linkedin_prd_2026_07_21.md`, user stories 17 to 20 and 22, and its finding F-8. Design of record: [`docs/adr/0007-floor-plan-human-authored-pins-over-raster.md`](../adr/0007-floor-plan-human-authored-pins-over-raster.md).
 
 **Every step here is a contract check.** This phase makes no performance claim, so there is no perf-bar step and no tier to declare for one. The run environment is still recorded below, because a contract check against an app that is not running is worth nothing.
 

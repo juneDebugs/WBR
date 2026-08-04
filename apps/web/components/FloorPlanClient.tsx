@@ -2,9 +2,13 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { MAX_LABEL_LENGTH } from '@/lib/pin-input'
 
 /**
- * The organizer's venue-map screen. Phase 10.
+ * The organizer's venue-map screen. Phases 10 and 11.
+ *
+ * Phase 10 built the upload, the switch order and the delete. Phase 11 adds marker
+ * placement on top, which is what Phase 10's screen was shaped expecting.
  *
  * ── Where the rules live ─────────────────────────────────────────────────────
  *
@@ -17,7 +21,7 @@ import { useRouter } from 'next/navigation'
  *
  * A venue's own floor plan is commonly several megabytes. Stored at that size it
  * would sit in the database as base64, a third larger again. The agreed limits,
- * settled by the project owner on 2026-08-02: accept up to 10 MB, store at up to
+ * settled 2026-08-02: accept up to 10 MB, store at up to
  * 2400 pixels on the longest side, re-encoded as JPEG at quality 0.8.
  *
  * This follows the shape of the existing upload in SpeakersClient.tsx — reject a
@@ -25,26 +29,84 @@ import { useRouter } from 'next/navigation'
  * NOT its numbers. That one scales to 400 pixels at quality 0.65, which suits a
  * speaker's headshot and would make a floor plan unreadable. Finding F-9 already
  * records that a 1600-pixel map shown at 366 CSS pixels cannot be read.
+ *
+ * ── How a marker is placed and moved, and why it is not a drag ───────────────
+ *
+ * Decided 2026-08-03, recorded in the requirements document and the plan. Clicking empty space on the picture starts a new marker there.
+ * Clicking an existing marker selects it, and the next click on the picture moves
+ * the selected marker to that spot.
+ *
+ * A press-move-release gesture was rejected. The same surface has to accept a
+ * plain click to create a marker, so a drag would have to be told apart from a
+ * click by timing and distance — the least reliable kind of interaction for this
+ * repository's browser scripts to drive. A script that intermittently creates a
+ * marker instead of moving one measures nothing either way.
+ *
+ * ── No coordinates are shown to the organizer ────────────────────────────────
+ *
+ * A stated product principle: the organizer taps a spot and never sees a number.
+ * The percentages appear in data attributes for the browser scripts and nowhere a
+ * person can read them.
  */
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 const MAX_LONG_EDGE = 2400
 const JPEG_QUALITY = 0.8
 
+type AdminPin = {
+  id: string
+  type: 'BOOTH' | 'ROOM'
+  x: number
+  y: number
+  label: string | null
+  sponsorId: string | null
+  sponsorName: string | null
+  sponsorBoothNumber: string | null
+}
+
 type MapRow = {
   id: string
   name: string
   position: number
   markerCount: number
-  previewUrl: string | null
+  /**
+   * This app's own address for the map's picture. Finding F-19: before Phase 11
+   * there was no such address, and neither an uploaded nor a seeded map could be
+   * displayed here at all.
+   */
+  pictureUrl: string
+  pins: AdminPin[]
+}
+
+type SponsorOption = {
+  id: string
+  name: string
+  boothNumber: string | null
+}
+
+/** A marker being placed, before anything has been written. */
+type Draft = {
+  mapId: string
+  x: number
+  y: number
+  type: 'BOOTH' | 'ROOM'
+  sponsorId: string
+  label: string
+}
+
+/** What a marker shows on this screen. Mirrors the participant app's rule. */
+function markerName(pin: AdminPin): string {
+  return pin.sponsorName ?? pin.label ?? ''
 }
 
 export default function FloorPlanClient({
   maps,
+  sponsors,
   conferenceName,
   crossAppLinkConfigured,
 }: {
   maps: MapRow[]
+  sponsors: SponsorOption[]
   conferenceName: string | null
   crossAppLinkConfigured: boolean
 }) {
@@ -70,6 +132,69 @@ export default function FloorPlanClient({
    */
   const [removedIds, setRemovedIds] = useState<string[]>([])
   const visibleMaps = maps.filter(m => !removedIds.includes(m.id))
+
+  /**
+   * Markers as this browser knows them, for the same reason as removedIds above.
+   *
+   * A marker placed on the picture has to appear under the organizer's cursor
+   * immediately; waiting for router.refresh() to come back looks exactly like the
+   * click having missed.
+   *
+   * ── Each override remembers which server data it was built on ───────────────
+   *
+   * Raised by adversarial review round 1, as the most serious finding of the round.
+   * This was `Record<string, AdminPin[]>` read as `pinEdits[map.id] ?? map.pins`,
+   * so the first local write to a map shadowed the server's version of that map
+   * FOREVER. Everything the server said afterwards was ignored: a second organizer
+   * adding or deleting a marker never appeared, the marker count and the delete
+   * warning could both undercount what actually existed, and trying to move a
+   * marker somebody else had deleted showed an error while leaving the marker on
+   * screen.
+   *
+   * `basedOn` holds the exact props array the override was computed from. The page
+   * builds a fresh array on every server render, so the moment router.refresh()
+   * delivers new data the identity differs, the override is ignored, and the server
+   * wins. Until then the override applies, which is the whole point of having one.
+   *
+   * Nothing has to be cleaned up or expired: the reconciliation is the comparison.
+   */
+  const [pinEdits, setPinEdits] = useState<Record<string, { basedOn: AdminPin[]; pins: AdminPin[] }>>({})
+  const pinsFor = (map: MapRow): AdminPin[] => {
+    const override = pinEdits[map.id]
+    return override && override.basedOn === map.pins ? override.pins : map.pins
+  }
+  const setPinsFor = (map: MapRow, next: AdminPin[]) =>
+    setPinEdits(current => ({ ...current, [map.id]: { basedOn: map.pins, pins: next } }))
+
+  const [editingMapId, setEditingMapId] = useState<string | null>(null)
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [pinError, setPinError] = useState('')
+
+  /**
+   * What the organizer is told after a save, built from what ACTUALLY happened.
+   *
+   * ── Why this is not decided by whether ATTENDEE_APP_URL is set ─────────────
+   *
+   * It used to be. The screen read a flag meaning "the address is configured" and
+   * said "Delegates can see it now" whenever it was true — regardless of whether
+   * the notification had reached the participant app. With the address set and the
+   * call timing out after three seconds, which is the one plausible bad-network
+   * case, the organizer was told delegates could see a change that had not reached
+   * them. On a stage that is a claim made to a room.
+   *
+   * Every write path now answers `delegatesNotified`, and this uses it.
+   *
+   * Neither wording mentions configuration or an error, because neither is the
+   * organizer's problem: the save succeeded in both cases, and the only difference
+   * is whether phones already have it. "Within a few minutes" is the honest
+   * description of the 300-second cache the participant map read sits behind.
+   */
+  function reachNotice(what: string, delegatesNotified: boolean) {
+    return delegatesNotified
+      ? `${what} Delegates can see the change now.`
+      : `${what} Delegates will see the change within a few minutes.`
+  }
 
   /**
    * Read the picture, scale it so its longest side is at most MAX_LONG_EDGE, and
@@ -145,18 +270,14 @@ export default function FloorPlanClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), imageDataUrl }),
       })
+      const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
         setError(body.error ?? 'The map could not be saved.')
         return
       }
       setName('')
       if (fileRef.current) fileRef.current.value = ''
-      setNotice(
-        crossAppLinkConfigured
-          ? 'Map uploaded. Delegates can see it now.'
-          : 'Map uploaded and saved. Delegates may not see it for up to five minutes, because the link to the attendee app is not configured on this deployment.',
-      )
+      setNotice(reachNotice('Map uploaded.', Boolean(body.delegatesNotified)))
       router.refresh()
     } catch {
       setError('That picture could not be read. Upload a JPG or PNG of the floor plan.')
@@ -188,16 +309,12 @@ export default function FloorPlanClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedIds }),
       })
+      const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
         setError(body.error ?? 'The order could not be saved.')
         return
       }
-      setNotice(
-        crossAppLinkConfigured
-          ? 'Order saved. Delegates can see it now.'
-          : 'Order saved. Delegates may not see it for up to five minutes, because the link to the attendee app is not configured on this deployment.',
-      )
+      setNotice(reachNotice('Order saved.', Boolean(body.delegatesNotified)))
       router.refresh()
     } finally {
       setBusy(false)
@@ -210,17 +327,239 @@ export default function FloorPlanClient({
     setBusy(true)
     try {
       const res = await fetch(`/api/floor-plan/maps/${map.id}`, { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
         setError(body.error ?? 'The map could not be deleted.')
         return
       }
       setRemovedIds(ids => [...ids, map.id])
-      setNotice(
-        crossAppLinkConfigured
-          ? `"${map.name}" deleted. Delegates can see the change now.`
-          : `"${map.name}" deleted. Delegates may not see the change for up to five minutes, because the link to the attendee app is not configured on this deployment.`,
+      if (editingMapId === map.id) closeEditor()
+      setNotice(reachNotice(`"${map.name}" deleted.`, Boolean(body.delegatesNotified)))
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── Marker placement, Phase 11 ─────────────────────────────────────────────
+
+  function closeEditor() {
+    setEditingMapId(null)
+    setSelectedPinId(null)
+    setDraft(null)
+    setPinError('')
+  }
+
+  function openEditor(map: MapRow) {
+    setError('')
+    setNotice('')
+    setPinError('')
+    setSelectedPinId(null)
+    setDraft(null)
+    setEditingMapId(current => (current === map.id ? null : map.id))
+  }
+
+  /** Where on the picture the click landed, as a percentage of its size. */
+  function positionFromClick(e: React.MouseEvent<HTMLElement>): { x: number; y: number } {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
+    // Clamped rather than refused. A click one pixel outside the picture is a
+    // person aiming at its edge, and the handler refuses anything beyond 0 to 100
+    // anyway.
+    return {
+      x: Math.min(100, Math.max(0, x)),
+      y: Math.min(100, Math.max(0, y)),
+    }
+  }
+
+  async function onCanvasClick(map: MapRow, e: React.MouseEvent<HTMLElement>) {
+    if (busy) return
+    const at = positionFromClick(e)
+
+    // A marker is selected, so this click moves it. The decision of 2026-08-03:
+    // select, then tap the destination.
+    if (selectedPinId) {
+      await movePin(map, selectedPinId, at)
+      return
+    }
+
+    setPinError('')
+    setDraft({ mapId: map.id, x: at.x, y: at.y, type: 'BOOTH', sponsorId: '', label: '' })
+  }
+
+  async function movePin(map: MapRow, pinId: string, at: { x: number; y: number }) {
+    setPinError('')
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/floor-plan/maps/${map.id}/pins/${pinId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: at.x, y: at.y }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPinError(body.error ?? 'The marker could not be moved.')
+        // A 404 means the marker is gone — deleted by somebody else, or its map was.
+        // Showing the message and leaving it drawn is what round 1 objected to: the
+        // organizer keeps looking at, and clicking, something that does not exist.
+        // Reloading is what makes the screen tell the truth again.
+        if (res.status === 404) {
+          setSelectedPinId(null)
+          router.refresh()
+        }
+        return
+      }
+      if (!body?.pin) {
+        // A success with no marker in it should not be read as one. Reading
+        // body.pin.x here would throw inside the click handler and leave the screen
+        // stuck with the busy flag set.
+        setPinError('The marker moved, but the app could not read the result. Reload to see where it is.')
+        router.refresh()
+        return
+      }
+      setPinsFor(map, pinsFor(map).map(p => (p.id === pinId ? { ...p, x: body.pin.x, y: body.pin.y } : p)))
+      setSelectedPinId(null)
+      setNoticeForPins(map, 'Marker moved.', Boolean(body.delegatesNotified))
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function setNoticeForPins(_map: MapRow, message: string, delegatesNotified: boolean) {
+    setNotice(reachNotice(message, delegatesNotified))
+  }
+
+  async function saveDraft(map: MapRow) {
+    if (!draft) return
+    setPinError('')
+
+    // The same rule the handler applies. Checked here so the organizer gets a
+    // message before a request goes out, and there so a request that did not come
+    // from this screen is refused too.
+    if (draft.type === 'ROOM' && !draft.label.trim()) {
+      setPinError('Type the room’s name.')
+      return
+    }
+    if (draft.type === 'BOOTH' && !draft.sponsorId && !draft.label.trim()) {
+      setPinError('Choose the company at this booth, or type a name for the marker.')
+      return
+    }
+
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/floor-plan/maps/${map.id}/pins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: draft.type,
+          x: draft.x,
+          y: draft.y,
+          sponsorId: draft.type === 'BOOTH' ? draft.sponsorId || null : null,
+          label: draft.label.trim() || null,
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPinError(body.error ?? 'The marker could not be saved.')
+        // The map was removed while the marker was being saved. Nothing to draw and
+        // nothing to keep the form open for.
+        if (res.status === 404) {
+          setDraft(null)
+          router.refresh()
+        }
+        return
+      }
+      if (!body?.pin) {
+        setPinError('The marker was saved, but the app could not read it back. Reload to see it.')
+        setDraft(null)
+        router.refresh()
+        return
+      }
+      const saved: AdminPin = {
+        id: body.pin.id,
+        type: body.pin.type === 'ROOM' ? 'ROOM' : 'BOOTH',
+        x: body.pin.x,
+        y: body.pin.y,
+        label: body.pin.label ?? null,
+        sponsorId: body.pin.sponsorId ?? null,
+        sponsorName: body.pin.sponsor?.name ?? null,
+        sponsorBoothNumber: body.pin.sponsor?.boothNumber ?? null,
+      }
+      setPinsFor(map, [...pinsFor(map), saved])
+      setDraft(null)
+      setNoticeForPins(map, draft.type === 'ROOM' ? 'Room marker placed.' : 'Booth marker placed.', Boolean(body.delegatesNotified))
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function editPin(map: MapRow, pin: AdminPin, changes: { sponsorId?: string | null; label?: string | null }) {
+    setPinError('')
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/floor-plan/maps/${map.id}/pins/${pin.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPinError(body.error ?? 'The marker could not be changed.')
+        if (res.status === 404) {
+          setSelectedPinId(null)
+          router.refresh()
+        }
+        return
+      }
+      if (!body?.pin) {
+        setPinError('The change was saved, but the app could not read it back. Reload to see it.')
+        setSelectedPinId(null)
+        router.refresh()
+        return
+      }
+      setPinsFor(
+        map,
+        pinsFor(map).map(p =>
+          p.id === pin.id
+            ? {
+                ...p,
+                label: body.pin.label ?? null,
+                sponsorId: body.pin.sponsorId ?? null,
+                sponsorName: body.pin.sponsor?.name ?? null,
+                sponsorBoothNumber: body.pin.sponsor?.boothNumber ?? null,
+              }
+            : p,
+        ),
       )
+      setNoticeForPins(map, 'Marker updated.', Boolean(body.delegatesNotified))
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deletePin(map: MapRow, pin: AdminPin) {
+    setPinError('')
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/floor-plan/maps/${map.id}/pins/${pin.id}`, { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPinError(body.error ?? 'The marker could not be deleted.')
+        // Already gone. The organizer asked for it to not exist and it does not, so
+        // the screen should agree rather than keep showing it beside an error.
+        if (res.status === 404) {
+          setSelectedPinId(null)
+          router.refresh()
+        }
+        return
+      }
+      setPinsFor(map, pinsFor(map).filter(p => p.id !== pin.id))
+      setSelectedPinId(null)
+      setNoticeForPins(map, 'Marker deleted.', Boolean(body.delegatesNotified))
       router.refresh()
     } finally {
       setBusy(false)
@@ -301,42 +640,103 @@ export default function FloorPlanClient({
           </p>
         ) : (
           <ol className="mt-3 divide-y divide-gray-100" data-testid="map-list">
-            {visibleMaps.map((m, i) => (
-              <li key={m.id} data-testid="map-row" data-map-id={m.id} className="flex items-center gap-3 py-3">
-                <span className="w-6 text-sm tabular-nums text-gray-400">{m.position}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-gray-900" data-testid="map-row-name">{m.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {m.markerCount === 0
-                      ? 'No markers yet'
-                      : `${m.markerCount} marker${m.markerCount === 1 ? '' : 's'}`}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  data-testid="move-up"
-                  onClick={() => move(i, -1)}
-                  disabled={busy || i === 0}
-                  className="rounded border border-gray-200 px-2 py-1 text-xs disabled:opacity-40"
-                  aria-label={`Move ${m.name} earlier`}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  data-testid="move-down"
-                  onClick={() => move(i, 1)}
-                  disabled={busy || i === visibleMaps.length - 1}
-                  className="rounded border border-gray-200 px-2 py-1 text-xs disabled:opacity-40"
-                  aria-label={`Move ${m.name} later`}
-                >
-                  ↓
-                </button>
-                {/* No window.confirm: a browser dialog blocks the page and this
-                    project's automation cannot dismiss one. Two clicks instead. */}
-                <DeleteButton map={m} busy={busy} onConfirm={() => remove(m)} />
-              </li>
-            ))}
+            {visibleMaps.map((m, i) => {
+              const pins = pinsFor(m)
+              const count = pins.length
+              return (
+                <li key={m.id} data-testid="map-row" data-map-id={m.id} className="py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 text-sm tabular-nums text-gray-400">{m.position}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900" data-testid="map-row-name">{m.name}</p>
+                      <p className="text-xs text-gray-500" data-testid="map-row-markers">
+                        {count === 0 ? 'No markers yet' : `${count} marker${count === 1 ? '' : 's'}`}
+                      </p>
+                    </div>
+                    {/* ── Why this button says "Show map" and not "Markers" ──────────
+                        The picture of the venue is not on this screen; it is inside
+                        the panel this button opens. So the button's job is to reveal
+                        the map, and its old label named the thing an organizer would
+                        do NEXT rather than what pressing it does.
+
+                        Renamed 2026-08-04. The old label named a task rather than
+                        an action, and there is no picture anywhere else on this
+                        screen, so a reader who does not recognise the label never
+                        reaches a map at all.
+
+                        The closed and open words are a matched pair, "Show map" and
+                        "Hide map", set on the same date. It read "Done" while open,
+                        which describes finishing rather than what the press does and
+                        left the two halves of one button speaking differently. Both
+                        words now name the same action in opposite directions.
+
+                        The accessible name is kept in step with the visible text on
+                        purpose. Someone driving the screen by voice says the words
+                        they can see, so an accessible name that said "Place markers"
+                        while the button read "Show map" would not respond to either. */}
+                    <button
+                      type="button"
+                      data-testid="edit-markers"
+                      onClick={() => openEditor(m)}
+                      disabled={busy}
+                      className="rounded border border-gray-200 px-2 py-1 text-xs disabled:opacity-40"
+                      aria-label={editingMapId === m.id ? `Hide map for ${m.name}` : `Show map for ${m.name}`}
+                    >
+                      {editingMapId === m.id ? 'Hide map' : 'Show map'}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="move-up"
+                      onClick={() => move(i, -1)}
+                      disabled={busy || i === 0}
+                      className="rounded border border-gray-200 px-2 py-1 text-xs disabled:opacity-40"
+                      aria-label={`Move ${m.name} earlier`}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="move-down"
+                      onClick={() => move(i, 1)}
+                      disabled={busy || i === visibleMaps.length - 1}
+                      className="rounded border border-gray-200 px-2 py-1 text-xs disabled:opacity-40"
+                      aria-label={`Move ${m.name} later`}
+                    >
+                      ↓
+                    </button>
+                    {/* No window.confirm: a browser dialog blocks the page and this
+                        project's automation cannot dismiss one. Two clicks instead. */}
+                    <DeleteButton map={m} markerCount={count} busy={busy} onConfirm={() => remove(m)} />
+                  </div>
+
+                  {editingMapId === m.id && (
+                    <MarkerEditor
+                      map={m}
+                      pins={pins}
+                      sponsors={sponsors}
+                      busy={busy}
+                      selectedPinId={selectedPinId}
+                      draft={draft && draft.mapId === m.id ? draft : null}
+                      pinError={pinError}
+                      onCanvasClick={e => onCanvasClick(m, e)}
+                      onSelectPin={id => {
+                        setPinError('')
+                        setDraft(null)
+                        setSelectedPinId(current => (current === id ? null : id))
+                      }}
+                      onDraftChange={next => setDraft(next)}
+                      onDraftCancel={() => {
+                        setDraft(null)
+                        setPinError('')
+                      }}
+                      onDraftSave={() => saveDraft(m)}
+                      onEditPin={(pin, changes) => editPin(m, pin, changes)}
+                      onDeletePin={pin => deletePin(m, pin)}
+                    />
+                  )}
+                </li>
+              )
+            })}
           </ol>
         )}
       </section>
@@ -344,7 +744,17 @@ export default function FloorPlanClient({
   )
 }
 
-function DeleteButton({ map, busy, onConfirm }: { map: MapRow; busy: boolean; onConfirm: () => void }) {
+function DeleteButton({
+  map,
+  markerCount,
+  busy,
+  onConfirm,
+}: {
+  map: MapRow
+  markerCount: number
+  busy: boolean
+  onConfirm: () => void
+}) {
   const [armed, setArmed] = useState(false)
   if (!armed) {
     return (
@@ -363,7 +773,7 @@ function DeleteButton({ map, busy, onConfirm }: { map: MapRow; busy: boolean; on
   return (
     <span className="flex items-center gap-1">
       <span className="text-xs text-gray-500">
-        {map.markerCount > 0 ? `Delete with ${map.markerCount} marker${map.markerCount === 1 ? '' : 's'}?` : 'Delete?'}
+        {markerCount > 0 ? `Delete with ${markerCount} marker${markerCount === 1 ? '' : 's'}?` : 'Delete?'}
       </span>
       <button
         type="button"
@@ -383,5 +793,333 @@ function DeleteButton({ map, busy, onConfirm }: { map: MapRow; busy: boolean; on
         No
       </button>
     </span>
+  )
+}
+
+/**
+ * The picture with its markers, and the form for whichever marker is in hand.
+ *
+ * Phase 11. The picture comes from this app's own guarded address — finding F-19
+ * records that before that address existed nothing could be shown here.
+ */
+function MarkerEditor({
+  map,
+  pins,
+  sponsors,
+  busy,
+  selectedPinId,
+  draft,
+  pinError,
+  onCanvasClick,
+  onSelectPin,
+  onDraftChange,
+  onDraftCancel,
+  onDraftSave,
+  onEditPin,
+  onDeletePin,
+}: {
+  map: MapRow
+  pins: AdminPin[]
+  sponsors: SponsorOption[]
+  busy: boolean
+  selectedPinId: string | null
+  draft: Draft | null
+  pinError: string
+  onCanvasClick: (e: React.MouseEvent<HTMLElement>) => void
+  onSelectPin: (id: string) => void
+  onDraftChange: (next: Draft) => void
+  onDraftCancel: () => void
+  onDraftSave: () => void
+  onEditPin: (pin: AdminPin, changes: { sponsorId?: string | null; label?: string | null }) => void
+  onDeletePin: (pin: AdminPin) => void
+}) {
+  const selected = pins.find(p => p.id === selectedPinId) ?? null
+
+  return (
+    <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3" data-testid="marker-editor" data-map-id={map.id}>
+      <p className="text-xs text-gray-600" data-testid="marker-instructions">
+        {selected
+          ? 'Click the map to move this marker, or change it below.'
+          : draft
+            ? 'Fill in the marker below, then save it.'
+            : 'Click the map to place a marker. Click a marker to select it.'}
+      </p>
+
+      <div
+        data-testid="marker-canvas"
+        onClick={onCanvasClick}
+        className="relative mt-2 w-full cursor-crosshair overflow-hidden rounded border border-gray-300 bg-white"
+      >
+        {/* A plain img tag, not next/image. The address is dynamic, behind a
+            permission check, and answers a private cache instruction; the
+            optimizer adds a second fetch path and a second cache for no gain
+            here. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={map.pictureUrl}
+          alt={`${map.name} floor plan`}
+          data-testid="marker-image"
+          className="block w-full select-none"
+          draggable={false}
+        />
+
+        {pins.map(pin => {
+          const isSelected = pin.id === selectedPinId
+          return (
+            <button
+              key={pin.id}
+              type="button"
+              data-testid="admin-pin"
+              data-pin-id={pin.id}
+              data-pin-type={pin.type}
+              data-pin-x={pin.x}
+              data-pin-y={pin.y}
+              data-pin-label={markerName(pin)}
+              data-pin-selected={isSelected ? 'true' : 'false'}
+              aria-label={`${pin.type === 'BOOTH' ? 'Booth' : 'Room'} marker: ${markerName(pin)}`}
+              onClick={e => {
+                // Without this the click also reaches the picture underneath,
+                // which would select the marker and immediately move it to where
+                // it already is.
+                e.stopPropagation()
+                onSelectPin(pin.id)
+              }}
+              style={{ left: `${pin.x}%`, top: `${pin.y}%` }}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 px-2 py-0.5 text-[10px] font-semibold shadow ${
+                isSelected
+                  ? 'border-blue-700 bg-blue-600 text-white'
+                  : pin.type === 'BOOTH'
+                    ? 'border-primary bg-white text-primary'
+                    : 'border-gray-500 bg-white text-gray-700'
+              }`}
+            >
+              {/* break-all so a long unbroken room name wraps inside the marker
+                  rather than stretching it across the map. Phase 9's review round 2
+                  measured the booth card overflowing at 390 pixels, and a room name
+                  is the first organizer-typed text to reach this screen. */}
+              <span className="block max-w-[9rem] break-all">{markerName(pin)}</span>
+            </button>
+          )
+        })}
+
+        {draft && (
+          <span
+            data-testid="draft-pin"
+            data-pin-x={draft.x}
+            data-pin-y={draft.y}
+            style={{ left: `${draft.x}%`, top: `${draft.y}%` }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-amber-600 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900"
+          >
+            New
+          </span>
+        )}
+      </div>
+
+      {pinError && (
+        <p data-testid="pin-error" className="mt-2 rounded-md bg-red-50 p-2 text-xs text-red-700">
+          {pinError}
+        </p>
+      )}
+
+      {draft && (
+        <div className="mt-3 rounded border border-gray-200 bg-white p-3" data-testid="draft-form">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              data-testid="draft-type-booth"
+              onClick={() => onDraftChange({ ...draft, type: 'BOOTH' })}
+              className={`rounded border px-2 py-1 text-xs ${
+                draft.type === 'BOOTH' ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200'
+              }`}
+            >
+              Booth
+            </button>
+            <button
+              type="button"
+              data-testid="draft-type-room"
+              onClick={() => onDraftChange({ ...draft, type: 'ROOM', sponsorId: '' })}
+              className={`rounded border px-2 py-1 text-xs ${
+                draft.type === 'ROOM' ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200'
+              }`}
+            >
+              Room
+            </button>
+          </div>
+
+          {draft.type === 'BOOTH' ? (
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-gray-600">Company at this booth</label>
+              <select
+                data-testid="draft-sponsor"
+                value={draft.sponsorId}
+                onChange={e => onDraftChange({ ...draft, sponsorId: e.target.value })}
+                className="form-input mt-1 w-full text-sm"
+              >
+                <option value="">Choose a company…</option>
+                {sponsors.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.boothNumber ? `${s.name} — booth ${s.boothNumber}` : `${s.name} — no booth number yet`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-gray-600">Room name</label>
+              <input
+                data-testid="draft-label"
+                value={draft.label}
+                maxLength={MAX_LABEL_LENGTH}
+                onChange={e => onDraftChange({ ...draft, label: e.target.value })}
+                placeholder="Ballroom A"
+                className="form-input mt-1 w-full text-sm"
+              />
+            </div>
+          )}
+
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              data-testid="draft-save"
+              onClick={onDraftSave}
+              disabled={busy}
+              className="btn-primary text-xs disabled:opacity-40"
+            >
+              {busy ? 'Working…' : 'Save marker'}
+            </button>
+            <button
+              type="button"
+              data-testid="draft-cancel"
+              onClick={onDraftCancel}
+              className="rounded border border-gray-200 px-2 py-1 text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {selected && !draft && (
+        // key on the marker's id: this form keeps the room name in its own state,
+        // and without a key React would reuse the instance when a different marker
+        // is selected, leaving the previous marker's name in the input.
+        <SelectedPinForm
+          key={selected.id}
+          pin={selected}
+          sponsors={sponsors}
+          busy={busy}
+          onEdit={changes => onEditPin(selected, changes)}
+          onDelete={() => onDeletePin(selected)}
+        />
+      )}
+    </div>
+  )
+}
+
+function SelectedPinForm({
+  pin,
+  sponsors,
+  busy,
+  onEdit,
+  onDelete,
+}: {
+  pin: AdminPin
+  sponsors: SponsorOption[]
+  busy: boolean
+  onEdit: (changes: { sponsorId?: string | null; label?: string | null }) => void
+  onDelete: () => void
+}) {
+  const [label, setLabel] = useState(pin.label ?? '')
+  const [armed, setArmed] = useState(false)
+
+  return (
+    <div className="mt-3 rounded border border-blue-200 bg-white p-3" data-testid="selected-pin-form" data-pin-id={pin.id}>
+      <p className="text-xs font-medium text-gray-900" data-testid="selected-pin-name">
+        {pin.type === 'BOOTH' ? 'Booth marker' : 'Room marker'}: {markerName(pin)}
+      </p>
+
+      {pin.type === 'BOOTH' ? (
+        <div className="mt-2">
+          <label className="block text-xs font-medium text-gray-600">Company at this booth</label>
+          <select
+            data-testid="selected-pin-sponsor"
+            value={pin.sponsorId ?? ''}
+            disabled={busy}
+            onChange={e => onEdit({ sponsorId: e.target.value || null })}
+            className="form-input mt-1 w-full text-sm"
+          >
+            <option value="">Choose a company…</option>
+            {sponsors.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.boothNumber ? `${s.name} — booth ${s.boothNumber}` : `${s.name} — no booth number yet`}
+              </option>
+            ))}
+          </select>
+          {pin.sponsorBoothNumber && (
+            <p className="mt-1 text-xs text-gray-500" data-testid="selected-pin-booth">
+              Booth {pin.sponsorBoothNumber}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="mt-2">
+          <label className="block text-xs font-medium text-gray-600">Room name</label>
+          <div className="mt-1 flex gap-2">
+            <input
+              data-testid="selected-pin-label"
+              value={label}
+              maxLength={MAX_LABEL_LENGTH}
+              disabled={busy}
+              onChange={e => setLabel(e.target.value)}
+              className="form-input w-full text-sm"
+            />
+            <button
+              type="button"
+              data-testid="selected-pin-label-save"
+              onClick={() => onEdit({ label })}
+              disabled={busy}
+              className="btn-primary shrink-0 text-xs disabled:opacity-40"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3">
+        {!armed ? (
+          <button
+            type="button"
+            data-testid="delete-pin"
+            onClick={() => setArmed(true)}
+            disabled={busy}
+            className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 disabled:opacity-40"
+          >
+            Delete marker
+          </button>
+        ) : (
+          <span className="flex items-center gap-1">
+            <span className="text-xs text-gray-500">Delete this marker?</span>
+            <button
+              type="button"
+              data-testid="delete-pin-confirm"
+              onClick={onDelete}
+              disabled={busy}
+              className="rounded bg-red-600 px-2 py-1 text-xs text-white disabled:opacity-40"
+            >
+              Yes
+            </button>
+            <button
+              type="button"
+              data-testid="delete-pin-cancel"
+              onClick={() => setArmed(false)}
+              className="rounded border border-gray-200 px-2 py-1 text-xs"
+            >
+              No
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
