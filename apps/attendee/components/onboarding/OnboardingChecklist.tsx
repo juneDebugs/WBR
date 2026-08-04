@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS } from '@/lib/solutions'
+import { avatarGradient } from '@/lib/avatar-gradients'
 // DEEP IMPORT, deliberately. This is a browser component, and the package root
 // ('@conference/db') exports the live database client — importing through it
 // would pull database code into the browser bundle. That failure is silent: it
@@ -22,6 +23,28 @@ function toggle<T>(arr: T[], val: T): T[] {
 
 interface Props {
   profile: DelegateProfile
+  /**
+   * The stored picture, or null. Separate from `profile` because that type is
+   * exactly the required set and a photo is not in it — nothing about the gate
+   * reads this. It is here so a LinkedIn pre-fill is visible on the screen the
+   * person is sent to, rather than only present in the database (FP 10).
+   */
+  image: string | null
+}
+
+/**
+ * The initials shown when there is no picture.
+ *
+ * Up to two, from the first and last word of whatever is currently typed in the
+ * name field. An empty name gives an empty circle rather than a placeholder
+ * letter, because a stand-in initial for a person with no name recorded is a
+ * detail the screen would be inventing.
+ */
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(w => w.length > 0)
+  if (words.length === 0) return ''
+  if (words.length === 1) return words[0].slice(0, 1).toUpperCase()
+  return (words[0].slice(0, 1) + words[words.length - 1].slice(0, 1)).toUpperCase()
 }
 
 /**
@@ -38,7 +61,7 @@ interface Props {
  * awkward case where an empty multi-select is stored as the string "[]" and
  * has to count as missing.
  */
-export function OnboardingChecklist({ profile }: Props) {
+export function OnboardingChecklist({ profile, image }: Props) {
   const router = useRouter()
 
   const [form, setForm] = useState({
@@ -102,6 +125,43 @@ export function OnboardingChecklist({ profile }: Props) {
 
   return (
     <div className="page-container space-y-6" data-testid="onboarding-checklist">
+
+      {/*
+        The picture, read-only.
+
+        Present whether or not there is one to show, so the layout does not move
+        between a person who signed in with LinkedIn and one who did not. No
+        control to change or remove it: the photo is not in the required set, so
+        clearing it would alter nothing the gate reads, and editing a photo
+        belongs on the settings screen that already exists.
+
+        A plain <img> rather than next/image because the address is on LinkedIn's
+        own picture host, which is not in this app's allowed remote hosts. Adding
+        it there would be a configuration change for one avatar.
+      */}
+      <div data-testid="onboarding-photo">
+        {image ? (
+          <img
+            src={image}
+            alt=""
+            data-testid="onboarding-photo-image"
+            className="w-16 h-16 rounded-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div
+            data-testid="onboarding-photo-initials"
+            className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-semibold"
+            style={{
+              background: `linear-gradient(135deg, ${avatarGradient(form.name || 'delegate')[0]}, ${
+                avatarGradient(form.name || 'delegate')[1]
+              })`,
+            }}
+          >
+            {initialsOf(form.name)}
+          </div>
+        )}
+      </div>
 
       <div>
         <h1 className="text-2xl font-bold text-ink">Complete your profile</h1>
