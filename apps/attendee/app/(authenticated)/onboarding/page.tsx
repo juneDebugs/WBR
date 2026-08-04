@@ -29,7 +29,11 @@ export default async function OnboardingPage() {
 
   const account = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, ...DELEGATE_REQUIRED_SELECT },
+    // `image` is not part of the required set and is read anyway: it is what a
+    // LinkedIn sign-in pre-fills, and the checklist shows it so the pre-fill is
+    // visible rather than only stored (Phase 12, FP 10). Nothing about the gate
+    // consults it.
+    select: { role: true, image: true, ...DELEGATE_REQUIRED_SELECT },
   })
   if (!account) redirect('/login')
 
@@ -43,5 +47,5 @@ export default async function OnboardingPage() {
 
   if (isRequiredSetComplete('delegate', account)) redirect('/home')
 
-  return <OnboardingChecklist profile={account} />
+  return <OnboardingChecklist profile={account} image={account.image} />
 }

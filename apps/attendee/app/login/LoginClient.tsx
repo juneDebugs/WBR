@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Props {
@@ -9,10 +9,77 @@ interface Props {
   loginButtonText: string
 }
 
+/**
+ * What a failed LinkedIn sign-in says on screen.
+ *
+ * Spelled the same as LINKEDIN_NO_EMAIL_ERROR in lib/auth.ts. Kept as a literal
+ * rather than imported: this is a browser component and lib/auth.ts pulls in the
+ * database client, which must not reach the browser bundle. Same reasoning as the
+ * deep import in components/onboarding/OnboardingChecklist.tsx.
+ */
+const SIGN_IN_ERRORS: Record<string, string> = {
+  LinkedInNoEmail:
+    "LinkedIn didn't share an email address, so we couldn't sign you in. Use your email and password, or Google.",
+  // F-27. Deliberately does not say whether an account exists for that address:
+  // the message is shown to whoever pressed the button, and confirming that a
+  // given address has an account here would tell them something they did not
+  // already know. What it does say is what to do next.
+  LinkedInUnverifiedEmail:
+    "LinkedIn hasn't confirmed that email address, so we couldn't use it to sign you in. Use your email and password, or Google.",
+}
+
 export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  /**
+   * Whether to draw the LinkedIn button.
+   *
+   * Read at the browser, from the sign-in library's own list of registered
+   * providers, and NOT decided while this page is rendered on the server. The
+   * page above declares `revalidate = 3600`, so a decision taken during that
+   * render is reused for up to an hour — long enough that turning the
+   * credentials off would leave the button on screen, and long enough that a
+   * test flipping them would assert nothing. The provider list is served per
+   * request, so it always reflects what the running app has configured.
+   *
+   * Starts false, so the button is absent until the list says otherwise. The
+   * wrong direction to fail in is showing a button that cannot work.
+   *
+   * Google is not treated this way. Its button is drawn unconditionally and
+   * always has been; changing that is not this phase's work.
+   */
+  const [linkedInAvailable, setLinkedInAvailable] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    import('next-auth/react')
+      .then(({ getProviders }) => getProviders())
+      .then(providers => {
+        if (!cancelled) setLinkedInAvailable(Boolean(providers?.linkedin))
+      })
+      .catch(() => {
+        // Leave the button hidden. An unreachable provider list is not a reason
+        // to offer a sign-in method that may not be registered.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /**
+   * A sign-in that failed inside the library redirects back here with a marker in
+   * the address rather than a message, so it is turned into a sentence here.
+   *
+   * Read from window.location rather than through useSearchParams(), which in
+   * this version of Next requires the component to sit inside a Suspense
+   * boundary and would opt the whole login screen out of its caching.
+   */
+  useEffect(() => {
+    const marker = new URLSearchParams(window.location.search).get('error')
+    if (marker && SIGN_IN_ERRORS[marker]) setError(SIGN_IN_ERRORS[marker])
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -96,6 +163,7 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
           </div>
 
           <button
+            data-testid="signin-google"
             onClick={async () => {
               const { signIn } = await import('next-auth/react')
               signIn('google', { callbackUrl: '/home' })
@@ -110,6 +178,28 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
             </svg>
             Sign in with Google
           </button>
+
+          {/*
+            Drawn only when the provider list names LinkedIn (FP 11, FP 31).
+            Sends people to /home like Google does; anyone whose required set is
+            incomplete is moved on to the checklist by the gate, so this button
+            needs no knowledge of onboarding.
+          */}
+          {linkedInAvailable && (
+            <button
+              data-testid="signin-linkedin"
+              onClick={async () => {
+                const { signIn } = await import('next-auth/react')
+                signIn('linkedin', { callbackUrl: '/home' })
+              }}
+              className="btn-secondary w-full mt-3"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#0A66C2" aria-hidden="true">
+                <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.63-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 110-4.13 2.06 2.06 0 010 4.13zM7.12 20.45H3.55V9h3.57v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z" />
+              </svg>
+              Sign in with LinkedIn
+            </button>
+          )}
         </div>
 
         <div className="mt-6 bg-white/10 rounded-2xl p-4 text-xs">
