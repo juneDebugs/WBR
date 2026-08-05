@@ -14,23 +14,18 @@ const CompanyMeetingSettings = dynamic(
   () => import('@/components/CompanyMeetingSettings').then(m => m.CompanyMeetingSettings),
   { loading: ViewSkeleton },
 )
-const SponsorTablesSettings = dynamic(
-  () => import('@/components/SponsorTablesSettings').then(m => m.SponsorTablesSettings),
-  { loading: ViewSkeleton },
-)
 
 // Companies tab of the admin Meetings section. Navigation is URL-based so
 // views are deep-linkable and browser back works: ?tab=companies&company=id
 // opens a company's schedule, ?tab=companies&view=settings the meeting
-// settings (a Settings item in the Meetings tab bar — meeting requirements,
-// then the Meeting Tables section), plain ?tab=companies the directory.
+// settings (a Settings item in the Meetings tab bar — meeting requirements),
+// plain ?tab=companies the directory.
 export default function CompanySchedulerClient({ sponsor, view }: { sponsor?: string; view?: string }) {
   if (sponsor) return <CompanyScheduleView sponsorId={sponsor} />
   if (view === 'settings') {
     return (
       <div className="space-y-10">
         <CompanyMeetingSettings />
-        <SponsorTablesSettings />
       </div>
     )
   }
