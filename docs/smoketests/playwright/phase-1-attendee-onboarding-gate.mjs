@@ -315,6 +315,15 @@ async function step4_completingUnblocksInOneHop(browser, cookie) {
     const landed = new URL(page.url()).pathname
     if (landed === '/home') ok(`released to ${landed} in one hop`)
     else fail(`landed on ${landed} after completing — expected /home`)
+
+    // NOTE ON WHAT THIS STEP DOES NOT CATCH. It measured green throughout a real
+    // defect: on the deployed site, pressing this button re-showed the checklist
+    // with the delegate's answers dropped, while the database held the save and a
+    // fresh request released the account. Neither this assertion, a five-second
+    // variant of it, nor one checking the checklist had stopped rendering went red
+    // — in a development server OR a local production build. The behaviour depends
+    // on losing a race that a fast machine wins every time. Guarded instead by
+    // step4b below, which reads the source.
   } finally {
     await ctx.close()
   }
@@ -324,6 +333,146 @@ async function step4_completingUnblocksInOneHop(browser, cookie) {
     const { status } = await rawGet(cookie, path)
     if (status === 200) ok(`${path} -> 200 once complete`)
     else fail(`${path} -> ${status} once complete — expected 200`)
+  }
+}
+
+/**
+ * Step 4b: the checklist hands off with a full page load, not a client navigation.
+ *
+ * ── WHY THIS ASSERTS THE SOURCE, WHICH THIS SUITE OTHERWISE NEVER DOES ────────
+ *
+ * The plan's own testing rule is to assert what an outside observer sees and never
+ * an implementation detail, because a test that breaks on a rename but not on a
+ * behaviour change is a bad test. This step breaks that rule deliberately, for the
+ * one reason the rule allows: the behaviour is UNOBSERVABLE anywhere it can be
+ * measured.
+ *
+ * The defect, found 2026-08-05 by a person completing the checklist on the deployed
+ * site. `router.refresh()` followed by `router.replace('/home')` in
+ * components/onboarding/OnboardingChecklist.tsx. `refresh()` returns nothing to
+ * wait for, so the navigation started before it finished, and next.config.js sets
+ * experimental.staleTimes.dynamic to 300 — the browser keeps a visited dynamic page
+ * for five minutes. The delegate was handed that cached copy: the checklist again,
+ * with their answers dropped. Pressing the button again repeated it.
+ *
+ * Three behavioural assertions were written to catch it and all three measured green
+ * WITH THE DEFECT REINSTATED — a 20-second wait, a 5-second wait, and a check that
+ * the checklist had stopped rendering — in a development server AND in a local
+ * production build, at 361ms, 131ms and 65ms. The stale render needs a race that a
+ * machine talking to itself wins every time. There is no observable to assert.
+ *
+ * So this reads the file. Comments are stripped first, so the explanation of the
+ * defect inside that file — which names the very calls forbidden here — does not
+ * trip it.
+ *
+ * Precedent in this repository: scripts/test-onboarding-policy.mjs asserts that the
+ * policy module carries no imports, for the same reason — getting it wrong is
+ * silent and no behaviour reveals it.
+ *
+ * If this ever needs changing, the requirement is that completing the checklist
+ * reaches the app through something that cannot be served from the browser's page
+ * cache. A full page load satisfies it. A server action ending in redirect() would
+ * too, and this step would need rewriting to accept that.
+ */
+async function step4b_handoffIsAFullPageLoad() {
+  console.log('\n── Step 4b: the checklist hands off with a full page load (regression guard) ──')
+
+  const { readFileSync } = await import('node:fs')
+  const { fileURLToPath } = await import('node:url')
+  const { dirname, join } = await import('node:path')
+  const here = dirname(fileURLToPath(import.meta.url))
+  const target = join(here, '..', '..', '..', 'apps/attendee/components/onboarding/OnboardingChecklist.tsx')
+
+  let src
+  try {
+    src = readFileSync(target, 'utf8')
+  } catch (e) {
+    fail(`could not read the checklist component at ${target} — ${e.message}`)
+    return
+  }
+  ok('the checklist component was read from disk')
+
+  // Strip block comments then line comments, so prose describing the defect does
+  // not count as committing it.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+
+  // ── THE ROUTER IS NOT IMPORTED AT ALL. Round 2 of review reshaped this. ──────
+  //
+  // The first version looked for a variable literally named `router` calling
+  // `.refresh()` and `.replace()`. Round 2 pointed out that
+  // `const nav = useRouter(); nav.refresh(); nav.replace('/home')` reintroduces the
+  // race and sails past it, and that an ordinary rename does the same.
+  //
+  // Checking the IMPORT closes every alias at once: a component that never obtains
+  // the router cannot call anything on it, whatever the variable is called. It is
+  // also a stronger statement than "these two calls are absent", and a simpler one
+  // to read.
+  //
+  // Round 2 also noted the comment stripping is a regex rather than a parser, so a
+  // `//` inside a string could remove real code. That is why the import check runs
+  // against the RAW source as well: a stripping accident cannot hide an import from
+  // both readings.
+  // ── SCOPED TO THE SUBMIT HANDLER. Round 3 narrowed this. ─────────────────────
+  //
+  // Round 2 made this fail on any `useRouter` anywhere in the file, which closed
+  // every alias at once. Round 3 pointed out that is too strong: adding a Cancel
+  // button calling `router.back()` would fail this guard while the submit handoff
+  // stayed correct. A test should not forbid a decision nobody has taken.
+  //
+  // So the check moves inside the submit handler, and looks for ANY identifier
+  // calling .refresh() or .replace() there rather than one literally named
+  // `router` — which is what closes the alias hole without banning the router from
+  // the component.
+  const handler = code.match(/async function handleSubmit[\s\S]*?\n {2}\}/)
+  if (!handler) {
+    fail('could not find the submit handler in the checklist component — this guard needs ' +
+         'rewriting rather than ignoring. It matched `async function handleSubmit` followed by ' +
+         'a closing brace at two spaces of indentation; if the handler was renamed, made an ' +
+         'arrow function, or reindented, fix this check rather than deleting it')
+    return
+  }
+  const body = handler[0]
+
+  // window.location.replace is the wanted call, so it is removed before looking for
+  // a router-style .replace() — otherwise the fix would trip its own guard.
+  const bodyWithoutFullLoad = body
+    .replace(/\bwindow\s*\.\s*location\s*\.\s*(assign|replace)\s*\([^)]*\)/g, '')
+    .replace(/\blocation\s*\.\s*(href|assign|replace)\b/g, '')
+
+  const callsRefresh = /\b[A-Za-z_$][\w$]*\s*\.\s*refresh\s*\(/.test(bodyWithoutFullLoad)
+  const callsReplace = /\b[A-Za-z_$][\w$]*\s*\.\s*replace\s*\(\s*['"]\//.test(bodyWithoutFullLoad)
+
+  if (!(callsRefresh && callsReplace)) {
+    ok('the submit handler does not pair a refresh() with a route replace(), under any variable name')
+  } else {
+    fail('the submit handler pairs a refresh() with a route replace() — this is the racing ' +
+         "pairing that showed a delegate the checklist again with their answers dropped, and no " +
+         'behavioural assertion in this suite can catch it')
+  }
+
+  const hasFullLoad =
+    /\bwindow\s*\.\s*location\s*\.\s*(assign|replace)\s*\(\s*['"]\/home['"]\s*\)/.test(body) ||
+    /\blocation\s*\.\s*href\s*=\s*['"]\/home['"]/.test(body)
+
+  if (hasFullLoad) {
+    ok('the submit handler itself hands off to /home with a full page load')
+  } else {
+    fail('the submit handler contains no full page load to /home — a client navigation here ' +
+         "can be served from the browser's page cache, which is what produced the loop")
+  }
+
+  // ── replace() RATHER THAN assign(). Round 1 of review found this. ────────────
+  //
+  // assign() pushes a history entry, so Back returns the completed delegate to the
+  // checklist, possibly from the back-forward cache without re-running the server
+  // redirect — and with the button stuck reading "Saving…" because setSaving(false)
+  // never runs on the success path.
+  const usesAssign = /\bwindow\s*\.\s*location\s*\.\s*assign\s*\(/.test(handler[0])
+  if (!usesAssign) {
+    ok('it uses replace() rather than assign(), so Back cannot return to the checklist')
+  } else {
+    fail('the handler uses window.location.assign(), which pushes a history entry — pressing ' +
+         'Back returns the completed delegate to the checklist')
   }
 }
 
@@ -614,6 +763,7 @@ async function main() {
     await step2_checklistReachableAndListsExactly(browser, cookie)
     await step3_seekingNotOffering(browser, cookie)
     await step4_completingUnblocksInOneHop(browser, cookie)
+    await step4b_handoffIsAFullPageLoad()
     await step5_completeUserLeavesChecklist(cookie)
     await step6_emptyMultiSelectCountsAsMissing(cookie)
     await step7_settingsClearReblocks(browser, cookie)

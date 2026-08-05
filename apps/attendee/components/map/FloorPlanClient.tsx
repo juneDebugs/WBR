@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ElementType } from 'react'
 import { useFloorPlanData, useFloorPlanLiveUpdates } from '@/lib/hooks'
 import type { FloorPlanMap, FloorPlanPin, FloorPlanSponsor } from '@/lib/floor-plan-data'
 
@@ -72,6 +73,30 @@ function Marker({
   onOpen: (pin: FloorPlanPin) => void
 }) {
   const isBooth = pin.type === 'BOOTH'
+
+  // ── A marker is interactive only when tapping it will open something ─────────
+  //
+  // Found 2026-08-04 by tapping room markers on the deployed site. Every marker
+  // was a button with a click handler, so every marker showed a pointer cursor
+  // and reported a tap; `openMarker` below then discarded the tap for anything
+  // that is not a booth with a company. The result was a control that looks
+  // pressable, is pressable, and does nothing — the interface promising something
+  // it does not deliver.
+  //
+  // A room marker has nothing to reveal. Its name is already printed under the
+  // dot, permanently, by the label further down this function. So the fix is to
+  // stop dressing it as a control, NOT to open a card repeating the name the
+  // delegate is already reading.
+  //
+  // Three review rounds and thirteen negative controls on Phase 11 did not catch
+  // this. It was found by a person clicking a marker, which is the same way F-29
+  // was found after twelve controls missed it.
+  const opensCard = isBooth && Boolean(pin.sponsor)
+
+  // 'div' rather than 'button' when nothing opens: no pointer cursor, out of the
+  // tab order, and announced as an image with its name rather than as a control.
+  const Tag: ElementType = opensCard ? 'button' : 'div'
+
   // ── A blank booth number is the same thing as no booth number ────────────────
   //
   // Trimmed and emptied to null here, once, so that every reader below agrees
@@ -100,13 +125,14 @@ function Marker({
   const boothNumber = pin.sponsor?.boothNumber?.trim() || null
 
   return (
-    <button
-      type="button"
-      // Every marker reports the tap; the parent decides what deserves a card.
-      // Deciding here would mean a room marker silently doing nothing for a
-      // different reason than a booth marker whose company row was deleted, and
-      // the two want the same treatment.
-      onClick={() => onOpen(pin)}
+    <Tag
+      // Only a marker that opens a card gets a click handler. `openMarker` in the
+      // parent still re-checks the type and the company, so a card cannot open
+      // for a room even if this ever hands one a handler by mistake — the two
+      // checks answer different questions and both are kept.
+      {...(opensCard
+        ? { type: 'button' as const, onClick: () => onOpen(pin) }
+        : { role: 'img' as const })}
       data-testid="pin"
       data-pin-type={pin.type}
       data-pin-label={pin.label}
@@ -128,8 +154,13 @@ function Marker({
       // accepts a generous target as the price of a marker being a point rather
       // than an area. The visible dot inside is smaller; the button is the part
       // that must be forgiving.
-      className="absolute h-11 w-11 flex items-center justify-center
-                 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      // The cursor is stated rather than inherited. A <button> gets a pointer from
+      // the global stylesheet and a <div> does not, so leaving it implicit would
+      // make the affordance a side effect of the tag choice rather than a stated
+      // rule, and a later refactor could reintroduce exactly the fault this fixes.
+      className={`absolute h-11 w-11 flex items-center justify-center
+                 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+                 ${opensCard ? 'cursor-pointer' : 'cursor-default'}`}
     >
       {isBooth ? (
         // ── A booth with no booth number shows the company's name ──────────────
@@ -173,7 +204,7 @@ function Marker({
           {pin.label}
         </span>
       )}
-    </button>
+    </Tag>
   )
 }
 

@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS } from '@/lib/solutions'
 import { avatarGradient } from '@/lib/avatar-gradients'
 // DEEP IMPORT, deliberately. This is a browser component, and the package root
@@ -62,8 +61,6 @@ function initialsOf(name: string): string {
  * has to count as missing.
  */
 export function OnboardingChecklist({ profile, image }: Props) {
-  const router = useRouter()
-
   const [form, setForm] = useState({
     name: profile.name ?? '',
     jobTitle: profile.jobTitle ?? '',
@@ -110,11 +107,50 @@ export function OnboardingChecklist({ profile, image }: Props) {
         }),
       })
       if (!res.ok) throw new Error('Could not save your profile. Please try again.')
-      // Drop the cached app shell so the gate re-reads the saved profile, then
-      // hand the attendee straight to the app. replace() rather than push() so
-      // the back button cannot land them on a checklist they have finished.
-      router.refresh()
-      router.replace('/home')
+
+      // ── A FULL PAGE LOAD, NOT A CLIENT NAVIGATION ────────────────────────────
+      //
+      // This used to be `router.refresh()` followed by `router.replace('/home')`,
+      // and that pair produced an endless loop. Found 2026-08-05 by completing the
+      // checklist on the deployed site:
+      //
+      //   the save reached the database  — solutionsSeeking became ["Email Marketing"]
+      //   the server released the account — a fresh GET /onboarding redirected to /home
+      //   the screen showed the OLD checklist — "STILL NEEDED (1)", selection gone
+      //   a manual reload landed on /home correctly
+      //
+      // So the data and the server were both right and the browser was showing a
+      // stale copy of the page it was already on. `router.refresh()` returns
+      // nothing to wait for, so the navigation on the following line began before
+      // it finished, and next.config.js sets experimental.staleTimes.dynamic to
+      // 300 — the browser keeps a visited dynamic page for five minutes. The
+      // delegate was handed that cached copy, the form re-initialised from it, and
+      // pressing the button again repeated the whole thing.
+      //
+      // A full page load cannot race and cannot read that cache. It costs one
+      // round trip, which is the correct price for the one navigation in this app
+      // that must reflect a write that just happened. The save has already
+      // returned by this point, so nothing is lost.
+      //
+      // Three review rounds and twelve negative controls on Phase 1 did not catch
+      // this, and neither did any assertion in the gate's own suite — every one of
+      // them either drove a fresh page load or checked the database rather than
+      // pressing the button and looking at where the browser ended up.
+      //
+      // ── replace() AND NOT assign(). Round 1 of review caught this. ────────────
+      //
+      // The first version of this fix used assign(), which PUSHES a history entry.
+      // `router.replace()` did not, and that difference mattered: a delegate who
+      // completes the checklist, lands on /home and presses Back would be handed
+      // /onboarding again, possibly restored from the browser's back-forward cache
+      // without re-running the server redirect in the checklist's own page. And
+      // because setSaving(false) never runs on the success path, that restored
+      // page would come back with the button disabled and reading "Saving…".
+      //
+      // That is the same complaint this whole change exists to fix, reached by a
+      // different route. replace() drops the checklist from history, so Back
+      // cannot return to it.
+      window.location.replace('/home')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
       setSaving(false)

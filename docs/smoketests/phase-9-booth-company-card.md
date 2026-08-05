@@ -75,9 +75,33 @@ A group that cannot run counts its skipped assertions as failures rather than pr
 node docs/smoketests/playwright/phase-9-booth-company-card.mjs
 ```
 
-**Pass criterion.** `Results: 219 passed, 0 failed`.
+**Pass criterion.** `Results: 326 passed, 0 failed`. Stable across consecutive runs against a local production build.
+
+*Was 219 until 2026-08-05, when 107 assertions were added for the marker-affordance fix below — 48 in the first pass and a further 59 after Codex review rounds 1 and 2 widened the coverage.*
+
+**A wandering assertion count, and its cause.** Before review round 1, this suite reported 264, then 260, then 260 — the count moved between runs. The cause was the check below that creates a companyless booth marker: it deleted the row afterwards but did not invalidate the `floor-plan` cache tag, so the running app kept serving the phantom marker for up to 300 seconds. The next run counted that phantom, concluded a companyless booth already existed, and skipped part of the branch — a different part depending on timing. **A test that quietly disables itself while its count still rises is worse than no test.** Found by Codex review round 1. The cleanup now invalidates the cache and asserts the row is gone, and the count holds at 267.
 
 Run at **390 × 844**, a phone. Every one of the ten booth companies is opened and checked — enumerated, not sampled. It also checks that no room marker opens a card, that a card still opens on a zoomed and panned map, that dismissing by close button, Escape and backdrop each work, that the map's zoom and position are byte-identical before and after, that switching maps closes an open card, and that a drag starting on a marker pans the map without opening one.
+
+**Added 2026-08-05 — a marker looks pressable only when pressing it does something.** Every marker was a `<button>` with a click handler, so every marker showed a pointer cursor and reported a tap; the parent then discarded the tap for anything that is not a booth with a company. A room marker was therefore a control that did nothing, which is the interface promising what it does not deliver. Found by a person tapping room markers on the deployed site, after three review rounds and thirteen negative controls on Phase 11 did not.
+
+Room markers now render as plain elements — no click handler, no pointer cursor, out of the tab order — and their names stay printed under the dot where they already were. The fix is NOT a card repeating a name the delegate is already reading.
+
+The new assertions, in four groups:
+
+1. **Every room marker on every map that has any** — 6 on Ballroom Level and 9 on Meeting Rooms, by name — is not a button, offers no pointer cursor, is outside the keyboard tab order, and carries no control role. The count drawn is compared against the count stored, so a map that renders two of its nine is a failure rather than two passing checks.
+
+   *Widened by review round 2.* The first version looked at the first non-booth map only, which is Ballroom Level. It never examined Meeting Rooms — whose markers are Table 1 to Table 8 and the Networking Lounge, **the very markers whose tapping produced this defect.** The case that started it was untested. The map list is now read from the database, so a fourth map is covered without editing the suite.
+
+2. Each of those fifteen names is printed on the map without tapping. This is the group that fails if the fix removes the only way to learn a room's name. It compares the label's text **exactly** to the room's name, reads the rendered box and computed styles, and checks the label is inside the map window rather than clipped off its edge.
+
+   *Three iterations, each from a review finding.* It began as a node count, which a hidden label would satisfy. Round 1 made it read the box and styles. Round 2 pointed out that `hasText` substring-matches, so a visible "Hall A1" would satisfy a missing "Hall A" — hence the exact comparison — and that a sized box can still be clipped or covered.
+
+   **Overlap is measured and reported, not asserted.** "Hall A" is overlapped by another marker's tap box at fit-to-width. That is the limit Phase 8 measured and the project owner accepted — see [`phase-8-floor-plan-viewer.md`](phase-8-floor-plan-viewer.md) § the accepted limit: 4 collisions at fit-to-width, 0 at 2.5x zoom, with zoom as the chosen remedy. Asserting against a decision already taken would make this suite fail for a state the project agreed to live with, so the overlap prints as a `!` note.
+
+3. Each of the ten booth markers is **still** a button and **still** offers a pointer cursor. This is the group that fails if someone "fixes" this by making every marker inert.
+
+4. A booth marker with no company attached is not a control, offers no pointer cursor, and opens no card. Any such marker already present gets all three checks — *round 2 found the first version running only the weakest one in that case, so real drift in the data downgraded the check exactly when it mattered.* When none exists, the check creates one, reads it, and deletes it, invalidating the `floor-plan` cache tag **both before and after**, because the map payload is held for five minutes.
 
 **One console message is reported but not asserted:** a next-auth `CLIENT_FETCH_ERROR` for `/api/auth/session`. Measured at **0.4 seconds, during sign-in, before the map screen loads**, and a page left idle on the map for 45 seconds produces none at all. It is unrelated to the card. Any console error that is *not* this one fails the run.
 

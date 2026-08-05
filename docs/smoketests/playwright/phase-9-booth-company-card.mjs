@@ -40,6 +40,7 @@
 
 import { chromium } from 'playwright'
 import { DatabaseSync } from 'node:sqlite'
+import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -454,6 +455,405 @@ section('A room marker does not open a company card')
     yes(card === null, `room "${label}" — tapping it opens no company card`,
       card ? `a card opened for ${card.name}` : '')
     if (card !== null) await dismissByCloseButton(page)
+  }
+}
+
+// ── A marker looks pressable only when pressing it does something ────────────
+//
+// Added 2026-08-04. The section above proves no card opens for a room. It passed
+// while every room marker was still a <button> with a pointer cursor and a click
+// handler that the parent silently discarded — so the delegate was offered a
+// control that did nothing, and no assertion here noticed. These checks are about
+// what the marker OFFERS, which is a different question from what it DOES.
+//
+// Found by a person tapping room markers on the deployed site, after three review
+// rounds and thirteen negative controls on Phase 11 did not.
+
+section('Only markers that open a card are presented as controls')
+
+{
+  // ── EVERY MAP CARRYING ROOM MARKERS, NOT THE FIRST ONE. Round 2 caught this. ──
+  //
+  // The first version picked `mapRows.find(m => !boothMapIds.includes(m.id))`,
+  // which is Ballroom Level and its six rooms, and never looked at Meeting Rooms
+  // and its nine. Those nine are Table 1 to Table 8 and the Networking Lounge —
+  // the very markers whose tapping produced the defect this section exists for.
+  // The case that started it was untested.
+  //
+  // The map list comes from the database, so a fourth map added later is covered
+  // without editing this.
+  const roomMapIds = new Set(
+    db.prepare(`SELECT DISTINCT venueMapId AS id FROM Pin WHERE type = 'ROOM'`).all().map(r => r.id),
+  )
+  const roomMaps = mapRows.filter(m => roomMapIds.has(m.id))
+  yes(roomMaps.length > 0, 'at least one map carries room markers', `found ${roomMaps.length}`)
+
+  // Read once from the database, so a map that renders NO markers is caught as a
+  // shortfall rather than passing with an empty loop.
+  const expectedRoomsByMap = new Map(
+    roomMaps.map(m => [
+      m.id,
+      db.prepare(`SELECT label FROM Pin WHERE venueMapId = ? AND type = 'ROOM' ORDER BY label`)
+        .all(m.id).map(r => r.label),
+    ]),
+  )
+
+  for (const roomMap of roomMaps) {
+    // ── PROVE THE INTENDED MAP IS SHOWING. Round 3 caught this. ────────────────
+    //
+    // Selecting the tab by `hasText` is a SUBSTRING match, so a map named "Meeting"
+    // would open "Meeting Rooms" instead. And because every per-marker assertion
+    // below compares a label to the marker's OWN data-pin-label, they all agree with
+    // each other whichever map is showing — so the loop could report coverage for a
+    // map it never opened. Round 2's fix read the expected labels from the database
+    // and then never compared against them.
+    //
+    // Two changes: the tab is matched on its exact text, and the marker labels drawn
+    // are compared AS A SET against the labels stored for this map.
+    const exactName = new RegExp(`^${roomMap.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+    const tab = page.locator('[data-testid="map-tab"]').filter({ hasText: exactName }).first()
+    const tabFound = await tab.count()
+    yes(tabFound === 1, `${roomMap.name}: its own tab was found by exact name`,
+      `matched ${tabFound} tabs`)
+    if (tabFound !== 1) continue
+    await tab.click()
+    await page.waitForTimeout(400)
+
+    const rooms = page.locator('[data-testid="pin"][data-pin-type="ROOM"]')
+    const roomCount = await rooms.count()
+    const expected = expectedRoomsByMap.get(roomMap.id) ?? []
+
+    // Counted against the database, not merely against zero. A map that drew two
+    // of its nine markers would otherwise check two and report success.
+    yes(roomCount === expected.length,
+      `${roomMap.name}: all ${expected.length} stored room markers are drawn`,
+      `drew ${roomCount}`)
+
+    // And they are THIS map's markers. Compared as a set, which is what proves the
+    // right map is on screen rather than a different one with the same count.
+    const drawnLabels = (await rooms.evaluateAll(
+      els => els.map(e => e.getAttribute('data-pin-label')),
+    )).slice().sort()
+    const expectedSorted = expected.slice().sort()
+    yes(JSON.stringify(drawnLabels) === JSON.stringify(expectedSorted),
+      `${roomMap.name}: the markers drawn are exactly the ones stored for this map`,
+      `drew ${JSON.stringify(drawnLabels)} | stored ${JSON.stringify(expectedSorted)}`)
+
+    for (let i = 0; i < roomCount; i++) {
+      const el = rooms.nth(i)
+      const label = await el.getAttribute('data-pin-label')
+      const shape = await el.evaluate(e => ({
+        tag: e.tagName,
+        cursor: getComputedStyle(e).cursor,
+        tabIndex: e.tabIndex,
+        role: e.getAttribute('role'),
+      }))
+      yes(shape.tag !== 'BUTTON', `${roomMap.name} / "${label}" — is not a button`,
+        `tag was ${shape.tag}`)
+      yes(shape.cursor !== 'pointer', `${roomMap.name} / "${label}" — offers no pointer cursor`,
+        `cursor was ${shape.cursor}`)
+      // ── TAB ORDER AND ROLE. Round 2 caught the document claiming this while
+      // nothing asserted it. A <div role="button" tabIndex="0"> would have passed
+      // the two assertions above while still being presented as a control.
+      // A plain <div> reports -1; a <button> or anything with tabindex="0" reports 0.
+      yes(shape.tabIndex < 0,
+        `${roomMap.name} / "${label}" — is not in the keyboard tab order`,
+        `tabIndex was ${shape.tabIndex}`)
+      yes(shape.role !== 'button' && shape.role !== 'link',
+        `${roomMap.name} / "${label}" — is not given a control role`,
+        `role was ${shape.role}`)
+    }
+
+    // The room's name is what a tap would have revealed, so it has to be on screen
+    // already or this fix has removed the only way to learn it.
+    //
+    // ── EXACT TEXT, AND NOT OCCLUDED. Rounds 1 and 2 both shaped this. ─────────
+    //
+    // Round 1: the first version counted nodes, so a label hidden by CSS kept it
+    // green. Round 2: matching by `hasText` is a SUBSTRING match and the text was
+    // never compared, so a visible "Hall A1" would satisfy a missing "Hall A"; and
+    // a box with size can still be clipped by the map window or covered by
+    // something on top of it. So this reads the label's own element, compares its
+    // text exactly, and asks the document what is actually at the label's centre.
+    for (let i = 0; i < roomCount; i++) {
+      const marker = rooms.nth(i)
+      const label = await marker.getAttribute('data-pin-label')
+
+      // Scoped to the marker itself, not searched across the page.
+      const labelEl = marker.locator('[data-testid="pin-label"]').first()
+      if (await labelEl.count() === 0) {
+        no(`${roomMap.name} / "${label}" — its name is visibly printed without tapping`,
+          'the marker carries no label element')
+        continue
+      }
+
+      const shown = await labelEl.evaluate(e => {
+        const r = e.getBoundingClientRect()
+        const s = getComputedStyle(e)
+
+        // ── MEASURING OCCLUSION ON AN ELEMENT WITH POINTER EVENTS DISABLED ──────
+        //
+        // The label sets `pointer-events: none`, so elementFromPoint never returns
+        // it — the hit passes through. Two earlier attempts got this wrong and both
+        // failed every label while it was plainly visible: the first demanded the
+        // hit BE the label, the second accepted an ancestor, and the real hit is the
+        // map picture, because the label is positioned BELOW the marker's own box
+        // and so is outside it.
+        //
+        // So pointer events are switched on for the duration of the measurement and
+        // put back afterwards. That makes the hit test mean what it says: if
+        // something other than the label answers, something is genuinely on top.
+        const previous = e.style.pointerEvents
+        e.style.pointerEvents = 'auto'
+        const cx = r.left + r.width / 2
+        const cy = r.top + r.height / 2
+        const atCentre = document.elementFromPoint(cx, cy)
+        e.style.pointerEvents = previous
+
+        // Clipped off the edge of the map window is the other way a label with a
+        // real box can be invisible — the concrete case review round 2 named.
+        const viewport = document.querySelector('[data-testid="map-viewport"]')
+        const vp = viewport ? viewport.getBoundingClientRect() : null
+        const insideViewport = vp === null ? null :
+          r.left >= vp.left - 1 && r.right <= vp.right + 1 &&
+          r.top >= vp.top - 1 && r.bottom <= vp.bottom + 1
+
+        const covered = atCentre !== null && atCentre !== e && !e.contains(atCentre)
+        return {
+          w: Math.round(r.width), h: Math.round(r.height),
+          display: s.display, visibility: s.visibility, opacity: s.opacity,
+          text: (e.textContent ?? '').trim(),
+          onTop: !covered,
+          insideViewport,
+          coveredBy: covered
+            ? `${atCentre.tagName}${atCentre.getAttribute('data-testid') ? '[' + atCentre.getAttribute('data-testid') + ']' : ''}`
+            : '',
+        }
+      })
+
+      const styled = shown.w > 0 && shown.h > 0 &&
+        shown.display !== 'none' && shown.visibility !== 'hidden' && Number(shown.opacity) > 0
+      const exact = shown.text === label
+
+      // ── WHY OVERLAP IS MEASURED AND REPORTED BUT NOT ASSERTED ────────────────
+      //
+      // A first version failed on any element sitting over the label's centre, and
+      // "Hall A" went red: another marker's 44-pixel tap box overlaps it. That is
+      // not a new defect. Phase 8 measured this and the project owner ACCEPTED it —
+      // docs/smoketests/phase-8-floor-plan-viewer.md § the accepted limit: at the
+      // default fit-to-width view on a phone the labels overlap, 4 collisions at
+      // fit-to-width and 0 once zoomed to 2.5x, and zoom is the chosen remedy
+      // because hiding labels until a zoom threshold was rejected against user
+      // story 19.
+      //
+      // Asserting against a decision already taken would make this suite fail for a
+      // state the project has agreed to live with. So the overlap is measured, named
+      // in the detail line when present, and left out of the pass condition. What IS
+      // asserted is what this group exists for: the name is rendered, it is exactly
+      // this room's name, it has a real box with visible styles, and it is inside
+      // the map window rather than clipped off its edge.
+      //
+      // insideViewport is null when the map window could not be found, which is a
+      // measurement failure rather than a pass — so it is required to be true.
+      yes(styled && exact && shown.insideViewport === true,
+        `${roomMap.name} / "${label}" — its name is visibly printed without tapping`,
+        `box ${shown.w}x${shown.h}, display ${shown.display}, visibility ${shown.visibility}, ` +
+        `opacity ${shown.opacity}, text "${shown.text}" (exact: ${exact}), ` +
+        `inside the map window: ${shown.insideViewport}` +
+        (shown.coveredBy ? `, overlapped by ${shown.coveredBy}` : ''))
+
+      if (shown.coveredBy) {
+        console.log(`  ! ${roomMap.name} / "${label}" is overlapped by ${shown.coveredBy} at ` +
+          'fit-to-width — reported, not asserted; the accepted limit in Phase 8 § the accepted limit')
+      }
+    }
+  }
+}
+
+// ── The over-correction check ────────────────────────────────────────────────
+//
+// A fix that made EVERY marker non-interactive would satisfy every assertion
+// above and destroy the booth card entirely. This is the assertion that fails if
+// that happens.
+
+{
+  const boothMapId = boothMapIds[0]
+  const mapRow = mapRows.find(m => m.id === boothMapId)
+  const tab = page.locator('[data-testid="map-tab"]').filter({ hasText: mapRow.name }).first()
+  if (await tab.count()) { await tab.click(); await page.waitForTimeout(300) }
+
+  const booths = page.locator('[data-testid="pin"][data-pin-type="BOOTH"]')
+  const boothCount = await booths.count()
+  yes(boothCount > 0, 'the chosen map has booth markers to inspect', `found ${boothCount}`)
+
+  let withoutCompany = 0
+  for (let i = 0; i < boothCount; i++) {
+    const el = booths.nth(i)
+    const label = await el.getAttribute('data-pin-label')
+    const sponsorId = await el.getAttribute('data-pin-sponsor')
+    const shape = await el.evaluate(e => ({
+      tag: e.tagName,
+      cursor: getComputedStyle(e).cursor,
+    }))
+    if (sponsorId) {
+      yes(shape.tag === 'BUTTON', `booth "${label}" — is still a button`,
+        `tag was ${shape.tag}`)
+      yes(shape.cursor === 'pointer', `booth "${label}" — still offers a pointer cursor`,
+        `cursor was ${shape.cursor}`)
+    } else {
+      // ── THE SAME CHECKS AS THE CREATED ONE. Round 2 caught this. ────────────
+      //
+      // The first version ran only the tag check here and left the cursor and the
+      // click behaviour to the created-marker branch below — which is skipped
+      // whenever a companyless booth already exists. So the presence of real drift
+      // in the data DOWNGRADED the check, exactly when it mattered most.
+      withoutCompany++
+      yes(shape.tag !== 'BUTTON', `booth "${label}" with no company — is not a button`,
+        `tag was ${shape.tag}`)
+      yes(shape.cursor !== 'pointer', `booth "${label}" with no company — offers no pointer cursor`,
+        `cursor was ${shape.cursor}`)
+      await el.click()
+      await page.waitForTimeout(150)
+      const card = await readCard(page)
+      yes(card === null, `booth "${label}" with no company — tapping it opens no card`,
+        card ? `a card opened for ${card.name}` : '')
+      if (card !== null) await dismissByCloseButton(page)
+    }
+  }
+
+  // ── The booth marker whose company is gone ─────────────────────────────────
+  //
+  // A booth marker with no company takes the same path as a room — nothing to
+  // show — so it must be presented the same way. No such marker exists in the
+  // seeded data, so this makes one, checks it, and removes it, following the
+  // `phase9-` prefix and cleanup this suite already uses for its test accounts.
+  //
+  // Done last, after every other assertion in this file, so an extra marker
+  // cannot disturb the enumerations above.
+  if (withoutCompany === 0) {
+    const ORPHAN_ID = 'phase9-orphan-booth'
+    db.prepare(`DELETE FROM Pin WHERE id = ?`).run(ORPHAN_ID)
+    db.prepare(
+      `INSERT INTO Pin (id, venueMapId, type, label, x, y, sponsorId)
+       VALUES (?, ?, 'BOOTH', 'Phase 9 Orphan', 12.5, 12.5, NULL)`,
+    ).run(ORPHAN_ID, boothMapId)
+
+    try {
+      // The map payload is cached for five minutes under the 'floor-plan' tag
+      // (apps/attendee/lib/floor-plan-data.ts line 111). Writing straight to the
+      // database bypasses the app, so nothing tells it the cached copy is out of
+      // date and the reload below would serve the old markers. This is the same
+      // call apps/web/lib/revalidate-attendee.ts makes after an organizer saves.
+      //
+      // The secret is read from apps/attendee/.env.local when it is not already
+      // in the environment, so this check does not silently depend on the caller
+      // exporting it. It did at first, and the four assertions below reported a
+      // missing marker rather than a missing setting — the same shape of fault as
+      // an assertion that cannot fail. Same lookup as
+      // packages/db/scripts/reset-test-accounts.mjs.
+      const secret = process.env.NEXTAUTH_SECRET ?? (() => {
+        try {
+          const raw = readFileSync(join(ROOT, 'apps/attendee/.env.local'), 'utf8')
+          const line = raw.split('\n').find(l => l.startsWith('NEXTAUTH_SECRET='))
+          return line ? line.slice('NEXTAUTH_SECRET='.length).replace(/^["']|["']$/g, '') : undefined
+        } catch { return undefined }
+      })()
+      yes(Boolean(secret), 'a cache-invalidation secret was found',
+        'set NEXTAUTH_SECRET or put it in apps/attendee/.env.local')
+
+      const invalidated = await fetch(`${BASE}/api/revalidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, tags: ['floor-plan'] }),
+      }).then(r => r.ok).catch(() => false)
+      yes(invalidated, 'the map cache was invalidated so the new marker can be seen',
+        'the revalidate address refused; NEXTAUTH_SECRET may not be set for this run')
+
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(1500)
+      const tabAgain = page.locator('[data-testid="map-tab"]').filter({ hasText: mapRow.name }).first()
+      if (await tabAgain.count()) { await tabAgain.click(); await page.waitForTimeout(400) }
+
+      const orphan = page.locator('[data-testid="pin"][data-pin-label="Phase 9 Orphan"]').first()
+      const drawn = await orphan.count()
+      yes(drawn === 1, 'a booth marker with no company is drawn on the map', `found ${drawn}`)
+
+      if (drawn === 1) {
+        const shape = await orphan.evaluate(e => ({
+          tag: e.tagName,
+          cursor: getComputedStyle(e).cursor,
+        }))
+        yes(shape.tag !== 'BUTTON',
+          'a booth marker with no company — is not a button', `tag was ${shape.tag}`)
+        yes(shape.cursor !== 'pointer',
+          'a booth marker with no company — offers no pointer cursor', `cursor was ${shape.cursor}`)
+
+        await orphan.click()
+        await page.waitForTimeout(150)
+        const card = await readCard(page)
+        yes(card === null, 'a booth marker with no company — tapping it opens no card',
+          card ? `a card opened for ${card.name}` : '')
+        if (card !== null) await dismissByCloseButton(page)
+      } else {
+        notRun([
+          'a booth marker with no company — is not a button',
+          'a booth marker with no company — offers no pointer cursor',
+          'a booth marker with no company — tapping it opens no card',
+        ], 'the marker this check created was not drawn, so its presentation could not be read')
+      }
+    } finally {
+      // ── THE CLEANUP MUST NOT REPLACE THE FAILURE IT CLEANS UP AFTER ──────────
+      //
+      // Round 3 caught this. The database calls here were unguarded, so if the try
+      // block failed because the marker never appeared AND the delete then threw a
+      // lock error, the lock error would replace the real failure and the run would
+      // report the wrong thing. The fetch below was already safe because it catches.
+      let deleteError = null
+      try {
+        db.prepare(`DELETE FROM Pin WHERE id = ?`).run(ORPHAN_ID)
+      } catch (e) {
+        deleteError = e
+      }
+      yes(deleteError === null, 'removing the created marker did not error',
+        deleteError ? String(deleteError.message ?? deleteError) : '')
+
+      // ── INVALIDATE AGAIN AFTER DELETING. Round 1 of review caught this. ──────
+      //
+      // The first version deleted the row and stopped. The reload above had just
+      // repopulated the app's 300-second `floor-plan` cache WITH the fake marker,
+      // so a running server kept serving "Phase 9 Orphan" after its row was gone.
+      //
+      // That is not merely untidy: on the NEXT run, `withoutCompany` counts that
+      // phantom marker, so the branch is skipped and the orphan case silently
+      // stops being checked. A test that disables itself on its second run is
+      // worse than no test, because the count still goes up.
+      const secretAgain = process.env.NEXTAUTH_SECRET ?? (() => {
+        try {
+          const raw = readFileSync(join(ROOT, 'apps/attendee/.env.local'), 'utf8')
+          const line = raw.split('\n').find(l => l.startsWith('NEXTAUTH_SECRET='))
+          return line ? line.slice('NEXTAUTH_SECRET='.length).replace(/^["']|["']$/g, '') : undefined
+        } catch { return undefined }
+      })()
+      const cleared = await fetch(`${BASE}/api/revalidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: secretAgain, tags: ['floor-plan'] }),
+      }).then(r => r.ok).catch(() => false)
+      yes(cleared, 'the map cache was invalidated again after removing the created marker',
+        'the running app may keep serving it for up to 300s, which skips this branch next run')
+
+      // Assert the cleanup actually took, rather than trusting the delete. Guarded
+      // for the same reason as the delete above — round 3.
+      let leftBehind = null
+      let readError = null
+      try {
+        leftBehind = db.prepare(`SELECT COUNT(*) AS n FROM Pin WHERE id = ?`).get(ORPHAN_ID).n
+      } catch (e) {
+        readError = e
+      }
+      yes(readError === null && leftBehind === 0, 'the created marker is gone from the database',
+        readError ? `could not check: ${String(readError.message ?? readError)}` : `${leftBehind} row(s) remain`)
+    }
   }
 }
 

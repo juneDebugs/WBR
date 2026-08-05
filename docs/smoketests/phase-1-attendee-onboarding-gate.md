@@ -201,4 +201,21 @@ Before the fix this returned 200 and created a friend request on behalf of a use
 
 **Run record:** 53 assertions passed, 0 failed. Local dev server (port 3001), 2026-07-29. Valid tier for this phase: all steps are contract checks, so dev mode is a valid environment per §1.1; no perf-bar check exists to require tier B or C.
 
+**Run record, 2026-08-05:** 54 assertions passed, **1 failed**. Local dev server and, separately, a local production build; the same result in both.
+
+- The added assertion is **Step 4b**, a regression guard described below.
+- The failure is `POST /api/posts/no-such-post/like -> 404 while incomplete — expected 403`. It is **not** caused by the 2026-08-05 change, which touched only a browser component and a test file: the failure was measured before that change was made. Something between 2026-07-29 and 2026-08-05 made that address answer "not found" before the guard runs. Recorded here rather than adjusted away, and left open.
+
+**Step 4b, added 2026-08-05 — the checklist hands off with a full page load.**
+
+The defect: completing the checklist ran `router.refresh()` then `router.replace('/home')`. `refresh()` returns nothing to wait for, so the navigation began before it finished, and `next.config.js` sets `experimental.staleTimes.dynamic` to 300 — the browser keeps a visited dynamic page for five minutes. The delegate was handed that cached copy: the checklist again, with their answers dropped. Pressing the button again repeated it. Found by a person completing the checklist on the deployed site.
+
+What the save and the server did was correct throughout, and that is what made it hard to see. The answers reached the database, and a fresh request for `/onboarding` redirected to `/home` as designed. Only the browser was showing something stale.
+
+**This step asserts the source, which breaks this plan's own rule against asserting implementation details.** The exception is earned because the behaviour is unobservable where it can be measured. Three behavioural assertions were written to catch it and all three measured green **with the defect reinstated** — a 20-second wait, a 5-second wait, and a check that the checklist had stopped rendering — in a development server and in a local production build, at 361 ms, 131 ms and 65 ms. The stale render needs a race that a machine talking to itself wins every time.
+
+Step 4b instead reads the component, strips comments so the prose describing the defect does not trip it, and fails if `router.refresh()` and `router.replace()` are both called or if no full page load to `/home` is present. Verified to fail with the defect reinstated: 52 passed, 3 failed. Precedent for asserting source in this repository: `scripts/test-onboarding-policy.mjs` asserts the policy module carries no imports, for the same reason — getting it wrong is silent.
+
+Step 4 keeps its original 20-second assertion, with a note recording that it measured green throughout the defect.
+
 **History worth keeping:** the first eight steps passed 33/33 while a real AC-1 violation was live — the ungated `(fullscreen)` chat room. Green steps proved only what they exercised. Adversarial review found it; steps 8 and 9 grew out of that. Treat a green run as evidence about the listed assertions and nothing wider.
