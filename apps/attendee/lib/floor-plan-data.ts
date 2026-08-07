@@ -234,13 +234,22 @@ export async function fetchFloorPlanData(): Promise<{ maps: FloorPlanMap[]; coun
                 // project's most repeated error, and there is no reader that wants
                 // the blank form.
                 //
-                // Reachable without touching the database:
-                // apps/sponsor/components/ProfileEditor.tsx starts the field at
-                // `sponsor.boothNumber ?? ''` and sends it on every save, and
-                // apps/sponsor/app/api/profile/route.ts stores what it is sent
-                // untrimmed. Trimming at that write too would stop new blanks being
-                // created, but would not repair rows that already hold one, so this
-                // read boundary is where the guarantee belongs.
+                // How a blank used to be created, and why this still normalises.
+                // Until the booth number became the organizer's, the sponsor portal
+                // sent the field on every profile save starting from
+                // `sponsor.boothNumber ?? ''`, and the save address stored what it
+                // was sent untrimmed — so saving an untouched profile could write
+                // `''`. That path is closed: the portal's control is display-only,
+                // the save address refuses the field, and the one writer left
+                // trims and stores null for a blank
+                // (apps/web/lib/booth-number-input.ts).
+                //
+                // This boundary still holds the guarantee. Closing the writer does
+                // not repair a row that already holds a blank, and no reader
+                // downstream wants the blank form. Of the twenty companies in the
+                // local seeded database, ten hold null and none hold a blank, so
+                // nothing there exercises this today — it is kept for the rows this
+                // check cannot see, at the cost of one trim.
                 boothNumber: p.sponsor.boothNumber?.trim() || null,
                 tagline: p.sponsor.tagline,
                 website: p.sponsor.website,

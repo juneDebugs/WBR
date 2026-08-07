@@ -42,10 +42,36 @@ export async function PATCH(req: Request) {
 
   const body = await req.json()
 
+  // ── The booth number is the organizer's, and this address refuses it ────────
+  //
+  // A company does not choose where the floor sells it a stand. CONTEXT.md has
+  // said so since the onboarding work — it is the stated reason the onboarding
+  // gate does not block a sponsor on a missing booth number — but until this
+  // phase the only text box for the field was in this portal, which is the
+  // opposite of what the glossary claimed. The organizer now sets it from the
+  // floor plan screen.
+  //
+  // REFUSED RATHER THAN DROPPED FROM THE ALLOWLIST ALONE. Leaving the key out of
+  // the list below would make this handler ignore it silently: the representative
+  // types a number, the save reports success, and the value never changes. A
+  // refusal that names the reason is the only answer that does not lie.
+  //
+  // Consequence, stated rather than discovered later: a browser tab left open on
+  // the version of this portal that still sent the field will have its next
+  // profile save refused until it is reloaded. That is the correct direction to
+  // be wrong in — a refusal the person can see and recover from, rather than a
+  // save that quietly disagrees with the map a delegate is holding.
+  if ('boothNumber' in body) {
+    return NextResponse.json(
+      { error: 'The booth number is set by the event organizer and cannot be changed here.' },
+      { status: 403 },
+    )
+  }
+
   const allowed = [
     'name', 'tagline', 'description', 'logoUrl', 'heroImageUrl', 'website',
     'contactName', 'contactEmail', 'contactPhone',
-    'companySize', 'annualRevenue', 'founded', 'headquarters', 'boothNumber',
+    'companySize', 'annualRevenue', 'founded', 'headquarters',
     'socialLinkedIn', 'socialTwitter',
     'solutionsOffering', 'solutionsSeeking',
     'targetIndustries', 'targetCompanySizes', 'targetRevenues',

@@ -103,11 +103,27 @@ The gate consults the required set rather than any stored "onboarded" marker, so
 
 An uploaded floor-plan picture (raster image; a PDF is converted to an image on upload) belonging to a `Conference`, shown to attendees. A conference has several (3–4 typical) that switch in a fixed order to cover multiple buildings / floors. The picture itself carries no structure — see **pin**. Rationale and the rejected vector-map alternative: [ADR 0007](docs/adr/0007-floor-plan-human-authored-pins-over-raster.md).
 
+### booth number
+
+The stand identifier for an exhibiting company at an event (`Sponsor.boothNumber`, e.g. `B-01`). **Assigned by the organizer, not by the sponsor** — a company does not choose where the floor sells it a stand. The organizer is therefore its only author, and sets it from the floor plan screen; the sponsor sees it in their portal profile but cannot change it, and the sponsor profile-save address refuses the field.
+
+One company holds one booth number per event, because the field lives on the `Sponsor` record rather than on a `pin`. A company occupying two stands is out of scope and would be a data-model change, not a screen change.
+
+It is a shared value, not a floor-plan value. Changing it moves what a delegate reads on a `booth pin`, what the sponsor sees in their own portal, and what the organizer's sponsor screens and CSV export report. That breadth is the reason for the single-author rule.
+
+The two map screens label a marker differently, on purpose: a delegate's marker shows the booth number, while the organizer's shows the company name, because an organizer placing stands needs to know which company a marker is.
+
+Distinct from:
+
+- **a `room pin`'s label** — free text typed on one pin (e.g. "Ballroom A"), belonging to that pin alone and shared with nothing.
+
+Not part of the **onboarding required set**: the gate never blocks a sponsor on a value the sponsor cannot supply.
+
 ### pin
 
 A human-placed point marker on a `venue map`, positioned as x/y percentages of the image. Two kinds:
 
-- **booth pin** — links to a `Sponsor` (reuses the existing `Sponsor.boothNumber`); tapping it on the attendee side opens a bottom-sheet card for that company over the map. A full attendee-facing company profile page is a deliberate fast-follow, not part of the demo — see [ADR 0007](docs/adr/0007-floor-plan-human-authored-pins-over-raster.md).
+- **booth pin** — links to a `Sponsor` and, on the attendee side, displays that company's **booth number**, falling back to the company name when no number is assigned yet. Tapping it on the attendee side opens a bottom-sheet card for that company over the map. A full attendee-facing company profile page is a deliberate fast-follow, not part of the demo — see [ADR 0007](docs/adr/0007-floor-plan-human-authored-pins-over-raster.md).
 - **room pin** — carries a typed label (e.g. "Ballroom A"); marks a session/room location.
 
 Pins are authored by WBR staff by tapping the spot and assigning it — never drawn, never auto-detected. Distinct from a drawn/shaded booth *area*, which is deliberately out of scope. See [ADR 0007](docs/adr/0007-floor-plan-human-authored-pins-over-raster.md).

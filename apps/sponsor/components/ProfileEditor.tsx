@@ -184,7 +184,12 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
   const [annualRevenue, setAnnualRevenue] = useState(sponsor.annualRevenue ?? '')
   const [founded, setFounded] = useState(sponsor.founded ?? '')
   const [headquarters, setHeadquarters] = useState(sponsor.headquarters ?? '')
-  const [boothNumber, setBoothNumber] = useState(sponsor.boothNumber ?? '')
+  // Read, never edited here. The booth number is assigned by the event organizer
+  // from the floor plan screen — a company does not choose where the floor sells
+  // it a stand — and the profile-save address refuses the field outright. Holding
+  // it in state with a setter would build a control that looks editable and a
+  // save that is refused.
+  const boothNumber = sponsor.boothNumber ?? ''
   const [socialLinkedIn, setSocialLinkedIn] = useState(sponsor.socialLinkedIn ?? '')
   const [socialTwitter, setSocialTwitter] = useState(sponsor.socialTwitter ?? '')
   const [solutionsOffering, setSolutionsOffering] = useState<string[]>(parseArr(sponsor.solutionsOffering))
@@ -264,7 +269,9 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
         body: JSON.stringify({
           name, tagline, description, logoUrl, heroImageUrl, website,
           contactName, contactEmail, contactPhone,
-          companySize, annualRevenue, founded, headquarters, boothNumber,
+          // boothNumber is deliberately absent: the organizer owns it, and the
+          // save address refuses any request that carries the key at all.
+          companySize, annualRevenue, founded, headquarters,
           socialLinkedIn, socialTwitter,
           solutionsOffering, solutionsSeeking,
           targetIndustries, targetCompanySizes, targetRevenues,
@@ -416,8 +423,22 @@ export function ProfileEditor({ sponsor, currentUserId, availableUsers }: {
             </select>
           </Field>
           <Field label="Booth Number">
-            <input className="input" value={boothNumber} onChange={e => setBoothNumber(e.target.value)}
-              placeholder="A-12" />
+            {/* Read-only by design, not disabled by oversight.
+
+                A disabled input would look like a control that is temporarily
+                unavailable and invite someone to hunt for the way to turn it on.
+                Plain text plus one sentence says what is actually true: this
+                value belongs to the organizer, who assigns stands.
+
+                The empty case is worth as much as the filled one — "not assigned
+                yet" tells a representative the number is coming, where an empty
+                box would read as something they forgot to fill in. */}
+            <p data-testid="booth-number-value" className="text-sm text-ink">
+              {boothNumber || <span className="text-ink/50">Not assigned yet</span>}
+            </p>
+            <p className="mt-1 text-xs text-ink/60">
+              Assigned by the event organizer.
+            </p>
           </Field>
         </div>
       </Section>
