@@ -85,12 +85,12 @@ The rule that refuses a signed-in person access to an app until their **onboardi
 
 Participants are gated:
 
-- a **delegate** (buyer) on their own profile's required set, in the attendee app;
+- a **delegate** (buyer) on their own profile's required set, in the attendee app **and in the meetings portal** — the same required set in both, because the set follows the person rather than the app;
 - a **sponsor representative** (seller) on their exhibiting company's required set, in the sponsor portal.
 
 A sponsor representative with no exhibiting company attached has nothing to complete — the profile-save address refuses them outright — so they are refused with an explanation rather than routed to a checklist that cannot save.
 
-The admin app (`apps/web`) and the meetings portal (`apps/meetings`) carry no gate at all.
+The admin app (`apps/web`) carries no gate at all.
 
 Distinct from:
 

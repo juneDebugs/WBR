@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getUserFromHeaders } from '@/lib/user'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 import { getMeetingsData } from '@/lib/meetings-data'
 import { getDashboardData } from '@/lib/dashboard-data'
 
@@ -10,6 +11,9 @@ import { getDashboardData } from '@/lib/dashboard-data'
 export async function GET() {
   const user = await getUserFromHeaders()
   if (!user.id) return NextResponse.json({}, { status: 401 })
+  // The onboarding gate for request handlers. See lib/require-complete-profile.ts.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   const [dashboard, meetings] = await Promise.all([
     getDashboardData(user.id, user.sponsorId, user.role),

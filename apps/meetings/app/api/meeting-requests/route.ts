@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 import { prisma } from '@conference/db'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
 import { triggerAutoMatchForPick } from '@/lib/auto-match'
@@ -12,6 +13,10 @@ export async function POST(req: Request) {
 
   const user = await getUserFromHeaders()
   if (!user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // The onboarding gate for request handlers. See lib/require-complete-profile.ts.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
   const userId = user.id
 
   const body = await req.json()
@@ -77,6 +82,9 @@ export async function POST(req: Request) {
 export async function GET() {
   const user = await getUserFromHeaders()
   if (!user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // The onboarding gate for request handlers. See lib/require-complete-profile.ts.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
 
   // Explicit selects — a boolean `include` would leak every User scalar
   // (password hash, pushToken, private profile fields) to the client.

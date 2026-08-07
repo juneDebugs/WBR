@@ -1,6 +1,6 @@
 # ADR 0008 — The onboarding gate is about the person, not the app
 
-- **Status:** Accepted (2026-07-31). Implemented in the participant app (Phase 3, merged) and the sponsor portal (Phase 5).
+- **Status:** Accepted (2026-07-31). Implemented in the participant app (Phase 3, merged) and the sponsor portal (Phase 5). **Amended 2026-08-07** to extend the gate to the meetings portal — see [Amendments after acceptance](#amendments-after-acceptance). The decision this record makes is unchanged by that amendment.
 - **Date:** 2026-07-31
 - **Supersedes:** None. It replaces an earlier *plan-level* decision that named two never-gated apps; that plan document is archived at `.claude/plans/archived/floor-plan-onboarding-2026-07-21.md` and was never an ADR.
 - **Superseded by:** None
@@ -59,3 +59,21 @@ Shape of the decision:
 - Participant app: `docs/smoketests/phase-3-person-based-gate-exemption.md`, which asserts that an organizer and a staff account with deliberately incomplete profiles reach every screen and are refused at no data address, while a delegate and a sponsor-role account with the *same* incompleteness are still blocked — the behavioural half of "no second role list".
 - Sponsor portal: `docs/smoketests/phase-5-sponsor-screen-gate.md`, which asserts the same for all six portal screens through real page loads, using a throwaway staff account created and deleted inside the run.
 - Both runs also assert the direction that matters most: the exemption cannot be used to skip onboarding. A participant with the same incomplete state stays blocked.
+- Meetings portal: `docs/smoketests/phase-1-meetings-onboarding-gate.md`, added with the amendment below.
+
+## Amendments after acceptance
+
+- **The meetings portal now carries the gate, decided 2026-08-07 and recorded with the change that builds it.** This withdraws one bullet from the Decision section above — "The admin app and the meetings portal carry no gate at all. Only the participant app and the sponsor portal do." The admin app still carries none. The meetings portal now does.
+
+  The change was asked for by the customer during the final user-acceptance run on 2026-08-05, on the reasoning that the sponsor portal and the meetings portal are the two places a participant actually signs in, so a participant who is never stopped there is never asked to complete anything before reaching the rest of the product.
+
+  **The decision this record makes is unchanged, and is what makes the extension small.** Because the exemption is stated as a kind of person rather than a list of app names, the meetings portal inherits it with nothing written for it: the WBR-side roles are released by the same `isWbrStaff()` test, which is what keeps that portal's staff queue reachable without an exception being carved for it. Had the rule still been a list of never-gated apps, this amendment would have had to name a third app and would have left the same hole for a fourth.
+
+  Shape of the extension:
+
+  - **It measures the existing delegate required set, unchanged.** A person admitted to the meetings portal who is not WBR-side is a delegate, measured on their own profile — the same six fields, from the same single source of truth, as in the participant app. No new required set was introduced. Giving one person two definitions of "complete" depending on which app they opened is the outcome this ADR exists to prevent, and a second block would have made a sixth answer in this codebase to the question "is this profile complete?".
+  - **Both enforcement points, as everywhere else.** The screen gate is called from every authenticated route group in that portal — note it has two, `(portal)` and `staff`, and a gate placed only on the first repeats finding F-3. Request handlers carry their own guard — nine of them — with the profile-save address excluded, because guarding the address the checklist writes through traps every incomplete person permanently. The `staff/*` addresses are not guarded and do not need to be: each already refuses anyone who is not WBR-side, and WBR-side people are exempt from this check, so the guard could never fire there. That argument only holds because those addresses ask the **database** for the role, as this gate does. They asked the session token until this change, which meant a revoked operator was refused by the gate everywhere and admitted by them — recorded as UF-31 and fixed alongside, in `apps/meetings/lib/staff-api.ts`.
+  - **A checklist screen was added to that portal**, at `/onboarding`, inside the authenticated area but outside **both** gated route groups, matching the arrangement in the other two apps so the gate cannot redirect it to itself.
+  - **Speakers are affected and this is not new.** The delegate required set includes company size and annual revenue, which an independent speaker may not hold. Such a person is already refused by the participant app today under the same rule; the meetings portal now refuses them too. This amendment does not change who is complete, only where completeness is asked.
+
+  Recorded here rather than only in the phase requirements document because it withdraws a statement from the Decision section, which a reader of this record would otherwise take as current.

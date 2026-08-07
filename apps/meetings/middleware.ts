@@ -16,10 +16,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Already authenticated → redirect away from login page
-  if (token && pathname === '/login') {
+  // Already authenticated → redirect away from login page, EXCEPT when the
+  // onboarding gate sent them here because their account row no longer exists.
+  //
+  // A token whose user row was deleted still decodes perfectly, so the check
+  // above cannot tell the difference on its own. Without the exception the two
+  // redirects chase each other forever: / asks the gate, the gate finds no row
+  // and sends the person to /login, and this sends them back to /. That loop was
+  // measured in the participant app, which carries the same marker for the same
+  // reason. See lib/onboarding-gate.ts.
+  const sessionInvalid = request.nextUrl.searchParams.get('session') === 'invalid'
+  if (token && pathname === '/login' && !sessionInvalid) {
     const homeUrl = request.nextUrl.clone()
     homeUrl.pathname = '/'
+    homeUrl.search = ''
     return NextResponse.redirect(homeUrl)
   }
 

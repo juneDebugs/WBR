@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { SOLUTIONS, COMPANY_SIZES, REVENUE_RANGES, COMPANY_SIZE_LABELS, REVENUE_LABELS, SOLUTION_COLORS } from '@/lib/solutions'
 
 interface User {
@@ -71,6 +72,7 @@ function SolutionChips({ label, hint, value, onChange }: {
 }
 
 export function ProfileForm({ user }: { user: User }) {
+  const router = useRouter()
   const [form, setForm] = useState({
     company: user.company ?? '',
     jobTitle: user.jobTitle ?? '',
@@ -109,6 +111,19 @@ export function ProfileForm({ user }: { user: User }) {
       if (!res.ok) throw new Error(await res.text())
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+      // Re-run the server components, so the onboarding gate in the route
+      // group's layout reads this profile again.
+      //
+      // This is the one screen in the portal where a person can EMPTY a required
+      // field, and the layout above it is already mounted — so without this, the
+      // gate does not run again and they stay inside the portal with whatever
+      // this tab has already cached. React Query holds fetched data as fresh for
+      // five minutes and keeps it for thirty (lib/query-client.tsx), and it is
+      // persisted, so the stale portal survives more than the current view.
+      // Refreshing hands the layout back to the server, which redirects to the
+      // checklist. Found by adversarial review; both other applications already
+      // do exactly this at their own edit screens, for the same reason.
+      router.refresh()
     } catch (err: any) {
       setError(err.message ?? 'Failed to save')
     } finally {

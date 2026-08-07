@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { getUserFromHeaders } from '@/lib/user'
+import { requireCompleteProfile } from '@/lib/require-complete-profile'
 import { prisma, resolveParties, assertBlockOpen, commitOrConflict, EngineError, engineErrorHttpStatus, isWbrStaff } from '@conference/db'
 import { triggerAutoMatchForPick } from '@/lib/auto-match'
 
@@ -8,6 +9,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params
   const user = await getUserFromHeaders()
   if (!user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // The onboarding gate for request handlers. See lib/require-complete-profile.ts.
+  const blocked = await requireCompleteProfile()
+  if (blocked) return blocked
+
   const role = user.role
 
   const body = await req.json()
