@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MAX_LABEL_LENGTH } from '@/lib/pin-input'
+import { MAX_BOOTH_NUMBER_LENGTH, validateBoothNumber } from '@/lib/booth-number-input'
 
 /**
  * The organizer's venue-map screen. Phases 10 and 11.
@@ -92,6 +93,20 @@ type Draft = {
   type: 'BOOTH' | 'ROOM'
   sponsorId: string
   label: string
+  /**
+   * The booth number for the chosen company, typed while the marker is placed.
+   *
+   * It is NOT part of the marker. It is stored on the company record and written
+   * by its own address, so a company pinned on two maps carries one number. It
+   * rides along in this draft because the organizer is thinking about one stand
+   * at one moment, and making them place a marker and then hunt for a second
+   * screen is the gap this phase exists to close.
+   *
+   * Empty means "leave whatever the company already has" on save, not "clear it".
+   * Clearing is done from the selected-marker form, where the current value is
+   * visible and an organizer can see what they are removing.
+   */
+  boothNumber: string
 }
 
 /** What a marker shows on this screen. Mirrors the participant app's rule. */
@@ -159,6 +174,44 @@ export default function FloorPlanClient({
    * Nothing has to be cleaned up or expired: the reconciliation is the comparison.
    */
   const [pinEdits, setPinEdits] = useState<Record<string, { basedOn: AdminPin[]; pins: AdminPin[] }>>({})
+
+  /**
+   * Booth numbers changed in this browser, by company id, shown straight away.
+   *
+   * Same reason as pinEdits above: the server props are re-read on refresh, and
+   * between the save landing and the refresh arriving the organizer would still
+   * be reading the old number in the company picker — which looks exactly like a
+   * save that did not take.
+   *
+   * Keyed by company rather than by marker on purpose. The number lives on the
+   * company, so a company pinned on two maps must show the new value on both the
+   * moment it changes. Keying by marker would update the one that was edited and
+   * leave its twin disagreeing with it on the same screen.
+   *
+   * `null` is a real value here, not an absence — it means the organizer cleared
+   * the number.
+   *
+   * ── It carries the value it replaced, and retires against it ─────────────────
+   *
+   * `basedOn` is what the server said this company's number was at the moment the
+   * override was made. The override applies only while the server still says that.
+   * As soon as the server says anything else the server wins — whether that is
+   * this browser's own write arriving, or a second organizer's newer value.
+   *
+   * Review round 3 found the first version applying forever: it held the value
+   * alone, so once an entry existed no refresh could ever replace it. Organizer A
+   * sets Tailor ERP to `Z-01`, organizer B changes it to `P-03`, and A's screen
+   * kept showing `Z-01` after every refresh until the page was reloaded — then
+   * offered A a Save button comparing against the number A could see rather than
+   * the one stored, which is how A would overwrite B without knowing. Recorded as
+   * UF-27.
+   *
+   * Same shape and same reasoning as pinEdits above: nothing has to be cleaned up
+   * or expired, because the reconciliation is the comparison.
+   */
+  const [boothEdits, setBoothEdits] = useState<
+    Record<string, { basedOn: string | null; value: string | null }>
+  >({})
   const pinsFor = (map: MapRow): AdminPin[] => {
     const override = pinEdits[map.id]
     return override && override.basedOn === map.pins ? override.pins : map.pins
@@ -385,7 +438,7 @@ export default function FloorPlanClient({
     }
 
     setPinError('')
-    setDraft({ mapId: map.id, x: at.x, y: at.y, type: 'BOOTH', sponsorId: '', label: '' })
+    setDraft({ mapId: map.id, x: at.x, y: at.y, type: 'BOOTH', sponsorId: '', label: '', boothNumber: '' })
   }
 
   async function movePin(map: MapRow, pinId: string, at: { x: number; y: number }) {
@@ -447,6 +500,10 @@ export default function FloorPlanClient({
       return
     }
 
+    // Held until after this function releases `busy`, because the booth number is
+    // a second, separate write. See the note where it is applied, below.
+    let pendingBooth: { sponsorId: string; value: string } | null = null
+
     setBusy(true)
     try {
       const res = await fetch(`/api/floor-plan/maps/${map.id}/pins`, {
@@ -471,26 +528,152 @@ export default function FloorPlanClient({
         }
         return
       }
+      // ── Decided here, above the read-back branch, and deliberately so ────────
+      //
+      // Everything below this line is past the `!res.ok` guard, so the marker
+      // PERSISTED. The booth number is a write against the company and needs
+      // nothing from the saved marker — not its id, not its position — so it must
+      // be applied on every path where the marker landed, including the one where
+      // the response could not be read back.
+      //
+      // Adversarial review round 2 found it assigned after that branch's early
+      // return, so a 2xx carrying no `pin` cleared the draft, told the organizer
+      // the marker was saved, and dropped the booth number typed with it without
+      // saying so. Recorded as UF-22.
+      //
+      // Only when something was typed. An empty box means "leave the number this
+      // company already has", not "clear it" — clearing is done from the selected
+      // marker, where the current value is on screen and the organizer can see
+      // what they are removing.
+      if (draft.type === 'BOOTH' && draft.sponsorId && draft.boothNumber.trim()) {
+        pendingBooth = { sponsorId: draft.sponsorId, value: draft.boothNumber }
+      }
+
+      // ── if/else rather than an early return, and that is the whole point ──────
+      //
+      // Review round 3 caught the first attempt at UF-22 being no fix at all.
+      // Recording `pendingBooth` above a `return` changes nothing, because a
+      // `return` inside this `try` leaves the FUNCTION once `finally` has run — so
+      // the booth-number write at the end of the function was still skipped on
+      // exactly the path the fix was meant to cover. Branching instead of
+      // returning lets both paths reach it.
       if (!body?.pin) {
         setPinError('The marker was saved, but the app could not read it back. Reload to see it.')
         setDraft(null)
         router.refresh()
-        return
+      } else {
+        const saved: AdminPin = {
+          id: body.pin.id,
+          type: body.pin.type === 'ROOM' ? 'ROOM' : 'BOOTH',
+          x: body.pin.x,
+          y: body.pin.y,
+          label: body.pin.label ?? null,
+          sponsorId: body.pin.sponsorId ?? null,
+          sponsorName: body.pin.sponsor?.name ?? null,
+          sponsorBoothNumber: body.pin.sponsor?.boothNumber ?? null,
+        }
+        setPinsFor(map, [...pinsFor(map), saved])
+        setDraft(null)
+        setNoticeForPins(map, draft.type === 'ROOM' ? 'Room marker placed.' : 'Booth marker placed.', Boolean(body.delegatesNotified))
+        router.refresh()
       }
-      const saved: AdminPin = {
-        id: body.pin.id,
-        type: body.pin.type === 'ROOM' ? 'ROOM' : 'BOOTH',
-        x: body.pin.x,
-        y: body.pin.y,
-        label: body.pin.label ?? null,
-        sponsorId: body.pin.sponsorId ?? null,
-        sponsorName: body.pin.sponsor?.name ?? null,
-        sponsorBoothNumber: body.pin.sponsor?.boothNumber ?? null,
+    } finally {
+      setBusy(false)
+    }
+
+    // ── Two writes, in sequence, deliberately not nested ────────────────────
+    //
+    // The marker and the booth number are separate records with separate
+    // addresses: the marker belongs to a map, the number belongs to the company.
+    // Folding them into one request would mean a marker address that edits a
+    // company, and a company pinned on two maps would then have two markers each
+    // able to claim its number.
+    //
+    // Applied after the block above has released `busy`, because the booth-number
+    // save sets and clears `busy` itself. Calling it inside would have the inner
+    // clear run first and leave the screen interactive while the outer save was
+    // still in flight.
+    //
+    // If this second write fails it says so and the marker stays. That is the
+    // right way round: the marker is placed and correct, and the number can be
+    // supplied from the marker that is now on screen. The reverse — discarding a
+    // placed marker because a stand number was rejected — would throw away work
+    // the organizer had already completed.
+    if (pendingBooth) {
+      await saveBoothNumber(pendingBooth.sponsorId, pendingBooth.value)
+    }
+  }
+
+  /**
+   * The companies, with any booth number changed in this browser applied.
+   *
+   * Everything below reads this rather than the `sponsors` prop, so the picker,
+   * the selected-marker form and the draft form cannot disagree about a number
+   * one of them just changed.
+   */
+  const sponsorsNow: SponsorOption[] = sponsors.map(s => {
+    const edit = boothEdits[s.id]
+    if (!edit) return s
+    // The server has moved on from the value this override replaced, so it knows
+    // something this browser does not. Show the server's answer.
+    if (edit.basedOn !== (s.boothNumber ?? null)) return s
+    return { ...s, boothNumber: edit.value }
+  })
+
+  /**
+   * Set or clear one company's booth number.
+   *
+   * Returns whether it landed, so a caller placing a marker can decide what to do
+   * next rather than guessing.
+   *
+   * ── Why this is its own address and not part of the marker save ─────────────
+   *
+   * The number is on the company, not the marker. Folding it into the marker
+   * write would mean a marker address that edits a company, and a company pinned
+   * twice would then have two markers each able to claim the number.
+   */
+  async function saveBoothNumber(sponsorId: string, raw: string): Promise<boolean> {
+    const checked = validateBoothNumber(raw)
+    if (!checked.ok) {
+      setPinError(checked.error)
+      return false
+    }
+
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/floor-plan/sponsors/${sponsorId}/booth-number`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boothNumber: checked.value }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPinError(body.error ?? 'The booth number could not be saved.')
+        return false
       }
-      setPinsFor(map, [...pinsFor(map), saved])
-      setDraft(null)
-      setNoticeForPins(map, draft.type === 'ROOM' ? 'Room marker placed.' : 'Booth marker placed.', Boolean(body.delegatesNotified))
+
+      const saved: string | null = body.sponsor?.boothNumber ?? null
+      // The value the server stored, not the value that was typed. They differ
+      // whenever trimming applied, and showing what was typed would tell the
+      // organizer something the database does not say.
+      //
+      // `basedOn` reads the server prop rather than the override-applied list, so
+      // it records what the SERVER last said and the override retires the moment
+      // that changes. Reading sponsorsNow here would compare an override against
+      // itself and never retire.
+      const serverValue = sponsors.find(s => s.id === sponsorId)?.boothNumber ?? null
+      setBoothEdits(current => ({
+        ...current,
+        [sponsorId]: { basedOn: serverValue, value: saved },
+      }))
+      setNotice(
+        reachNotice(
+          saved ? `Booth number set to ${saved}.` : 'Booth number cleared.',
+          Boolean(body.delegatesNotified),
+        ),
+      )
       router.refresh()
+      return true
     } finally {
       setBusy(false)
     }
@@ -713,7 +896,9 @@ export default function FloorPlanClient({
                     <MarkerEditor
                       map={m}
                       pins={pins}
-                      sponsors={sponsors}
+                      // The override-applied list, not the server prop, so a
+                      // number changed a moment ago is already shown here.
+                      sponsors={sponsorsNow}
                       busy={busy}
                       selectedPinId={selectedPinId}
                       draft={draft && draft.mapId === m.id ? draft : null}
@@ -732,6 +917,7 @@ export default function FloorPlanClient({
                       onDraftSave={() => saveDraft(m)}
                       onEditPin={(pin, changes) => editPin(m, pin, changes)}
                       onDeletePin={pin => deletePin(m, pin)}
+                      onSetBoothNumber={saveBoothNumber}
                     />
                   )}
                 </li>
@@ -817,6 +1003,7 @@ function MarkerEditor({
   onDraftSave,
   onEditPin,
   onDeletePin,
+  onSetBoothNumber,
 }: {
   map: MapRow
   pins: AdminPin[]
@@ -832,8 +1019,23 @@ function MarkerEditor({
   onDraftSave: () => void
   onEditPin: (pin: AdminPin, changes: { sponsorId?: string | null; label?: string | null }) => void
   onDeletePin: (pin: AdminPin) => void
+  /** Set or clear a company's booth number. Resolves to whether it landed. */
+  onSetBoothNumber: (sponsorId: string, value: string) => Promise<boolean>
 }) {
   const selected = pins.find(p => p.id === selectedPinId) ?? null
+
+  /**
+   * The company chosen in the draft form, or null when there is none.
+   *
+   * Resolved once rather than looked up separately for the placeholder and the
+   * helper line. Adversarial review round 2 found the two lookups could disagree
+   * with each other's assumptions: both fell back when the id matched nothing,
+   * and the form then offered a booth-number box for a company deleted in
+   * another tab, telling the organizer it "has no booth number yet" about a
+   * company that no longer exists. Null here means the box is not offered at
+   * all, which is the same rule as having chosen nothing. Recorded as UF-21.
+   */
+  const draftCompany = draft?.sponsorId ? sponsors.find(s => s.id === draft.sponsorId) ?? null : null
 
   return (
     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3" data-testid="marker-editor" data-map-id={map.id}>
@@ -937,7 +1139,20 @@ function MarkerEditor({
             <button
               type="button"
               data-testid="draft-type-room"
-              onClick={() => onDraftChange({ ...draft, type: 'ROOM', sponsorId: '' })}
+              // The chosen company is KEPT when switching to Room, and this is
+              // deliberate. It used to be cleared here, which meant picking a
+              // company, glancing at Room, and coming back lost the choice with
+              // no warning — reported during the 2026-08-05 acceptance run.
+              //
+              // Nothing incorrect reaches the database as a result: saveDraft
+              // already sends `sponsorId` as null for a room marker, and the
+              // validator refuses a room that arrives carrying a company. So the
+              // clearing was protecting nothing and costing the organizer their
+              // work. Switching back to Booth now finds the company still
+              // selected, and the typed room name is likewise still there — the
+              // Booth direction never cleared it, which is what made the old
+              // behaviour feel arbitrary rather than like a rule.
+              onClick={() => onDraftChange({ ...draft, type: 'ROOM' })}
               className={`rounded border px-2 py-1 text-xs ${
                 draft.type === 'ROOM' ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200'
               }`}
@@ -952,7 +1167,17 @@ function MarkerEditor({
               <select
                 data-testid="draft-sponsor"
                 value={draft.sponsorId}
-                onChange={e => onDraftChange({ ...draft, sponsorId: e.target.value })}
+                // Changing the company CLEARS the typed booth number, and this is
+                // the opposite of the Booth/Room toggle above, which keeps what was
+                // entered. The difference is what the value belongs to. A room name
+                // belongs to the marker, so it survives; a booth number belongs to
+                // the company, so it cannot follow the picker to a different one.
+                //
+                // Adversarial review round 2 found this as the draft-form twin of
+                // round 1's UF-19: choose company A, type `A-01`, switch the picker
+                // to company B, press Save marker, and `A-01` was written onto
+                // company B. Recorded as UF-20.
+                onChange={e => onDraftChange({ ...draft, sponsorId: e.target.value, boothNumber: '' })}
                 className="form-input mt-1 w-full text-sm"
               >
                 <option value="">Choose a company…</option>
@@ -962,6 +1187,37 @@ function MarkerEditor({
                   </option>
                 ))}
               </select>
+
+              {/* Only once a company is chosen, because there is nowhere to put
+                  a number without one: it is stored on the company record, and a
+                  booth marker may legitimately have a typed name and no company.
+                  Showing an always-present box would invite an organizer to type
+                  a number that had nothing to attach to. */}
+              {draftCompany && (
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-gray-600">
+                    Booth number
+                  </label>
+                  <input
+                    data-testid="draft-booth-number"
+                    value={draft.boothNumber}
+                    maxLength={MAX_BOOTH_NUMBER_LENGTH}
+                    onChange={e => onDraftChange({ ...draft, boothNumber: e.target.value })}
+                    placeholder={draftCompany.boothNumber ?? 'B-01'}
+                    className="form-input mt-1 w-full text-sm"
+                  />
+                  {/* Two different sentences, because the two situations lead an
+                      organizer to different actions. With a number already set,
+                      leaving this empty keeps it — so say so, or they will retype
+                      a value they did not need to. With none set, this is the one
+                      place the gap gets closed. */}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {draftCompany.boothNumber
+                      ? 'Leave empty to keep the number this company already has.'
+                      : 'This company has no booth number yet. Delegates will see its name instead.'}
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="mt-3">
@@ -1000,16 +1256,26 @@ function MarkerEditor({
       )}
 
       {selected && !draft && (
-        // key on the marker's id: this form keeps the room name in its own state,
-        // and without a key React would reuse the instance when a different marker
-        // is selected, leaving the previous marker's name in the input.
+        // key on the marker's id AND its company: this form keeps the room name
+        // and the booth number in its own state, and without a key React would
+        // reuse the instance when a different marker is selected, leaving the
+        // previous marker's values in the inputs.
+        //
+        // The company is part of the key, not just the marker id. Adversarial
+        // review round 1 found that keying on the id alone let a booth number
+        // survive a change of company on the SAME marker: select a marker for
+        // company A showing A-01, switch the dropdown to company B which has no
+        // number, press Save, and A-01 is written onto company B. The marker id
+        // never changed, so React kept the state, and the number followed the
+        // form rather than the company it belonged to.
         <SelectedPinForm
-          key={selected.id}
+          key={`${selected.id}:${selected.sponsorId ?? ''}`}
           pin={selected}
           sponsors={sponsors}
           busy={busy}
           onEdit={changes => onEditPin(selected, changes)}
           onDelete={() => onDeletePin(selected)}
+          onSetBoothNumber={onSetBoothNumber}
         />
       )}
     </div>
@@ -1022,15 +1288,33 @@ function SelectedPinForm({
   busy,
   onEdit,
   onDelete,
+  onSetBoothNumber,
 }: {
   pin: AdminPin
   sponsors: SponsorOption[]
   busy: boolean
   onEdit: (changes: { sponsorId?: string | null; label?: string | null }) => void
   onDelete: () => void
+  onSetBoothNumber: (sponsorId: string, value: string) => Promise<boolean>
 }) {
   const [label, setLabel] = useState(pin.label ?? '')
   const [armed, setArmed] = useState(false)
+
+  /**
+   * The company this marker points at, read from the list rather than from the
+   * marker.
+   *
+   * The marker carries a copy of the booth number from when the page was
+   * rendered. The list carries any change made since. Reading the marker's copy
+   * would show the old number straight after the organizer changed it, which
+   * reads as a save that did not take — the same misreading the pinEdits override
+   * in the parent exists to prevent.
+   */
+  const company = pin.sponsorId ? sponsors.find(s => s.id === pin.sponsorId) ?? null : null
+
+  // Seeded from the stored value so the box shows what is there, and reset by the
+  // `key` on this component whenever a different marker is selected.
+  const [boothNumber, setBoothNumberField] = useState(company?.boothNumber ?? '')
 
   return (
     <div className="mt-3 rounded border border-blue-200 bg-white p-3" data-testid="selected-pin-form" data-pin-id={pin.id}>
@@ -1055,10 +1339,48 @@ function SelectedPinForm({
               </option>
             ))}
           </select>
-          {pin.sponsorBoothNumber && (
-            <p className="mt-1 text-xs text-gray-500" data-testid="selected-pin-booth">
-              Booth {pin.sponsorBoothNumber}
-            </p>
+          {/* ── The gap this phase closes ──────────────────────────────────
+              A marker could be saved with a company that has no booth number,
+              and the organizer had no screen to supply one — the number was
+              editable only inside that company's own portal. Reported during the
+              2026-08-05 acceptance run.
+
+              Saved by its own button rather than on every keystroke. This writes
+              a company record that several screens read, so a save per character
+              would put a dozen half-typed stand numbers on delegates' phones on
+              the way to the real one. */}
+          {company && (
+            <div className="mt-2" data-testid="selected-pin-booth">
+              <label className="block text-xs font-medium text-gray-600">Booth number</label>
+              <div className="mt-1 flex gap-2">
+                <input
+                  data-testid="selected-pin-booth-input"
+                  value={boothNumber}
+                  maxLength={MAX_BOOTH_NUMBER_LENGTH}
+                  disabled={busy}
+                  onChange={e => setBoothNumberField(e.target.value)}
+                  placeholder="B-01"
+                  className="form-input w-full text-sm"
+                />
+                <button
+                  type="button"
+                  data-testid="selected-pin-booth-save"
+                  // Compared after trimming, because the stored value is trimmed.
+                  // Without this, a trailing space would look like a change, send
+                  // a request, and store exactly what was already there.
+                  disabled={busy || boothNumber.trim() === (company.boothNumber ?? '')}
+                  onClick={() => onSetBoothNumber(company.id, boothNumber)}
+                  className="btn-primary shrink-0 text-xs disabled:opacity-40"
+                >
+                  Save
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                {company.boothNumber
+                  ? 'Delegates see this number on the map.'
+                  : 'No booth number yet — delegates see the company name instead.'}
+              </p>
+            </div>
           )}
         </div>
       ) : (
