@@ -558,6 +558,63 @@ are diff-only writes; `required: null` deletes the override row. Tests:
 
 ---
 
+## The booth number has one author — the organizer, editing it on the marker (2026-08-07)
+
+`Sponsor.boothNumber` had exactly one write path and it was in the wrong app: the
+sponsor's own portal profile. `CONTEXT.md` had meanwhile stated since the
+onboarding work that the organizer assigns the number, and used that as the
+reason the onboarding gate does not block a sponsor on it — so the glossary and
+the code said opposite things. An organizer looking at a marker labelled
+`no booth number yet` had no box to fix it in and had to ask the exhibitor to
+sign in and type it themselves.
+
+The number is now set from the floor plan screen, in one text box that appears
+beside the company picker while a marker is being placed and again when a saved
+marker is selected, and the sponsor side becomes read-only:
+`apps/sponsor/components/ProfileEditor.tsx` renders it as plain text and
+`apps/sponsor/app/api/profile/route.ts` refuses the field with `403` rather than
+ignoring it. Key decisions: (1) the rules for what a booth number may be live in
+one pure module, [`apps/web/lib/booth-number-input.ts`](../apps/web/lib/booth-number-input.ts),
+read by both the screen and the write address, so the two cannot disagree about
+length or emptiness — the same reasoning as `lib/pin-input.ts` and
+`packages/db/src/onboarding-policy.ts`; a blank value stores `null` rather than
+spaces, because a stored blank satisfies every truthiness check in the four apps
+while being no stand number at all. (2) The write address sits at
+`apps/web/app/api/floor-plan/sponsors/[sponsorId]/booth-number/route.ts`, beside
+the marker addresses rather than under `sponsors`, and is guarded by the
+`floorPlan` permission alone — its neighbour already lets that same caller attach
+or detach a company entirely, so demanding a second permission to type that
+company's stand number would be stricter on the smaller action, and would put a
+box on screen that the server then refuses. (3) The number stays on the company
+record and is read through the marker's company relation rather than copied onto
+the marker, per [`adr/0007-floor-plan-human-authored-pins-over-raster.md`](adr/0007-floor-plan-human-authored-pins-over-raster.md):
+seed and database have already drifted apart on booth numbers while identifiers
+have not. One company therefore holds one number, and a company pinned on two
+maps reads the same on both. (4) The box appears only once a company is chosen,
+because a booth marker with no company has nowhere to put the value. (5) Changing
+the chosen company empties the typed number, while the Booth/Room toggle keeps
+what was entered — the rule is what the value belongs to: a room name belongs to
+the marker, a booth number belongs to the company and cannot follow the picker to
+a different one. (6) The organizer's own marker label still reads the company
+name; the number is what a delegate's map shows, falling back to the company name
+only when none is set. The two screens label a marker differently on purpose.
+
+Two behaviours were examined and deliberately left as they are. A second
+organizer writing between this address's write and its read-back means the first
+is told the other value — kept, because reporting what the database actually
+holds is truer than reporting what this request sent while the row holds
+something else. And the sponsor portal's own cached view of the number can lag a
+change by up to about a minute, and survives a reload of an open tab; closing
+that means admin-to-sponsor cross-app cache invalidation, which is new
+infrastructure. A stale screen can no longer cause an unwitting overwrite: the
+floor plan's local override now records the server value it replaced and yields
+the moment the server reports anything else.
+
+Verified by `docs/smoketests/phase-6-booth-number-from-map.md`, run on a live
+workspace rather than only written.
+
+---
+
 ## Cross-references
 
 - [Architecture](architecture.md) — cross-cutting current-state architecture.
