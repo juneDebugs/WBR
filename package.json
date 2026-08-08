@@ -107,7 +107,8 @@
     "db:reset-test-accounts": "node packages/db/scripts/reset-test-accounts.mjs",
     "test:accounts": "node scripts/test-test-accounts.mjs",
     "e2e:accounts": "node scripts/e2e-app-access-all.mjs",
-    "db:backfill-onboarding": "node packages/db/scripts/backfill-onboarding-required-fields.mjs"
+    "db:backfill-onboarding": "node packages/db/scripts/backfill-onboarding-required-fields.mjs",
+    "test:canonical-restore": "pnpm --filter @conference/db test:canonical-restore"
   },
   "devDependencies": {
     "playwright": "^1.61.1",

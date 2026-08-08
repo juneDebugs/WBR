@@ -1,5 +1,10 @@
 import { prisma } from './client'
 import { hashPassword, verifyPassword } from './password'
+import {
+  DELEGATE_REQUIRED_FIELDS,
+  DELEGATE_REQUIRED_SELECT,
+  type DelegateField,
+} from './onboarding-policy'
 
 // ─── Canonical demo/test accounts — single source of truth ───────────────────
 //
@@ -17,11 +22,20 @@ import { hashPassword, verifyPassword } from './password'
 // logins therefore self-heal and can no longer be permanently broken by a
 // stray script.
 //
-// Keep this list in sync with packages/db/prisma/seed.ts (demoUsers) and
-// packages/db/scripts/reset-test-accounts.mjs (ACCOUNTS). All three describe
-// the same four accounts; this one is the runtime-enforced copy. Three of them
-// pass the attendee onboarding gate; onboarding-demo@test.com is deliberately
-// left blocked by it — see its entry below.
+// Keep this list in sync with packages/db/prisma/seed.ts (demoUsers),
+// packages/db/scripts/reset-test-accounts.mjs (ACCOUNTS) and
+// packages/db/scripts/backfill-onboarding-required-fields.mjs (demoFields, for
+// the gate demonstration account only). All four describe the same accounts;
+// this one is the runtime-enforced copy. Three of them pass the attendee
+// onboarding gate; onboarding-demo@test.com is deliberately left blocked by it
+// — see its entry below.
+//
+// One account additionally carries `restoreRequiredFields`, which extends the
+// health check to the six profile fields the onboarding gate measures, so its
+// incompleteness returns on every sign-in and a rehearsal cannot use it up.
+// Accounts without that flag are compared exactly as before and are never
+// written by it — that containment is covered by
+// packages/db/scripts/test-canonical-account-restore.ts.
 
 // The Tailor ERP sponsor company the Sponsor account links to (see seed.ts).
 export const TAILOR_SPONSOR_ID = 'cmngb2h4h0007vm28mbcpxjg5'
@@ -49,6 +63,44 @@ export interface CanonicalTestAccount {
   annualRevenue?: string
   solutionsSeeking?: string
   solutionsOffering?: string
+  /**
+   * Mark this account a `gate demonstration account` (CONTEXT.md): its
+   * incompleteness is restored when it signs in WITH ITS PASSWORD, so a
+   * rehearsal cannot use it up.
+   *
+   * PASSWORD SIGN-IN ONLY, and that is the whole of it. This function is called
+   * from authorize(), which only the email-and-password provider runs. The
+   * Google and LinkedIn signIn callbacks find or create a row by email address
+   * and issue a session without consulting it, so an account arriving that way
+   * is NOT restored.
+   *
+   * Stated rather than fixed, on an OPERATIONAL ASSUMPTION rather than an
+   * enforced rule: these addresses are at @test.com and nobody is expected to
+   * hold a Google or LinkedIn account there. Nothing in the code enforces it —
+   * the OAuth callbacks match on whatever address the provider returns. A
+   * demonstration account at a real email address would need this looked at
+   * again.
+   *
+   * When set, the health check below ALSO compares the six DELEGATE_REQUIRED_
+   * FIELDS values against this definition, so a profile completed by hand
+   * counts as unhealthy and the repair that already exists puts it back. Without
+   * it the check compares password, role and company link only, and a completed
+   * profile stays completed until a reseed.
+   *
+   * SCOPE. This restores a DELEGATE's own six fields. A sponsor representative
+   * is gated on their exhibiting COMPANY rather than on their own profile, so a
+   * sponsor-side gate demonstration account is not covered by this flag and
+   * needs its own mechanism against the Sponsor row.
+   *
+   * The photograph is deliberately outside the comparison, and outside it by
+   * construction rather than by an exception: DELEGATE_REQUIRED_FIELDS does not
+   * contain `image`. A definition holds a picture address while the stored row
+   * may hold nothing, so comparing it would leave the account permanently
+   * unhealthy and write on every single sign-in. A restore that fires for some
+   * other reason does still set the photograph, because buildData writes the
+   * whole definition.
+   */
+  restoreRequiredFields?: true
 }
 
 export const CANONICAL_TEST_ACCOUNTS: CanonicalTestAccount[] = [
@@ -107,10 +159,14 @@ export const CANONICAL_TEST_ACCOUNTS: CanonicalTestAccount[] = [
     // listed here so a stray maintenance script cannot quietly delete the demo
     // prop; self-heal recreates it in the same blocked state.
     //
-    // Note the self-heal health check compares password/role/sponsorId only, so
-    // if someone completes this profile by hand it is left completed rather than
-    // being forcibly re-blanked. Re-blank it with
-    // `pnpm db:backfill-onboarding`, which resets this account specifically.
+    // `restoreRequiredFields` is what keeps it blocked across rehearsals: the
+    // health check compares the six required fields against this definition, so
+    // completing the profile by hand makes the account unhealthy and the next
+    // sign-in puts solutionsSeeking back to the empty array. Before that flag
+    // existed the check compared password, role and company link only, and a
+    // completed profile stayed completed until `pnpm db:backfill-onboarding`
+    // was run by hand — which is still available and still resets this account
+    // specifically, but is no longer the only way back.
     id: 'test-onboarding-demo',
     email: 'onboarding-demo@test.com',
     password: 'password123',
@@ -123,6 +179,7 @@ export const CANONICAL_TEST_ACCOUNTS: CanonicalTestAccount[] = [
     companySize: 'MIDMARKET',
     annualRevenue: '10M-50M',
     solutionsSeeking: JSON.stringify([]),
+    restoreRequiredFields: true,
   },
 ]
 
@@ -132,6 +189,65 @@ const CANONICAL_BY_EMAIL = new Map(CANONICAL_TEST_ACCOUNTS.map((a) => [a.email, 
 export function isCanonicalTestEmail(email: string | null | undefined): boolean {
   if (!email) return false
   return CANONICAL_BY_EMAIL.has(email.trim().toLowerCase())
+}
+
+/**
+ * The required fields buildData writes ONLY when the definition's value is
+ * truthy — its spreads below are conditional for exactly these three. Kept
+ * beside the comparison because the comparison has to agree with the write; if
+ * buildData's spreads change, this changes with them.
+ */
+const CONDITIONALLY_WRITTEN_FIELDS: ReadonlySet<DelegateField> = new Set<DelegateField>([
+  'companySize',
+  'annualRevenue',
+  'solutionsSeeking',
+])
+
+/**
+ * For a `restoreRequiredFields` account: does the stored row still hold the
+ * required-field values this definition pins?
+ *
+ * Returns true — "nothing to restore" — for every account without the flag, so
+ * this can sit unconditionally in the health check without changing behaviour
+ * for the other canonical accounts. That containment is the property the phase
+ * 2 acceptance criteria are about, and it is expressed here as a single early
+ * return rather than as a condition at the call site, so there is one place to
+ * read.
+ *
+ * ONLY FIELDS buildData WILL ACTUALLY WRITE ARE COMPARED. Two cases are skipped
+ * for the same reason: comparing a field the repair does not write leaves the
+ * account unhealthy forever, so every single sign-in writes and none of them
+ * ever satisfies the comparison.
+ *
+ *   - A field the definition leaves undefined. It pins nothing there.
+ *   - A field the definition sets to an empty string, WHERE buildData writes it
+ *     conditionally on a truthy value — companySize, annualRevenue and
+ *     solutionsSeeking. name, jobTitle and company are written unconditionally,
+ *     so an empty string there is both comparable and restorable.
+ *
+ * The second case has no caller today; it is a trap laid for whoever adds the
+ * next gate demonstration account, because "hold this field empty so the gate
+ * blocks" is the obvious thing to reach for. Note that `solutionsSeeking: "[]"`
+ * is NOT this case — "[]" is a non-empty string, truthy, written and compared.
+ *
+ * The comparison is on the stored string, not on "is this field complete".
+ * `solutionsSeeking` for the gate demonstration account is the string `"[]"`,
+ * which the onboarding policy reads as EMPTY but which is a perfectly ordinary
+ * value to store and restore. Asking "does the row match the definition" keeps
+ * those two questions apart.
+ */
+function requiredFieldsMatchDefinition(
+  def: CanonicalTestAccount,
+  row: Partial<Record<DelegateField, string | null>>,
+): boolean {
+  if (!def.restoreRequiredFields) return true
+  for (const field of DELEGATE_REQUIRED_FIELDS) {
+    const wanted = def[field]
+    if (wanted === undefined) continue
+    if (!wanted && CONDITIONALLY_WRITTEN_FIELDS.has(field)) continue
+    if ((row[field] ?? null) !== wanted) return false
+  }
+  return true
 }
 
 function buildData(def: CanonicalTestAccount, passwordHash: string, sponsorId: string | null) {
@@ -174,17 +290,28 @@ export async function ensureCanonicalTestAccount(email: string, submittedPasswor
     // supplied the real demo password. Wrong-password attempts change nothing.
     if (submittedPassword !== def.password) return false
 
+    // The six required fields are DERIVED into this select rather than written
+    // out beside it, so adding a field to the delegate required set extends the
+    // read automatically. A field that was not fetched would arrive as
+    // undefined, which the comparison below would read as a mismatch, and the
+    // account would be restored on every sign-in.
     const existing = await prisma.user.findUnique({
       where: { email: def.email },
-      select: { id: true, password: true, role: true, sponsorId: true },
+      select: { id: true, password: true, role: true, sponsorId: true, ...DELEGATE_REQUIRED_SELECT },
     })
 
     // Already healthy? No write needed.
+    //
+    // The required-field comparison sits BEFORE verifyPassword deliberately:
+    // it is six string comparisons against a row already in hand, while
+    // verifyPassword runs scrypt. Putting the cheap test first means a gate
+    // demonstration account that needs restoring skips the hash entirely.
     if (
       existing &&
       existing.password &&
       existing.role === def.role &&
       (existing.sponsorId ?? null) === (def.sponsorId ?? null) &&
+      requiredFieldsMatchDefinition(def, existing) &&
       (await verifyPassword(def.password, existing.password))
     ) {
       return false
