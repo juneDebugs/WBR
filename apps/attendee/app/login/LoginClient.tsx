@@ -217,7 +217,18 @@ export function LoginClient({ loginTitle, loginSubtitle, loginButtonText }: Prop
               <span className="font-medium text-white/85">WBR</span>
               <span className="text-white/60">wbr@test.com / password123</span>
             </div>
+            {/* The delegate gate demonstration account. Missing from this panel
+                since the phase that built it — the account existed and worked,
+                and nobody reading this screen could tell. */}
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-medium text-white/85 whitespace-nowrap">Onboarding gate</span>
+              <span className="text-white/60 text-right">onboarding-demo@test.com / password123</span>
+            </div>
           </div>
+          <p className="mt-3 text-[11px] leading-snug text-white/45">
+            The onboarding gate account is kept incomplete on purpose — it always lands on the
+            checklist.
+          </p>
         </div>
 
         <p className="text-white/40 text-xs text-center mt-4">
