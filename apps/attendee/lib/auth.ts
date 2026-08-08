@@ -8,7 +8,7 @@ import {
   linkedInEmailVerified,
   linkedInProvider,
   type LinkedInClaims,
-} from '@/lib/linkedin-identity'
+} from '@conference/db/src/linkedin-identity'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -116,6 +116,11 @@ export const authOptions: NextAuthOptions = {
           existing,
           incoming: { name: user.name ?? null, image: user.image ?? null },
           roleAdmitted: role => canAccessApp('attendee', role),
+          // The role a new account is given here. Stated rather than defaulted
+          // (UF-53) so the same test that admits an existing person is applied
+          // to one who does not exist yet. This application admits it, so the
+          // behaviour of this branch is unchanged by the check.
+          createRole: 'ATTENDEE',
         })
 
         // Every refusal leaves without writing. `false` produces next-auth's own
@@ -130,7 +135,10 @@ export const authOptions: NextAuthOptions = {
               email: action.email,
               name: action.name,
               image: action.image,
-              role: 'ATTENDEE',
+              // The role the decision tested, not a literal repeated here.
+              // UF-53: a literal could be changed to one this application does
+              // not admit while every check still passed.
+              role: action.role,
             },
             select: { id: true, role: true, sponsorId: true },
           })

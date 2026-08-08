@@ -93,7 +93,9 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = resolve(HERE, '../../..')
 const APP_DIR = join(REPO, 'apps/attendee')
 const DB_PATH = join(REPO, 'packages/db/prisma/dev.db')
-const RULES = join(APP_DIR, 'lib/linkedin-identity.ts')
+// The rules module moved to the shared package when the meetings portal and the
+// sponsor portal took the same sign-in method (UF-52). One copy, three readers.
+const RULES = join(REPO, 'packages/db/src/linkedin-identity.ts')
 
 const PORT = Number(process.env.ATTENDEE_PORT ?? 3001)
 const BASE_URL = `http://localhost:${PORT}`
@@ -514,6 +516,7 @@ async function main() {
       existing: { role: 'ATTENDEE', name: 'Their Own Edit', image: 'their-own.png' },
       incoming: { name: 'From LinkedIn', image: 'from-linkedin.png' },
       roleAdmitted: () => true,
+      createRole: 'ATTENDEE',
     })
     eq(returning.kind, 'join', 'C38b a returning delegate whose LinkedIn sends the string "true" is admitted, not refused (F-29)')
     eq(JSON.stringify(returning.update), '{}', 'C38c and their own edits are left alone')
@@ -538,12 +541,24 @@ async function main() {
     // is that a REFUSING outcome carries no write: not that two statements sit in
     // a particular order, which nothing could observe, but that the value handed
     // back to the caller contains nothing to write.
+    /**
+     * `createRole` — the role a new account would be given — became a required
+     * argument on 2026-08-08 with UF-53, when the role test was extended to the
+     * create path. Every call below states it.
+     *
+     * Omitting it is not silently tolerated, and that is deliberate: an absent
+     * role reads as no role, `canAccessApp` refuses that, and the create is
+     * refused. Measured here first, when these two calls were left un-updated and
+     * C59 and C60 turned red. Fail-closed is the right direction, and the type
+     * checker requires the argument at every real call site.
+     */
     const admits = role => ['ATTENDEE', 'BRAND', 'SPEAKER', 'ORGANIZER', 'ADMIN', 'STAFF'].includes(role)
     const refusesAll = () => false
     const filled = { name: 'From LinkedIn', image: 'from-linkedin.png' }
 
     const noAddress = rules.linkedInAction({
       email: null, emailVerified: true, existing: null, incoming: filled, roleAdmitted: admits,
+      createRole: 'ATTENDEE',
     })
     eq(noAddress.kind, 'refuse', 'C47 no address refuses')
     eq(noAddress.redirectTo, '/login?error=LinkedInNoEmail', 'C48 and names that cause')
@@ -552,7 +567,7 @@ async function main() {
     const unverifiedJoin = rules.linkedInAction({
       email: 'a@b.com', emailVerified: false,
       existing: { role: 'ORGANIZER', name: null, image: null },
-      incoming: filled, roleAdmitted: admits,
+      incoming: filled, roleAdmitted: admits, createRole: 'ATTENDEE',
     })
     eq(unverifiedJoin.kind, 'refuse', 'C50 an unverified address at an ORGANIZER row refuses (F-27)')
     eq(unverifiedJoin.redirectTo, '/login?error=LinkedInUnverifiedEmail', 'C51 and names that cause')
@@ -563,7 +578,7 @@ async function main() {
     const roleRefused = rules.linkedInAction({
       email: 'a@b.com', emailVerified: true,
       existing: { role: 'SPONSOR', name: null, image: null },
-      incoming: filled, roleAdmitted: admits,
+      incoming: filled, roleAdmitted: admits, createRole: 'ATTENDEE',
     })
     eq(roleRefused.kind, 'refuse', 'C53 a role this app does not admit refuses')
     eq(roleRefused.redirectTo, null, 'C54 with no cause named, which produces the generic refusal')
@@ -572,7 +587,7 @@ async function main() {
     const joinBlank = rules.linkedInAction({
       email: 'a@b.com', emailVerified: true,
       existing: { role: 'ATTENDEE', name: null, image: null },
-      incoming: filled, roleAdmitted: admits,
+      incoming: filled, roleAdmitted: admits, createRole: 'ATTENDEE',
     })
     eq(joinBlank.kind, 'join', 'C56 an admitted role with blank fields joins')
     eq(JSON.stringify(joinBlank.update), JSON.stringify({ name: 'From LinkedIn', image: 'from-linkedin.png' }), 'C57 and writes both blank fields')
@@ -580,12 +595,13 @@ async function main() {
     const joinFilled = rules.linkedInAction({
       email: 'a@b.com', emailVerified: true,
       existing: { role: 'ATTENDEE', name: 'Their Own Edit', image: 'their-own.png' },
-      incoming: filled, roleAdmitted: admits,
+      incoming: filled, roleAdmitted: admits, createRole: 'ATTENDEE',
     })
     eq(JSON.stringify(joinFilled.update), '{}', 'C58 and writes nothing over fields the person filled in')
 
     const createsNew = rules.linkedInAction({
       email: '  A@B.com ', emailVerified: false, existing: null, incoming: filled, roleAdmitted: admits,
+      createRole: 'ATTENDEE',
     })
     eq(createsNew.kind, 'create', 'C59 an unverified address with no row still creates one')
     eq(createsNew.email, 'a@b.com', 'C60 under the trimmed, lowercased address')
@@ -596,7 +612,7 @@ async function main() {
     const bothWrong = rules.linkedInAction({
       email: null, emailVerified: false,
       existing: { role: 'SPONSOR', name: null, image: null },
-      incoming: filled, roleAdmitted: refusesAll,
+      incoming: filled, roleAdmitted: refusesAll, createRole: 'ATTENDEE',
     })
     eq(bothWrong.redirectTo, '/login?error=LinkedInNoEmail', 'C61 the missing address is reported ahead of the role')
 
@@ -604,7 +620,7 @@ async function main() {
     const nothingAdmitted = rules.linkedInAction({
       email: 'a@b.com', emailVerified: true,
       existing: { role: 'ATTENDEE', name: null, image: null },
-      incoming: filled, roleAdmitted: refusesAll,
+      incoming: filled, roleAdmitted: refusesAll, createRole: 'ATTENDEE',
     })
     eq(nothingAdmitted.kind, 'refuse', 'C62 an admitted-set that refuses everything refuses, rather than writing')
 
