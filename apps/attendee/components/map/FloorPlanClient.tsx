@@ -1,9 +1,81 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ElementType } from 'react'
 import { useFloorPlanData, useFloorPlanLiveUpdates } from '@/lib/hooks'
 import type { FloorPlanMap, FloorPlanPin, FloorPlanSponsor } from '@/lib/floor-plan-data'
+
+/**
+ * The one width threshold this screen changes behaviour at: the styling
+ * toolkit's `md`, 768 pixels.
+ *
+ * Written out here as well as used in class names because two things below need
+ * it in JavaScript — whether the card claims to be a modal dialog, and whether
+ * it traps Tab — and a second number that had to agree with `md` by hand is how
+ * the two would drift apart. This supersedes the 600 pixels named during the
+ * acceptance run: 600 matches no other rule in this codebase, and 768 also
+ * covers a tablet held upright, which is a touch device with the same problem.
+ */
+const WIDE_SCREEN_QUERY = '(min-width: 768px)'
+
+/**
+ * True when the window is 768 pixels or wider.
+ *
+ * `useSyncExternalStore` rather than `useState` + `useEffect` for one reason:
+ * it takes a server snapshot, so the first render on the server and the first
+ * render in the browser agree by construction and React has no hydration
+ * mismatch to complain about. The server snapshot is `false` — narrow — because
+ * this application is a phone-first installable app, so the narrow layout is the
+ * one worth rendering first on a cold load.
+ */
+function useIsWideScreen(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mql = window.matchMedia(WIDE_SCREEN_QUERY)
+      mql.addEventListener('change', onChange)
+      return () => mql.removeEventListener('change', onChange)
+    },
+    () => window.matchMedia(WIDE_SCREEN_QUERY).matches,
+    () => false,
+  )
+}
+
+/**
+ * ── The map's height cap below 768 pixels: 38dvh ─────────────────────────────
+ *
+ * The value itself lives in one place only — the max-width class on the map
+ * window, further down this file, because a Tailwind class has to be a literal
+ * string and a constant here would be a second copy of the number with nothing
+ * keeping the two in step. This note is where the number comes from.
+ *
+ * That class is deliberately NOT quoted here. Tailwind reads this file looking
+ * for class names and does not know a comment from code, so an earlier version
+ * of this note put a second, unused `max-width` rule into the built stylesheet —
+ * with an ellipsis where the variable should be. Harmless, and still noise
+ * shipped to every visitor.
+ *
+ * IT WAS MEASURED, NOT CHOSEN. The predecessor attempt chose 80% of the map
+ * window without measuring anything, which on a 390-pixel phone gave the card
+ * 220 pixels against the 317 the tallest company card needs, and put the website
+ * link off the bottom for every company (UF-6). Every automated assertion passed,
+ * because they all read the markup.
+ *
+ * Measured in the browser at 390 × 844, before the value was set:
+ *
+ *   map window top          114 px   (below the header and the map tabs)
+ *   gap under the map        12 px
+ *   tallest company card    317 px   (Shopify and BigCommerce, 7 offerings each)
+ *   bottom bar top          779 px
+ *
+ * So the map may be at most 779 − 114 − 12 − 317 = 336 pixels tall for the
+ * tallest card to be completely visible without the page scrolling. 38% of 844
+ * is 321, clearing it by 15 pixels, and it scales with the screen rather than
+ * being right on one phone and wrong on the next.
+ *
+ * `dvh` and not `vh`: on a phone `vh` is measured against the window with the
+ * address bar hidden, so a map sized in `vh` is taller than the space the person
+ * can actually see whenever that bar is showing. `dvh` is that visible space.
+ */
 
 /**
  * The participant's venue map: a picture with markers on top of it, which the
@@ -232,6 +304,26 @@ function BoothCard({ sponsor, onClose }: { sponsor: FloorPlanSponsor; onClose: (
   const cardRef = useRef<HTMLDivElement | null>(null)
   const returnFocusTo = useRef<Element | null>(null)
 
+  // ── Below 768 pixels this is a card under the map, not a modal over it ──────
+  //
+  // The three things that make a dialog modal — the overlay, the claim
+  // `aria-modal`, and Tab being held inside — are one decision, not three, and
+  // they hold together only while the overlay is there.
+  //
+  // Below 768 the card sits beneath the map and the overlay is gone, so every
+  // marker behind it stays reachable with a finger. Telling a screen reader that
+  // everything outside the card is unavailable, while a sighted person taps a
+  // second marker freely, describes the screen wrongly — and trapping Tab would
+  // take away the keyboard route to the very markers the overlay no longer
+  // blocks. So both are dropped there, and both are kept at 768 and above, where
+  // the card still opens over the map with the overlay under it.
+  //
+  // What is NOT conditional: `role="dialog"`, the accessible name, moving focus
+  // to the card when it opens, and returning focus to the marker when it closes.
+  // A dialog without `aria-modal` is an ordinary non-modal dialog, and those
+  // four are what make it announce itself either way.
+  const wide = useIsWideScreen()
+
   // ── Making aria-modal true rather than merely claimed ────────────────────────
   //
   // Raised by Phase 9's adversarial review. The card announced itself as a modal
@@ -248,9 +340,59 @@ function BoothCard({ sponsor, onClose }: { sponsor: FloorPlanSponsor; onClose: (
   //   3. focus returns to the marker that opened it when it closes.
   useEffect(() => {
     returnFocusTo.current = document.activeElement
-    cardRef.current?.focus()
+    // preventScroll below 768. The card is in the page's flow there, and
+    // focusing an element scrolls it into view — which would scroll the map,
+    // and possibly the marker just tapped, off the top of the screen. The whole
+    // point of the change is that the marker stays visible. The map height cap
+    // is set so that nothing needs to scroll at all, so preventing the scroll
+    // costs nothing and removes a way for that to stop being true.
+    cardRef.current?.focus({ preventScroll: !wide })
     const opener = returnFocusTo.current
+    const card = cardRef.current
+
+    // ── Track whether this card holds focus, as focus moves ─────────────────
+    //
+    // It cannot be asked at the end. By the time this effect's cleanup runs,
+    // React has already taken the card out of the page and the browser has
+    // dropped focus to the document body, so "does the card have focus?" is
+    // false however the card came to be closing. Measured: testing it there
+    // suppressed every restore, including the ones that should happen.
+    //
+    // `focusout` carries where focus is GOING, which is the question that can
+    // actually be answered. Focus moving to something outside the card means
+    // the person has gone elsewhere. Focus going nowhere — which is what the
+    // card being removed looks like — leaves the flag alone, so a close still
+    // returns focus to the marker that opened it.
+    const holdsFocus = { current: true }
+    const onFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget
+      if (next instanceof Node && card && !card.contains(next)) holdsFocus.current = false
+    }
+    const onFocusIn = () => { holdsFocus.current = true }
+    card?.addEventListener('focusout', onFocusOut)
+    card?.addEventListener('focusin', onFocusIn)
+
     return () => {
+      card?.removeEventListener('focusout', onFocusOut)
+      card?.removeEventListener('focusin', onFocusIn)
+
+      // ── ONLY GIVE FOCUS BACK IF THIS CARD STILL HELD IT ───────────────────
+      //
+      // Two reasons, and the second was measured.
+      //
+      // If the person has moved focus somewhere else — which below 768 they may
+      // do, because Tab deliberately leaves this card — then pulling it back to
+      // a marker as the card closes takes them somewhere they did not ask to go.
+      //
+      // And switching straight from one marker's card to another's is now an
+      // ordinary thing to do at that width, since the overlay no longer swallows
+      // the second tap. React unmounts the old card and mounts the new one, in
+      // that order, so without this test the OLD card's cleanup put focus back
+      // on the old marker first, and the NEW card then recorded that old marker
+      // as the one to return to. Measured: open the first marker, open the
+      // second, press Escape — and focus landed on the first marker.
+      if (!holdsFocus.current) return
+
       // Only if it is still on the page. A marker can disappear when the data
       // refreshes, and focusing a detached element throws focus to the body
       // silently, which is worse than leaving it where it is.
@@ -258,8 +400,32 @@ function BoothCard({ sponsor, onClose }: { sponsor: FloorPlanSponsor; onClose: (
     }
   }, [])
 
+  // ── Becoming modal has to collect the focus it is about to shut in ──────────
+  //
+  // Below 768 this card is not modal and Tab deliberately leaves it, so a person
+  // using a keyboard can be somewhere else on the page with the card still open.
+  // If the window then crosses 768 — TURNING A PHONE ON ITS SIDE does it, since
+  // 844 is wider than 768 — the overlay appears and the card starts claiming
+  // aria-modal, while focus is still behind that overlay on something the person
+  // can no longer see or tap. The Tab trap cannot help, because it only fires on
+  // keys pressed inside the card.
+  //
+  // So when this becomes modal, it takes focus, exactly as it would have done
+  // had it opened at that width. Escape still closes it, which was the only way
+  // out before. Going the other way needs nothing: dropping the overlay and the
+  // claim gives freedom back rather than taking it away.
+  //
+  // Raised by adversarial review round 2.
+  useEffect(() => {
+    if (!wide) return
+    const card = cardRef.current
+    if (card && !card.contains(document.activeElement)) card.focus()
+  }, [wide])
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Tab') return
+    // Only while this is genuinely modal. See the note above the `wide` read.
+    if (!wide) return
     const card = cardRef.current
     if (!card) return
     const focusable = [
@@ -283,11 +449,18 @@ function BoothCard({ sponsor, onClose }: { sponsor: FloorPlanSponsor; onClose: (
     <>
       {/* Covers the map so a tap anywhere off the card dismisses it. It sits
           under the card and over the map, and it is a plain element rather than
-          a button so that it never takes focus from the card. */}
+          a button so that it never takes focus from the card.
+
+          GONE BELOW 768 PIXELS. Its reach has nothing to do with where the card
+          is drawn — it is `inset-0` on the map's own container (UF-7) — so once
+          the card moves beneath the map, the overlay is the only thing left over
+          the map, and a tap meant for a second marker is spent closing the first
+          card instead. Removing it makes a second marker one tap. The card keeps
+          its close control, which is how it is dismissed there. */}
       <div
         data-testid="booth-card-backdrop"
         onClick={onClose}
-        className="absolute inset-0 z-20 rounded-xl bg-black/30"
+        className="absolute inset-0 z-20 hidden rounded-xl bg-black/30 md:block"
       />
 
       <div
@@ -295,7 +468,11 @@ function BoothCard({ sponsor, onClose }: { sponsor: FloorPlanSponsor; onClose: (
         data-booth-card-sponsor={sponsor.id}
         ref={cardRef}
         role="dialog"
-        aria-modal="true"
+        // Claimed only where it is true. See the note above the `wide` read:
+        // below 768 the overlay is gone and everything behind this card is
+        // reachable, so announcing the rest of the screen as unavailable would
+        // describe it wrongly.
+        aria-modal={wide ? 'true' : undefined}
         aria-labelledby={headingId}
         // -1 so the card itself can hold focus when it opens without becoming a
         // stop on the ordinary Tab sequence.
@@ -304,27 +481,43 @@ function BoothCard({ sponsor, onClose }: { sponsor: FloorPlanSponsor; onClose: (
         // The card holds focus on open, and the browser would otherwise draw its
         // own ring around the whole panel. The controls inside keep theirs.
         style={{ outline: 'none' }}
-        // ── Why this is anchored by its TOP rather than the map's bottom ─────
+        // ── Below 768 pixels: in the page's flow, under the map ──────────────
         //
-        // The first version pinned the card to the bottom of the map window and
-        // capped it at 80% of that window's height. Measured on a 390-pixel
-        // phone, that window is 366 by 275, so the card got 220 pixels while
-        // Shopify's card needs 317. The result: the offerings were sliced
-        // through the middle of a row and THE WEBSITE LINK WAS OFF THE BOTTOM
-        // ON EVERY COMPANY — an action a delegate could not see, on the device
-        // they are holding at the venue.
+        // The reported fault was that tapping a marker low on the map opened
+        // this card over the very spot just tapped, so the delegate could not
+        // see what they had selected. How much it covered was decided by the
+        // shape of whatever picture somebody uploaded, because the map window
+        // takes its height from the picture's proportions (UF-5).
         //
-        // Every automated assertion passed anyway, because they all read the
-        // markup. This is the same blind spot finding F-9 recorded for the map
-        // itself, and it was found the same way: by looking.
+        // The fix is the map's height, not this card's position. Capping the map
+        // (see MAP_HEIGHT_CAP) makes the room under it the same whatever is
+        // uploaded, and this card then takes that room as an ordinary block in
+        // the page rather than an overlay. Nothing of the map is covered, so the
+        // marker that was tapped stays visible — which is the whole criterion.
         //
-        // Anchoring the top at 45% of the map lets the card grow downward into
-        // the empty page below the map instead of fighting the map's height,
-        // while still covering the lower part of the map — which is what
-        // "opens over the map" means. On a phone the card now ends around 590
-        // pixels down a 844-pixel screen, well clear of the bottom navigation.
-        className="absolute left-0 right-0 top-[45%] z-30 max-h-[60vh] overflow-y-auto
-                   rounded-2xl bg-white p-4 shadow-2xl ring-1 ring-black/10"
+        // No height limit and no inner scrolling below 768: the map cap is set
+        // so the tallest company card fits, and if a longer one ever arrives the
+        // page scrolls, which shows all of it, rather than the card scrolling
+        // inside itself, which hides the website link at the end of it.
+        //
+        // ── At 768 and above: unchanged, deliberately ────────────────────────
+        //
+        // The same fault exists on a wide screen at a smaller scale and is being
+        // left alone. Two reasons, both recorded: this application is used on a
+        // phone at a venue, and a height limit expressed as a share of the
+        // window would shrink a portrait floor plan to about half its current
+        // size on a laptop, which is a loss on a screen that has the room.
+        //
+        // The wide-screen rules below are exactly what this card had before:
+        // anchored at 45% of the map so it grows down into the page rather than
+        // fighting the map's height. The predecessor pinned it to the map's
+        // bottom and capped it at 80% of the map, which gave it 220 pixels
+        // against the 317 the tallest card needs and put the website link off
+        // the bottom for every company (UF-6). Every automated assertion passed,
+        // because they all read the markup.
+        className="relative mt-3 rounded-2xl bg-white p-4 shadow-2xl ring-1 ring-black/10
+                   md:absolute md:left-0 md:right-0 md:top-[45%] md:z-30 md:mt-0
+                   md:max-h-[60vh] md:overflow-y-auto"
       >
         <div className="flex items-start gap-3">
           {sponsor.logoUrl ? (
@@ -693,6 +886,57 @@ export function FloorPlanClient() {
     }
   }, [active?.imageUrl])
 
+  // ── When the window's box changes, the pan offset in hand is out of date ────
+  //
+  // The pan limit is worked out from the window's measured box at the moment a
+  // gesture happens: the map may not bring either edge inside the window, so how
+  // far it may be dragged depends on how big that box is. Nothing recomputed it
+  // when the box itself changed, so an offset that was legal for the old box
+  // survived into the new one — and a person zoomed in and dragged to an edge
+  // saw the map jump part or all of the way out of the window, with the markers
+  // over there unreachable until they dragged again or pressed "Fit map".
+  //
+  // Two ways to reach it, and this one observer covers both:
+  //
+  //   - The window is resized. TURNING A PHONE ON ITS SIDE is the ordinary case,
+  //     and it is worse than it used to be now that this screen has a rule that
+  //     applies below 768 pixels and not above: crossing that width changes the
+  //     box by more than the rotation alone.
+  //   - The picture's proportions change under the person, because the window
+  //     carries the picture's proportions. An organizer replacing the floor plan
+  //     while a delegate is looking at it does exactly that, and this screen
+  //     holds a live connection open so that such a change arrives immediately.
+  //
+  // Raised by adversarial review, which named the second. The first was found
+  // while checking the first: there was no resize handling on this screen at all.
+  //
+  // Nothing happens at rest, because at scale 1 the map may not be dragged at
+  // all and the clamp returns what it was given. The guard keeps that from
+  // costing a render.
+  // `active?.id` IS IN THE DEPENDENCIES, AND WITHOUT IT THIS DOES NOTHING.
+  //
+  // The map window is not rendered until the data has arrived — this component
+  // returns a loading state before that — so on the first run of this effect the
+  // ref is empty and there is nothing to observe. With only the two stable
+  // callbacks as dependencies the effect never ran again, the observer was never
+  // attached, and the fix was inert while looking complete. Measured: the check
+  // for this failed identically with the fix present and with it removed, which
+  // is how it was caught. Naming the active map makes the effect run again when
+  // the window appears.
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => {
+      const current = transformRef.current
+      const next = clamp(current)
+      if (next.x !== current.x || next.y !== current.y || next.scale !== current.scale) {
+        applyTransform(next)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [clamp, applyTransform, active?.id])
+
   // Switching maps starts the new one from the top, rather than dropping the
   // reader into a corner of a picture they have not seen yet.
   const chooseMap = (id: string) => {
@@ -817,7 +1061,15 @@ export function FloorPlanClient() {
             ref={viewportRef}
             data-testid="map-viewport"
             data-map-scale={transform.scale}
-            style={{ aspectRatio: String(aspect), touchAction: 'none', overflow: 'hidden' }}
+            style={{
+              aspectRatio: String(aspect),
+              // The picture's proportions, handed to CSS so the height cap below
+              // can be expressed as a width. Unitless on purpose — it is
+              // multiplied by a length in the class below.
+              ['--map-aspect' as string]: String(aspect),
+              touchAction: 'none',
+              overflow: 'hidden',
+            }}
             // NO BORDER ON THIS ELEMENT. A border sits outside the content box,
             // so the picture inside would be two pixels narrower than the
             // viewport and the two boxes would no longer be the same thing —
@@ -825,7 +1077,29 @@ export function FloorPlanClient() {
             // outline is drawn with a ring instead, which is a shadow and takes
             // no space. The first version used a border and was caught by the
             // browser check at 364 against 366.
-            className="relative w-full rounded-xl bg-white ring-1 ring-black/10"
+            //
+            // ── THE HEIGHT CAP IS APPLIED AS A WIDTH, AND THAT IS THE POINT ──
+            //
+            // A `max-height` here would have been the obvious way to write it
+            // and would have been a defect. This window is `overflow: hidden`,
+            // and the picture inside takes its height from its own proportions
+            // rather than from this box — so capping the height would not shrink
+            // a tall picture, it would CUT ITS BOTTOM OFF, and every marker down
+            // there would become unreachable at rest. On a portrait floor plan
+            // that is the lower third of the hall.
+            //
+            // Capping the width instead scales the whole picture down: height is
+            // width ÷ proportions, so a width of cap × proportions is exactly a
+            // height of the cap, with the picture complete and this box still
+            // EXACTLY the picture's box — the invariant every marker position
+            // depends on, kept by construction rather than by arithmetic.
+            //
+            // A landscape picture is unaffected, which is correct: at 390 pixels
+            // it is already 275 tall, well under the cap. The cap bites on the
+            // portrait pictures, which are the ones that left no room for the
+            // company card. Above 768 there is no cap at all.
+            className="relative mx-auto w-full max-w-[calc(38dvh*var(--map-aspect))]
+                       rounded-xl bg-white ring-1 ring-black/10 md:max-w-none"
           >
             {/* The moving layer. Nothing may pad or size this independently of
                 the picture inside it. */}
@@ -905,8 +1179,19 @@ export function FloorPlanClient() {
           {/* Looked up from the markers currently on screen, not held as its own
               copy of a company. If the data refreshes and the marker is gone,
               the card goes with it rather than showing a company that is no
-              longer on this map. */}
-          {openCard ? <BoothCard sponsor={openCard} onClose={closeCard} /> : null}
+              longer on this map.
+
+              KEYED BY THE MARKER, and this became necessary in this phase.
+              Below 768 the overlay is gone, so tapping a second marker switches
+              the card in one tap rather than closing it — which is the point.
+              Without a key that switch reuses the same card: the effect that
+              moves focus into it and records which marker to give focus back to
+              runs once, on the first open. So the card changed under a keyboard
+              or screen-reader user with nothing announced, and closing it
+              afterwards sent focus back to the FIRST marker rather than the one
+              they had opened. Keying it by the marker makes each open a real
+              open. Raised by adversarial review round 2. */}
+          {openCard ? <BoothCard key={openPinId} sponsor={openCard} onClose={closeCard} /> : null}
         </div>
       </div>
     </div>

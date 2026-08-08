@@ -356,7 +356,7 @@ for (const mapId of boothMapIds) {
         'website link opens safely in a new tab', 'card is visible on screen',
         'the whole card fits without scrolling on a phone',
         'the website link is visible without scrolling',
-        'card sits over the map', 'the map is still behind it', 'card has a close control',
+        'card sits below the map, not over it', 'the map is still behind it', 'card has a close control',
       ]) no(`${who} — ${label}`, 'NOT RUN, no card opened')
       continue
     }
@@ -424,7 +424,19 @@ for (const mapId of boothMapIds) {
     yes(!card.mustScrollToSeeEverything, `${who} — the whole card fits without scrolling on a phone`)
     yes(card.websiteVisibleWithoutScrolling,
       `${who} — the website link is visible without scrolling`)
-    yes(card.overlapsMap, `${who} — card sits over the map`)
+    // ── AMENDED BY PHASE 7, 2026-08-07 ────────────────────────────────────────
+    //
+    // This asserted the opposite — that the card overlaps the map — and that was
+    // the behaviour until phase 7. The reported fault was that tapping a marker
+    // low on the map opened the card over the very spot just tapped, so a
+    // delegate could not see what they had selected, and how much was covered
+    // depended on the shape of whatever picture an organizer had uploaded
+    // (UF-5). Below 768 pixels the card now sits beneath the map, which is what
+    // makes the tapped marker stay visible. This file runs at 390 × 844.
+    //
+    // At 768 and above the card still opens over the map, and phase 7's own run
+    // asserts that at 1280.
+    yes(!card.overlapsMap, `${who} — card sits below the map, not over it`)
     yes(card.mapStillPresent, `${who} — the map is still behind it`)
     yes(card.hasCloseButton, `${who} — card has a close control`)
 
@@ -986,8 +998,9 @@ section('The card behaves like the modal dialog it declares itself to be')
   if (opened === null) {
     notRun(
       ['focus moves into the card when it opens',
-       'Tab stays inside the card rather than escaping behind the overlay',
-       'focus returns to the marker that opened it'],
+       'Tab leaves the card, so the markers behind it stay reachable by keyboard',
+       'closing returns focus to the marker that opened it',
+       'closing after the person has moved away leaves focus where they put it'],
       'no card was open',
     )
   } else {
@@ -997,22 +1010,46 @@ section('The card behaves like the modal dialog it declares itself to be')
     })
     yes(focusInside, 'focus moves into the card when it opens')
 
-    // Tab further than the card holds, so an unbounded sequence would have left
-    // it. Six presses against a card with two or three stops.
-    for (let i = 0; i < 6; i++) await page.keyboard.press('Tab')
-    const stillInside = await page.evaluate(() => {
-      const card = document.querySelector('[data-testid="booth-card"]')
-      return Boolean(card && card.contains(document.activeElement))
-    })
-    yes(stillInside, 'Tab stays inside the card rather than escaping behind the overlay')
-
+    // ── AMENDED BY PHASE 7, 2026-08-07 ──────────────────────────────────────
+    //
+    // This block used to assert that Tab is held inside the card and that
+    // closing always returns focus to the marker. Below 768 pixels neither is
+    // true any more, and both changed for the same reason: the card is no longer
+    // over the map and the overlay is gone, so every marker behind it stays
+    // reachable. Holding Tab inside would take away the keyboard route to the
+    // very markers a finger can reach, and the card claiming `aria-modal` there
+    // would describe the screen wrongly. This file runs at 390 × 844; phase 7's
+    // own run asserts the modal behaviour at 1280, where it still holds.
+    //
+    // The contract at this width, in the order asserted below:
+    //   - closing a card the person has not left returns focus to its marker,
+    //   - Tab leaves the card,
+    //   - and closing after they have moved away leaves them where they are
+    //     rather than pulling focus back to the map.
     await page.keyboard.press('Escape')
     await page.waitForTimeout(250)
     const backOnMarker = await page.evaluate(sel => {
       const marker = document.querySelector(sel)
       return Boolean(marker && document.activeElement === marker)
     }, markerSel)
-    yes(backOnMarker, 'focus returns to the marker that opened it')
+    yes(backOnMarker, 'closing returns focus to the marker that opened it')
+
+    await openCardFor(page, first.sponsorId)
+    await page.waitForTimeout(200)
+    // Tab further than the card holds, so a card that held focus would still
+    // have it. Six presses against a card with two or three stops.
+    for (let i = 0; i < 6; i++) await page.keyboard.press('Tab')
+    const leftTheCard = await page.evaluate(() => {
+      const card = document.querySelector('[data-testid="booth-card"]')
+      return Boolean(card) && !card.contains(document.activeElement)
+    })
+    yes(leftTheCard, 'Tab leaves the card, so the markers behind it stay reachable by keyboard')
+
+    const whereTheyWere = await page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+    const stayedPut = await page.evaluate(prev => (document.activeElement?.getAttribute('data-testid') ?? null) === prev, whereTheyWere)
+    yes(stayedPut, 'closing after the person has moved away leaves focus where they put it')
   }
 }
 
@@ -1040,22 +1077,44 @@ section('The card can also be dismissed by the backdrop and by the keyboard')
     yes((await readCard(page)) === null, 'pressing Escape dismisses the card')
   }
 
+  // ── AMENDED BY PHASE 7, 2026-08-07 ──────────────────────────────────────────
+  //
+  // This step used to open a card and dismiss it by tapping the backdrop. That
+  // was correct when it was written and is not any more: below 768 pixels the
+  // backdrop is deliberately gone (UF-7). Its reach had nothing to do with where
+  // the card was drawn — it covered the whole map container — so once the card
+  // moved beneath the map, the backdrop was the only thing left over the map and
+  // a tap meant for a second marker was spent closing the first card. Removing
+  // it is what makes a second marker one tap.
+  //
+  // This whole file runs at 390 × 844, so the step is amended rather than
+  // deleted: at this width the backdrop must exist in the markup and NOT be
+  // shown, and the card is dismissed by its close control. The backdrop's
+  // dismissal is still asserted at 768 and above, in phase 7's own run, where
+  // the card still opens over the map.
+  //
+  // Found by re-running this file during phase 7, which the smoketest contract
+  // requires of any phase that touches a surface an earlier one covers. It had
+  // not been run since phase 9, and it failed on the first attempt.
   await openCardFor(page, first.sponsorId)
   const beforeBackdrop = await readCard(page)
-  yes(beforeBackdrop !== null, 'a card is open before trying the backdrop')
+  yes(beforeBackdrop !== null, 'a card is open before checking the backdrop')
   const backdrop = page.locator('[data-testid="booth-card-backdrop"]').first()
   const hasBackdrop = (await backdrop.count()) > 0
-  yes(hasBackdrop, 'the card has a backdrop behind it')
+  yes(hasBackdrop, 'the backdrop element is still in the markup')
 
   if (beforeBackdrop === null || !hasBackdrop) {
     notRun(
-      ['tapping outside the card dismisses it'],
+      ['the backdrop is not drawn at phone width', 'the close control dismisses the card'],
       beforeBackdrop === null ? 'no card was open to dismiss' : 'no backdrop element exists',
     )
   } else {
-    await backdrop.click({ position: { x: 5, y: 5 } })
+    const shown = await backdrop.evaluate(el => getComputedStyle(el).display !== 'none')
+    yes(!shown, 'the backdrop is not drawn at phone width, so a tap reaches the map')
+
+    await page.locator('[data-testid="booth-card-close"]').first().click()
     await page.waitForTimeout(250)
-    yes((await readCard(page)) === null, 'tapping outside the card dismisses it')
+    yes((await readCard(page)) === null, 'the close control dismisses the card')
   }
 }
 
