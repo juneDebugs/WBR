@@ -99,6 +99,26 @@ Distinct from:
 
 The gate consults the required set rather than any stored "onboarded" marker, so a required field cleared later blocks again instead of being waved through by a one-time flag. It stands alone on email/password sign-in and never assumes any OAuth provider. "Sign in with LinkedIn" is an **optional** additive layer: when used it pre-fills `name` and `image` only (LinkedIn's API does not expose job title or company), so those remain manual checklist entries; when absent the checklist is filled entirely by hand with no loss of function.
 
+### gate demonstration account
+
+An account that exists so the **onboarding gate** can be shown on cue rather than being met unannounced on somebody else's sign-in. It is a participant account held deliberately short of its **onboarding required set**, so the gate always refuses it and routes it to the checklist.
+
+Its defining property is that the incompleteness is *restored when it signs in with its password*. An ordinary incomplete account stops demonstrating anything the moment somebody completes it; a gate demonstration account returns to its incomplete state each time it signs in, so a rehearsal cannot use it up.
+
+**Password sign-in specifically, and that is the whole of it.** The repair lives in `authorize()`, which only the email-and-password provider runs. The Google and LinkedIn callbacks find or create a row by email address and issue a session without consulting it, so an account arriving that way is not restored.
+
+This is stated rather than fixed, on an operational assumption rather than an enforced rule: a gate demonstration account's address is at `@test.com`, and nobody is expected to hold a Google or LinkedIn account there. **Nothing in the code enforces that.** The OAuth callbacks match on whatever email address the provider returns, so if one ever returned a canonical address the session would be issued without the repair running. The property is "restored on password sign-in", and a demonstration account at a real email address would need this looked at again.
+
+Today there is one: a **delegate** account, short one field on its own profile, reaching the attendee app and the meetings portal. A sponsor representative is gated on their exhibiting **company** rather than on their own profile, so a sponsor-side one is measured on a different subject and is not covered by the mechanism below.
+
+**The mechanism.** `packages/db/src/test-accounts.ts` defines the canonical accounts and repairs them on the sign-in path. A definition may carry `restoreRequiredFields`; for one that does, the health check compares the six `DELEGATE_REQUIRED_FIELDS` values against the definition, so a profile completed by hand counts as unhealthy and the repair that already exists puts it back. Definitions without the flag are compared on password, role and company link only, exactly as before, and are never written by it. The repair runs in `authorize()` and nowhere near the token callback: the token callback runs repeatedly during a session, so a restore there would blank the field while the checklist was being filled in.
+
+The photograph is outside the comparison by construction, because `DELEGATE_REQUIRED_FIELDS` does not contain `image` — a definition holds a picture address while a stored row may hold nothing, and comparing the two would leave the account unhealthy forever and write on every sign-in. A repair that fires for some other reason does still set the photograph, since it writes the whole definition.
+
+Distinct from:
+
+- **a canonical test account** — the ordinary demonstration logins for each role, which are complete and pass the gate. A gate demonstration account is one of these that is deliberately kept failing.
+
 ### venue map
 
 An uploaded floor-plan picture (raster image; a PDF is converted to an image on upload) belonging to a `Conference`, shown to attendees. A conference has several (3–4 typical) that switch in a fixed order to cover multiple buildings / floors. The picture itself carries no structure — see **pin**. Rationale and the rejected vector-map alternative: [ADR 0007](docs/adr/0007-floor-plan-human-authored-pins-over-raster.md).
