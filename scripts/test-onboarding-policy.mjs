@@ -406,11 +406,46 @@ check(
 // The measured figure the sponsor required set was chosen on. If this moves, the
 // choice needs revisiting — it is why the 18-field dashboard percentage was
 // rejected as a condition of entry.
-const passingSix = sponsors.filter(s => isRequiredSetComplete('sponsor', s)).length
+//
+// ── Why the demonstration company is excluded rather than counted ────────────
+//
+// Phase 3 added `Gate Demo Exhibitor`, a test prop that is deliberately short
+// its contact so the sponsor onboarding gate can be shown on cue. Counting it
+// would move this assertion to "14 of 21" and, worse, would keep moving it
+// every time another prop is added — diluting a figure whose whole purpose is
+// to describe the REAL exhibitor roster. So the prop is excluded here and
+// asserted separately below, which turns one broken check into two sharper
+// ones: the roster figure stays comparable across phases, and the prop's
+// incompleteness becomes a standing check rather than an assumption.
+//
+// Found by running this script after phase 3's seed change. That is the third
+// time in this sprint a change to shared data was caught by an older phase's
+// script rather than by the new one (see UF-58), which is the argument for the
+// contract's rule about re-running them.
+const GATE_DEMO_SPONSOR_ID = 'sponsor-gate-demo'
+const realSponsors = sponsors.filter(s => s.id !== GATE_DEMO_SPONSOR_ID)
+const demoSponsor = sponsors.find(s => s.id === GATE_DEMO_SPONSOR_ID)
+
+const passingSix = realSponsors.filter(s => isRequiredSetComplete('sponsor', s)).length
 check(
-  `${passingSix} of ${sponsors.length} companies satisfy the six required items (expected 14 of 20)`,
-  passingSix === 14 && sponsors.length === 20,
-  `got ${passingSix} of ${sponsors.length}`,
+  `${passingSix} of ${realSponsors.length} real exhibiting companies satisfy the six required items (expected 14 of 20)`,
+  passingSix === 14 && realSponsors.length === 20,
+  `got ${passingSix} of ${realSponsors.length}`,
+)
+
+// The prop's own contract. Stated as two assertions rather than one, so a run
+// says whether it is absent or merely complete — those need different fixes.
+check(
+  'the gate demonstration company is present',
+  demoSponsor !== undefined,
+  'Gate Demo Exhibitor is missing — reseed, or run packages/db/scripts/reset-test-accounts.mjs',
+)
+check(
+  'the gate demonstration company does NOT satisfy the six required items',
+  demoSponsor !== undefined && isRequiredSetComplete('sponsor', demoSponsor) === false,
+  demoSponsor
+    ? `it satisfies them, so the sponsor gate has nothing to demonstrate — contactName ${JSON.stringify(demoSponsor.contactName)}, contactEmail ${JSON.stringify(demoSponsor.contactEmail)}`
+    : 'absent',
 )
 
 db.close()

@@ -2,9 +2,20 @@
 //
 // What it does (idempotent):
 //   1. Deletes the 5 legacy advertised demo login accounts.
-//   2. Creates / upserts the 3 canonical test accounts: Brand, Sponsor, WBR.
-//   3. Adds the 3 accounts to the General chat channel.
-//   4. Self-verifies each new account's scrypt password + role/sponsor wiring.
+//   2. Recreates the Gate Demo Exhibitor company, in its incomplete state.
+//   3. Creates / upserts the 5 canonical accounts: Brand, Sponsor, WBR, and the
+//      two gate demonstration accounts that are deliberately left blocked.
+//   4. Adds them to the General chat channel.
+//   5. Self-verifies each account's scrypt password + role/sponsor wiring.
+//
+// STEP 2 IS THE STATED RECOVERY PATH FOR A DELETED DEMONSTRATION COMPANY, and
+// it is why that step exists at all. ensureCanonicalTestAccount() in
+// ../src/test-accounts.ts restores that company's pinned columns on the sign-in
+// path, but deliberately does NOT create the row when it is missing — a Sponsor
+// belongs to a Conference, and writing event content from a login is a bigger
+// act than a self-heal should take. This script is what puts it back, and it
+// must run before step 3 because the sponsor demonstration account holds a
+// foreign key to it.
 //
 // The ~1,000 seeded directory users are left untouched, so every app stays
 // populated and demoable.
@@ -93,9 +104,31 @@ const LEGACY_EMAILS = [
 // ── The Tailor ERP sponsor company (from seed.ts sponsorDefs) ─────────────────
 const TAILOR_SPONSOR_ID = 'cmngb2h4h0007vm28mbcpxjg5'
 
+// ── The gate demonstration company, read rather than copied ──────────────────
+// Imported from the module that defines it instead of being restated here, so
+// this script and the sign-in restore in ../src/test-accounts.ts cannot drift
+// into two different ideas of what "incomplete" means. Node strips the types
+// natively; scripts/migrate-sponsor-card-fields.mjs already imports
+// prisma/seed-sponsors.ts the same way. The module imports nothing itself, so
+// this pulls in no database client.
+const { GATE_DEMO_SPONSOR, GATE_DEMO_SPONSOR_ID } = await import(
+  join(ROOT, 'packages/db/src/gate-demo-sponsor.ts')
+)
+
+// The one owner of the MeetingRequirementSetting table. Imported rather than
+// reimplemented as raw SQL here, for the reason stated at that model in
+// prisma/schema.prisma: the table is created defensively at runtime rather than
+// by a migration, and the column shape must match that module's DDL exactly, so
+// a second copy of it in this file is precisely the drift the warning is about.
+// The module is self-contained by its own rule — type-only imports, client
+// always injected by the caller — so this pulls in no database client.
+const { saveMeetingRequirementSettings } = await import(
+  join(ROOT, 'packages/db/src/meeting-engine.ts')
+)
+
 const HEADSHOT = (id) => `https://images.unsplash.com/${id}?w=400&h=400&q=80&fit=crop&crop=face`
 
-// ── The 4 canonical test accounts ─────────────────────────────────────────────
+// ── The 5 canonical test accounts ─────────────────────────────────────────────
 // Keep in sync with packages/db/src/test-accounts.ts (the runtime-enforced copy)
 // and packages/db/prisma/seed.ts (demoUsers).
 //
@@ -166,13 +199,35 @@ const ACCOUNTS = [
     annualRevenue: '10M-50M',
     solutionsSeeking: JSON.stringify([]),
   },
+  {
+    // DELIBERATELY BLOCKED ON THE SPONSOR PORTAL — the sponsor-side counterpart
+    // of the account above. What is incomplete is the Gate Demo Exhibitor
+    // COMPANY it links to, not this person: the six fields below are all filled
+    // on purpose, because the attendee app admits the SPONSOR role and short
+    // fields here would block this account there too.
+    id: 'test-sponsor-onboarding-demo',
+    email: 'sponsor-onboarding-demo@test.com',
+    password: 'password123',
+    name: 'Sponsor Gate Demo',
+    role: 'SPONSOR',
+    company: 'Gate Demo Exhibitor',
+    jobTitle: 'Exhibitor Manager',
+    sponsorId: GATE_DEMO_SPONSOR_ID,
+    image: HEADSHOT('photo-1500648767791-00dcc994a43e'),
+    companySize: 'SMB',
+    annualRevenue: '1M-10M',
+    solutionsSeeking: JSON.stringify(['Analytics & Reporting']),
+  },
 ]
 
 async function main() {
   const prisma = createPrisma()
   try {
     // Sanity: the Tailor sponsor the Sponsor account links to must exist.
-    const tailor = await prisma.sponsor.findUnique({ where: { id: TAILOR_SPONSOR_ID }, select: { id: true, name: true } })
+    const tailor = await prisma.sponsor.findUnique({
+      where: { id: TAILOR_SPONSOR_ID },
+      select: { id: true, name: true, conferenceId: true },
+    })
     if (!tailor) throw new Error(`Tailor sponsor ${TAILOR_SPONSOR_ID} not found — cannot wire the Sponsor account`)
     console.log(`   Sponsor company link: ${tailor.name} (${tailor.id})`)
 
@@ -195,7 +250,80 @@ async function main() {
       console.log(`   Deleted ${count} user(s) (dependent rows cascaded).`)
     }
 
-    // ── 2. Create the 3 canonical accounts ───────────────────────────────────
+    // ── 2. Recreate the gate demonstration company ───────────────────────────
+    //
+    // Full overwrite on an existing row, unlike the twenty real exhibitors,
+    // whose seed update branch is deliberately narrow so a stray run cannot
+    // destroy an organizer's edits (finding F-10). Nothing on this row is
+    // organizer-authored — every value it should hold is in
+    // ../src/gate-demo-sponsor.ts — so returning it to that state is the whole
+    // point, including putting a hand-completed contact back to empty.
+    {
+      const { id, ...fields } = GATE_DEMO_SPONSOR
+      // The SAME conference the real exhibitors are on, taken from Tailor ERP
+      // above rather than from `conference.findFirst()`. findFirst has no
+      // ordering, so on a database holding more than one conference row — which
+      // the shared one may — it can return a previous event, and the
+      // demonstration company would be created against that instead. It would
+      // still link to its account by id and still block the gate, but it would
+      // be absent from every exhibitor screen that filters by the current
+      // conference, which is where the demonstration looks for it. Anchoring to
+      // a company that is definitely on the right conference removes the
+      // question.
+      const conferenceId = tailor.conferenceId
+      const before = await prisma.sponsor.findUnique({
+        where: { id },
+        select: { contactName: true, contactEmail: true, conferenceId: true },
+      })
+      console.log(
+        `\n🎭 Gate demonstration company: ${GATE_DEMO_SPONSOR.name} (${id}) on conference ${conferenceId}` +
+          (before
+            ? `\n   exists — contactName ${JSON.stringify(before.contactName)}, contactEmail ${JSON.stringify(before.contactEmail)}, conference ${before.conferenceId}`
+            : `\n   absent — will be created`),
+      )
+      if (!DRY) {
+        await prisma.sponsor.upsert({
+          where: { id },
+          // `conferenceId` is in the update as well as the create, so a row
+          // created earlier against the wrong conference is corrected rather
+          // than left where it is. Safe here for the same reason the wide
+          // update branch is: nothing on this row is organizer-authored.
+          update: { conferenceId, ...fields },
+          create: { id, conferenceId, ...fields },
+        })
+        const after = await prisma.sponsor.findUnique({
+          where: { id },
+          select: { contactName: true, contactEmail: true, boothNumber: true },
+        })
+        // Asserted rather than assumed: this row is only useful to the
+        // demonstration while it is short its contact, and only safe while it
+        // holds no booth number (UF-60 — an eleventh booth-carrying company
+        // moves every marker on the drawn exhibit hall map).
+        if (after?.contactName !== null || after?.contactEmail !== null) {
+          throw new Error(
+            `Gate demonstration company is not incomplete after the write: ` +
+              `contactName ${JSON.stringify(after?.contactName)}, contactEmail ${JSON.stringify(after?.contactEmail)}`,
+          )
+        }
+        if (after?.boothNumber !== null) {
+          throw new Error(
+            `Gate demonstration company carries a booth number (${JSON.stringify(after?.boothNumber)}) — it must not exhibit`,
+          )
+        }
+        // Its meeting requirement, pinned to zero through the same per-company
+        // override the seed writes. Without this the recovery path is
+        // incomplete in a way that is easy to miss: the company comes back but
+        // its override does not, `requiredMeetingsForSponsor()` falls through
+        // to the sponsor default, and the showtime fill-rate screens start
+        // counting a prop as an exhibitor with unmet meetings.
+        await saveMeetingRequirementSettings(prisma, {
+          sponsorOverrides: [{ sponsorId: GATE_DEMO_SPONSOR_ID, required: 0 }],
+        })
+        console.log('   written — holds no contact name, no contact email, no booth number, meeting requirement 0')
+      }
+    }
+
+    // ── 3. Create the canonical accounts ─────────────────────────────────────
     console.log(`\n✨ Creating ${ACCOUNTS.length} test accounts:`)
     for (const a of ACCOUNTS) {
       const passwordHash = await hashPassword(a.password)
@@ -235,7 +363,7 @@ async function main() {
       return
     }
 
-    // ── 3. Add the 3 accounts to the General chat channel ────────────────────
+    // ── 4. Add the accounts to the General chat channel ──────────────────────
     const general = await prisma.chatRoom.findFirst({ where: { type: 'CHANNEL', name: 'General' }, select: { id: true } })
     if (general) {
       for (const a of ACCOUNTS) {
@@ -246,10 +374,10 @@ async function main() {
             .catch(() => {})
         }
       }
-      console.log('\n💬 Added the 3 accounts to the General channel.')
+      console.log(`\n💬 Added the ${ACCOUNTS.length} accounts to the General channel.`)
     }
 
-    // ── 4. Self-verify ───────────────────────────────────────────────────────
+    // ── 5. Self-verify ───────────────────────────────────────────────────────
     console.log('\n🔎 Verifying…')
     let ok = true
     for (const a of ACCOUNTS) {

@@ -111,11 +111,25 @@ Its defining property is that the incompleteness is *restored when it signs in w
 
 This is stated rather than fixed, on an operational assumption rather than an enforced rule: a gate demonstration account's address is at `@test.com`, and nobody is expected to hold a Google or LinkedIn account there. **Nothing in the code enforces that.** The OAuth callbacks match on whatever email address the provider returns, so if one ever returned a canonical address the session would be issued without the repair running. The property is "restored on password sign-in", and a demonstration account at a real email address would need this looked at again.
 
-Today there is one: a **delegate** account, short one field on its own profile, reaching the attendee app and the meetings portal. A sponsor representative is gated on their exhibiting **company** rather than on their own profile, so a sponsor-side one is measured on a different subject and is not covered by the mechanism below.
+There is one per kind of participant, because the two kinds are measured on different subjects:
 
-**The mechanism.** `packages/db/src/test-accounts.ts` defines the canonical accounts and repairs them on the sign-in path. A definition may carry `restoreRequiredFields`; for one that does, the health check compares the six `DELEGATE_REQUIRED_FIELDS` values against the definition, so a profile completed by hand counts as unhealthy and the repair that already exists puts it back. Definitions without the flag are compared on password, role and company link only, exactly as before, and are never written by it. The repair runs in `authorize()` and nowhere near the token callback: the token callback runs repeatedly during a session, so a restore there would blank the field while the checklist was being filled in.
+- a **delegate** account, short one field on its own profile — reaches the attendee app and the meetings portal;
+- a **sponsor representative** account attached to an exhibiting company that is short one required item — reaches the sponsor portal.
 
-The photograph is outside the comparison by construction, because `DELEGATE_REQUIRED_FIELDS` does not contain `image` — a definition holds a picture address while a stored row may hold nothing, and comparing the two would leave the account unhealthy forever and write on every sign-in. A repair that fires for some other reason does still set the photograph, since it writes the whole definition.
+The sponsor-side company is short its **contact** item specifically, so it holds no contact address and nothing addressed to exhibitors can be sent to it. It also carries no **booth number**, so it does not exhibit and the drawn floor-plan picture is unaffected by its existence.
+
+**Two mechanisms, not one, because the two are measured on different rows.** `packages/db/src/test-accounts.ts` defines the canonical accounts and repairs them on the sign-in path. A definition may carry either or both of:
+
+- **`restoreRequiredFields`** — the health check also compares the six `DELEGATE_REQUIRED_FIELDS` values on the account's own `User` row against the definition, so a profile completed by hand counts as unhealthy and the repair that already exists puts it back.
+- **`restoreSponsorCompany`** — named columns on the exhibiting `Sponsor` company the account is attached to are pinned to stated values and put back when the stored row disagrees. The sponsor gate never reads a representative's own profile, so the first flag cannot do this job.
+
+Definitions carrying neither are compared on password, role and company link only, exactly as before, and are never written by either.
+
+**Where the repair runs, stated precisely because it was wrong once.** It runs on the password sign-in path of every app — in each app's `/api/login` route, which is what the login form posts to and which mints its own session cookie, **and** in the NextAuth `authorize()` callback, which the credentials provider uses. Both are needed: the repair originally lived in `authorize()` alone, and since no login screen in this product uses that provider, the restore never ran for anybody signing in through a form. It runs nowhere near the token callback, which repeats throughout a session and would blank a field while the checklist was being filled in.
+
+Each mechanism writes only what it pins, and both are narrower than the definition they sit in — deliberately, because a comparison wider than the write leaves the row unhealthy forever and writes on every single sign-in. The photograph is outside the delegate comparison by construction, because `DELEGATE_REQUIRED_FIELDS` does not contain `image`; a repair that fires for some other reason does still set it, since that repair writes the whole definition. The company pin covers its named columns alone, so a company's tagline, description, logo, website and offerings are never rewritten by it.
+
+The company pin does **not** create a missing company. A `Sponsor` belongs to a `Conference`, and writing event content from a sign-in is a larger act than a self-repair should take, so a deleted demonstration company is recreated by `packages/db/scripts/reset-test-accounts.mjs` or by a reseed instead. The visible symptom in the meantime is the sponsor portal's existing "no exhibiting company attached" refusal.
 
 Distinct from:
 

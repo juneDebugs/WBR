@@ -1,5 +1,11 @@
 import { PrismaClient } from '@prisma/client'
 import { SPONSOR_DEFS, sponsorCreateFields, sponsorUpdateFields } from './seed-sponsors'
+// Both are safe to import here even though this file builds its own Prisma
+// client: ../src/gate-demo-sponsor.ts imports nothing at all, and
+// ../src/meeting-engine.ts is self-contained by its own stated rule (type-only
+// imports, client always injected by the caller).
+import { GATE_DEMO_SPONSOR, GATE_DEMO_SPONSOR_ID } from '../src/gate-demo-sponsor'
+import { saveMeetingRequirementSettings } from '../src/meeting-engine'
 import { scrypt, randomBytes, timingSafeEqual } from 'crypto'
 import { promisify } from 'util'
 
@@ -490,14 +496,70 @@ async function main() {
     )
   }
 
+  // ── The sponsor-side gate demonstration company ────────────────────────────
+  //
+  // Upserted separately from the twenty above, and with a WIDE update branch
+  // where theirs is deliberately narrow. Both differences are on purpose.
+  //
+  // Separate, because ./seed-sponsors.ts holds the real exhibitor roster —
+  // "generated from the working database, which is the content the
+  // demonstration shows" — and this is a test prop. Keeping it out leaves
+  // scripts/test-booth-card-data.mjs and scripts/migrate-sponsor-card-fields.mjs
+  // reading SPONSOR_DEFS as exactly the roster of real exhibitors, unchanged.
+  //
+  // Wide, because the reason the roster's update branch is narrow does not
+  // apply here. That narrowness exists so a stray `pnpm db:seed` — which can
+  // reach the shared production database, since createPrismaClient() prefers
+  // the Turso variables — cannot overwrite an organizer's real edits to a real
+  // company (finding F-10). Nobody edits this row for real: every value it
+  // should hold is defined in ../src/gate-demo-sponsor.ts and its entire
+  // purpose is to be in one known state. A reseed therefore returns it to that
+  // state, including putting a hand-completed contact back to empty (UF-61).
+  console.log(`  Creating the gate demonstration company (${GATE_DEMO_SPONSOR.name})...`)
+  {
+    const { id, ...fields } = GATE_DEMO_SPONSOR
+    await prisma.sponsor.upsert({
+      where: { id },
+      // `conferenceId` is in the update branch as well as the create, so a row
+      // that ended up on the wrong conference is corrected rather than left
+      // there. Without it, a company created against a previous event stays
+      // invisible to every screen that filters by the current one, while this
+      // seed reports having recreated it.
+      update: { conferenceId: conf.id, ...fields },
+      create: { id, conferenceId: conf.id, ...fields },
+    })
+  }
+
+  // Its meeting requirement is pinned to zero through the existing per-company
+  // override, so a prop nobody will ever book a meeting with does not drag down
+  // the fill-rate figures on the showtime screens.
+  //
+  // Through saveMeetingRequirementSettings() rather than raw SQL written here.
+  // That table is created defensively at runtime rather than by a migration —
+  // see the MeetingRequirementSetting model comment in ./schema.prisma, which
+  // requires the column shape to match the DDL in ../src/meeting-engine.ts
+  // EXACTLY. A second copy of that DDL in this file is the drift that warning
+  // is about, and the function already runs CREATE TABLE IF NOT EXISTS itself,
+  // so the case this was meant to defend against — seeding a database where the
+  // table does not exist yet — is covered by calling it.
+  //
+  // Zero survives the write: normalizeRequiredCount clamps to [0, 99], so a
+  // requested 0 is stored as 0 rather than falling back to the default.
+  await saveMeetingRequirementSettings(prisma, {
+    sponsorOverrides: [{ sponsorId: GATE_DEMO_SPONSOR_ID, required: 0 }],
+  })
+
   // ── Test accounts (login page accounts) ────────────────────────────────────
-  // The 3 canonical accounts shown on each app's login page. Per-app sign-in
+  // The 3 canonical accounts shown on each app's login page, plus the 2 gate
+  // demonstration accounts that are deliberately blocked. Per-app sign-in
   // access is enforced by packages/db/src/app-access.ts (single source of
   // truth). Roles map to the access tiers:
   //   WBR     → ORGANIZER (full admin; access to every app)
   //   BRAND   → BRAND     (meetings + mobile)
   //   SPONSOR → SPONSOR   (sponsor portal + mobile; linked to Tailor ERP)
-  // All three share the password `password123`.
+  // The two demonstration accounts are ATTENDEE (blocked on its own profile)
+  // and SPONSOR (blocked on the Gate Demo Exhibitor company it is attached to).
+  // All five share the password `password123`.
 
   const testHash = await hashPassword('password123')
   const demoHash = await hashPassword('demo123')
@@ -525,6 +587,19 @@ async function main() {
     // except solutionsSeeking, which is an explicitly empty array. Do not
     // "fix" this account; it is doing its job when it is blocked.
     { id: 'test-onboarding-demo', email: 'onboarding-demo@test.com', name: 'Onboarding Gate Demo', role: 'ATTENDEE', password: testHash, company: 'Gate Demo Co', jobTitle: 'Head of eCommerce', companySize: 'MIDMARKET', annualRevenue: '10M-50M', solutionsSeeking: JSON.stringify([]) },
+    // The SPONSOR-side counterpart of the account above, and the one the
+    // sponsor portal's gate can actually stop. It exists because the account
+    // documented as reaching all four apps is wbr@test.com, which holds
+    // ORGANIZER, and the gate releases every WBR-side role before asking any
+    // completeness question — so that portal's gate had nothing to demonstrate
+    // on (UF-8).
+    //
+    // THIS PERSON'S OWN SIX FIELDS ARE COMPLETE, deliberately. What is
+    // incomplete is the Gate Demo Exhibitor COMPANY it is attached to, which
+    // holds no contact. Leaving the person's fields short would also block this
+    // account in the attendee app, which admits the SPONSOR role — a second,
+    // unintended gate demonstration on a screen nobody meant to show.
+    { id: 'test-sponsor-onboarding-demo', email: 'sponsor-onboarding-demo@test.com', name: 'Sponsor Gate Demo', role: 'SPONSOR', password: testHash, sponsorId: GATE_DEMO_SPONSOR_ID, company: 'Gate Demo Exhibitor', jobTitle: 'Exhibitor Manager', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&q=80&fit=crop&crop=face', companySize: 'SMB', annualRevenue: '1M-10M', solutionsSeeking: JSON.stringify(['Analytics & Reporting']) },
   ]
 
   // Helper: upsert user by email, handling existing IDs gracefully
@@ -796,6 +871,9 @@ async function main() {
   console.log(`   Time blocks: ${timeBlocks.length}`)
   console.log(`   Sponsors: ${sponsorDefs.length}`)
   console.log(`   Test accounts: ${demoUsers.length} (wbr@test.com, stephcurry@test.com, sponsor@test.com — all password123)`)
+  console.log(`   Gate demonstration accounts (deliberately blocked, password123):`)
+  console.log(`     - onboarding-demo@test.com        blocked on its own profile (solutionsSeeking empty)`)
+  console.log(`     - sponsor-onboarding-demo@test.com blocked on ${GATE_DEMO_SPONSOR.name} (no contact name or email)`)
   console.log(`   Attendee users: ${attendeeUsers.length} (jordan@demo.com/demo123, etc.)`)
   console.log(`   Chat: General channel + members`)
 }
