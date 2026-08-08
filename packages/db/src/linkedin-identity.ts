@@ -13,6 +13,45 @@
  *   3. Which of those fields may be written over an existing person, which is
  *      "only the blank ones" and is the whole meaning of the word pre-fill.
  *
+ * WHERE THIS LIVES, AND WHY IT IS NOT IN AN APPLICATION.
+ * It began in apps/attendee/lib/ when the participant application was the only
+ * reader. The meetings portal and the sponsor portal took the same sign-in
+ * method on 2026-08-08 (UF-52), so it moved here and all three deep-import it by
+ * module path — `@conference/db/src/linkedin-identity` — exactly as
+ * onboarding-policy.ts, app-access.ts and staff-roster.ts are read. Deep-imported
+ * rather than re-exported from index.ts because that file pulls in the database
+ * client, and this module must stay loadable by a browser bundle and by a plain
+ * script with no database behind it. Its only import is a type.
+ *
+ * Three copies of an endpoint configuration is how three copies stop agreeing;
+ * that is the reason for one module rather than one per application.
+ *
+ * AND WHY IT NOW IMPORTS NOTHING AT ALL, NOT EVEN A TYPE.
+ * While this file sat inside the participant application it declared the
+ * provider as next-auth's own `OAuthConfig`. That stopped working the moment it
+ * moved, and the reason is worth writing down because it is not obvious and it
+ * will come back otherwise.
+ *
+ * The participant application is the only one of the four carrying
+ * @ducanh2912/next-pwa, which brings a compiler package with it. The installer
+ * resolves optional peer dependencies per package, so that one extra package
+ * gives the participant application its own physical copy of next — and, through
+ * it, its own copy of next-auth. Measured 2026-08-08: the participant
+ * application links to a next-auth directory whose name carries @babel+core,
+ * while the admin app, the meetings portal and the sponsor portal all share a
+ * different one.
+ *
+ * Two copies of one library declare two `OAuthConfig` types. They are written
+ * identically, but the type refers to itself several levels down, and the
+ * compiler stops trying to match them there and calls them different. A module
+ * outside every application therefore cannot hand back one copy's type without
+ * failing to compile in the application that holds the other.
+ *
+ * So the shape is declared here, in this file's own terms, and each application
+ * checks it against its own copy where it registers the provider. The check
+ * still happens — it happens at the three call sites instead of once here, which
+ * is where it belongs, because that is where the object is actually used.
+ *
  * WHY THE PROVIDER IS ASSEMBLED HERE RATHER THAN IMPORTED FROM THE LIBRARY.
  * next-auth@4.24.13 ships next-auth/providers/linkedin. It asks LinkedIn for the
  * OpenID Connect scopes and then reads the member from api.linkedin.com/v2/me and
@@ -21,7 +60,6 @@
  * 2026-08-04 rather than from documentation, because the two disagree; see
  * LINKEDIN_ISSUER.
  */
-import type { OAuthConfig } from 'next-auth/providers/oauth'
 
 /**
  * The name LinkedIn's authorization server gives itself.
@@ -219,6 +257,18 @@ export function linkedInSignInDecision(
 export const LINKEDIN_UNVERIFIED_MARKER = 'LinkedInUnverifiedEmail'
 
 /**
+ * The marker for someone with no account here, pressing the button on an
+ * application that would not admit the role a new account is given. UF-53.
+ *
+ * Its own marker rather than the role refusal's silence, because the two are
+ * different situations for the person reading the screen. Being refused for the
+ * role on a row that exists means an account is there and something about it is
+ * wrong; being refused here means no account exists at all, and the thing to do
+ * is ask the organizer for one. A generic refusal reads as a broken button.
+ */
+export const LINKEDIN_NO_ACCOUNT_MARKER = 'LinkedInNoAccount'
+
+/**
  * Did LinkedIn assert that it has verified this address?
  *
  * ACCEPTED: the boolean `true`, and a string reading `true` after trimming and
@@ -263,10 +313,15 @@ export type BindingDecision =
  * never join one that already exists. The four cases:
  *
  *   verified,   row exists     -> joins it
- *   verified,   no row         -> creates a delegate
- *   unverified, no row         -> creates a delegate; the signer gains nothing
- *                                 but their own new row
+ *   verified,   no row         -> may create
+ *   unverified, no row         -> may create; the signer gains nothing but their
+ *                                 own new row
  *   unverified, row exists     -> REFUSED, whatever role that row holds
+ *
+ * "May create" rather than "creates": since UF-53 the create is still subject to
+ * the role test in linkedInAction, which refuses it on an application that would
+ * not admit the role a new account is given. This function answers which account
+ * a sign-in may have, not whether this application admits it.
  *
  * The reason the last case is not merely untidy: the branch takes the role and the
  * company link off whatever row it finds, so an address matching an organizer's
@@ -308,12 +363,31 @@ export function linkedInBindingDecision(args: {
  * The four refusals, in the order they are decided:
  *   1. no email address at all                        (F-25)
  *   2. an unverified address joining an existing row   (F-27)
- *   3. a role this app does not admit                  (F-28's original check)
+ *   3. a role this app does not admit — on BOTH paths  (F-28's check, and UF-53)
  * and then, only then, one of two writes: create, or fill the blank fields.
+ *
+ * UF-53: THE ROLE IS ASKED ON THE CREATE PATH TOO, AND THIS IS THE WHOLE POINT
+ * OF THE CHANGE. Until 2026-08-08 the create path returned `create` for anyone
+ * with no row, before anything consulted the role. On the participant
+ * application that is invisible, because the role a new account is given is one
+ * that application admits, so the check would have agreed with the code. On the
+ * sponsor portal, which admits only sponsor and WBR-side roles, it means a row
+ * written for every stranger who presses the button and then refused — a write
+ * on a path whose entire purpose is to refuse, which is the same shape as F-28
+ * and which that finding already recorded as a mistake once.
+ *
+ * `createRole` is the role a new row would be given, and it is required rather
+ * than defaulted. Each caller states it, so adding a fifth application cannot
+ * quietly inherit a role its own gate would turn away.
+ *
+ * The role travels back out on the `create` result for the same reason. The
+ * caller writes `action.role` rather than a literal of its own, so the role that
+ * was tested and the role that is stored cannot drift apart later — the failure
+ * that would put this defect back with every check still appearing to pass.
  */
 export type LinkedInAction =
   | { kind: 'refuse'; redirectTo: string | null }
-  | { kind: 'create'; email: string; name: string | null; image: string | null }
+  | { kind: 'create'; email: string; name: string | null; image: string | null; role: string }
   | { kind: 'join'; update: { name?: string; image?: string } }
 
 export function linkedInAction(args: {
@@ -322,6 +396,7 @@ export function linkedInAction(args: {
   existing: { role: string; name?: string | null; image?: string | null } | null
   incoming: { name: string | null; image: string | null }
   roleAdmitted: (role: string) => boolean
+  createRole: string
 }): LinkedInAction {
   const signIn = linkedInSignInDecision({ email: args.email })
   if (!signIn.allowed) return { kind: 'refuse', redirectTo: signIn.redirectTo }
@@ -333,11 +408,17 @@ export function linkedInAction(args: {
   if (!binding.allowed) return { kind: 'refuse', redirectTo: binding.redirectTo }
 
   if (args.existing === null) {
+    // UF-53. Before the create, not after it. A refusal here names its cause,
+    // because "no account here" is something the person can act on.
+    if (!args.roleAdmitted(args.createRole)) {
+      return { kind: 'refuse', redirectTo: `/login?error=${LINKEDIN_NO_ACCOUNT_MARKER}` }
+    }
     return {
       kind: 'create',
       email: signIn.email,
       name: args.incoming.name,
       image: args.incoming.image,
+      role: args.createRole,
     }
   }
 
@@ -382,10 +463,47 @@ export function isLinkedInConfigured(
  * exp — no name, no picture, no email — so reading the token instead would return
  * a person with nothing to pre-fill.
  */
+/**
+ * The provider object's shape, written out rather than borrowed.
+ *
+ * Every field is what next-auth's own `OAuthConfig` calls it, and the values are
+ * narrowed to the literals this provider actually uses so that assigning one of
+ * these into an application's provider list is a real check rather than a
+ * formality. See the note at the top of this file for why the library's type is
+ * not imported.
+ *
+ * `profile` returns a role because the participant application's own type
+ * declaration requires one on a signed-in person. The two portals do not require
+ * it and ignore it. The value is a placeholder in all three: it is replaced in
+ * the sign-in callback with the role read from the database before anything
+ * reaches a session.
+ */
+export interface LinkedInProviderConfig {
+  id: 'linkedin'
+  name: 'LinkedIn'
+  type: 'oauth'
+  issuer: string
+  authorization: { url: string; params: { scope: string } }
+  token: string
+  userinfo: string
+  jwks_endpoint: string
+  client: { token_endpoint_auth_method: 'client_secret_post' }
+  checks: ('pkce' | 'state' | 'none' | 'nonce')[]
+  clientId: string
+  clientSecret: string
+  profile(claims: LinkedInClaims): {
+    id: string
+    name: string | null
+    email: string | null
+    image: string | null
+    role: string
+  }
+}
+
 export function linkedInProvider(
   clientId: string,
   clientSecret: string
-): OAuthConfig<LinkedInClaims> {
+): LinkedInProviderConfig {
   return {
     id: 'linkedin',
     name: 'LinkedIn',

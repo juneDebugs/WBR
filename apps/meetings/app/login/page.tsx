@@ -17,12 +17,77 @@ const slides = [
   },
 ]
 
+/**
+ * What a failed LinkedIn sign-in says on this screen.
+ *
+ * The keys are spelled the same as the markers in
+ * packages/db/src/linkedin-identity.ts. Kept as literals rather than imported,
+ * matching the participant application's login screen: this is a browser
+ * component, and importing through lib/auth.ts would pull the database client
+ * into the browser bundle.
+ *
+ * LinkedInNoAccount is deliberately absent. It is the refusal for someone with
+ * no account on an application that would not admit a new one, and this portal
+ * admits general attendees — so a first-time person is created here rather than
+ * refused, and a message for it would be text that can never appear.
+ */
+const SIGN_IN_ERRORS: Record<string, string> = {
+  LinkedInNoEmail:
+    "LinkedIn didn't share an email address, so we couldn't sign you in. Use your email and password, or Google.",
+  // Deliberately does not say whether an account exists for that address: the
+  // message is shown to whoever pressed the button, and confirming that a given
+  // address has an account here would tell them something they did not already
+  // know. What it does say is what to do next.
+  LinkedInUnverifiedEmail:
+    "LinkedIn hasn't confirmed that email address, so we couldn't use it to sign you in. Use your email and password, or Google.",
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
+
+  /**
+   * Whether to draw the LinkedIn button.
+   *
+   * Read at the browser from the sign-in library's own list of registered
+   * providers, so it always reflects what the running portal has configured
+   * rather than what was true when a page was rendered.
+   *
+   * Starts false, so the button is absent until the list says otherwise. The
+   * wrong direction to fail in is showing a button that cannot work.
+   */
+  const [linkedInAvailable, setLinkedInAvailable] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    import('next-auth/react')
+      .then(({ getProviders }) => getProviders())
+      .then(providers => {
+        if (!cancelled) setLinkedInAvailable(Boolean(providers?.linkedin))
+      })
+      .catch(() => {
+        // Leave the button hidden. An unreachable provider list is not a reason
+        // to offer a sign-in method that may not be registered.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /**
+   * A sign-in refused inside the library comes back here with a marker in the
+   * address rather than a message, so it is turned into a sentence here.
+   *
+   * Read from window.location rather than through useSearchParams(), which in
+   * this version of Next requires a Suspense boundary around the component.
+   */
+  useEffect(() => {
+    const marker = new URLSearchParams(window.location.search).get('error')
+    if (marker && SIGN_IN_ERRORS[marker]) setError(SIGN_IN_ERRORS[marker])
+  }, [])
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => (prev + 1) % slides.length)
@@ -188,6 +253,28 @@ export default function LoginPage() {
             </svg>
             Google
           </button>
+
+          {/*
+            Drawn only when the provider list names LinkedIn. Sends people to the
+            portal root like Google does; anyone whose required set is incomplete
+            is moved on to the checklist by this portal's gate, so this button
+            needs no knowledge of onboarding.
+          */}
+          {linkedInAvailable && (
+            <button
+              data-testid="signin-linkedin"
+              onClick={async () => {
+                const { signIn } = await import('next-auth/react')
+                signIn('linkedin', { callbackUrl: '/' })
+              }}
+              className="w-full flex items-center justify-center gap-3 py-3.5 mt-3 border border-white/10 rounded-xl text-sm font-medium text-white/90 hover:bg-white/5 transition-colors"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#0A66C2" aria-hidden="true">
+                <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.63-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 110-4.13 2.06 2.06 0 010 4.13zM7.12 20.45H3.55V9h3.57v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z" />
+              </svg>
+              LinkedIn
+            </button>
+          )}
 
           {/* Demo accounts */}
           <div className="mt-8 border border-white/10 rounded-xl p-4">
