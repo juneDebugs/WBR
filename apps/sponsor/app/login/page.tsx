@@ -395,7 +395,20 @@ export default function LoginPage() {
                 <span className="font-medium text-white/85">WBR</span>
                 <span className="text-white/60">wbr@test.com / password123</span>
               </div>
+              {/* The gate demonstration account. Listed on purpose: it exists to
+                  be signed into during a demonstration, and a panel that hands
+                  out demo logins is where somebody looks for it. Kept visually
+                  identical to the rows above, with the note below carrying the
+                  one thing that differs — it does not get in. */}
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-medium text-white/85 whitespace-nowrap">Onboarding gate</span>
+                <span className="text-white/60 text-right">sponsor-onboarding-demo@test.com / password123</span>
+              </div>
             </div>
+            <p className="mt-3 text-[11px] leading-snug text-white/45">
+              The onboarding gate account is kept incomplete on purpose — it always lands on the
+              checklist.
+            </p>
           </div>
         </div>
       </div>

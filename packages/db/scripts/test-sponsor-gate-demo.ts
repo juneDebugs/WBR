@@ -902,6 +902,43 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── 14. Each login screen hands out the account it can demonstrate ────────
+  section('14. The demonstration accounts are listed on the login screens')
+
+  // WHY THIS IS A CHECK AND NOT A STYLE PREFERENCE. Each login screen carries a
+  // hand-written "Demo accounts" panel, and its whole purpose is to hand out the
+  // logins somebody is meant to sign in with. Both gate demonstration accounts
+  // were missing from it — the delegate one since the phase that built it, the
+  // sponsor one until it was reported from the deployed site. The account worked
+  // perfectly and nobody reading the screen could tell it existed.
+  //
+  // Same shape as section 13: read what the screen actually says, rather than
+  // trusting that whoever added an account remembered to advertise it.
+  const PANELS: { app: string; file: string[]; account: string }[] = [
+    { app: 'sponsor', file: ['apps', 'sponsor', 'app', 'login', 'page.tsx'], account: SPONSOR_DEMO_EMAIL },
+    { app: 'meetings', file: ['apps', 'meetings', 'app', 'login', 'page.tsx'], account: DELEGATE_DEMO_EMAIL },
+    { app: 'attendee', file: ['apps', 'attendee', 'app', 'login', 'LoginClient.tsx'], account: DELEGATE_DEMO_EMAIL },
+  ]
+  for (const panel of PANELS) {
+    const path = resolve(__dirname, '..', '..', '..', ...panel.file)
+    const source = existsSync(path) ? readFileSync(path, 'utf8') : ''
+    check(
+      `${panel.app}: the login screen has a demo accounts panel`,
+      /Demo accounts/.test(source),
+      `no panel found in ${path}`,
+    )
+    check(
+      `${panel.app}: it lists ${panel.account}`,
+      source.includes(panel.account),
+      'the account exists but the screen that hands out demo logins does not mention it',
+    )
+    check(
+      `${panel.app}: and says the account is deliberately incomplete`,
+      /kept incomplete on purpose/.test(source),
+      'a visitor signing in with it would be stuck on a checklist with no explanation',
+    )
+  }
+
   // ── Result ────────────────────────────────────────────────────────────────
   console.log(`\n${passed} passed, ${failed} failed`)
   if (failed > 0) {
