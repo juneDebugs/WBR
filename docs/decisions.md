@@ -147,6 +147,10 @@ Every phase ships a smoketest at `docs/smoketests/phase-<N>-<short-title>.md` al
 
 Every phase undergoes a Codex adversarial review post-implementation: Codex returns AC-failing findings (breaking — block merge) and non-breaking findings (style / quality — surface, do not gate). Claude Code applies fixes for AC-failing findings between rounds; loops until zero AC-failing or the cap of three rounds is hit. The full cap is run even if earlier rounds converge — the practice is to commit only at the end of the review cycle, preserving the audit trail of what Codex found across rounds. Codex logs live at `docs/codex-reviews/phase-<N>-<short-title>.md`.
 
+**Amendment 2026-08-08 — half of this practice is being followed and half is not, and the second half is recorded here rather than left as a silent gap.** The review rounds themselves have continued: the five phases of the 2026-08-07 acceptance follow-up sprint each ran the full three, and the findings changed the code in every case. What has stopped is the log *file*. `docs/codex-reviews/` holds no entry for any of those five phases; the substance went into the engineer-local requirements document and into the commit messages instead.
+
+That is a real loss for anybody reading the repository alone, because an empty folder cannot distinguish "no review happened" from "the review is recorded somewhere you cannot see". **This entry does not settle which way to close it.** Two options, and the choice is a working-practice decision rather than a technical one: write the five missing logs and resume the convention, or retire the folder deliberately and name the commit message plus the smoketest as the committed record of what review found. Whoever takes it should also decide whether a log adds anything the commit message does not already carry, since the recent commit messages have been carrying the findings in full.
+
 ### Playwright contract verification (added 2026-06-28)
 
 Several upcoming-phase AC items (Phases 3, 5, 9, 14) name *behavioral* or *timing* contracts that Lighthouse alone cannot verify deterministically — network-event routing, service-worker runtime behavior, interactive-flow controls, lazy-load timing, before/after visual identity. The 2026-06-28 amendment added Playwright as the runner for these contracts. Scripts live at [`smoketests/playwright/phase-<N>-<short-title>.mjs`](smoketests/playwright/) and execute against local production-build servers. Playwright is a smoketest runner, not a CI gate or always-on test suite — it does not contradict the sprint's non-goal on continuous integration.
@@ -612,6 +616,66 @@ the moment the server reports anything else.
 
 Verified by `docs/smoketests/phase-6-booth-number-from-map.md`, run on a live
 workspace rather than only written.
+
+---
+
+## The meetings portal enforces the onboarding gate, on both of its route groups (2026-08-07)
+
+The participant application and the sponsor portal both stopped a person whose required profile fields were empty and sent them to a checklist. The meetings portal did not, so the same person was refused in one place and admitted in another. It now carries the gate.
+
+The measure is the existing delegate required set — name, job title, company, company size, annual revenue, solutions seeking — read from the same policy module the participant application reads. **No second definition of "complete" was introduced, and that is the point**: one person opening two applications must not get two answers, which is the outcome [ADR 0008](adr/0008-onboarding-gate-is-about-the-person-not-the-app.md) exists to prevent. WBR-side roles are released before any completeness question by the same role test that decides who may sign in at all, which is what keeps the staff queue reachable without anything being written for it.
+
+Key decisions. (1) **Both enforcement points, because either alone leaves the other open.** Screens are gated from the layout of every authenticated route group — this portal has two, and the staff group had no layout at all, so one was added whose only job is that call. A gate on the first group alone would have repeated finding F-3, where one of the participant application's two groups was left open and a blocked person could still reach a chat room. Data addresses carry their own guard, called by all nine participant-facing handlers, because a request handler is not rendered inside a layout and the screen gate never runs for it. (2) **The checklist sits outside both gated groups**, at `/onboarding`, so the gate cannot redirect it to itself. (3) **The profile-save address stays unguarded on purpose** — guarding the address the checklist writes through would trap every incomplete person permanently.
+
+One pre-existing defect was fixed here rather than left, because the argument for leaving the staff addresses unguarded rests on it: those addresses authorised on the role carried in the session token rather than the role in the database, so an account whose role was revoked kept control of the meeting engine until it next signed in. The new gate reads the database, which made the disagreement visible — a demoted account was refused everywhere a participant goes while still assigning meetings.
+
+Verified by [`smoketests/phase-1-meetings-onboarding-gate.md`](smoketests/phase-1-meetings-onboarding-gate.md).
+
+---
+
+## The gate demonstration account restores its own incompleteness (2026-08-07)
+
+The onboarding gate is shown on stage using one account held deliberately short of one required field. Completing that profile during a rehearsal used the account up: the self-repair that already ran on sign-in compared password, role and company link only, so a profile completed by hand stayed completed until somebody ran a reset.
+
+The health check now also compares the six delegate required fields against the account's definition, for accounts carrying a flag that asks for it. Key decisions. (1) **Only the demonstration account carries the flag.** The other three canonical accounts are compared exactly as before and are never written by the extended check — containment is the property of this change, not a side note, and it is asserted per account rather than assumed. (2) **Only fields the repair actually writes are compared**, so a definition value left empty cannot make the account write on every single sign-in forever. (3) **The restore runs on the sign-in path and nowhere near the token callback**, which runs repeatedly during a session — a restore there would blank the field while somebody was filling the checklist in, and the save would appear to undo itself. (4) **A code-side flag on the existing account registry, not a new column**: no schema change and no migration against the shared database.
+
+The property is "restored on password sign-in" specifically. The Google and LinkedIn callbacks find or create a row by email address and issue a session without consulting the repair, so an account arriving that way is not restored. That rests on an operational assumption rather than an enforced rule — a demonstration address is at `@test.com` and nobody is expected to hold a Google or LinkedIn account there — and nothing in the code enforces it. Recorded at the definition rather than fixed, and it would need looking at again for a demonstration account at a real address.
+
+Verified by [`smoketests/phase-2-demo-account-restore.md`](smoketests/phase-2-demo-account-restore.md).
+
+---
+
+## The company card sits below the map on a phone, and the map takes a width limit (2026-08-07)
+
+Tapping a marker low on the venue map opened the company card over the very spot just tapped, so a delegate could not see what they had selected. How much of the map was covered was decided by the shape of whatever picture an organizer had uploaded, because the map window takes its height from the picture's proportions.
+
+Below 768 pixels — the styling toolkit's own threshold, which supersedes the 600 named during the acceptance run — three things change together. The map takes a size limit, so the room beneath it is the same whatever is uploaded. The card becomes an ordinary block under the map rather than an overlay, so none of the map is covered. And the shading behind the card is gone, so a tap meant for a second marker switches the card in one tap instead of being spent closing the first. With that shading gone every marker behind the card is reachable, so the card stops describing itself as a modal dialog and stops holding the Tab key — claiming otherwise would describe the screen wrongly to somebody using a screen reader while a sighted person taps freely.
+
+**The limit is applied as a width, and that is the load-bearing decision.** A maximum height would have been the obvious way to write it and would have been a defect: the window hides what overflows it, and the picture takes its height from its own proportions rather than from the window, so a height limit would not shrink a tall picture — it would cut the bottom off it and put every marker down there out of reach. On a portrait floor plan that is the lower third of the hall. Limiting the width scales the whole picture instead, and keeps the window exactly the picture's box, which is the rule every marker position depends on.
+
+**The number was measured rather than chosen.** A predecessor attempt picked 80% of the map window without measuring, which on a 390-pixel phone gave the card 220 pixels against the 317 the tallest company card needs, and put the website link off the bottom for every company — while every automated assertion passed, because they all read the markup. This time the browser was measured first at 390 by 844, and the limit set from what that measurement required.
+
+At 768 pixels and above nothing changes. The same fault exists there at a smaller scale and is deliberately left: this application is used on a phone at a venue, and a limit expressed as a share of the window would shrink a portrait floor plan to about half its size on a laptop, which is a loss on a screen with the room to spare.
+
+Verified by [`smoketests/phase-7-map-card-below-map.md`](smoketests/phase-7-map-card-below-map.md), measured from the rendered screen rather than from the markup.
+
+---
+
+## Sign in with LinkedIn on all three participant-facing apps, and the role is asked before any account is created (2026-08-08)
+
+Only the participant application offered "Sign in with LinkedIn". The meetings portal and the sponsor portal are how a delegate and an exhibiting company's representative actually get in, so the absence mattered more there than on the application it already worked on.
+
+The rules module moved from inside the participant application to [`packages/db/src/linkedin-identity.ts`](../packages/db/src/linkedin-identity.ts) and all three applications deep-import it by module path, matching the precedent set by `app-access.ts`, `onboarding-policy.ts` and `staff-roster.ts`. The rejected alternative was moving only the decision half and leaving the provider configuration duplicated per application — three copies of endpoint configuration is how three copies stop agreeing.
+
+**The module now imports nothing at all, not even a type, and the reason is worth recording because it is not obvious.** It previously declared the provider as the sign-in library's own `OAuthConfig`. That stopped compiling the moment it moved. The participant application is the only one of the four carrying `@ducanh2912/next-pwa`, which brings a compiler package with it, and the package installer resolves optional peer dependencies per package — so that one extra dependency gives the participant application its own physical copy of `next` and, through it, its own copy of the sign-in library. Two copies declare two `OAuthConfig` types that refer to themselves several levels down, and the compiler stops trying to match them and calls them different. A module outside every application therefore cannot hand back either one. Adding the library as a development dependency of the shared package creates a fifth copy and makes it worse; declaring it a peer dependency does nothing, because the shared package is one physical directory in this workspace. The provider's shape is now written out in the module and checked against each application's own copy at the three places it is registered — which is where the object is used, and so the right place for the check.
+
+**The admitted-role test now runs on the create path as well as the join path.** Until this change the decision returned "create" for anyone with no account before anything consulted whether the application takes that role; the role was checked only when a row already existed. On the participant application and the meetings portal that is invisible, because the role a new account is given is one they admit. On the sponsor portal — which admits sponsor representatives and WBR-side roles only — it meant a row written for every stranger who pressed the button and then a refusal: a write on a path whose entire purpose is to refuse, which is the same shape an earlier finding on this module had already recorded as a mistake. Two supporting decisions: the role a new account would be given is a **required** argument, stated by each application rather than defaulted, so a fourth application cannot quietly inherit a role its own gate would turn away; and the role travels back out on the result so the caller writes that rather than repeating a literal, which is what stops the tested role and the stored role drifting apart later.
+
+Each portal registers the provider only when both credential values are present, draws the button only when the running application reports the provider, and turns each refusal into its own sentence. The sponsor portal carries one the others cannot produce — no account here, ask the event organizer for one — because that portal is not open to the public and a generic refusal reads as a broken button.
+
+Two pre-existing defects on the sponsor portal were examined and deliberately left, both recorded in the engineer-local requirements document: its Google sign-in writes a row and then refuses the person, the same shape fixed here for LinkedIn on the same portal; and it admits WBR-side roles that one of its own request handlers does not recognise, so such an account is admitted and then refused by that handler. Neither is reachable by anything this change adds, and choosing the second's fix is a decision about who may operate the portal.
+
+Verified by [`smoketests/phase-4-5-linkedin-two-portals.md`](smoketests/phase-4-5-linkedin-two-portals.md). The real sign-in half cannot be scripted — the provider asks for an account password — so it was run by hand and its results recorded step by step in that document.
 
 ---
 
