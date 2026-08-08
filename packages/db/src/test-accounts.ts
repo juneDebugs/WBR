@@ -4,7 +4,12 @@ import {
   DELEGATE_REQUIRED_FIELDS,
   DELEGATE_REQUIRED_SELECT,
   type DelegateField,
+  type SponsorReadinessColumn,
 } from './onboarding-policy'
+import {
+  GATE_DEMO_SPONSOR_ID,
+  GATE_DEMO_SPONSOR_PINNED,
+} from './gate-demo-sponsor'
 
 // ─── Canonical demo/test accounts — single source of truth ───────────────────
 //
@@ -25,17 +30,35 @@ import {
 // Keep this list in sync with packages/db/prisma/seed.ts (demoUsers),
 // packages/db/scripts/reset-test-accounts.mjs (ACCOUNTS) and
 // packages/db/scripts/backfill-onboarding-required-fields.mjs (demoFields, for
-// the gate demonstration account only). All four describe the same accounts;
-// this one is the runtime-enforced copy. Three of them pass the attendee
-// onboarding gate; onboarding-demo@test.com is deliberately left blocked by it
-// — see its entry below.
+// the delegate gate demonstration account only). All four describe the same
+// accounts; this one is the runtime-enforced copy. Three of them pass the
+// attendee onboarding gate; onboarding-demo@test.com and
+// sponsor-onboarding-demo@test.com are deliberately left blocked — see their
+// entries below.
 //
-// One account additionally carries `restoreRequiredFields`, which extends the
-// health check to the six profile fields the onboarding gate measures, so its
-// incompleteness returns on every sign-in and a rehearsal cannot use it up.
-// Accounts without that flag are compared exactly as before and are never
-// written by it — that containment is covered by
-// packages/db/scripts/test-canonical-account-restore.ts.
+// ── The two restore mechanisms, and why there are two ────────────────────────
+//
+// A `gate demonstration account` (CONTEXT.md) returns to its incomplete state
+// on every password sign-in, so a rehearsal cannot use it up. There is one per
+// kind of participant, and they are NOT restored by the same code, because the
+// two kinds are measured on different subjects:
+//
+//   - `restoreRequiredFields` extends the health check to the six DELEGATE
+//     profile fields the gate measures on the User row itself. This is what the
+//     attendee app and the meetings portal read.
+//   - `restoreSponsorCompany` pins named columns on the SPONSOR COMPANY the
+//     account is attached to. This is what the sponsor portal reads: a sponsor
+//     representative's own profile is not consulted there at all.
+//
+// Setting the first on a sponsor account would restore fields nothing on that
+// portal reads and leave the company completed, so the demonstration would
+// still be used up. Recorded as UF-59.
+//
+// Accounts carrying neither flag are compared exactly as they were before
+// either existed, and are never written by either. That containment is the
+// property the phase 2 and phase 3 acceptance criteria are about, and it is
+// covered by packages/db/scripts/test-canonical-account-restore.ts and
+// packages/db/scripts/test-sponsor-gate-demo.ts.
 
 // The Tailor ERP sponsor company the Sponsor account links to (see seed.ts).
 export const TAILOR_SPONSOR_ID = 'cmngb2h4h0007vm28mbcpxjg5'
@@ -101,6 +124,46 @@ export interface CanonicalTestAccount {
    * whole definition.
    */
   restoreRequiredFields?: true
+  /**
+   * Mark this account the SPONSOR-SIDE `gate demonstration account`: the named
+   * columns on the exhibiting company at `sponsorId` are pinned to the values
+   * below and put back when the stored row disagrees.
+   *
+   * This is the second of the two restore mechanisms described at the top of
+   * this file, and it exists because `restoreRequiredFields` cannot do this job
+   * (UF-59). That flag restores DELEGATE_REQUIRED_FIELDS on the User row; the
+   * sponsor onboarding gate never looks at a representative's own profile, only
+   * at their attached Sponsor company's six required items.
+   *
+   * PASSWORD SIGN-IN ONLY, exactly as `restoreRequiredFields` is, and for the
+   * same reason: this whole function is called from authorize(), which only the
+   * email-and-password provider runs. The same operational assumption applies —
+   * the address is at @test.com and no Google or LinkedIn account is expected
+   * to hold one. Recorded at length as UF-43.
+   *
+   * WHAT IT WRITES IS EXACTLY WHAT IS LISTED, AND ONLY WHEN IT DISAGREES.
+   * Not the whole company definition. A restore wider than the pin would keep
+   * rewriting the tagline, description, logo, website and offerings on every
+   * sign-in for as long as they differed from the file, which is the trap UF-40
+   * and UF-47 record on the delegate half. Only the columns that actually
+   * differ are written, so a settled row costs one read and no write.
+   *
+   * IT DOES NOT CREATE THE COMPANY. If the Sponsor row is absent this is a
+   * no-op, deliberately, and that is a real limitation rather than an
+   * oversight. The delegate half creates its User row when missing because a
+   * User is self-contained; a Sponsor belongs to a Conference this function
+   * would have to go and find, on a path that runs on every canonical sign-in,
+   * to write event content from a login. The recovery for a deleted company is
+   * `packages/db/scripts/reset-test-accounts.mjs`, which recreates it, and the
+   * visible symptom in the meantime is the sponsor portal's existing "no
+   * exhibiting company attached" refusal rather than a silent wrong state.
+   *
+   * CONTAINMENT. Only an account carrying this field is ever compared, and the
+   * company written is only ever the one that account's own `sponsorId` names —
+   * there is no second identifier to drift. `sponsor@test.com` carries no such
+   * field, so Tailor ERP is never read and never written by this.
+   */
+  restoreSponsorCompany?: Readonly<Partial<Record<SponsorReadinessColumn, string | null>>>
 }
 
 export const CANONICAL_TEST_ACCOUNTS: CanonicalTestAccount[] = [
@@ -181,6 +244,42 @@ export const CANONICAL_TEST_ACCOUNTS: CanonicalTestAccount[] = [
     solutionsSeeking: JSON.stringify([]),
     restoreRequiredFields: true,
   },
+  {
+    // DELIBERATELY BLOCKED, ON THE SPONSOR PORTAL. The sponsor-side counterpart
+    // of onboarding-demo@test.com above, and the reason it has to exist at all:
+    // the account documented as reaching all four applications is wbr@test.com,
+    // which holds ORGANIZER, and the gate releases every WBR-side role before
+    // asking any completeness question — so there was no account the sponsor
+    // gate could stop, and it could not be demonstrated (UF-8).
+    //
+    // Do NOT "fix" this account or its company. Both are doing their job when
+    // the checklist appears.
+    //
+    // WHAT IS INCOMPLETE IS THE COMPANY, NOT THIS PERSON. The six delegate
+    // fields below are all filled, on purpose: the attendee app admits the
+    // SPONSOR role too, so leaving them short would block this account THERE as
+    // well and produce a second, unintended gate demonstration on a screen
+    // nobody meant to show. The incompleteness that matters lives on the
+    // Gate Demo Exhibitor company — see ./gate-demo-sponsor.ts — and is put
+    // back by `restoreSponsorCompany` below.
+    id: 'test-sponsor-onboarding-demo',
+    email: 'sponsor-onboarding-demo@test.com',
+    password: 'password123',
+    name: 'Sponsor Gate Demo',
+    role: 'SPONSOR',
+    company: 'Gate Demo Exhibitor',
+    jobTitle: 'Exhibitor Manager',
+    sponsorId: GATE_DEMO_SPONSOR_ID,
+    // A face none of the other four use. UF-40 recorded that
+    // onboarding-demo@test.com and stephcurry@test.com already share one, which
+    // matters if a screen ever shows both at once; this does not add a third to
+    // that pair. Checked rather than assumed: this address answers 200.
+    image: HEADSHOT('photo-1500648767791-00dcc994a43e'),
+    companySize: 'SMB',
+    annualRevenue: '1M-10M',
+    solutionsSeeking: JSON.stringify(['Analytics & Reporting']),
+    restoreSponsorCompany: GATE_DEMO_SPONSOR_PINNED,
+  },
 ]
 
 const CANONICAL_BY_EMAIL = new Map(CANONICAL_TEST_ACCOUNTS.map((a) => [a.email, a]))
@@ -250,6 +349,63 @@ function requiredFieldsMatchDefinition(
   return true
 }
 
+/**
+ * Put the sponsor-side gate demonstration company back to its pinned columns.
+ *
+ * Returns true if a write was performed, false in every other case — including
+ * the two that are NOT failures and must not be reported as one: an account
+ * that carries no pin, and a company whose stored columns already agree.
+ *
+ * WHY THIS IS NOT FOLDED INTO THE USER-ROW HEALTH CHECK. The two are
+ * independent questions about two different rows. A user row can be perfectly
+ * healthy while the company it points at has been completed by hand during a
+ * rehearsal — which is the exact state this whole phase exists to recover from.
+ * Its caller therefore runs this even when the user row needed nothing.
+ *
+ * ORDER. It runs AFTER the user-row repair, so that on the sign-in where a
+ * missing account is recreated, the company it links to is settled once the
+ * link exists rather than before it.
+ */
+async function restoreSponsorCompanyPin(def: CanonicalTestAccount): Promise<boolean> {
+  const pin = def.restoreSponsorCompany
+  // The containment property, as a single early return, matching the shape
+  // requiredFieldsMatchDefinition() uses for the delegate half: an account
+  // without the field is never compared and its company is never read.
+  if (!pin) return false
+  if (!def.sponsorId) return false
+
+  const columns = Object.keys(pin) as SponsorReadinessColumn[]
+  if (columns.length === 0) return false
+
+  const select: Record<string, true> = {}
+  for (const column of columns) select[column] = true
+
+  const row = (await prisma.sponsor.findUnique({
+    where: { id: def.sponsorId },
+    select,
+  })) as Record<string, string | null> | null
+
+  // Company absent. A no-op by design, not a silent failure to restore — see
+  // the note at `restoreSponsorCompany`'s definition for why this path does not
+  // create a Sponsor row, and what recreates it instead.
+  if (!row) return false
+
+  const drifted = columns.filter(column => (row[column] ?? null) !== (pin[column] ?? null))
+  if (drifted.length === 0) return false
+
+  // Only the columns that actually differ. A write covering every pinned column
+  // would settle too, but this keeps the write as narrow as the drift and makes
+  // the log line below say what really changed.
+  const data: Record<string, string | null> = {}
+  for (const column of drifted) data[column] = pin[column] ?? null
+
+  await prisma.sponsor.update({ where: { id: def.sponsorId }, data })
+  console.warn(
+    `[test-accounts] Restored gate demonstration company ${def.sponsorId}: ${drifted.join(', ')}`,
+  )
+  return true
+}
+
 function buildData(def: CanonicalTestAccount, passwordHash: string, sponsorId: string | null) {
   return {
     email: def.email,
@@ -300,47 +456,61 @@ export async function ensureCanonicalTestAccount(email: string, submittedPasswor
       select: { id: true, password: true, role: true, sponsorId: true, ...DELEGATE_REQUIRED_SELECT },
     })
 
-    // Already healthy? No write needed.
+    // Already healthy? No write needed to the USER ROW.
     //
     // The required-field comparison sits BEFORE verifyPassword deliberately:
     // it is six string comparisons against a row already in hand, while
     // verifyPassword runs scrypt. Putting the cheap test first means a gate
     // demonstration account that needs restoring skips the hash entirely.
-    if (
+    const userRowHealthy = !!(
       existing &&
       existing.password &&
       existing.role === def.role &&
       (existing.sponsorId ?? null) === (def.sponsorId ?? null) &&
       requiredFieldsMatchDefinition(def, existing) &&
       (await verifyPassword(def.password, existing.password))
-    ) {
-      return false
+    )
+
+    // THIS USED TO BE `return false`, AND IT CANNOT BE ANY MORE (UF-59). A
+    // healthy user row says nothing about the exhibiting company the sponsor
+    // gate actually measures, and "the account is fine but a rehearsal
+    // completed its company" is precisely the state the sponsor-side
+    // demonstration has to recover from. Both restores are therefore
+    // considered on every call, and the return value is whether EITHER wrote.
+    let wrote = false
+
+    if (!userRowHealthy) {
+      const passwordHash = await hashPassword(def.password)
+
+      // The Sponsor account links to a sponsor company via FK. If that row is
+      // missing, fall back to a null link so the login still works rather than
+      // failing the write on a foreign-key violation.
+      let sponsorId = def.sponsorId
+      if (sponsorId) {
+        const sponsorExists = await prisma.sponsor.findUnique({ where: { id: sponsorId }, select: { id: true } })
+        if (!sponsorExists) sponsorId = null
+      }
+
+      const data = buildData(def, passwordHash, sponsorId)
+
+      // Upsert by email, with an id-collision fallback (mirrors seed.ts / reset).
+      if (existing) {
+        await prisma.user.update({ where: { email: def.email }, data })
+      } else {
+        const byId = await prisma.user.findUnique({ where: { id: def.id }, select: { id: true } })
+        if (byId) await prisma.user.update({ where: { id: def.id }, data })
+        else await prisma.user.create({ data: { id: def.id, ...data } })
+      }
+
+      console.warn(`[test-accounts] Self-healed canonical demo account: ${def.email}`)
+      wrote = true
     }
 
-    const passwordHash = await hashPassword(def.password)
+    // Runs whether or not the user row needed anything. A no-op for every
+    // account that carries no company pin, which is four of the five.
+    if (await restoreSponsorCompanyPin(def)) wrote = true
 
-    // The Sponsor account links to a sponsor company via FK. If that row is
-    // missing, fall back to a null link so the login still works rather than
-    // failing the write on a foreign-key violation.
-    let sponsorId = def.sponsorId
-    if (sponsorId) {
-      const sponsorExists = await prisma.sponsor.findUnique({ where: { id: sponsorId }, select: { id: true } })
-      if (!sponsorExists) sponsorId = null
-    }
-
-    const data = buildData(def, passwordHash, sponsorId)
-
-    // Upsert by email, with an id-collision fallback (mirrors seed.ts / reset).
-    if (existing) {
-      await prisma.user.update({ where: { email: def.email }, data })
-    } else {
-      const byId = await prisma.user.findUnique({ where: { id: def.id }, select: { id: true } })
-      if (byId) await prisma.user.update({ where: { id: def.id }, data })
-      else await prisma.user.create({ data: { id: def.id, ...data } })
-    }
-
-    console.warn(`[test-accounts] Self-healed canonical demo account: ${def.email}`)
-    return true
+    return wrote
   } catch (e: any) {
     // Never let a heal failure block the login flow; the normal credential
     // check below will simply fail if the row is still bad.

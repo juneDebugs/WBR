@@ -108,7 +108,8 @@
     "test:accounts": "node scripts/test-test-accounts.mjs",
     "e2e:accounts": "node scripts/e2e-app-access-all.mjs",
     "db:backfill-onboarding": "node packages/db/scripts/backfill-onboarding-required-fields.mjs",
-    "test:canonical-restore": "pnpm --filter @conference/db test:canonical-restore"
+    "test:canonical-restore": "pnpm --filter @conference/db test:canonical-restore",
+    "test:sponsor-gate-demo": "pnpm --filter @conference/db test:sponsor-gate-demo"
   },
   "devDependencies": {
     "playwright": "^1.61.1",

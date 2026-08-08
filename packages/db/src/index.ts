@@ -14,6 +14,10 @@ export * from './chat-settings'
 export * from './meeting-engine'
 export { verifyPassword, hashPassword } from './password'
 export * from './test-accounts'
+// The sponsor-side gate demonstration company. Pure data, no imports of its
+// own, so the seed and the reset script can read it without constructing a
+// second Prisma client — see that module's header.
+export * from './gate-demo-sponsor'
 export * from './login-tracking'
 import type { ConfSession, Speaker } from '@prisma/client'
 
